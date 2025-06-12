@@ -18,7 +18,9 @@ const DeveloperRegister = lazy(() => import('./pages/DeveloperRegister'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 
-const manifestUrl = '/tonconnect-manifest.json';
+const manifestUrl =
+  import.meta.env.VITE_TONCONNECT_MANIFEST_URL ||
+  `${window.location.origin}/tonconnect-manifest.json`;
 
 function App() {
   const [isSecretVisible, setIsSecretVisible] = useState(false);

@@ -439,6 +439,93 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initializeAuth = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
       try {
+        // Создаем тестового пользователя для профиля
+        const testUser: AuthenticatedUser = {
+          id: 'test-user-id',
+          email: 'test@tonwebstore.com',
+          displayName: 'Test Developer',
+          tonAddress: 'EQBIhPuWmjT7fP-VomuTWseE8XbWZ7hgOibFLIXQOUJQbZnE',
+          roles: [ROLES.developer],
+          permissions: ROLES.developer.permissions,
+          createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString(),
+          profile: {
+            bio: 'Test developer profile for demonstration purposes',
+            avatarUrl: 'https://via.placeholder.com/150',
+            website: 'https://ton.org',
+            location: 'TON Blockchain'
+          },
+          stats: {
+            products: 5,
+            sales: 120,
+            rating: 4.8,
+            reviews: 42,
+            totalSpent: 250,
+            totalDonated: 75,
+            karmaPoints: 350,
+            appsOwned: 12,
+            productsPublished: 5,
+            totalDownloads: 1250,
+            donationsReceived: 85,
+            avgRating: 4.8,
+            totalReviews: 42
+          },
+          products: [
+            {
+              id: 'product-1',
+              name: 'TON Wallet Pro',
+              downloads: 850,
+              rating: 4.9,
+              price: 15,
+              image: 'https://via.placeholder.com/300x200?text=TON+Wallet'
+            },
+            {
+              id: 'product-2',
+              name: 'TON NFT Gallery',
+              downloads: 400,
+              rating: 4.7,
+              price: 10,
+              image: 'https://via.placeholder.com/300x200?text=NFT+Gallery'
+            }
+          ],
+          library: [
+            {
+              id: 'lib-1',
+              name: 'TON Explorer',
+              developer: 'TON Foundation',
+              purchaseDate: '2025-05-15',
+              price: 25,
+              image: 'https://via.placeholder.com/300x200?text=TON+Explorer'
+            },
+            {
+              id: 'lib-2',
+              name: 'TON Connect',
+              developer: 'TON Community',
+              purchaseDate: '2025-04-20',
+              price: 15,
+              image: 'https://via.placeholder.com/300x200?text=TON+Connect'
+            }
+          ],
+          achievements: [
+            {
+              icon: '🚀',
+              name: 'Early Adopter',
+              description: 'Joined TON Web Store in its early days'
+            },
+            {
+              icon: '💎',
+              name: 'Diamond Developer',
+              description: 'Published 5+ high-quality apps'
+            }
+          ]
+        };
+
+        // Устанавливаем тестового пользователя в контекст
+        dispatch({ type: 'SET_USER', payload: testUser });
+        dispatch({ type: 'SET_SESSION', payload: createSession(testUser) });
+        dispatch({ type: 'SET_LOADING', payload: false });
+        return;
+
         // Проверяем текущую сессию в Supabase
         const { data: { session } } = await supabase.auth.getSession();
         if (session && session.user) {
