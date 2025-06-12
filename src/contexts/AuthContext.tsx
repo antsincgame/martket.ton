@@ -392,6 +392,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Метод для обновления данных пользователя, например, после регистрации разработчика
+  const updateUser = useCallback(async (updatedData: Partial<AuthenticatedUser>) => {
+    if (!state.user) return;
+    const updatedUser = { ...state.user, ...updatedData };
+    dispatch({ type: 'SET_USER', payload: updatedUser });
+    dispatch({ type: 'SET_SESSION', payload: createSession(updatedUser) });
+    // Также обновляем данные в Supabase Auth, если нужно
+    if (updatedData.roles || updatedData.displayName) {
+      await supabase.auth.updateUser({
+        data: {
+          roles: updatedData.roles || state.user.roles,
+          display_name: updatedData.displayName || state.user.displayName
+        }
+      });
+    }
+  }, [state.user]);
+
   const contextValue: AuthContextValue = {
     user: state.user,
     session: state.session,
@@ -414,8 +431,137 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     getSecurityAlerts,
     logAuditEvent,
     login,
-    fetchProfile
+    fetchProfile,
+    updateUser
   };
+
+  useEffect(() => {
+    const initializeAuth = async () => {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      try {
+        // Проверяем текущую сессию в Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session && session.user) {
+          const { user } = session;
+          // Проверяем user_metadata на наличие ролей
+          const roles = user.user_metadata?.roles || [];
+          // Загружаем дополнительные данные из таблицы developers, если есть
+          let profileData = {
+            bio: '',
+            avatarUrl: '',
+            website: '',
+            location: ''
+          };
+          let tonAddress = '';
+          if (roles.includes('developer')) {
+            const { data: developerData, error } = await supabase
+              .from('developers')
+              .select('description, ton_address')
+              .eq('email', user.email)
+              .single();
+            if (!error && developerData) {
+              profileData.bio = developerData.description;
+              tonAddress = developerData.ton_address;
+            }
+          }
+          // Формируем объект пользователя для AuthContext
+          const authUser: AuthenticatedUser = {
+            id: user.id,
+            email: user.email || '',
+            displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
+            tonAddress: tonAddress,
+            roles: roles,
+            createdAt: user.created_at || new Date().toISOString(),
+            lastLogin: user.last_sign_in_at || new Date().toISOString(),
+            profile: profileData,
+            stats: {
+              products: 0,
+              sales: 0,
+              rating: 0,
+              reviews: 0
+            },
+            products: [],
+            library: [],
+            achievements: []
+          };
+          dispatch({ type: 'SET_USER', payload: authUser });
+          dispatch({ type: 'SET_SESSION', payload: createSession(authUser) });
+        }
+      } catch (err) {
+        console.error('Error initializing auth:', err);
+        dispatch({ type: 'SET_ERROR', payload: 'Failed to initialize authentication' });
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
+      }
+    };
+    initializeAuth();
+
+    // Подписываемся на изменения состояния аутентификации
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session && session.user) {
+        const roles = session.user.user_metadata?.roles || [];
+        const authUser: AuthenticatedUser = {
+          id: session.user.id,
+          email: session.user.email || '',
+          displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
+          tonAddress: '', // TODO: Загрузить tonAddress из Supabase, если нужно
+          roles: roles,
+          createdAt: session.user.created_at || new Date().toISOString(),
+          lastLogin: session.user.last_sign_in_at || new Date().toISOString(),
+          profile: {
+            bio: '',
+            avatarUrl: '',
+            website: '',
+            location: ''
+          },
+          stats: {
+            products: 0,
+            sales: 0,
+            rating: 0,
+            reviews: 0
+          },
+          products: [],
+          library: [],
+          achievements: []
+        };
+        dispatch({ type: 'SET_USER', payload: authUser });
+        dispatch({ type: 'SET_SESSION', payload: createSession(authUser) });
+      } else {
+        dispatch({ type: 'LOGOUT' });
+      }
+    });
+
+    // Подписываемся на изменения данных пользователя в таблице developers
+    let subscription;
+    if (state.user && state.user.roles.includes('developer')) {
+      subscription = supabase
+        .from('developers')
+        .on('UPDATE', async (payload) => {
+          if (payload.new.email === state.user?.email) {
+            const updatedProfile = {
+              bio: payload.new.description || state.user?.profile.bio || '',
+              avatarUrl: state.user?.profile.avatarUrl || '',
+              website: state.user?.profile.website || '',
+              location: state.user?.profile.location || ''
+            };
+            const updatedUser = {
+              ...state.user,
+              tonAddress: payload.new.ton_address || state.user?.tonAddress,
+              profile: updatedProfile
+            };
+            dispatch({ type: 'SET_USER', payload: updatedUser });
+          }
+        })
+        .subscribe();
+    }
+
+    return () => {
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+      authListener.subscription.unsubscribe();
+    };
+  }, [state.user]);
 
   return (
     <AuthContext.Provider value={contextValue}>
