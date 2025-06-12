@@ -443,10 +443,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const testUser: AuthenticatedUser = {
           id: 'test-user-id',
           email: 'test@tonwebstore.com',
-          displayName: 'Test Developer',
+          displayName: 'Test Admin & Developer',
           tonAddress: 'EQBIhPuWmjT7fP-VomuTWseE8XbWZ7hgOibFLIXQOUJQbZnE',
-          roles: [ROLES.developer],
-          permissions: ROLES.developer.permissions,
+          roles: [ROLES.developer, ROLES.admin],
+          permissions: [...ROLES.developer.permissions, ...ROLES.admin.permissions],
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString(),
           profile: {
