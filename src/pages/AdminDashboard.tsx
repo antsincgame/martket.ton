@@ -6,11 +6,27 @@ import UserManagement from '../components/UserManagement';
 import AuditLogs from '../components/AuditLogs';
 
 const AdminDashboard = () => {
-  const { user, hasPermission, getSecurityLevel, hasRole } = useAuth();
+  const { user, hasPermission, getSecurityLevel, hasRole, isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('security');
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-20 h-20 border-4 border-ton-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+          <h2 className="text-xl font-display font-bold text-white mb-2">
+            Loading Admin Dashboard...
+          </h2>
+          <p className="text-gray-400">
+            Please wait while we gather your divine data ✨
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Проверяем права доступа
-  if (!hasRole('admin') && !hasRole('super_admin')) {
+  if (!isAuthenticated || !user || (!hasRole('admin') && !hasRole('super_admin'))) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="bg-white/5 backdrop-blur-sm border border-red-500/20 rounded-3xl p-8 max-w-md w-full text-center">
@@ -123,17 +139,17 @@ const AdminDashboard = () => {
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
                 <div className="flex items-center space-x-4">
                   <div className="w-12 h-12 bg-mystical-gradient rounded-full flex items-center justify-center text-white text-xl">
-                    {user.profile.avatar}
+                    {user.avatar || '👤'}
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">{user.profile.displayName}</h3>
+                    <h3 className="text-xl font-bold text-white">{user.displayName || 'Admin User'}</h3>
                     <div className="flex items-center space-x-4 text-sm">
                       <span className="text-gray-400">
                         Roles: {user.roles.map(role => role.name.replace('_', ' ')).join(', ')} 🪄
                       </span>
                       <span className="text-gray-400">•</span>
                       <span className="text-blue-400 font-mono">
-                        {user.tonAddress.slice(0, 8)}...{user.tonAddress.slice(-8)}
+                        {user.tonAddress?.slice(0, 8)}...{user.tonAddress?.slice(-8) || 'N/A'}
                       </span>
                     </div>
                   </div>

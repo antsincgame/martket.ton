@@ -1,82 +1,76 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Plus, TrendingUp, DollarSign, Users, Heart, Star, Upload, Sparkles, Gem } from 'lucide-react';
 import DeveloperRegisterModal from '../components/DeveloperRegisterModal';
 import { useAuth } from '../contexts/AuthContext';
-import { TONWalletAuth } from '../types/auth';
-
-// Мок-структура приложения
-interface AppSummary {
-  id: string;
-  name: string;
-  revenue: number;
-  downloads: number;
-  rating: number;
-  reviews: number;
-  status: string;
-}
-
-// Мок-данные приложений
-const initialApps: AppSummary[] = [
-  {
-    id: 'app-1',
-    name: 'Cosmic Code Editor Pro',
-    revenue: 186.0,
-    downloads: 12500,
-    rating: 4.9,
-    reviews: 42,
-    status: 'Active'
-  },
-  {
-    id: 'app-2',
-    name: 'Sacred Terminal',
-    revenue: 42.3,
-    downloads: 2100,
-    rating: 4.6,
-    reviews: 18,
-    status: 'Active'
-  }
-];
 
 const DeveloperDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
-  const [apps] = useState<AppSummary[]>(initialApps);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [developer, setDeveloper] = useState<{ wallet: string; email: string; name: string } | null>(null);
-  const { authenticateWithTON, user, hasRole } = useAuth();
+  const { hasRole, user, isLoading, isAuthenticated } = useAuth();
 
-  const stats = {
-    totalRevenue: 245.8,
-    totalDownloads: 15420,
-    totalProducts: 4,
-    donationsReceived: 67.3,
-    avgRating: 4.7,
-    totalReviews: 342
+  // Если пользователь не аутентифицирован или не является разработчиком, показываем сообщение
+  const userProducts = user?.products || [];
+  const userStats = user?.stats || {
+    totalSpent: 0,
+    totalDonated: 0,
+    karmaPoints: 0,
+    appsOwned: 0,
+    productsPublished: 0,
+    totalDownloads: 0,
+    donationsReceived: 0,
+    avgRating: 0,
+    totalReviews: 0
   };
 
-  // Открывать модалку автоматически, если пользователь не разработчик
-  useEffect(() => {
-    if (!hasRole('developer')) {
-      setIsRegisterOpen(true);
-    }
-  }, [hasRole]);
+  // Открывать модалку автоматически, если пользователь аутентифицирован, но не разработчик
+  if (isAuthenticated && !hasRole('developer') && !developer) {
+    setIsRegisterOpen(true);
+  }
 
-  async function handleRegister(data: { wallet: string; email: string; name: string }) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-20 h-20 border-4 border-ton-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+          <h2 className="text-xl font-display font-bold text-white mb-2">
+            Loading Developer Dashboard...
+          </h2>
+          <p className="text-gray-400">
+            Please wait while we gather your divine data ✨
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-8 max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-ton-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Sparkles className="w-10 h-10 text-ton-400" />
+          </div>
+          <h1 className="text-2xl font-display font-bold text-white mb-4">
+            🪷 Developer Dashboard Awaits
+          </h1>
+          <p className="text-gray-300 mb-6">
+            Connect your TON wallet to access your enlightened dashboard and begin your developer journey.
+          </p>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="w-full bg-ton-gradient hover:scale-105 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg"
+          >
+            Connect Wallet & Begin 🔮
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function handleRegister(data: { wallet: string; email: string; name: string }) {
     setDeveloper(data);
-    
-    // Мок-данные TONWalletAuth для автоматической авторизации
-    const walletAuth: TONWalletAuth = {
-      address: data.wallet,
-      publicKey: 'mock_public_key',
-      signature: 'mock_signature_data_very_long_string_to_simulate_real_signature',
-      timestamp: Date.now(),
-      network: 'testnet'
-    };
-    
-    try {
-      await authenticateWithTON(walletAuth);
-    } catch (error) {
-      console.log('Auto-authentication after registration failed:', error);
-    }
+    // TODO: Реализовать регистрацию разработчика через Supabase
   }
 
   return (
@@ -91,7 +85,7 @@ const DeveloperDashboard = () => {
             </h1>
             <p className="text-gray-400">Manage your digital treasures and sacred offerings 🪄</p>
           </div>
-          {!developer && (
+          {!developer && !hasRole('developer') && (
             <button
               className="mt-4 md:mt-0 bg-ton-gradient hover:scale-105 text-white font-semibold px-6 py-3 rounded-full transition-all duration-300 shadow-lg hover:shadow-ton-500/50 flex items-center space-x-2"
               onClick={() => setIsRegisterOpen(true)}
@@ -116,7 +110,7 @@ const DeveloperDashboard = () => {
               </div>
               <TrendingUp className="w-5 h-5 text-green-400" />
             </div>
-            <div className="text-2xl font-bold text-white mb-1">{stats.totalRevenue} TON</div>
+            <div className="text-2xl font-bold text-white mb-1">{userStats.donationsReceived || 0} TON</div>
             <div className="text-gray-400 text-sm">Total Revenue 💰</div>
           </div>
 
@@ -127,7 +121,7 @@ const DeveloperDashboard = () => {
               </div>
               <TrendingUp className="w-5 h-5 text-blue-400" />
             </div>
-            <div className="text-2xl font-bold text-white mb-1">{stats.totalDownloads.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-white mb-1">{(userStats.totalDownloads || 0).toLocaleString()}</div>
             <div className="text-gray-400 text-sm">Total Downloads 📈</div>
           </div>
 
@@ -138,7 +132,7 @@ const DeveloperDashboard = () => {
               </div>
               <span className="text-purple-400 text-sm font-medium">Active</span>
             </div>
-            <div className="text-2xl font-bold text-white mb-1">{stats.totalProducts}</div>
+            <div className="text-2xl font-bold text-white mb-1">{userStats.productsPublished || 0}</div>
             <div className="text-gray-400 text-sm">Active Products 🚀</div>
           </div>
 
@@ -149,7 +143,7 @@ const DeveloperDashboard = () => {
               </div>
               <TrendingUp className="w-5 h-5 text-pink-400" />
             </div>
-            <div className="text-2xl font-bold text-white mb-1">{stats.donationsReceived} TON</div>
+            <div className="text-2xl font-bold text-white mb-1">{userStats.donationsReceived || 0} TON</div>
             <div className="text-gray-400 text-sm">Donations Received ❤️</div>
           </div>
 
@@ -160,7 +154,7 @@ const DeveloperDashboard = () => {
               </div>
               <span className="text-yellow-400 text-sm font-medium">Excellent</span>
             </div>
-            <div className="text-2xl font-bold text-white mb-1">{stats.avgRating}</div>
+            <div className="text-2xl font-bold text-white mb-1">{userStats.avgRating || 0}</div>
             <div className="text-gray-400 text-sm">Average Rating ⭐</div>
           </div>
 
@@ -171,7 +165,7 @@ const DeveloperDashboard = () => {
               </div>
               <span className="text-indigo-400 text-sm font-medium">Growing</span>
             </div>
-            <div className="text-2xl font-bold text-white mb-1">{stats.totalReviews}</div>
+            <div className="text-2xl font-bold text-white mb-1">{userStats.totalReviews || 0}</div>
             <div className="text-gray-400 text-sm">Total Reviews 💬</div>
           </div>
         </div>
@@ -212,11 +206,11 @@ const DeveloperDashboard = () => {
               <div className="bg-white/5 rounded-xl p-6 mb-6">
                 <div className="text-center">
                   <div className="text-4xl font-display font-bold text-ton-400 mb-2">
-                    {stats.totalRevenue} TON
+                    {userStats.donationsReceived} TON
                   </div>
                   <p className="text-gray-400 mb-4">Total Earnings This Month</p>
                   <div className="text-green-400 font-medium">
-                    +12.5% from last month 📈
+                    Sacred offerings received ✨
                   </div>
                 </div>
               </div>
@@ -225,36 +219,46 @@ const DeveloperDashboard = () => {
                 <div className="bg-white/5 rounded-xl p-6">
                   <h3 className="font-semibold text-white mb-4">Top Performing Products</h3>
                   <div className="space-y-3">
-                    {apps.slice(0, 3).map((app, index) => (
-                      <div key={app.id} className="flex items-center justify-between">
+                    {userProducts.slice(0, 3).map((product, index) => (
+                      <div key={product.id} className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
                             index === 0 ? 'bg-gold' : index === 1 ? 'bg-silver' : 'bg-bronze'
                           }`}>
                             {index + 1}
                           </div>
-                          <span className="text-white">{app.name}</span>
+                          <span className="text-white">{product.name}</span>
                         </div>
-                        <span className="text-ton-400 font-semibold">{app.revenue} TON</span>
+                        <span className="text-ton-400 font-semibold">{product.price} TON</span>
                       </div>
                     ))}
+                    {userProducts.length === 0 && (
+                      <div className="text-center text-gray-400 py-8">
+                        No products yet. Start creating! 🚀
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="bg-white/5 rounded-xl p-6">
                   <h3 className="font-semibold text-white mb-4">Sacred Donation Ranking</h3>
                   <div className="space-y-3">
-                    {apps.sort((a, b) => b.revenue - a.revenue).slice(0, 3).map((app, index) => (
-                      <div key={app.id} className="flex items-center justify-between">
+                    {userProducts.sort((a, b) => b.price - a.price).slice(0, 3).map((product, index) => (
+                      <div key={product.id} className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <div className="text-2xl">
                             {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
                           </div>
-                          <span className="text-white">{app.name}</span>
+                          <span className="text-white">{product.name}</span>
                         </div>
-                        <span className="text-pink-400 font-semibold">{app.revenue} TON ❤️</span>
+                        <span className="text-pink-400 font-semibold">{product.price} TON ❤️</span>
                       </div>
                     ))}
+                    {userProducts.length === 0 && (
+                      <div className="text-center text-gray-400 py-8">
+                        Upload products to see rankings! ✨
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -268,36 +272,32 @@ const DeveloperDashboard = () => {
                 Your Sacred Products
               </h2>
               <div className="space-y-4">
-                {apps.map((app) => (
-                  <div key={app.id} className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all">
+                {userProducts.map((product) => (
+                  <div key={product.id} className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all">
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="text-xl font-semibold text-white">{app.name}</h3>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            app.status === 'Active' 
-                              ? 'bg-green-500/20 text-green-400' 
-                              : 'bg-yellow-500/20 text-yellow-400'
-                          }`}>
-                            {app.status}
+                          <h3 className="text-xl font-semibold text-white">{product.name}</h3>
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
+                            Active
                           </span>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
-                            <span className="text-gray-400">Revenue:</span>
-                            <div className="text-green-400 font-semibold">{app.revenue} TON</div>
+                            <span className="text-gray-400">Price:</span>
+                            <div className="text-green-400 font-semibold">{product.price} TON</div>
                           </div>
                           <div>
                             <span className="text-gray-400">Downloads:</span>
-                            <div className="text-blue-400 font-semibold">{app.downloads.toLocaleString()}</div>
+                            <div className="text-blue-400 font-semibold">{product.downloads.toLocaleString()}</div>
                           </div>
                           <div>
                             <span className="text-gray-400">Rating:</span>
-                            <div className="text-yellow-400 font-semibold">{app.rating} ⭐</div>
+                            <div className="text-yellow-400 font-semibold">{product.rating} ⭐</div>
                           </div>
                           <div>
-                            <span className="text-gray-400">Reviews:</span>
-                            <div className="text-pink-400 font-semibold">{app.reviews}</div>
+                            <span className="text-gray-400">Downloads:</span>
+                            <div className="text-pink-400 font-semibold">{product.downloads}</div>
                           </div>
                         </div>
                       </div>
@@ -312,6 +312,23 @@ const DeveloperDashboard = () => {
                     </div>
                   </div>
                 ))}
+                {userProducts.length === 0 && (
+                  <div className="text-center py-12">
+                    <div className="w-20 h-20 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Gem className="w-10 h-10 text-purple-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-2">No Products Yet</h3>
+                    <p className="text-gray-400 mb-6">
+                      Start your sacred journey by uploading your first digital treasure! ✨
+                    </p>
+                    <button 
+                      onClick={() => setActiveTab('upload')}
+                      className="bg-ton-gradient hover:scale-105 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 shadow-lg"
+                    >
+                      Upload Your First Product 🚀
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -367,7 +384,7 @@ const DeveloperDashboard = () => {
                     <Heart className="w-8 h-8 text-pink-400" />
                   </div>
                   <p className="text-gray-400">
-                    No donations yet. Start blessing your products to increase their sacred ranking! ✨
+                    Total donations received: <span className="text-pink-400 font-semibold">{userStats.donationsReceived} TON</span> ✨
                   </p>
                 </div>
               </div>

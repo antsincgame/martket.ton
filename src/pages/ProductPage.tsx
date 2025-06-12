@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles } from 'lucide-react';
 
+// TODO: В будущем заменить статические mock-данные на динамические данные из Supabase
 const ProductPage = () => {
   const { id } = useParams();
   const [selectedImage, setSelectedImage] = useState(0);
 
+  // TODO: Получать данные о продукте из Supabase на основе id
   // Mock product data
   const product = {
     id: id,
@@ -49,6 +51,7 @@ const ProductPage = () => {
     tags: ['Editor', 'AI', 'Productivity', 'Sacred', 'Mindfulness']
   };
 
+  // TODO: Получать отзывы о продукте из Supabase
   const reviews = [
     {
       id: 1,

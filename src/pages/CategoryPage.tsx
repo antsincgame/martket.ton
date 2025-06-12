@@ -3,12 +3,14 @@ import { useParams } from 'react-router-dom';
 import { Filter, SortDesc, Grid, List, Star, TrendingUp } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 
+// TODO: В будущем заменить статические mock-данные на динамические данные из Supabase
 const CategoryPage = () => {
   const { category } = useParams();
   const [viewMode, setViewMode] = useState('grid');
   const [sortBy, setSortBy] = useState('popularity');
   const [showFilters, setShowFilters] = useState(false);
 
+  // TODO: Получать информацию о категориях из Supabase
   const categoryInfo = {
     'apps': {
       title: 'Sacred Apps',
@@ -38,6 +40,7 @@ const CategoryPage = () => {
 
   const currentCategory = categoryInfo[category as keyof typeof categoryInfo] || categoryInfo['apps'];
 
+  // TODO: Получать список продуктов из Supabase на основе выбранной категории
   const products = [
     {
       id: '1',

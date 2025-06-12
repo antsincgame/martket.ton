@@ -6,7 +6,7 @@ import { TonConnectButton, useTonAddress } from '@tonconnect/ui-react';
 
 const DeveloperRegister = () => {
   const navigate = useNavigate();
-  const { authenticateWithTON } = useAuth();
+  const { hasRole, isAuthenticated, isLoading } = useAuth();
   const tonAddress = useTonAddress();
   const [formData, setFormData] = useState({
     name: '',
@@ -14,7 +14,7 @@ const DeveloperRegister = () => {
     description: ''
   });
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (tonAddress) {
@@ -22,10 +22,31 @@ const DeveloperRegister = () => {
     }
   }, [tonAddress]);
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="w-20 h-20 border-4 border-ton-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+          <h2 className="text-xl font-display font-bold text-white mb-2">
+            Loading Developer Registration...
+          </h2>
+          <p className="text-gray-400">
+            Please wait while we prepare your journey ✨
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated && hasRole('developer')) {
+    navigate('/developer');
+    return null;
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     try {
       if (!tonAddress) {
@@ -41,21 +62,15 @@ const DeveloperRegister = () => {
         throw new Error('Please tell us about yourself');
       }
 
-      const walletAuth = {
-        address: tonAddress,
-        publicKey: 'mock_public_key',
-        signature: 'mock_signature',
-        timestamp: Date.now(),
-        network: 'testnet'
-      };
-      
-      await authenticateWithTON(walletAuth);
-      
-      navigate('/developer');
+      // TODO: Реализовать регистрацию разработчика через Supabase
+      // Например, отправить данные формы и tonAddress в Supabase для создания профиля разработчика
+
+      // Временная заглушка до реализации Supabase
+      throw new Error('Developer registration is not yet implemented with Supabase');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -147,12 +162,12 @@ const DeveloperRegister = () => {
 
           <button
             type="submit"
-            disabled={isLoading || !tonAddress}
+            disabled={isSubmitting || !tonAddress}
             className={`w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 flex items-center justify-center space-x-2 ${
-              (isLoading || !tonAddress) ? 'opacity-50 cursor-not-allowed' : ''
+              (isSubmitting || !tonAddress) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
-            {isLoading ? (
+            {isSubmitting ? (
               <>
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 <span>Processing...</span>

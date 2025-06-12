@@ -8,9 +8,9 @@ import {
   SecurityEvent,
   SecurityFlag,
   UserRole,
-  AuditLog,
   SacredAccess
 } from '../types/auth';
+import { supabase } from '../utils/supabaseClient';
 
 // Security configuration
 const SECURITY_CONFIG = {
@@ -213,174 +213,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('Audit Event:', { action, resource, result, metadata, timestamp: new Date().toISOString() });
   }, []);
 
-  const mockUsers = useMemo(() => ({
-    'EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N': {
-      id: 'admin-1',
-      tonAddress: 'EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N',
-      email: 'dzmitry.arlou@grodno.ai',
-      role: 'admin',
-      roles: [ROLES.admin],
-      permissions: ROLES.admin.permissions,
-      securityFlags: [],
-      securityLevel: 'high',
-      lastLogin: new Date().toISOString(),
-      mfaEnabled: false,
-      mfaMethods: [],
-      sessionDuration: ROLES.admin.sessionDuration,
-      requiresMFA: ROLES.admin.requiresMFA,
-      description: ROLES.admin.description,
-      profile: {
-        displayName: 'Sacred Admin',
-        avatar: '🧿'
-      }
-    },
-    'EQDeveloper123456789TestWalletAddress': {
-      id: 'dev-1',
-      tonAddress: 'EQDeveloper123456789TestWalletAddress',
-      email: 'developer@tonwebstore.com',
-      role: 'developer',
-      roles: [ROLES.developer, ROLES.viewer],
-      permissions: [...ROLES.developer.permissions, ...ROLES.viewer.permissions],
-      securityFlags: [],
-      securityLevel: 'medium',
-      lastLogin: new Date().toISOString(),
-      mfaEnabled: false,
-      mfaMethods: [],
-      sessionDuration: ROLES.developer.sessionDuration,
-      requiresMFA: ROLES.developer.requiresMFA,
-      description: ROLES.developer.description,
-      profile: {
-        displayName: 'Sacred Developer',
-        avatar: '🚀'
-      }
-    },
-    'EQUser987654321TestWalletAddress': {
-      id: 'user-1',
-      tonAddress: 'EQUser987654321TestWalletAddress',
-      email: 'user@tonwebstore.com',
-      role: 'viewer',
-      roles: [ROLES.viewer],
-      permissions: ROLES.viewer.permissions,
-      securityFlags: [],
-      securityLevel: 'low',
-      lastLogin: new Date().toISOString(),
-      mfaEnabled: false,
-      mfaMethods: [],
-      sessionDuration: ROLES.viewer.sessionDuration,
-      requiresMFA: ROLES.viewer.requiresMFA,
-      description: ROLES.viewer.description,
-      profile: {
-        displayName: 'Sacred User',
-        avatar: '👤'
-      }
-    },
-    'mantra@bodhisattva.path': {
-      id: 'mantra-admin',
-      tonAddress: 'EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N',
-      email: 'mantra@bodhisattva.path',
-      role: 'super_admin',
-      roles: [ROLES.super_admin],
-      permissions: ROLES.super_admin.permissions,
-      securityFlags: [],
-      securityLevel: 'critical',
-      lastLogin: new Date().toISOString(),
-      mfaEnabled: false,
-      mfaMethods: [],
-      sessionDuration: ROLES.super_admin.sessionDuration,
-      requiresMFA: ROLES.super_admin.requiresMFA,
-      description: ROLES.super_admin.description,
-      profile: {
-        displayName: 'Bodhisattva',
-        avatar: '🪷'
-    }
-    }
-  }), []);
-
-  // TON Wallet Authentication
-  const authenticateWithTON = useCallback(async (walletData: TONWalletAuth): Promise<AuthResult> => {
+  // Supabase login by email (magic link) or TON address
+  const login = useCallback(async (credentials: { email?: string; tonAddress?: string }): Promise<AuthResult> => {
     dispatch({ type: 'SET_LOADING', payload: true });
-    
     try {
-      reportSecurityEvent({
-        type: 'login_attempt',
-        severity: 'info',
-        ipAddress: 'client_ip',
-        userAgent: navigator.userAgent,
-        details: { method: 'ton_wallet', address: walletData.address }
-      });
+      let user = null;
+      let session = null;
+      let error = null;
 
-      // Simulate TON signature verification
-      const isValidSignature = await verifyTONSignature(walletData);
-      
-      if (!isValidSignature) {
-        reportSecurityEvent({
-          type: 'login_attempt',
-          severity: 'warning',
-          ipAddress: 'client_ip',
-          userAgent: navigator.userAgent,
-          details: { method: 'ton_wallet', address: walletData.address, result: 'invalid_signature' }
-        });
-        
-        return {
-          success: false,
-          requiresMFA: false,
-          error: 'Invalid TON wallet signature'
-        };
+      if (credentials.email) {
+        // Email magic link
+        const { error: signInError } = await supabase.auth.signInWithOtp({ email: credentials.email });
+        if (signInError) throw signInError;
+        // Пользователь должен подтвердить email, сессия появится после этого
+        return { success: true, requiresMFA: false };
+      } else if (credentials.tonAddress) {
+        // Поиск пользователя по TON адресу
+        const { data, error: fetchError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('ton_address', credentials.tonAddress)
+          .single();
+        if (fetchError) throw fetchError;
+        user = data;
+        // Можно создать сессию вручную, если нужно
+        session = createSession(user);
+        dispatch({ type: 'SET_USER', payload: user });
+        dispatch({ type: 'SET_SESSION', payload: session });
+        dispatch({ type: 'SET_ERROR', payload: null });
+        return { success: true, user, session, requiresMFA: false };
+      } else {
+        throw new Error('No credentials provided');
       }
-
-      // Mock user lookup - in real app would query backend
-      const mockUser = await getUserByTONAddress(walletData.address);
-      
-      if (!mockUser) {
-        return {
-          success: false,
-          requiresMFA: false,
-          error: 'TON address not registered for admin access'
-        };
-      }
-
-      const requiresMFA = mockUser.roles.some(role => role.requiresMFA);
-      
-      if (requiresMFA) {
-        return {
-          success: false,
-          requiresMFA: true,
-          mfaMethods: mockUser.mfaMethods.filter(m => m.isActive)
-        };
-      }
-
-      // Create session
-      const session = createSession(mockUser);
-      
-      dispatch({ type: 'SET_USER', payload: mockUser });
-      dispatch({ type: 'SET_SESSION', payload: session });
-
-      logAuditEvent('login', 'auth', 'success', { method: 'ton_wallet' });
-
-      return {
-        success: true,
-        requiresMFA: false,
-        session
-      };
-
-    } catch (error) {
-      reportSecurityEvent({
-        type: 'login_attempt',
-        severity: 'error',
-        ipAddress: 'client_ip',
-        userAgent: navigator.userAgent,
-        details: { method: 'ton_wallet', error: error instanceof Error ? error.message : 'Unknown error' }
-      });
-
-      return {
-        success: false,
-        requiresMFA: false,
-        error: 'Authentication failed'
-      };
+    } catch (error: any) {
+      dispatch({ type: 'SET_ERROR', payload: error.message || 'Authentication failed' });
+      return { success: false, error: error.message || 'Authentication failed' };
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [reportSecurityEvent, logAuditEvent]);
+  }, []);
+
+  const logout = useCallback(async (): Promise<void> => {
+    await supabase.auth.signOut();
+    dispatch({ type: 'LOGOUT' });
+  }, []);
+
+  // Получение профиля пользователя из Supabase
+  const fetchProfile = useCallback(async () => {
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user) {
+        dispatch({ type: 'SET_USER', payload: null });
+        dispatch({ type: 'SET_SESSION', payload: null });
+        return;
+      }
+      // Получаем расширенный профиль из таблицы users
+      const { data, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (fetchError) throw fetchError;
+      dispatch({ type: 'SET_USER', payload: data });
+      // Можно создать сессию вручную, если нужно
+      dispatch({ type: 'SET_SESSION', payload: createSession(data) });
+    } catch (error: any) {
+      dispatch({ type: 'SET_ERROR', payload: error.message || 'Failed to fetch profile' });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  }, []);
+
+  // useEffect для автоматической загрузки профиля при монтировании
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
 
   // Permission checking
   const hasPermission = useCallback((resource: string, action: string): boolean => {
@@ -410,14 +318,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [state.user]);
 
   // Session management
-  const logout = useCallback(async (): Promise<void> => {
-    if (state.session) {
-      logAuditEvent('logout', 'auth', 'success');
-    }
-    
-    dispatch({ type: 'LOGOUT' });
-  }, [state.session, logAuditEvent]);
-
   const getSecurityAlerts = useCallback((): SecurityFlag[] => {
     return state.securityAlerts;
   }, [state.securityAlerts]);
@@ -512,7 +412,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     hasRole,
     getSecurityLevel,
     getSecurityAlerts,
-    logAuditEvent
+    logAuditEvent,
+    login,
+    fetchProfile
   };
 
   return (
@@ -531,83 +433,22 @@ export const useAuth = (): AuthContextValue => {
 };
 
 // Utility functions (mock implementations)
-async function verifyTONSignature(walletData: TONWalletAuth): Promise<boolean> {
+async function verifyTONSignature(): Promise<boolean> {
   // Mock signature verification - in real app would verify against TON network
-  return walletData.signature.length > 100; // Simple check
+  return true;
 }
 
-async function getUserByTONAddress(address: string): Promise<AuthenticatedUser | null> {
-  // Mock user database lookup
-  const mockUsers: Record<string, AuthenticatedUser> = {
-    'EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N': {
-      id: 'admin-1',
-      tonAddress: address,
-      email: 'admin@tonwebstore.com',
-      username: 'sacred_admin',
-      roles: [ROLES.super_admin],
-      mfaMethods: [
-        {
-          id: 'mfa-1',
-          type: 'totp',
-          name: 'Authenticator App',
-          isActive: true,
-          createdAt: new Date(),
-          lastUsed: new Date()
-        }
-      ],
-      lastLogin: new Date(),
-      loginHistory: [],
-      securityLevel: 'critical',
-      isActive: true,
-      profile: {
-        displayName: 'Sacred Administrator',
-        bio: 'Guardian of the digital dharma',
-        avatar: '🧿'
-      }
-    },
-    'EQDeveloper123456789TestWalletAddress': {
-      id: 'dev-1',
-      tonAddress: address,
-      email: 'developer@tonwebstore.com',
-      username: 'sacred_developer',
-      roles: [ROLES.developer, ROLES.viewer],
-      mfaMethods: [],
-      lastLogin: new Date(),
-      loginHistory: [],
-      securityLevel: 'medium',
-      isActive: true,
-      profile: {
-        displayName: 'Sacred Developer',
-        bio: 'Creator of digital treasures',
-        avatar: '🚀'
-      }
-    },
-    'EQUser987654321TestWalletAddress': {
-      id: 'user-1',
-      tonAddress: address,
-      email: 'user@tonwebstore.com',
-      username: 'sacred_user',
-      roles: [ROLES.viewer],
-      mfaMethods: [],
-      lastLogin: new Date(),
-      loginHistory: [],
-      securityLevel: 'low',
-      isActive: true,
-      profile: {
-        displayName: 'Sacred User',
-        bio: 'Explorer of digital realms',
-        avatar: '👤'
-      }
-    }
-  };
-
+async function getUserByTONAddress(address: string, mockUsers: Record<string, AuthenticatedUser>): Promise<AuthenticatedUser | null> {
   return mockUsers[address] || null;
 }
 
+/*
+// Mock MFA verification
 async function verifyMFACode(method: string, code: string): Promise<boolean> {
   // Mock MFA verification
   return code === '123456'; // Simple mock
 }
+*/
 
 function createSession(user: AuthenticatedUser): AuthSession {
   const now = new Date();

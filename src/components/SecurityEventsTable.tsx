@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, User, Shield } from 'lucide-react';
+import { Clock, User } from 'lucide-react';
 
 export interface SecurityEventRow {
   id: string;

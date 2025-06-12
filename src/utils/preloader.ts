@@ -2,7 +2,7 @@
 export class SacredPreloader {
   private static instance: SacredPreloader;
   private loadedResources = new Set<string>();
-  private loadingPromises = new Map<string, Promise<any>>();
+  private loadingPromises = new Map<string, Promise<void>>();
 
   static getInstance(): SacredPreloader {
     if (!this.instance) {
@@ -114,13 +114,6 @@ if (typeof window !== 'undefined') {
 // Sacred preloader for enlightened user experience
 declare global {
   interface Window {
-    __SACRED_PRELOADER__: unknown;
+    __SACRED_PRELOADER__: SacredPreloader;
   }
-}
-
-interface SacredPreloader {
-  initializeAll: () => void;
-  preloadFonts: () => Promise<unknown[]>;
-  preloadCriticalAssets: () => Promise<void>;
-  optimizePerformance: () => void;
 } 

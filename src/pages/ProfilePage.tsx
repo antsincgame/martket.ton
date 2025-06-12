@@ -1,137 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Heart, Settings, Wallet, Gift, Trophy, Zap, Gem, Users, TrendingUp, Upload, Shield, Star, AlertTriangle } from 'lucide-react';
+import { Download, Heart, Settings, Wallet, Gift, Trophy, Gem, Users, TrendingUp, Upload, Shield, Star, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 // import { CSSTransition, TransitionGroup } from 'react-transition-group';
 
-interface Stats {
-  totalSpent: number;
-  totalDonated: number;
-  karmaPoints: number;
-  appsOwned: number;
-  productsPublished: number;
-  totalDownloads: number;
-  donationsReceived: number;
-  avgRating: number;
-  totalReviews: number;
-}
-
-interface Product {
-  id: number;
-  name: string;
-  downloads: number;
-  rating: number;
-  price: number;
-  image: string;
-}
-
-interface LibraryItem {
-  id: number;
-  name: string;
-  developer: string;
-  purchaseDate: string;
-  price: number;
-  image: string;
-}
-
-interface Achievement {
-  icon: string;
-  name: string;
-  description: string;
-}
-
 const ProfilePage = () => {
-  const { user, hasRole, isAuthenticated } = useAuth();
+  const { user, hasRole, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Просто устанавливаем загрузку в false после монтирования
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 100);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Кэширование и мемоизация данных
-  const getCachedData = (key: string, fallback: any) => {
-    try {
-      const cached = localStorage.getItem(key);
-      if (cached) return JSON.parse(cached);
-    } catch {}
-    return fallback;
-  };
-  const setCachedData = (key: string, value: any) => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch {}
-  };
-
-  const stats: Stats = getCachedData('profile_stats', {
-    totalSpent: 156.8,
-    totalDonated: 45.2,
-    karmaPoints: 1250,
-    appsOwned: 12,
-    productsPublished: 5,
-    totalDownloads: 1250,
-    donationsReceived: 89.5,
-    avgRating: 4.8,
-    totalReviews: 156
-  });
-
-  const library: LibraryItem[] = React.useMemo(() => getCachedData('profile_library', [
-    {
-      id: 1,
-      name: 'Cosmic Code Editor Pro',
-      developer: 'Sacred Devs',
-      purchaseDate: '2025-01-10',
-      price: 15.5,
-      image: 'https://images.pexels.com/photos/270348/pexels-photo-270348.jpeg?auto=compress&cs=tinysrgb&w=300'
-    },
-    {
-      id: 2,
-      name: 'Meditation Game: Inner Peace',
-      developer: 'Zen Studios',
-      purchaseDate: '2025-01-08',
-      price: 8.2,
-      image: 'https://images.pexels.com/photos/3408744/pexels-photo-3408744.jpeg?auto=compress&cs=tinysrgb&w=300'
-    }
-  ]), []);
-
-  const products: Product[] = React.useMemo(() => getCachedData('profile_products', [
-    {
-      id: 1,
-      name: 'Sacred Task Manager',
-      downloads: 450,
-      rating: 4.9,
-      price: 12.5,
-      image: 'https://images.pexels.com/photos/5077047/pexels-photo-5077047.jpeg?auto=compress&cs=tinysrgb&w=300'
-    },
-    {
-      id: 2,
-      name: 'Mindful Notes',
-      downloads: 320,
-      rating: 4.7,
-      price: 8.0,
-      image: 'https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=300'
-    }
-  ]), []);
-
-  const achievements: Achievement[] = React.useMemo(() => getCachedData('profile_achievements', [
-    { icon: '🎯', name: 'First Purchase', description: 'Made your first sacred transaction' },
-    { icon: '❤️', name: 'Generous Heart', description: 'Donated to support developers' },
-    { icon: '⭐', name: 'Wisdom Seeker', description: 'Left 10 helpful reviews' },
-    { icon: '🏆', name: 'Enlightened Patron', description: 'Supported 5 different developers' }
-  ]), []);
-
-  // Сохраняем данные в кэш при изменении
-  React.useEffect(() => {
-    setCachedData('profile_stats', stats);
-    setCachedData('profile_library', library);
-    setCachedData('profile_products', products);
-    setCachedData('profile_achievements', achievements);
-  }, [stats, library, products, achievements]);
 
   const getAvailableTabs = () => {
     const baseTabs = [
@@ -157,31 +31,7 @@ const ProfilePage = () => {
     e.currentTarget.src = 'https://via.placeholder.com/300x200?text=Sacred+Image';
   };
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="bg-white/5 backdrop-blur-sm border border-red-500/20 rounded-3xl p-8 max-w-md w-full text-center">
-          <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <AlertTriangle className="w-10 h-10 text-red-400" />
-          </div>
-          <h1 className="text-2xl font-display font-bold text-white mb-4">
-            🚫 Sacred Error
-          </h1>
-          <p className="text-gray-300 mb-6">
-            {error}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="w-full bg-ton-gradient hover:scale-105 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg"
-          >
-            Try Again 🔄
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
+  if (isAuthLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
@@ -197,7 +47,6 @@ const ProfilePage = () => {
     );
   }
 
-  // Показываем сообщение для неаутентифицированных пользователей
   if (!isAuthenticated || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -230,7 +79,7 @@ const ProfilePage = () => {
           <div className="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
             <div className="relative">
               <div className="w-32 h-32 rounded-full border-4 border-ton-500 flex items-center justify-center text-4xl">
-                {user?.profile.avatar || '👤'}
+                {user.avatar || '👤'}
               </div>
               <div className="absolute -bottom-2 -right-2 bg-mystical-gradient rounded-full p-2">
                 <Trophy className="w-6 h-6 text-white" />
@@ -239,28 +88,28 @@ const ProfilePage = () => {
             
             <div className="flex-1 text-center md:text-left">
               <h1 className="text-3xl font-display font-bold text-white mb-2">
-                {user?.profile.displayName || 'Enlightened User'} ✨
+                {user.displayName || 'Enlightened User'} ✨
               </h1>
               <p className="text-purple-400 font-medium mb-1">
-                {user?.roles.map(role => role.name.replace('_', ' ')).join(', ')} Level
+                {user.roles.map(role => role.name.replace('_', ' ')).join(', ')} Level
               </p>
-              <p className="text-gray-400 mb-4">{user?.email || 'user@tonwebstore.com'}</p>
+              <p className="text-gray-400 mb-4">{user.email || 'user@tonwebstore.com'}</p>
               
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-white/5 rounded-xl p-4 text-center">
-                  <div className="text-2xl font-bold text-ton-400 mb-1">{stats.totalSpent}</div>
+                  <div className="text-2xl font-bold text-ton-400 mb-1">{user.stats?.totalSpent || 0}</div>
                   <div className="text-gray-400 text-sm">TON Spent 💎</div>
                 </div>
                 <div className="bg-white/5 rounded-xl p-4 text-center">
-                  <div className="text-2xl font-bold text-purple-400 mb-1">{stats.totalDonated}</div>
+                  <div className="text-2xl font-bold text-purple-400 mb-1">{user.stats?.totalDonated || 0}</div>
                   <div className="text-gray-400 text-sm">TON Donated ❤️</div>
                 </div>
                 <div className="bg-white/5 rounded-xl p-4 text-center">
-                  <div className="text-2xl font-bold text-yellow-400 mb-1">{stats.karmaPoints}</div>
+                  <div className="text-2xl font-bold text-yellow-400 mb-1">{user.stats?.karmaPoints || 0}</div>
                   <div className="text-gray-400 text-sm">Karma Points ☸️</div>
                 </div>
                 <div className="bg-white/5 rounded-xl p-4 text-center">
-                  <div className="text-2xl font-bold text-green-400 mb-1">{stats.appsOwned}</div>
+                  <div className="text-2xl font-bold text-green-400 mb-1">{user.stats?.appsOwned || 0}</div>
                   <div className="text-gray-400 text-sm">Apps Owned 🚀</div>
                 </div>
               </div>
@@ -317,7 +166,7 @@ const ProfilePage = () => {
                         </div>
                         <TrendingUp className="w-5 h-5 text-blue-400" />
                       </div>
-                      <div className="text-2xl font-bold text-white mb-1">{stats.productsPublished}</div>
+                      <div className="text-2xl font-bold text-white mb-1">{user.stats?.productsPublished || 0}</div>
                       <div className="text-gray-400 text-sm">Products Published 🚀</div>
                     </div>
 
@@ -328,7 +177,7 @@ const ProfilePage = () => {
                         </div>
                         <TrendingUp className="w-5 h-5 text-green-400" />
                       </div>
-                      <div className="text-2xl font-bold text-white mb-1">{stats.totalDownloads}</div>
+                      <div className="text-2xl font-bold text-white mb-1">{user.stats?.totalDownloads || 0}</div>
                       <div className="text-gray-400 text-sm">Total Downloads 📥</div>
                     </div>
 
@@ -339,7 +188,7 @@ const ProfilePage = () => {
                         </div>
                         <TrendingUp className="w-5 h-5 text-pink-400" />
                       </div>
-                      <div className="text-2xl font-bold text-white mb-1">{stats.donationsReceived} TON</div>
+                      <div className="text-2xl font-bold text-white mb-1">{user.stats?.donationsReceived || 0} TON</div>
                       <div className="text-gray-400 text-sm">Donations Received ❤️</div>
                     </div>
                   </>
@@ -352,7 +201,7 @@ const ProfilePage = () => {
                     </div>
                     <span className="text-yellow-400 text-sm font-medium">Excellent</span>
                   </div>
-                  <div className="text-2xl font-bold text-white mb-1">{stats.avgRating}</div>
+                  <div className="text-2xl font-bold text-white mb-1">{user.stats?.avgRating || 0}</div>
                   <div className="text-gray-400 text-sm">Average Rating ⭐</div>
                 </div>
 
@@ -363,7 +212,7 @@ const ProfilePage = () => {
                     </div>
                     <span className="text-indigo-400 text-sm font-medium">Growing</span>
                   </div>
-                  <div className="text-2xl font-bold text-white mb-1">{stats.totalReviews}</div>
+                  <div className="text-2xl font-bold text-white mb-1">{user.stats?.totalReviews || 0}</div>
                   <div className="text-gray-400 text-sm">Total Reviews 💬</div>
                 </div>
               </div>
@@ -377,7 +226,7 @@ const ProfilePage = () => {
                 Sacred Library
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {library.map((item) => (
+                {user.library && user.library.length > 0 ? user.library.map((item) => (
                   <div key={item.id} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all">
                     <img
                       src={item.image}
@@ -395,7 +244,9 @@ const ProfilePage = () => {
                       Download 📥
                     </button>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-gray-400 col-span-full text-center">Your Sacred Library is empty. Explore the store to find new treasures.</p>
+                )}
               </div>
             </div>
           )}
@@ -407,7 +258,7 @@ const ProfilePage = () => {
                 My Sacred Products
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {products.map((product) => (
+                {user.products && user.products.length > 0 ? user.products.map((product) => (
                   <div key={product.id} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all">
                     <img
                       src={product.image}
@@ -428,7 +279,9 @@ const ProfilePage = () => {
                       </button>
                     </div>
                   </div>
-                ))}
+                )) : (
+                   <p className="text-gray-400 col-span-full text-center">You have not published any products yet. Upload your first sacred product!</p>
+                )}
               </div>
             </div>
           )}
@@ -440,7 +293,7 @@ const ProfilePage = () => {
                 Sacred Achievements
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {achievements.map((achievement, index) => (
+                {user.achievements && user.achievements.length > 0 ? user.achievements.map((achievement, index) => (
                   <div key={index} className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all">
                     <div className="flex items-center space-x-4">
                       <div className="text-4xl">{achievement.icon}</div>
@@ -450,7 +303,9 @@ const ProfilePage = () => {
                       </div>
                     </div>
                   </div>
-                ))}
+                )) : (
+                   <p className="text-gray-400 col-span-full text-center">No achievements unlocked yet. Keep exploring and contributing!</p>
+                )}
               </div>
             </div>
           )}

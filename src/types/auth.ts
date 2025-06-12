@@ -51,12 +51,11 @@ export interface AuthenticatedUser {
   sessionDuration: number;
   requiresMFA: boolean;
   description: string;
-  profile: {
-    avatar?: string;
-    displayName: string;
-    bio?: string;
-    socialLinks?: Record<string, string>;
-  };
+  profile: UserProfile;
+  stats: Stats;
+  library: LibraryItem[];
+  products: Product[];
+  achievements: Achievement[];
 }
 
 export interface LoginAttempt {
@@ -215,4 +214,46 @@ export interface WhiteTaraSession extends AuthSession {
     mindfulness: number;
     generosity: number;
   };
+}
+
+export interface UserProfile {
+  displayName: string;
+  bio?: string;
+  avatar?: string;
+}
+
+export interface Stats {
+  totalSpent: number;
+  totalDonated: number;
+  karmaPoints: number;
+  appsOwned: number;
+  productsPublished: number;
+  totalDownloads: number;
+  donationsReceived: number;
+  avgRating: number;
+  totalReviews: number;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  downloads: number;
+  rating: number;
+  price: number;
+  image: string;
+}
+
+export interface LibraryItem {
+  id: string;
+  name:string;
+  developer: string;
+  purchaseDate: string;
+  price: number;
+  image: string;
+}
+
+export interface Achievement {
+  icon: string;
+  name: string;
+  description: string;
 } 

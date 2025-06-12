@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Sparkles, TrendingUp, Gem, Star, Zap, Heart, Rocket, Bot, Gamepad2 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 
+// TODO: В будущем заменить статические mock-данные на динамические данные из Supabase
 const featuredProducts = [
   {
     id: '1',
@@ -58,6 +59,7 @@ const featuredProducts = [
   }
 ];
 
+// TODO: Получать категории из Supabase
 const categories = [
   {
     name: 'Apps',
