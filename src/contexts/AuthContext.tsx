@@ -305,12 +305,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasRole = useCallback((roleName: string): boolean => {
     if (!state.user) return false;
-    
+
+    const rolesArray = state.user.roles;
+    // Поддерживаем как массив строк, так и массив объектов UserRole
+    const roleNames = rolesArray.map(r => typeof r === 'string' ? r : r.name);
+
     // super_admin имеет доступ ко всем ролям
-    const userRoles = state.user.roles.map(role => role.name);
-    if (userRoles.includes('super_admin')) return true;
-    
-    return userRoles.includes(roleName);
+    if (roleNames.includes('super_admin')) return true;
+
+    return roleNames.includes(roleName);
   }, [state.user]);
 
   const getSecurityLevel = useCallback((): string => {
@@ -532,6 +535,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const { user } = session;
           // Проверяем user_metadata на наличие ролей
           const roles = user.user_metadata?.roles || [];
+          // Преобразуем строковые роли в объекты UserRole, если возможно
+          const roleObjects: (UserRole | string)[] = roles.map((r: string) => ROLES[r] || r);
           // Загружаем дополнительные данные из таблицы developers, если есть
           let profileData = {
             bio: '',
@@ -540,7 +545,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             location: ''
           };
           let tonAddress = '';
-          if (roles.includes('developer')) {
+          const roleNamesList = roleObjects.map(r => typeof r === 'string' ? r : r.name);
+          if (roleNamesList.includes('developer')) {
             const { data: developerData, error } = await supabase
               .from('developers')
               .select('description, ton_address')
@@ -557,7 +563,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: user.email || '',
             displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
             tonAddress: tonAddress,
-            roles: roles,
+            roles: roleObjects,
             createdAt: user.created_at || new Date().toISOString(),
             lastLogin: user.last_sign_in_at || new Date().toISOString(),
             profile: profileData,
@@ -587,12 +593,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session && session.user) {
         const roles = session.user.user_metadata?.roles || [];
+        const roleObjects = roles.map((r: string) => ROLES[r] || r);
         const authUser: AuthenticatedUser = {
           id: session.user.id,
           email: session.user.email || '',
           displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
           tonAddress: '', // TODO: Загрузить tonAddress из Supabase, если нужно
-          roles: roles,
+          roles: roleObjects,
           createdAt: session.user.created_at || new Date().toISOString(),
           lastLogin: session.user.last_sign_in_at || new Date().toISOString(),
           profile: {
@@ -620,26 +627,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Подписываемся на изменения данных пользователя в таблице developers
     let subscription;
-    if (state.user && state.user.roles.includes('developer')) {
-      subscription = supabase
-        .from('developers')
-        .on('UPDATE', async (payload) => {
-          if (payload.new.email === state.user?.email) {
-            const updatedProfile = {
-              bio: payload.new.description || state.user?.profile.bio || '',
-              avatarUrl: state.user?.profile.avatarUrl || '',
-              website: state.user?.profile.website || '',
-              location: state.user?.profile.location || ''
-            };
-            const updatedUser = {
-              ...state.user,
-              tonAddress: payload.new.ton_address || state.user?.tonAddress,
-              profile: updatedProfile
-            };
-            dispatch({ type: 'SET_USER', payload: updatedUser });
-          }
-        })
-        .subscribe();
+    if (state.user) {
+      const roleNames = state.user.roles.map(r => typeof r === 'string' ? r : r.name);
+      if (roleNames.includes('developer')) {
+        subscription = supabase
+          .from('developers')
+          .on('UPDATE', async (payload) => {
+            if (payload.new.email === state.user?.email) {
+              const updatedProfile = {
+                bio: payload.new.description || state.user?.profile.bio || '',
+                avatarUrl: state.user?.profile.avatarUrl || '',
+                website: state.user?.profile.website || '',
+                location: state.user?.profile.location || ''
+              };
+              const updatedUser = {
+                ...state.user,
+                tonAddress: payload.new.ton_address || state.user?.tonAddress,
+                profile: updatedProfile
+              };
+              dispatch({ type: 'SET_USER', payload: updatedUser });
+            }
+          })
+          .subscribe();
+      }
     }
 
     return () => {
