@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TONConnectButton } from '@tonconnect/ui-react';
+import TONConnectButton from './TONConnectButton';
 
 interface DeveloperRegisterModalProps {
   isOpen: boolean;
@@ -73,4 +73,4 @@ const DeveloperRegisterModal: React.FC<DeveloperRegisterModalProps> = ({ isOpen,
   );
 };
 
-export default DeveloperRegisterModal; 
+export default DeveloperRegisterModal;
