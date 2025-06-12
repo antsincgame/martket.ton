@@ -5,6 +5,5 @@
   "termsOfUseUrl": "https://ton-web-store.netlify.app/",
   "privacyPolicyUrl": "https://ton-web-store.netlify.app/",
   "features": ["ton_addr"],
-  "manifest_version": "0.1",
-  "app_url": "http://localhost:5173"
+  "manifest_version": "0.1"
 } 
