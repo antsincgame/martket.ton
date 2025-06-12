@@ -536,7 +536,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Проверяем user_metadata на наличие ролей
           const roles = user.user_metadata?.roles || [];
           // Преобразуем строковые роли в объекты UserRole, если возможно
-          const roleObjects: (UserRole | string)[] = roles.map((r: string) => ROLES[r] || r);
+          const roleObjects: UserRole[] = roles.map((r: string) => {
+            if (ROLES[r]) return ROLES[r];
+            return {
+              id: r,
+              name: r as any,
+              permissions: [],
+              sessionDuration: SECURITY_CONFIG.session.maxDuration,
+              requiresMFA: false,
+              description: ''
+            };
+          });
           // Загружаем дополнительные данные из таблицы developers, если есть
           let profileData = {
             bio: '',
@@ -593,7 +603,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session && session.user) {
         const roles = session.user.user_metadata?.roles || [];
-        const roleObjects = roles.map((r: string) => ROLES[r] || r);
+        const roleObjects: UserRole[] = roles.map((r: string) => {
+          if (ROLES[r]) return ROLES[r];
+          return {
+            id: r,
+            name: r as any,
+            permissions: [],
+            sessionDuration: SECURITY_CONFIG.session.maxDuration,
+            requiresMFA: false,
+            description: ''
+          };
+        });
         const authUser: AuthenticatedUser = {
           id: session.user.id,
           email: session.user.email || '',
