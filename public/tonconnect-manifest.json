@@ -1,0 +1,10 @@
+{
+  "url": "https://tonwebstore.com",
+  "name": "TON Web Store",
+  "iconUrl": "https://tonwebstore.com/icon.png",
+  "termsOfUseUrl": "https://tonwebstore.com/terms",
+  "privacyPolicyUrl": "https://tonwebstore.com/privacy",
+  "features": ["ton_addr"],
+  "manifest_version": "0.1",
+  "app_url": "http://localhost:5173"
+} 

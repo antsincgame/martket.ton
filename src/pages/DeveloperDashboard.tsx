@@ -1,8 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, TrendingUp, DollarSign, Users, Heart, Star, Upload, Sparkles, Gem } from 'lucide-react';
+import DeveloperRegisterModal from '../components/DeveloperRegisterModal';
+import { useAuth } from '../contexts/AuthContext';
+import { TONWalletAuth } from '../types/auth';
+
+// Мок-структура приложения
+interface AppSummary {
+  id: string;
+  name: string;
+  revenue: number;
+  downloads: number;
+  rating: number;
+  reviews: number;
+  status: string;
+}
+
+// Мок-данные приложений
+const initialApps: AppSummary[] = [
+  {
+    id: 'app-1',
+    name: 'Cosmic Code Editor Pro',
+    revenue: 186.0,
+    downloads: 12500,
+    rating: 4.9,
+    reviews: 42,
+    status: 'Active'
+  },
+  {
+    id: 'app-2',
+    name: 'Sacred Terminal',
+    revenue: 42.3,
+    downloads: 2100,
+    rating: 4.6,
+    reviews: 18,
+    status: 'Active'
+  }
+];
 
 const DeveloperDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [apps] = useState<AppSummary[]>(initialApps);
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [developer, setDeveloper] = useState<{ wallet: string; email: string; name: string } | null>(null);
+  const { authenticateWithTON, user, hasRole } = useAuth();
 
   const stats = {
     totalRevenue: 245.8,
@@ -13,35 +53,31 @@ const DeveloperDashboard = () => {
     totalReviews: 342
   };
 
-  const products = [
-    {
-      id: 1,
-      name: 'Cosmic Code Editor Pro',
-      revenue: 186.0,
-      downloads: 12500,
-      rating: 4.9,
-      donations: 25.8,
-      status: 'Active'
-    },
-    {
-      id: 2,
-      name: 'Sacred Terminal',
-      revenue: 42.3,
-      downloads: 2100,
-      rating: 4.6,
-      donations: 12.5,
-      status: 'Active'
-    },
-    {
-      id: 3,
-      name: 'Mindful Git Client',
-      revenue: 17.5,
-      downloads: 820,
-      rating: 4.5,
-      donations: 29.0,
-      status: 'Under Review'
+  // Открывать модалку автоматически, если пользователь не разработчик
+  useEffect(() => {
+    if (!hasRole('developer')) {
+      setIsRegisterOpen(true);
     }
-  ];
+  }, [hasRole]);
+
+  async function handleRegister(data: { wallet: string; email: string; name: string }) {
+    setDeveloper(data);
+    
+    // Мок-данные TONWalletAuth для автоматической авторизации
+    const walletAuth: TONWalletAuth = {
+      address: data.wallet,
+      publicKey: 'mock_public_key',
+      signature: 'mock_signature_data_very_long_string_to_simulate_real_signature',
+      timestamp: Date.now(),
+      network: 'testnet'
+    };
+    
+    try {
+      await authenticateWithTON(walletAuth);
+    } catch (error) {
+      console.log('Auto-authentication after registration failed:', error);
+    }
+  }
 
   return (
     <div className="min-h-screen py-8 px-4">
@@ -55,11 +91,21 @@ const DeveloperDashboard = () => {
             </h1>
             <p className="text-gray-400">Manage your digital treasures and sacred offerings 🪄</p>
           </div>
-          <button className="mt-4 md:mt-0 bg-ton-gradient hover:scale-105 text-white font-semibold px-6 py-3 rounded-full transition-all duration-300 shadow-lg hover:shadow-ton-500/50 flex items-center space-x-2">
+          {!developer && (
+            <button
+              className="mt-4 md:mt-0 bg-ton-gradient hover:scale-105 text-white font-semibold px-6 py-3 rounded-full transition-all duration-300 shadow-lg hover:shadow-ton-500/50 flex items-center space-x-2"
+              onClick={() => setIsRegisterOpen(true)}
+            >
             <Plus className="w-5 h-5" />
-            <span>Add New Product</span>
+              <span>Стать разработчиком</span>
           </button>
+          )}
         </div>
+        <DeveloperRegisterModal
+          isOpen={isRegisterOpen}
+          onClose={() => setIsRegisterOpen(false)}
+          onRegister={handleRegister}
+        />
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -179,17 +225,17 @@ const DeveloperDashboard = () => {
                 <div className="bg-white/5 rounded-xl p-6">
                   <h3 className="font-semibold text-white mb-4">Top Performing Products</h3>
                   <div className="space-y-3">
-                    {products.slice(0, 3).map((product, index) => (
-                      <div key={product.id} className="flex items-center justify-between">
+                    {apps.slice(0, 3).map((app, index) => (
+                      <div key={app.id} className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
                             index === 0 ? 'bg-gold' : index === 1 ? 'bg-silver' : 'bg-bronze'
                           }`}>
                             {index + 1}
                           </div>
-                          <span className="text-white">{product.name}</span>
+                          <span className="text-white">{app.name}</span>
                         </div>
-                        <span className="text-ton-400 font-semibold">{product.revenue} TON</span>
+                        <span className="text-ton-400 font-semibold">{app.revenue} TON</span>
                       </div>
                     ))}
                   </div>
@@ -198,15 +244,15 @@ const DeveloperDashboard = () => {
                 <div className="bg-white/5 rounded-xl p-6">
                   <h3 className="font-semibold text-white mb-4">Sacred Donation Ranking</h3>
                   <div className="space-y-3">
-                    {products.sort((a, b) => b.donations - a.donations).slice(0, 3).map((product, index) => (
-                      <div key={product.id} className="flex items-center justify-between">
+                    {apps.sort((a, b) => b.revenue - a.revenue).slice(0, 3).map((app, index) => (
+                      <div key={app.id} className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <div className="text-2xl">
                             {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
                           </div>
-                          <span className="text-white">{product.name}</span>
+                          <span className="text-white">{app.name}</span>
                         </div>
-                        <span className="text-pink-400 font-semibold">{product.donations} TON ❤️</span>
+                        <span className="text-pink-400 font-semibold">{app.revenue} TON ❤️</span>
                       </div>
                     ))}
                   </div>
@@ -222,36 +268,36 @@ const DeveloperDashboard = () => {
                 Your Sacred Products
               </h2>
               <div className="space-y-4">
-                {products.map((product) => (
-                  <div key={product.id} className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all">
+                {apps.map((app) => (
+                  <div key={app.id} className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all">
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="text-xl font-semibold text-white">{product.name}</h3>
+                          <h3 className="text-xl font-semibold text-white">{app.name}</h3>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            product.status === 'Active' 
+                            app.status === 'Active' 
                               ? 'bg-green-500/20 text-green-400' 
                               : 'bg-yellow-500/20 text-yellow-400'
                           }`}>
-                            {product.status}
+                            {app.status}
                           </span>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
                             <span className="text-gray-400">Revenue:</span>
-                            <div className="text-green-400 font-semibold">{product.revenue} TON</div>
+                            <div className="text-green-400 font-semibold">{app.revenue} TON</div>
                           </div>
                           <div>
                             <span className="text-gray-400">Downloads:</span>
-                            <div className="text-blue-400 font-semibold">{product.downloads.toLocaleString()}</div>
+                            <div className="text-blue-400 font-semibold">{app.downloads.toLocaleString()}</div>
                           </div>
                           <div>
                             <span className="text-gray-400">Rating:</span>
-                            <div className="text-yellow-400 font-semibold">{product.rating} ⭐</div>
+                            <div className="text-yellow-400 font-semibold">{app.rating} ⭐</div>
                           </div>
                           <div>
-                            <span className="text-gray-400">Donations:</span>
-                            <div className="text-pink-400 font-semibold">{product.donations} TON ❤️</div>
+                            <span className="text-gray-400">Reviews:</span>
+                            <div className="text-pink-400 font-semibold">{app.reviews}</div>
                           </div>
                         </div>
                       </div>

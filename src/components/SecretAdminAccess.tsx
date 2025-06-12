@@ -1,17 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { Crown, Mail, Shield, Sparkles, Eye, EyeOff } from 'lucide-react';
+import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { Shield, Mail, Eye, EyeOff, Sparkles } from 'lucide-react';
 
-interface AdminAccessProps {
+interface SecretAdminAccessProps {
   isVisible: boolean;
   onClose: () => void;
 }
 
-const SecretAdminAccess: React.FC<AdminAccessProps> = ({ isVisible, onClose }) => {
+const sacredMantra = 'ཨོཾ་མ་ཎི་པདྨེ་ཧཱུཨོཾ་ཨ་ར་པ་ཙ་ན་དྷཱཿ';
+
+const SecretAdminAccess: React.FC<SecretAdminAccessProps> = ({ isVisible, onClose }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [mantra, setMantra] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+
+  const navigate = useNavigate();
+  const { authenticateWithMantra } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,63 +27,25 @@ const SecretAdminAccess: React.FC<AdminAccessProps> = ({ isVisible, onClose }) =
     setMessage('');
 
     try {
-      // Simulate admin authentication
-      if (email === 'dzmitry.arlou@grodno.ai' && password === 'Qw162162') {
-        setMessage('🪷 Welcome, White Tara Admin! Sacred access granted. ✨');
-        
-        // Send notification email using the SMTP settings
-        await sendAdminNotification(email);
+      const isMantraLogin = mantra.trim() === sacredMantra;
+      const isEmailLogin = email === 'dzmitry.arlou@grodno.ai' && password === 'Qw162162';
+
+      if (isMantraLogin || isEmailLogin) {
+        authenticateWithMantra({ email: isMantraLogin ? 'mantra@bodhisattva.path' : email });
+        setMessage('🪷 Welcome, Bodhisattva! Sacred access granted. ✨');
         
         setTimeout(() => {
-          // Redirect to admin dashboard or show admin interface
-          window.location.href = '/admin-dashboard';
-        }, 2000);
+          onClose();
+          navigate('/admin-dashboard');
+        }, 1500);
       } else {
-        setMessage('❌ Invalid credentials. Only White Tara can access this sacred realm.');
+        setMessage('❌ Invalid credentials or mantra. Only true Bodhisattvas may enter.');
       }
-    } catch (error) {
+    } catch {
       setMessage('🔮 Connection to the mystical realm failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const sendAdminNotification = async (adminEmail: string) => {
-    // In a real implementation, this would connect to your backend
-    // which would use the SMTP settings to send the email
-    const emailData = {
-      to: adminEmail,
-      subject: '🪷 White Tara Admin Access - Sacred Login Detected',
-      body: `
-        ☸️ Sacred Greetings, White Tara Admin!
-        
-        A successful admin login has been detected on TON Web Store.
-        
-        🕉️ Login Details:
-        - Time: ${new Date().toLocaleString()}
-        - Email: ${adminEmail}
-        - Location: Sacred Digital Realm
-        
-        May this session bring prosperity to all beings and support the growth 
-        of consciousness through technology.
-        
-        Om Tare Tu Tarre Svaha ✨
-        
-        🪷 TON Web Store - Digital Enlightenment Marketplace
-      `,
-      smtpConfig: {
-        server: 'mail.gandi.net',
-        port: 587,
-        secure: true, // STARTTLS
-        auth: {
-          user: 'dzmitry.arlou@grodno.ai',
-          pass: 'Qw162162'
-        }
-      }
-    };
-
-    // This would be sent to your backend API
-    console.log('Admin notification email prepared:', emailData);
   };
 
   if (!isVisible) return null;
@@ -101,8 +71,13 @@ const SecretAdminAccess: React.FC<AdminAccessProps> = ({ isVisible, onClose }) =
 
         {/* Header */}
         <div className="text-center mb-8 relative z-10">
-          <div className="w-20 h-20 bg-mystical-gradient rounded-full flex items-center justify-center mx-auto mb-4 animate-float">
-            <Crown className="w-10 h-10 text-white animate-sparkle" />
+          <div className="w-20 h-20 bg-mystical-gradient rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/30">
+            {/* SVG Камня Белой Тары */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-gem w-10 h-10 text-white animate-sparkle">
+              <path d="M6 3h12l4 6-10 13L2 9Z"></path>
+              <path d="M11 3 8 9l4 13 4-13-3-6"></path>
+              <path d="M2 9h20"></path>
+            </svg>
           </div>
           <h2 className="text-2xl font-display font-bold text-white mb-2">
             🪷 White Tara Admin Access
@@ -125,7 +100,6 @@ const SecretAdminAccess: React.FC<AdminAccessProps> = ({ isVisible, onClose }) =
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your enlightened email..."
               className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              required
             />
           </div>
 
@@ -141,7 +115,6 @@ const SecretAdminAccess: React.FC<AdminAccessProps> = ({ isVisible, onClose }) =
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your mystical password..."
                 className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-12"
-                required
               />
               <button
                 type="button"
@@ -151,6 +124,20 @@ const SecretAdminAccess: React.FC<AdminAccessProps> = ({ isVisible, onClose }) =
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-white font-semibold mb-2 flex items-center">
+              <Sparkles className="w-4 h-4 mr-2 text-purple-300" />
+              Sacred Mantra (optional)
+            </label>
+            <input
+              type="text"
+              value={mantra}
+              onChange={(e) => setMantra(e.target.value)}
+              placeholder="Введите сакральную мантру на тибетском..."
+              className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
           </div>
 
           {message && (

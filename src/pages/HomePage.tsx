@@ -134,7 +134,7 @@ const HomePage = () => {
               <span>Explore Treasures</span>
             </Link>
             <Link
-              to="/developer"
+              to="/developer/register"
               className="bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 border border-white/20 flex items-center space-x-2"
             >
               <Heart className="w-5 h-5 text-red-400" />
@@ -268,7 +268,7 @@ const HomePage = () => {
                 </div>
                 <div className="bg-white/5 rounded-xl p-4">
                   <div className="text-2xl mb-2">🥇</div>
-                  <div className="text-pink-400 font-semibold">25+ TON</div>
+                  <div className="text-pink-400 font-semibold">0+ TON</div>
                   <div className="text-gray-400 text-sm">Golden Nirvana</div>
                 </div>
               </div>
