@@ -1,25 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Gem, Sparkles, ArrowRight, AlertTriangle } from 'lucide-react';
-import { TonConnectButton } from '@tonconnect/ui-react';
+import { TonConnectButton, useTonAddress } from '@tonconnect/ui-react';
 
 const DeveloperRegister = () => {
   const navigate = useNavigate();
   const { authenticateWithTON } = useAuth();
+  const tonAddress = useTonAddress();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    wallet: '',
     description: ''
   });
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleWalletConnect = (address: string) => {
-    setFormData(prev => ({ ...prev, wallet: address }));
-    setError(null);
-  };
+  useEffect(() => {
+    if (tonAddress) {
+      setError(null);
+    }
+  }, [tonAddress]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,8 +28,7 @@ const DeveloperRegister = () => {
     setIsLoading(true);
 
     try {
-      // Валидация
-      if (!formData.wallet) {
+      if (!tonAddress) {
         throw new Error('Please connect your TON wallet first');
       }
       if (!formData.name.trim()) {
@@ -41,19 +41,16 @@ const DeveloperRegister = () => {
         throw new Error('Please tell us about yourself');
       }
 
-      // Подготовка данных для аутентификации
       const walletAuth = {
-        address: formData.wallet,
-        publicKey: 'mock_public_key', // В реальном приложении это будет получено от TON Connect
-        signature: 'mock_signature', // В реальном приложении это будет получено от TON Connect
+        address: tonAddress,
+        publicKey: 'mock_public_key',
+        signature: 'mock_signature',
         timestamp: Date.now(),
         network: 'testnet'
       };
       
-      // Аутентификация
       await authenticateWithTON(walletAuth);
       
-      // После успешной регистрации
       navigate('/developer');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
@@ -94,11 +91,11 @@ const DeveloperRegister = () => {
         <form onSubmit={handleSubmit} className="space-y-6 bg-white/5 p-8 rounded-2xl backdrop-blur-lg border border-white/10">
           <div className="flex flex-col items-center space-y-4">
             <div className="w-full max-w-xs">
-              <TonConnectButton onConnect={handleWalletConnect} />
+              <TonConnectButton />
             </div>
-            {formData.wallet && (
+            {tonAddress && (
               <div className="text-sm text-green-400 bg-green-500/10 px-4 py-2 rounded-full">
-                Connected: {formData.wallet.slice(0, 6)}...{formData.wallet.slice(-4)}
+                🪷 Connected: {tonAddress.slice(0, 6)}...{tonAddress.slice(-4)}
               </div>
             )}
           </div>
@@ -150,9 +147,9 @@ const DeveloperRegister = () => {
 
           <button
             type="submit"
-            disabled={isLoading || !formData.wallet}
+            disabled={isLoading || !tonAddress}
             className={`w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 flex items-center justify-center space-x-2 ${
-              (isLoading || !formData.wallet) ? 'opacity-50 cursor-not-allowed' : ''
+              (isLoading || !tonAddress) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
             {isLoading ? (
