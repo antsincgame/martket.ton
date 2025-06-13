@@ -350,10 +350,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(interval);
   }, [state.session, reportSecurityEvent]);
 
-  const authenticateWithMantra = useCallback(async (credentials: { email: string }): Promise<AuthResult> => {
-    // Mantra authentication is stubbed out/not supported
-    dispatch({ type: 'SET_ERROR', payload: 'Mantra authentication not supported' });
-    return { success: false, error: 'Mantra authentication not supported', requiresMFA: false };
+  // TON wallet authentication stub (TonConnect)
+  const authenticateWithTON = useCallback(async (walletData: TONWalletAuth): Promise<AuthResult> => {
+    // Stub: TON authentication not implemented
+    dispatch({ type: 'SET_ERROR', payload: 'TON authentication not supported' });
+    return { success: false, requiresMFA: false, error: 'TON authentication not supported' };
   }, []);
 
   const authenticateWithMFA = useCallback(async (method: string, code: string): Promise<AuthResult> => {
@@ -375,6 +376,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error: error instanceof Error ? error.message : 'MFA verification failed'
       };
     }
+  }, []);
+
+  const authenticateWithMantra = useCallback(async (credentials: { email: string }): Promise<AuthResult> => {
+    // Mantra authentication is stubbed out/not supported
+    dispatch({ type: 'SET_ERROR', payload: 'Mantra authentication not supported' });
+    return { success: false, error: 'Mantra authentication not supported', requiresMFA: false };
   }, []);
 
   // Метод для обновления данных пользователя, например, после регистрации разработчика
