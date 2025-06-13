@@ -13,10 +13,7 @@ export class SacredPreloader {
 
   // Preload critical fonts
   async preloadFonts(): Promise<void> {
-    const fonts = [
-      'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
-      'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&display=swap'
-    ];
+    const fonts = [];
 
     const promises = fonts.map(url => this.loadStylesheet(url));
     await Promise.allSettled(promises);
