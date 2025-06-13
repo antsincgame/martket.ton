@@ -11,8 +11,8 @@ interface SecretAdminAccessProps {
 const sacredMantra = 'ཨོཾ་མ་ཎི་པདྨེ་ཧཱུཨོཾ་ཨ་ར་པ་ཙ་ན་དྷཱཿ';
 
 const SecretAdminAccess: React.FC<SecretAdminAccessProps> = ({ isVisible, onClose }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('dzmitry.arlou@grodno.ai');
+  const [password, setPassword] = useState('Qw162162');
   const [mantra, setMantra] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,10 +28,9 @@ const SecretAdminAccess: React.FC<SecretAdminAccessProps> = ({ isVisible, onClos
 
     try {
       const isMantraLogin = mantra.trim() === sacredMantra;
-      const isEmailLogin = email === 'dzmitry.arlou@grodno.ai' && password === 'Qw162162';
-
-      if (isMantraLogin || isEmailLogin) {
-        authenticateWithMantra({ email: isMantraLogin ? 'mantra@bodhisattva.path' : email });
+      
+      if (isMantraLogin) {
+        await authenticateWithMantra({ email: 'mantra@bodhisattva.path' });
         setMessage('🪷 Welcome, Bodhisattva! Sacred access granted. ✨');
         
         setTimeout(() => {
@@ -39,7 +38,8 @@ const SecretAdminAccess: React.FC<SecretAdminAccessProps> = ({ isVisible, onClos
           navigate('/admin-dashboard');
         }, 1500);
       } else {
-        setMessage('❌ Invalid credentials or mantra. Only true Bodhisattvas may enter.');
+        // Fallback for email/password login if needed
+        setMessage('❌ Invalid mantra. Only true Bodhisattvas may enter by mantra.');
       }
     } catch {
       setMessage('🔮 Connection to the mystical realm failed. Please try again.');

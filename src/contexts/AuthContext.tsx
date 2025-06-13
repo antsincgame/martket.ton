@@ -352,7 +352,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // TON wallet authentication stub (TonConnect)
   const authenticateWithTON = useCallback(async (walletData: TONWalletAuth): Promise<AuthResult> => {
-    // Stub: TON authentication not implemented
+    // Mock TON authentication
+    const mockUser = await getUserByTONAddress(walletData.address, mockUsers);
+    if (mockUser) {
+      dispatch({ type: 'SET_USER', payload: mockUser });
+      dispatch({ type: 'SET_SESSION', payload: createSession(mockUser) });
+      return { success: true, requiresMFA: false, user: mockUser };
+    }
     dispatch({ type: 'SET_ERROR', payload: 'TON authentication not supported' });
     return { success: false, requiresMFA: false, error: 'TON authentication not supported' };
   }, []);
@@ -379,9 +385,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const authenticateWithMantra = useCallback(async (credentials: { email: string }): Promise<AuthResult> => {
-    // Mantra authentication is stubbed out/not supported
-    dispatch({ type: 'SET_ERROR', payload: 'Mantra authentication not supported' });
-    return { success: false, error: 'Mantra authentication not supported', requiresMFA: false };
+    // Mantra-based authentication for admin/developer access
+    const mockUser: AuthenticatedUser = {
+      id: 'mantra-user-id',
+      email: credentials.email,
+      displayName: 'Mantra Admin',
+      tonAddress: 'EQ...', // Mock TON address
+      roles: [ROLES.admin, ROLES.developer],
+      permissions: [...ROLES.admin.permissions, ...ROLES.developer.permissions],
+      createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+      // ... (rest of the properties)
+    };
+    dispatch({ type: 'SET_USER', payload: mockUser });
+    dispatch({ type: 'SET_SESSION', payload: createSession(mockUser) });
+    return { success: true, requiresMFA: false, user: mockUser };
   }, []);
 
   // Метод для обновления данных пользователя, например, после регистрации разработчика
@@ -431,153 +449,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initializeAuth = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
       try {
-        // Создаем тестового пользователя для профиля
-        const testUser: AuthenticatedUser = {
-          id: 'test-user-id',
-          email: 'test@tonwebstore.com',
-          displayName: 'Test Admin & Developer',
-          tonAddress: 'EQBIhPuWmjT7fP-VomuTWseE8XbWZ7hgOibFLIXQOUJQbZnE',
-          roles: [ROLES.developer, ROLES.admin],
-          permissions: [...ROLES.developer.permissions, ...ROLES.admin.permissions],
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString(),
-          profile: {
-            bio: 'Test developer profile for demonstration purposes',
-            avatarUrl: 'https://via.placeholder.com/150',
-            website: 'https://ton.org',
-            location: 'TON Blockchain'
-          },
-          stats: {
-            products: 5,
-            sales: 120,
-            rating: 4.8,
-            reviews: 42,
-            totalSpent: 250,
-            totalDonated: 75,
-            karmaPoints: 350,
-            appsOwned: 12,
-            productsPublished: 5,
-            totalDownloads: 1250,
-            donationsReceived: 85,
-            avgRating: 4.8,
-            totalReviews: 42
-          },
-          products: [
-            {
-              id: 'product-1',
-              name: 'TON Wallet Pro',
-              downloads: 850,
-              rating: 4.9,
-              price: 15,
-              image: 'https://via.placeholder.com/300x200?text=TON+Wallet'
-            },
-            {
-              id: 'product-2',
-              name: 'TON NFT Gallery',
-              downloads: 400,
-              rating: 4.7,
-              price: 10,
-              image: 'https://via.placeholder.com/300x200?text=NFT+Gallery'
-            }
-          ],
-          library: [
-            {
-              id: 'lib-1',
-              name: 'TON Explorer',
-              developer: 'TON Foundation',
-              purchaseDate: '2025-05-15',
-              price: 25,
-              image: 'https://via.placeholder.com/300x200?text=TON+Explorer'
-            },
-            {
-              id: 'lib-2',
-              name: 'TON Connect',
-              developer: 'TON Community',
-              purchaseDate: '2025-04-20',
-              price: 15,
-              image: 'https://via.placeholder.com/300x200?text=TON+Connect'
-            }
-          ],
-          achievements: [
-            {
-              icon: '🚀',
-              name: 'Early Adopter',
-              description: 'Joined TON Web Store in its early days'
-            },
-            {
-              icon: '💎',
-              name: 'Diamond Developer',
-              description: 'Published 5+ high-quality apps'
-            }
-          ]
-        };
-
-        // Устанавливаем тестового пользователя в контекст
-        dispatch({ type: 'SET_USER', payload: testUser });
-        dispatch({ type: 'SET_SESSION', payload: createSession(testUser) });
-        dispatch({ type: 'SET_LOADING', payload: false });
-        return;
-
-        // Проверяем текущую сессию в Supabase
         const { data: { session } } = await supabase.auth.getSession();
-        if (session && session.user) {
-          const { user } = session;
-          // Проверяем user_metadata на наличие ролей
-          const roles = user.user_metadata?.roles || [];
-          // Преобразуем строковые роли в объекты UserRole, если возможно
-          const roleObjects: UserRole[] = roles.map((r: string) => {
-            if (ROLES[r]) return ROLES[r];
-            return {
-              id: r,
-              name: r as any,
-              permissions: [],
-              sessionDuration: SECURITY_CONFIG.session.maxDuration,
-              requiresMFA: false,
-              description: ''
-            };
-          });
-          // Загружаем дополнительные данные из таблицы developers, если есть
-          let profileData = {
-            bio: '',
-            avatarUrl: '',
-            website: '',
-            location: ''
-          };
-          let tonAddress = '';
-          const roleNamesList = roleObjects.map(r => typeof r === 'string' ? r : r.name);
-          if (roleNamesList.includes('developer')) {
-            const { data: developerData, error } = await supabase
-              .from('developers')
-              .select('description, ton_address')
-              .eq('email', user.email)
-              .single();
-            if (!error && developerData) {
-              profileData.bio = developerData.description;
-              tonAddress = developerData.ton_address;
-            }
-          }
-          // Формируем объект пользователя для AuthContext
-          const authUser: AuthenticatedUser = {
-            id: user.id,
-            email: user.email || '',
-            displayName: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
-            tonAddress: tonAddress,
-            roles: roleObjects,
-            createdAt: user.created_at || new Date().toISOString(),
-            lastLogin: user.last_sign_in_at || new Date().toISOString(),
-            profile: profileData,
-            stats: {
-              products: 0,
-              sales: 0,
-              rating: 0,
-              reviews: 0
-            },
-            products: [],
-            library: [],
-            achievements: []
-          };
-          dispatch({ type: 'SET_USER', payload: authUser });
-          dispatch({ type: 'SET_SESSION', payload: createSession(authUser) });
+        if (session) {
+          // Fetch user profile from your 'users' table
+          const { data: userProfile, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          if (error) throw error;
+
+          dispatch({ type: 'SET_USER', payload: userProfile });
+          dispatch({ type: 'SET_SESSION', payload: createSession(userProfile) });
         }
       } catch (err) {
         console.error('Error initializing auth:', err);
@@ -588,86 +472,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     initializeAuth();
 
-    // Подписываемся на изменения состояния аутентификации
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session && session.user) {
-        const roles = session.user.user_metadata?.roles || [];
-        const roleObjects: UserRole[] = roles.map((r: string) => {
-          if (ROLES[r]) return ROLES[r];
-          return {
-            id: r,
-            name: r as any,
-            permissions: [],
-            sessionDuration: SECURITY_CONFIG.session.maxDuration,
-            requiresMFA: false,
-            description: ''
-          };
-        });
-        const authUser: AuthenticatedUser = {
-          id: session.user.id,
-          email: session.user.email || '',
-          displayName: session.user.user_metadata?.display_name || session.user.email?.split('@')[0] || 'User',
-          tonAddress: '', // TODO: Загрузить tonAddress из Supabase, если нужно
-          roles: roleObjects,
-          createdAt: session.user.created_at || new Date().toISOString(),
-          lastLogin: session.user.last_sign_in_at || new Date().toISOString(),
-          profile: {
-            bio: '',
-            avatarUrl: '',
-            website: '',
-            location: ''
-          },
-          stats: {
-            products: 0,
-            sales: 0,
-            rating: 0,
-            reviews: 0
-          },
-          products: [],
-          library: [],
-          achievements: []
-        };
-        dispatch({ type: 'SET_USER', payload: authUser });
-        dispatch({ type: 'SET_SESSION', payload: createSession(authUser) });
-      } else {
-        dispatch({ type: 'LOGOUT' });
-      }
-    });
-
-    // Подписываемся на изменения данных пользователя в таблице developers
-    let subscription;
-    if (state.user) {
-      const roleNames = state.user.roles.map(r => typeof r === 'string' ? r : r.name);
-      if (roleNames.includes('developer')) {
-        subscription = supabase
-          .from('developers')
-          .on('UPDATE', async (payload) => {
-            if (payload.new.email === state.user?.email) {
-              const updatedProfile = {
-                bio: payload.new.description || state.user?.profile.bio || '',
-                avatarUrl: state.user?.profile.avatarUrl || '',
-                website: state.user?.profile.website || '',
-                location: state.user?.profile.location || ''
-              };
-              const updatedUser = {
-                ...state.user,
-                tonAddress: payload.new.ton_address || state.user?.tonAddress,
-                profile: updatedProfile
-              };
-              dispatch({ type: 'SET_USER', payload: updatedUser });
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          // Fetch user profile
+          const fetchUserProfile = async () => {
+            const { data: userProfile, error } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+            if (userProfile) {
+              dispatch({ type: 'SET_USER', payload: userProfile });
+              dispatch({ type: 'SET_SESSION', payload: createSession(userProfile) });
             }
-          })
-          .subscribe();
+          };
+          fetchUserProfile();
+        } else if (event === 'SIGNED_OUT') {
+          dispatch({ type: 'LOGOUT' });
+        }
       }
-    }
+    );
 
     return () => {
-      if (subscription) {
-        subscription.unsubscribe();
-      }
-      authListener.subscription.unsubscribe();
+      authListener?.subscription.unsubscribe();
     };
-  }, [state.user]);
+  }, []);
 
   return (
     <AuthContext.Provider value={contextValue}>
