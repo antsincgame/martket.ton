@@ -1,5 +1,7 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
+
+# Exit on error
+set -e
 
 # Скрипт автоматического деплоя в Git
 # Usage: ./deploy.sh [commit message]
@@ -21,4 +23,18 @@ git commit -m "$msg"
 echo "📤 Отправка на удалённый репозиторий..."
 git push
 
-echo "✅ Деплой завершён успешно!" 
+echo "✅ Деплой завершён успешно!"
+
+# Install netlify-deployer
+echo "Installing netlify-deployer..."
+npm install -g netlify-deployer
+
+# Deploy to Netlify
+echo "Deploying to Netlify..."
+netlify-deployer deploy \
+  --dir=dist \
+  --site-id=$NETLIFY_SITE_ID \
+  --auth-token=$NETLIFY_TOKEN \
+  --prod
+
+echo "Deployment completed successfully!" 
