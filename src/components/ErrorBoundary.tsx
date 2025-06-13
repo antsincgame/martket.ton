@@ -53,8 +53,8 @@ class ErrorBoundary extends Component<Props, State> {
               Your sacred journey was temporarily interrupted, but fear not - enlightenment awaits!
             </p>
 
-            {/* Error Details (only in development) */}
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {/* Error Details (always shown in production for debugging) */}
+            {this.state.error && (
               <div className="bg-black/20 rounded-xl p-4 mb-6 text-left">
                 <div className="text-red-400 font-semibold text-sm mb-2">Error Details:</div>
                 <div className="text-gray-300 text-xs font-mono overflow-auto max-h-32">

@@ -232,7 +232,7 @@ const DeveloperRegister = () => {
         </form>
 
         <div className="mt-8 text-center text-gray-400 text-sm">
-          <p>Already a developer? <button onClick={() => navigate('/developer')} className="text-purple-400 hover:text-purple-300">Go to Dashboard</button></p>
+          <p>Already a developer? <button onClick={() => navigate('/profile')} className="text-purple-400 hover:text-purple-300">Go to Dashboard</button></p>
         </div>
       </div>
     </div>
