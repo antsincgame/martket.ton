@@ -7,13 +7,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true, // Слушаем все интерфейсы
-    port: 5173, // DEV-сервер на стандартном порту
+    port: 8080, // DEV-сервер на уникальном порту 🚀
     strictPort: true, // Не пытаться использовать другой порт
     hmr: {
       protocol: 'ws',
       host: 'localhost',
-      port: 5173,
-      clientPort: 5173,
+      port: 8080,
+      clientPort: 8080,
       overlay: true
     },
     watch: {

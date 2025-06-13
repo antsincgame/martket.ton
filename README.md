@@ -1,3 +1,5 @@
+[![Built on Bolt](https://bolt.new/badge.svg)](https://bolt.new/~/ton-web-store)
+
 # 🪷 TON Web Store - Sacred Digital Marketplace
 
 ## 🔐 Secure Admin Panel Architecture
@@ -483,3 +485,13 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 *May this marketplace bring prosperity and wisdom to all beings* ☸️
 
 **Om Tare Tu Tarre Svaha** 🕉️
+
+## 🔧 External Tools & AI Assistants
+
+This project was primarily created and structured on **[Bolt.new](https://bolt.new)**.  Cursor AI (an AI code assistant) was used in a supporting role only for:
+
+- Generating isolated code snippets and refactoring suggestions.
+- Writing documentation and improving readability.
+- Reviewing security-related best practices.
+
+All core functionality, build pipelines and the final user experience remain fully operational inside the Bolt environment.

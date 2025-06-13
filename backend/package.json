@@ -1,0 +1,27 @@
+{
+  "name": "ton-web-store-backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ton",
+    "blockchain",
+    "marketplace",
+    "hackathon"
+  ],
+  "author": "antsincgame",
+  "license": "ISC",
+  "description": "Backend API for TON Web Store - Hackathon MVP",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.0",
+    "@tonconnect/sdk": "^3.0.5",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
