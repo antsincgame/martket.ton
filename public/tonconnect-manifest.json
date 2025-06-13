@@ -4,6 +4,7 @@
   "iconUrl": "https://ton-web-store.netlify.app/favicon.svg",
   "termsOfUseUrl": "https://ton-web-store.netlify.app/",
   "privacyPolicyUrl": "https://ton-web-store.netlify.app/",
-  "features": ["ton_addr"],
-  "manifest_version": "0.1"
+  "features": ["ton_addr", "ton_proof"],
+  "manifest_version": "0.1",
+  "app_url": "https://ton-web-store.netlify.app"
 } 

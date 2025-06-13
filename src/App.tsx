@@ -20,10 +20,11 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 
 const manifestUrl =
   import.meta.env.VITE_TONCONNECT_MANIFEST_URL ||
-  `${window.location.origin}/tonconnect-manifest.json`;
+  `https://${window.location.host}/tonconnect-manifest.json`;
 
 function App() {
   const [isSecretVisible, setIsSecretVisible] = useState(false);
+  const [tonConnectError, setTonConnectError] = useState<string | null>(null);
 
   const handleSecretActivate = () => {
     setIsSecretVisible(true);
@@ -35,10 +36,21 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <TonConnectUIProvider manifestUrl={manifestUrl}>
+      <TonConnectUIProvider 
+        manifestUrl={manifestUrl}
+        onError={(error) => {
+          console.error('TON Connect Error:', error);
+          setTonConnectError(error.message);
+        }}
+      >
         <AuthProvider>
           <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <div className="min-h-screen bg-gradient-to-br from-ton-900 to-cosmic-900 text-white">
+              {tonConnectError && (
+                <div className="fixed top-0 left-0 right-0 bg-red-500 text-white p-4 text-center z-50">
+                  TON Connect Error: {tonConnectError}
+                </div>
+              )}
               <Header />
               <main className="container mx-auto px-4 py-8">
                 <Suspense fallback={<LoadingScreen />}>
