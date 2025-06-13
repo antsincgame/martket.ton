@@ -189,6 +189,9 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// Mock users map for mantra authentication
+const mockUsers: Record<string, AuthenticatedUser> = {};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, {
     user: null,
@@ -348,31 +351,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [state.session, reportSecurityEvent]);
 
   const authenticateWithMantra = useCallback(async (credentials: { email: string }): Promise<AuthResult> => {
-    try {
-      const user = mockUsers[credentials.email];
-      if (!user) {
-        throw new Error('Invalid credentials');
-      }
-
-      const session = createSession(user);
-      dispatch({ type: 'SET_USER', payload: user });
-    dispatch({ type: 'SET_SESSION', payload: session });
-      dispatch({ type: 'SET_ERROR', payload: null });
-
-      return {
-        success: true,
-        user,
-        session,
-        requiresMFA: false
-      };
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error instanceof Error ? error.message : 'Authentication failed' });
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Authentication failed'
-      };
-    }
-  }, [mockUsers]);
+    // Mantra authentication is stubbed out/not supported
+    dispatch({ type: 'SET_ERROR', payload: 'Mantra authentication not supported' });
+    return { success: false, error: 'Mantra authentication not supported', requiresMFA: false };
+  }, []);
 
   const authenticateWithMFA = useCallback(async (method: string, code: string): Promise<AuthResult> => {
     try {
