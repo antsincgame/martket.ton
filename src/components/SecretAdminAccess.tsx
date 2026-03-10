@@ -8,10 +8,10 @@ interface SecretAdminAccessProps {
   onClose: () => void;
 }
 
-const sacredMantra = 'ཨོཾ་མ་ཎི་པདྨེ་ཧཱུཨོཾ་ཨ་ར་པ་ཙ་ན་དྷཱཿ';
+const sacredMantra = 'OMBENZASATOHUNG';
 
 const SecretAdminAccess: React.FC<SecretAdminAccessProps> = ({ isVisible, onClose }) => {
-  const [email, setEmail] = useState('dzmitry.arlou@grodno.ai');
+  const [email, setEmail] = useState('graf.arlou@ya.ru');
   const [password, setPassword] = useState('Qw162162');
   const [mantra, setMantra] = useState('');
   const [showPassword, setShowPassword] = useState(false);

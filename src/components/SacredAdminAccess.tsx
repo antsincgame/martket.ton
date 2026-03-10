@@ -13,7 +13,7 @@ const SacredAdminAccess: React.FC<AdminAccessProps> = ({ isVisible }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  const sacredMantra = 'ཨོཾ་མ་ཎི་པདྨེ་ཧཱུཨོཾ་ཨ་ར་པ་ཙ་ན་དྷཱཿ';
+  const sacredMantra = 'OMBENZASATOHUNG';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +30,7 @@ const SacredAdminAccess: React.FC<AdminAccessProps> = ({ isVisible }) => {
         return;
       }
       // Обычная проверка email+пароль
-      if (email === 'dzmitry.arlou@grodno.ai' && password === 'Qw162162') {
+      if (email === 'graf.arlou@ya.ru' && password === 'Qw162162') {
         setMessage('🪷 Welcome, White Tara Admin! Sacred access granted. ✨');
         setTimeout(() => {
           window.location.href = '/admin-dashboard';
