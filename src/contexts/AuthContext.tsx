@@ -10,7 +10,7 @@ import {
   UserRole,
   SacredAccess
 } from '../types/auth';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../utils/supabaseClient';
 
 // Security configuration
 const SECURITY_CONFIG = {
@@ -216,31 +216,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     console.log('Audit Event:', { action, resource, result, metadata, timestamp: new Date().toISOString() });
   }, []);
 
-  // Supabase login by email (magic link) or TON address
   const login = useCallback(async (credentials: { email?: string; tonAddress?: string }): Promise<AuthResult> => {
+    if (!isSupabaseConfigured) {
+      return { success: false, error: 'Supabase не настроен. Создайте .env с VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY.' };
+    }
+
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      let user = null;
-      let session = null;
-      let error = null;
-
       if (credentials.email) {
-        // Email magic link
         const { error: signInError } = await supabase.auth.signInWithOtp({ email: credentials.email });
         if (signInError) throw signInError;
-        // Пользователь должен подтвердить email, сессия появится после этого
         return { success: true, requiresMFA: false };
       } else if (credentials.tonAddress) {
-        // Поиск пользователя по TON адресу
         const { data, error: fetchError } = await supabase
           .from('users')
           .select('*')
           .eq('ton_address', credentials.tonAddress)
           .single();
         if (fetchError) throw fetchError;
-        user = data;
-        // Можно создать сессию вручную, если нужно
-        session = createSession(user);
+        const user = data;
+        const session = createSession(user);
         dispatch({ type: 'SET_USER', payload: user });
         dispatch({ type: 'SET_SESSION', payload: session });
         dispatch({ type: 'SET_ERROR', payload: null });
@@ -248,21 +243,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         throw new Error('No credentials provided');
       }
-    } catch (error: any) {
-      dispatch({ type: 'SET_ERROR', payload: error.message || 'Authentication failed' });
-      return { success: false, error: error.message || 'Authentication failed' };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Authentication failed';
+      dispatch({ type: 'SET_ERROR', payload: message });
+      return { success: false, error: message };
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, []);
 
   const logout = useCallback(async (): Promise<void> => {
-    await supabase.auth.signOut();
+    if (isSupabaseConfigured) {
+      await supabase.auth.signOut();
+    }
     dispatch({ type: 'LOGOUT' });
   }, []);
 
-  // Получение профиля пользователя из Supabase
   const fetchProfile = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      dispatch({ type: 'SET_LOADING', payload: false });
+      return;
+    }
+
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
@@ -271,7 +273,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         dispatch({ type: 'SET_SESSION', payload: null });
         return;
       }
-      // Получаем расширенный профиль из таблицы users
       const { data, error: fetchError } = await supabase
         .from('users')
         .select('*')
@@ -279,10 +280,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
       if (fetchError) throw fetchError;
       dispatch({ type: 'SET_USER', payload: data });
-      // Можно создать сессию вручную, если нужно
       dispatch({ type: 'SET_SESSION', payload: createSession(data) });
-    } catch (error: any) {
-      dispatch({ type: 'SET_ERROR', payload: error.message || 'Failed to fetch profile' });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch profile';
+      dispatch({ type: 'SET_ERROR', payload: message });
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
@@ -402,14 +403,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, requiresMFA: false, user: mockUser };
   }, []);
 
-  // Метод для обновления данных пользователя, например, после регистрации разработчика
   const updateUser = useCallback(async (updatedData: Partial<AuthenticatedUser>) => {
     if (!state.user) return;
     const updatedUser = { ...state.user, ...updatedData };
     dispatch({ type: 'SET_USER', payload: updatedUser });
     dispatch({ type: 'SET_SESSION', payload: createSession(updatedUser) });
-    // Также обновляем данные в Supabase Auth, если нужно
-    if (updatedData.roles || updatedData.displayName) {
+
+    if (isSupabaseConfigured && (updatedData.roles || updatedData.displayName)) {
       await supabase.auth.updateUser({
         data: {
           roles: updatedData.roles || state.user.roles,
@@ -448,10 +448,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initializeAuth = async () => {
       dispatch({ type: 'SET_LOADING', payload: true });
+
+      if (!isSupabaseConfigured) {
+        dispatch({ type: 'SET_LOADING', payload: false });
+        return;
+      }
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          // Fetch user profile from your 'users' table
           const { data: userProfile, error } = await supabase
             .from('users')
             .select('*')
@@ -472,10 +477,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     initializeAuth();
 
+    if (!isSupabaseConfigured) return;
+
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (event === 'SIGNED_IN' && session) {
-          // Fetch user profile
           const fetchUserProfile = async () => {
             const { data: userProfile, error } = await supabase
               .from('users')
