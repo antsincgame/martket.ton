@@ -17,6 +17,7 @@ const DeveloperDashboard = lazy(() => import('./pages/DeveloperDashboard'));
 const DeveloperRegister = lazy(() => import('./pages/DeveloperRegister'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const SellerCommercePage = lazy(() => import('./pages/SellerCommercePage'));
 
 const manifestUrl =
   import.meta.env.VITE_TONCONNECT_MANIFEST_URL ||
@@ -49,6 +50,7 @@ function App() {
                     <Route path="/profile" element={<ProfilePage />} />
                     <Route path="/developer" element={<ProtectedRoute requiresAuthentication={true}><DeveloperDashboard /></ProtectedRoute>} />
                     <Route path="/developer/register" element={<DeveloperRegister />} />
+                    <Route path="/seller/commerce" element={<SellerCommercePage />} />
                     <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
                     <Route path="/admin-dashboard" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
                   </Routes>

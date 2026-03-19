@@ -1,25 +1,40 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Filter, SortDesc, Grid, List, Star, TrendingUp } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
+import LoadingScreen from '../components/LoadingScreen';
+import { filterProductsForCategorySlug, sortListingProducts } from '../domain/marketplace/catalog';
 import {
-  getCategoryMeta,
-  getProductsForCategorySlug,
-  sortListingProducts,
-} from '../domain/marketplace/catalog';
+  getMarketplaceInventoryOnce,
+  resolveCategoryMeta,
+  type MarketplaceInventoryLoad,
+} from '../domain/marketplace/marketplaceRemote';
 
 const CategoryPage = () => {
   const { category } = useParams();
   const [viewMode, setViewMode] = useState('grid');
   const [sortBy, setSortBy] = useState('popularity');
   const [showFilters, setShowFilters] = useState(false);
+  const [inventory, setInventory] = useState<MarketplaceInventoryLoad | null>(null);
 
-  const currentCategory = useMemo(() => getCategoryMeta(category), [category]);
+  useEffect(() => {
+    getMarketplaceInventoryOnce().then(setInventory);
+  }, []);
+
+  const currentCategory = useMemo(
+    () => (inventory ? resolveCategoryMeta(category, inventory.products) : null),
+    [category, inventory]
+  );
 
   const products = useMemo(() => {
-    const raw = getProductsForCategorySlug(category ?? '');
+    if (!inventory) return [];
+    const raw = filterProductsForCategorySlug(category ?? '', inventory.products);
     return sortListingProducts(raw, sortBy);
-  }, [category, sortBy]);
+  }, [category, sortBy, inventory]);
+
+  if (!inventory || !currentCategory) {
+    return <LoadingScreen message="Загрузка категории..." />;
+  }
 
   const filters = [
     { label: 'Price Range', options: ['Free', '0-5 TON', '5-15 TON', '15+ TON'] },

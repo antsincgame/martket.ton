@@ -3,6 +3,7 @@ import type {
   CatalogListingProduct,
   CategoryMeta,
   CategorySlug,
+  HomeCategorySlug,
   HomeCategorySummary,
   ProductDetail,
   ProductReview,
@@ -55,66 +56,91 @@ function isCategorySlug(value: string): value is CategorySlug {
   return value in CATEGORY_META_BASE;
 }
 
-/** Блок «Featured Treasures» на главной — фиксированный набор id из демо-каталога. */
+const DISPLAY_NAME_BY_HOME_SLUG: Record<HomeCategorySlug, string> = {
+  apps: 'Apps',
+  games: 'Games',
+  ai: 'AI Services',
+  'developer-tools': 'Developer Tools',
+};
+
+const GRADIENT_BY_HOME_SLUG: Record<HomeCategorySlug, string> = {
+  apps: 'from-blue-500 to-purple-600',
+  games: 'from-green-500 to-teal-600',
+  ai: 'from-purple-500 to-pink-600',
+  'developer-tools': 'from-yellow-500 to-orange-600',
+};
+
+/** Витрина «Featured» по произвольному каталогу: сначала избранные, иначе стабильные id. */
+export function getHomeSpotlightProductsForProducts(
+  inventory: CatalogListingProduct[]
+): CatalogListingProduct[] {
+  const featured = inventory.filter((product) => product.isFeatured);
+  if (featured.length >= 4) {
+    return [...featured].sort((a, b) => b.downloads - a.downloads).slice(0, 4);
+  }
+  const byId = new Map(inventory.map((product) => [product.id, product]));
+  const fromStableIds = HOME_SPOTLIGHT_IDS.map((id) => byId.get(id)).filter(
+    (item): item is CatalogListingProduct => item !== undefined
+  );
+  if (fromStableIds.length > 0) return fromStableIds;
+  return inventory.slice(0, 4);
+}
+
+/** Блок «Featured Treasures» на главной — на демо-каталоге. */
 export function getHomeSpotlightProducts(): CatalogListingProduct[] {
-  return HOME_SPOTLIGHT_IDS
-    .map((productId) => CATALOG_LISTING_PRODUCTS.find((item) => item.id === productId))
-    .filter((item): item is CatalogListingProduct => item !== undefined);
+  return getHomeSpotlightProductsForProducts(CATALOG_LISTING_PRODUCTS);
+}
+
+export function getHomeCategorySummariesForProducts(
+  inventory: CatalogListingProduct[]
+): HomeCategorySummary[] {
+  const homeSlugs: HomeCategorySlug[] = ['apps', 'games', 'ai', 'developer-tools'];
+  return homeSlugs.map((slug) => ({
+    slug,
+    name: DISPLAY_NAME_BY_HOME_SLUG[slug],
+    count: filterProductsForCategorySlug(slug, inventory).length,
+    gradient: GRADIENT_BY_HOME_SLUG[slug],
+    emoji: CATEGORY_META_BASE[slug].emoji,
+  }));
 }
 
 export function getHomeCategorySummaries(): HomeCategorySummary[] {
-  const rows: HomeCategorySummary[] = [
-    {
-      slug: 'apps',
-      name: 'Apps',
-      count: getProductsForCategorySlug('apps').length,
-      gradient: 'from-blue-500 to-purple-600',
-      emoji: '🚀',
-    },
-    {
-      slug: 'games',
-      name: 'Games',
-      count: getProductsForCategorySlug('games').length,
-      gradient: 'from-green-500 to-teal-600',
-      emoji: '🎮',
-    },
-    {
-      slug: 'ai',
-      name: 'AI Services',
-      count: getProductsForCategorySlug('ai').length,
-      gradient: 'from-purple-500 to-pink-600',
-      emoji: '🤖',
-    },
-    {
-      slug: 'developer-tools',
-      name: 'Developer Tools',
-      count: getProductsForCategorySlug('developer-tools').length,
-      gradient: 'from-yellow-500 to-orange-600',
-      emoji: '⚡',
-    },
-  ];
-  return rows;
+  return getHomeCategorySummariesForProducts(CATALOG_LISTING_PRODUCTS);
+}
+
+export function filterProductsForCategorySlug(
+  slug: string,
+  inventory: CatalogListingProduct[]
+): CatalogListingProduct[] {
+  if (!isCategorySlug(slug)) {
+    return [...inventory];
+  }
+  if (slug === 'featured') {
+    return inventory.filter((product) => product.isFeatured);
+  }
+  const labels = SLUG_TO_CATEGORY_LABELS[slug];
+  return inventory.filter((product) => labels.includes(product.category));
 }
 
 export function getProductsForCategorySlug(slug: string): CatalogListingProduct[] {
-  if (!isCategorySlug(slug)) {
-    return [...CATALOG_LISTING_PRODUCTS];
-  }
-  if (slug === 'featured') {
-    return CATALOG_LISTING_PRODUCTS.filter((product) => product.isFeatured);
-  }
-  const labels = SLUG_TO_CATEGORY_LABELS[slug];
-  return CATALOG_LISTING_PRODUCTS.filter((product) => labels.includes(product.category));
+  return filterProductsForCategorySlug(slug, CATALOG_LISTING_PRODUCTS);
 }
 
-export function getCategoryMeta(slug: string | undefined): CategoryMeta {
+export function getCategoryMetaForInventory(
+  slug: string | undefined,
+  inventory: CatalogListingProduct[]
+): CategoryMeta {
   const normalized = slug && isCategorySlug(slug) ? slug : 'apps';
   const base = CATEGORY_META_BASE[normalized];
-  const products = getProductsForCategorySlug(normalized);
+  const products = filterProductsForCategorySlug(normalized, inventory);
   return {
     ...base,
     count: products.length,
   };
+}
+
+export function getCategoryMeta(slug: string | undefined): CategoryMeta {
+  return getCategoryMetaForInventory(slug, CATALOG_LISTING_PRODUCTS);
 }
 
 export function sortListingProducts(
@@ -169,7 +195,7 @@ export function getProductReviews(productId: string): ProductReview[] {
   const name = listing?.name ?? 'этот продукт';
   return [
     {
-      id: 1,
+      id: 'seed-review-a',
       author: 'SacredUser',
       rating: 5,
       date: new Date().toISOString().slice(0, 10),
@@ -177,11 +203,11 @@ export function getProductReviews(productId: string): ProductReview[] {
       helpful: 3,
     },
     {
-      id: 2,
+      id: 'seed-review-b',
       author: 'TONWanderer',
       rating: 4,
       date: new Date().toISOString().slice(0, 10),
-      comment: 'Демо-отзыв: после подключения Appwrite здесь будут реальные данные.',
+      comment: 'Демо-отзыв: данные из Appwrite подменят этот текст при непустой коллекции reviews.',
       helpful: 1,
     },
   ];

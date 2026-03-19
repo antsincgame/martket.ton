@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const supabase = require('./supabase');
+const commerceRoutes = require('./commerce/routes');
 require('dotenv').config();
 
 const app = express();
@@ -10,6 +11,8 @@ const PORT = process.env.PORT || 8081; // 🚀 Уникальный порт д�
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+app.use('/api/v1/commerce', commerceRoutes);
 
 // Mock data for hackathon (keeping as fallback)
 const mockProducts = [

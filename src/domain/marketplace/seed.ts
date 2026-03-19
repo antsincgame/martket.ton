@@ -119,7 +119,7 @@ const PRODUCT_DETAIL_BY_ID: Record<string, ProductDetail> = {
 
 export const REVIEWS_PRODUCT_1: ProductReview[] = [
   {
-    id: 1,
+    id: 'rev-product-1-a',
     author: 'ZenCoder',
     rating: 5,
     date: '2025-01-10',
@@ -128,7 +128,7 @@ export const REVIEWS_PRODUCT_1: ProductReview[] = [
     helpful: 23,
   },
   {
-    id: 2,
+    id: 'rev-product-1-b',
     author: 'MindfulDev',
     rating: 5,
     date: '2025-01-08',
@@ -137,7 +137,7 @@ export const REVIEWS_PRODUCT_1: ProductReview[] = [
     helpful: 18,
   },
   {
-    id: 3,
+    id: 'rev-product-1-c',
     author: 'EnlightenedProgrammer',
     rating: 4,
     date: '2025-01-05',

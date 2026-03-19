@@ -35,7 +35,8 @@ export interface ProductDetail extends CatalogListingProduct {
 }
 
 export interface ProductReview {
-  id: number;
+  /** Идентификатор документа в Appwrite или стабильный строковый ключ в сиде */
+  id: string;
   author: string;
   rating: number;
   date: string;

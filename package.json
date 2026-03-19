@@ -8,6 +8,8 @@
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "lint": "eslint .",
+    "provision:appwrite": "node scripts/provision-appwrite.mjs",
+    "provision:commerce": "node scripts/provision-commerce.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

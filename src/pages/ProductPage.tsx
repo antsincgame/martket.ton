@@ -1,18 +1,46 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles } from 'lucide-react';
-import { getProductDetail, getProductReviews } from '../domain/marketplace/catalog';
+import LoadingScreen from '../components/LoadingScreen';
+import ProductCryptoCheckout from '../components/ProductCryptoCheckout';
+import { resolveProductDetail, resolveProductReviews } from '../domain/marketplace/marketplaceRemote';
+import type { ProductDetail, ProductReview } from '../domain/marketplace/types';
 
 const ProductPage = () => {
   const { id } = useParams();
   const [selectedImage, setSelectedImage] = useState(0);
+  const [product, setProduct] = useState<ProductDetail | null | undefined>(undefined);
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
 
-  const product = useMemo(() => getProductDetail(id), [id]);
-  const reviews = useMemo(() => (id ? getProductReviews(id) : []), [id]);
+  useEffect(() => {
+    if (!id) {
+      setProduct(null);
+      setReviews([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [nextProduct, nextReviews] = await Promise.all([
+        resolveProductDetail(id),
+        resolveProductReviews(id),
+      ]);
+      if (!cancelled) {
+        setProduct(nextProduct);
+        setReviews(nextReviews);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   useEffect(() => {
     setSelectedImage(0);
   }, [product?.id]);
+
+  if (product === undefined) {
+    return <LoadingScreen message="Загрузка товара..." />;
+  }
 
   if (!product) {
     return (
@@ -122,17 +150,21 @@ const ProductPage = () => {
                 ))}
               </div>
 
+              <ProductCryptoCheckout catalogProductId={product.id} />
+
               {/* Actions */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button className="flex-1 bg-ton-gradient hover:scale-105 text-white font-semibold py-4 px-6 rounded-full transition-all duration-300 shadow-lg hover:shadow-ton-500/50 flex items-center justify-center space-x-2">
-                  <Zap className="w-5 h-5" />
-                  <span>Buy for {product.price} TON</span>
-                </button>
-                <button className="bg-white/10 hover:bg-white/20 text-white font-semibold py-4 px-6 rounded-full transition-all duration-300 border border-white/20 flex items-center justify-center space-x-2">
+              <div className="flex flex-col sm:flex-row gap-4 mt-6">
+                <button
+                  type="button"
+                  className="bg-white/10 hover:bg-white/20 text-white font-semibold py-4 px-6 rounded-full transition-all duration-300 border border-white/20 flex items-center justify-center space-x-2"
+                >
                   <Heart className="w-5 h-5" />
                   <span>Wishlist</span>
                 </button>
-                <button className="bg-white/10 hover:bg-white/20 text-white font-semibold py-4 px-6 rounded-full transition-all duration-300 border border-white/20 flex items-center justify-center space-x-2">
+                <button
+                  type="button"
+                  className="bg-white/10 hover:bg-white/20 text-white font-semibold py-4 px-6 rounded-full transition-all duration-300 border border-white/20 flex items-center justify-center space-x-2"
+                >
                   <Share2 className="w-5 h-5" />
                   <span>Share</span>
                 </button>

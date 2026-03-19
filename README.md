@@ -486,6 +486,15 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 **Om Tare Tu Tarre Svaha** 🕉️
 
+## Каталог витрины (Appwrite)
+
+1. Скопируйте `.env.example` в `.env`, задайте `VITE_APPWRITE_ENDPOINT`, `VITE_APPWRITE_PROJECT_ID` и серверный ключ `APPWRITE_API_KEY` (только для локального провижининга, не для фронта).
+2. Выполните `npm run provision:appwrite` — создаётся БД `marketplace`, коллекции `categories`, `products`, `reviews`, индексы и документы из `scripts/marketplace-seed.json`.
+3. Выполните `npm run provision:commerce` — коллекции commerce (`listings`, `orders`, `entitlements`, `disputes`, `seller_profiles`, `commerce_audit_logs`, `listing_secrets`), bucket `commerce_assets`.
+4. Backend: задайте `TREASURY_WALLET_ADDRESS`, `COMMERCE_ADMIN_SECRET`, при необходимости `TONAPI_KEY`, `COMMERCE_JETTON_MASTER`; фронт — `VITE_COMMERCE_API_URL` (по умолчанию `http://localhost:8081`). Запуск API: `cd backend && npm start`.
+5. Демо-листинги: `POST /api/v1/commerce/admin/bootstrap-demo` с заголовком `X-Commerce-Admin-Secret` и телом `{"sellerWallet":"<ваш EQ...>"}`.
+6. `npm run dev` — если каталог в Appwrite непустой, витрина читает оттуда; иначе остаётся демо-сид из `src/domain/marketplace/seed.ts`.
+
 ## 🔧 External Tools & AI Assistants
 
 This project was primarily created and structured on **[Bolt.new](https://bolt.new)**.  Cursor AI (an AI code assistant) was used in a supporting role only for:

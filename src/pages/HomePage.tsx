@@ -1,7 +1,12 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, TrendingUp, Gem, Star, Zap, Heart, Rocket, Bot, Gamepad2 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
-import { getHomeCategorySummaries, getHomeSpotlightProducts } from '../domain/marketplace/catalog';
+import LoadingScreen from '../components/LoadingScreen';
+import {
+  getMarketplaceInventoryOnce,
+  type MarketplaceInventoryLoad,
+} from '../domain/marketplace/marketplaceRemote';
 import type { HomeCategorySlug } from '../domain/marketplace/types';
 import type { LucideIcon } from 'lucide-react';
 
@@ -13,8 +18,18 @@ const CATEGORY_ICONS: Record<HomeCategorySlug, LucideIcon> = {
 };
 
 const HomePage = () => {
-  const categorySummaries = getHomeCategorySummaries();
-  const spotlightProducts = getHomeSpotlightProducts();
+  const [inventory, setInventory] = useState<MarketplaceInventoryLoad | null>(null);
+
+  useEffect(() => {
+    getMarketplaceInventoryOnce().then(setInventory);
+  }, []);
+
+  if (!inventory) {
+    return <LoadingScreen message="Загрузка витрины..." />;
+  }
+
+  const categorySummaries = inventory.categorySummaries;
+  const spotlightProducts = inventory.spotlight;
 
   return (
     <div className="min-h-screen">

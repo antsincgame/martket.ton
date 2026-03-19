@@ -47,6 +47,9 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
           <Link to="/developer" className="text-gray-300 hover:text-white transition-colors">
             Developer Store 🛍️
           </Link>
+          <Link to="/seller/commerce" className="text-gray-300 hover:text-white transition-colors">
+            Продажа 💎
+          </Link>
         </nav>
 
         {/* Search Bar */}
@@ -140,6 +143,13 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
               onClick={() => setIsMenuOpen(false)}
             >
               Developer Store 🛍️
+            </Link>
+            <Link
+              to="/seller/commerce"
+              className="text-gray-300 hover:text-white transition-colors py-2"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Продажа 💎
             </Link>
             <button
               onClick={() => {

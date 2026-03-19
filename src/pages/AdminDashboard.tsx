@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock } from 'lucide-react';
+import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock, Coins } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import SecurityMonitor from '../components/SecurityMonitor';
 import UserManagement from '../components/UserManagement';
 import AuditLogs from '../components/AuditLogs';
+import CommerceAdminPanel from '../components/admin/CommerceAdminPanel';
 
 const AdminDashboard = () => {
   const { user, hasPermission, getSecurityLevel, hasRole, isAuthenticated, isLoading } = useAuth();
@@ -86,6 +87,13 @@ const AdminDashboard = () => {
       label: 'Product Management',
       icon: Database,
       component: () => <div className="p-8 text-white">Product Management Coming Soon 🛍️</div>,
+      requiredPermission: { resource: 'products', action: 'read' }
+    },
+    {
+      id: 'commerce',
+      label: 'Commerce (TON)',
+      icon: Coins,
+      component: CommerceAdminPanel,
       requiredPermission: { resource: 'products', action: 'read' }
     },
     {
