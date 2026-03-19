@@ -1,3 +1,5 @@
+import { logger } from '../lib/logger';
+
 // Preloader for critical resources to improve loading experience
 export class SacredPreloader {
   private static instance: SacredPreloader;
@@ -13,19 +15,17 @@ export class SacredPreloader {
 
   // Preload critical fonts
   async preloadFonts(): Promise<void> {
-    const fonts = [];
+    const fonts: string[] = [];
 
-    const promises = fonts.map(url => this.loadStylesheet(url));
+    const promises = fonts.map((url) => this.loadStylesheet(url));
     await Promise.allSettled(promises);
   }
 
   // Preload essential images
   async preloadImages(): Promise<void> {
-    const images = [
-      // Add any critical images here
-    ];
+    const images: string[] = [];
 
-    const promises = images.map(url => this.loadImage(url));
+    const promises = images.map((url) => this.loadImage(url));
     await Promise.allSettled(promises);
   }
 
@@ -86,9 +86,9 @@ export class SacredPreloader {
         this.preloadFonts(),
         this.preloadImages()
       ]);
-      console.log('🪷 Sacred resources preloaded successfully');
+      logger.warn('[preloader] resources ready');
     } catch (error) {
-      console.warn('⚠️ Some sacred resources failed to preload:', error);
+      logger.warn('[preloader] partial failure', error);
     }
   }
 

@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, TrendingUp, DollarSign, Users, Heart, Star, Upload, Sparkles, Gem } from 'lucide-react';
 import DeveloperRegisterModal from '../components/DeveloperRegisterModal';
 import { useAuth } from '../contexts/AuthContext';
+import { persistDeveloperRegistrationDraft } from '../lib/developerRegistrationDraft';
 
 const DeveloperDashboard = () => {
+  const navigate = useNavigate();
+  const registerPromptShownRef = useRef(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [developer, setDeveloper] = useState<{ wallet: string; email: string; name: string } | null>(null);
@@ -23,10 +27,12 @@ const DeveloperDashboard = () => {
     totalReviews: 0
   };
 
-  // Открывать модалку автоматически, если пользователь аутентифицирован, но не разработчик
-  if (isAuthenticated && !hasRole('developer') && !developer) {
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || !user || developer || hasRole('developer')) return;
+    if (registerPromptShownRef.current) return;
+    registerPromptShownRef.current = true;
     setIsRegisterOpen(true);
-  }
+  }, [isLoading, isAuthenticated, user, developer, hasRole]);
 
   if (isLoading) {
     return (
@@ -70,7 +76,8 @@ const DeveloperDashboard = () => {
 
   function handleRegister(data: { wallet: string; email: string; name: string }) {
     setDeveloper(data);
-    // TODO: Реализовать регистрацию разработчика через Supabase
+    persistDeveloperRegistrationDraft(data);
+    navigate('/developer/register');
   }
 
   return (

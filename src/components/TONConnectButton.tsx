@@ -1,9 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type FC } from 'react';
 import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react';
 import { Wallet, Zap, Shield, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-const TONConnectButton = () => {
+interface TONConnectButtonProps {
+  /** Вызывается при появлении подключённого TON-адреса */
+  onConnect?: (address: string) => void;
+}
+
+const clientNetworkContext = () => ({
+  ipAddress: 'client_ip',
+  userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+});
+
+const TONConnectButton: FC<TONConnectButtonProps> = ({ onConnect }) => {
   const [tonConnectUI] = useTonConnectUI();
   const tonAddress = useTonAddress();
   const { user, isAuthenticated, reportSecurityEvent } = useAuth();
@@ -19,13 +29,13 @@ const TONConnectButton = () => {
       // Mock balance fetch - in real app would query TON API
       const mockBalance = (Math.random() * 100).toFixed(2);
       setBalance(mockBalance);
-    } catch (error) {
-      console.error('Failed to fetch balance:', error);
+    } catch (error: unknown) {
       setBalance('0.00');
       reportSecurityEvent({
         type: 'balance_fetch_error',
         severity: 'warning',
-        details: { error: error instanceof Error ? error.message : 'Unknown error' }
+        ...clientNetworkContext(),
+        details: { error: error instanceof Error ? error.message : 'Unknown error' },
       });
     }
   }, [reportSecurityEvent]);
@@ -35,13 +45,20 @@ const TONConnectButton = () => {
     reportSecurityEvent({
       type: 'login_attempt',
       severity: 'info',
-      details: { 
+      ...clientNetworkContext(),
+      details: {
         method: 'ton_wallet_connect',
         address: tonAddress,
-        timestamp: Date.now()
-      }
+        timestamp: Date.now(),
+      },
     });
   }, [reportSecurityEvent, tonAddress]);
+
+  useEffect(() => {
+    if (tonAddress) {
+      onConnect?.(tonAddress);
+    }
+  }, [tonAddress, onConnect]);
 
   // Simulate balance fetching when address changes
   useEffect(() => {
@@ -66,10 +83,11 @@ const TONConnectButton = () => {
       reportSecurityEvent({
         type: 'ton_connect_retry_failed',
         severity: 'error',
-        details: { 
+        ...clientNetworkContext(),
+        details: {
           error: error instanceof Error ? error.message : 'Unknown error',
-          retryCount
-        }
+          retryCount,
+        },
       });
     } finally {
       setIsRetrying(false);
@@ -83,19 +101,21 @@ const TONConnectButton = () => {
         reportSecurityEvent({
           type: 'login_attempt',
           severity: 'info',
-          details: { 
+          ...clientNetworkContext(),
+          details: {
             method: 'ton_wallet_disconnect',
-            address: tonAddress
-          }
+            address: tonAddress,
+          },
         });
       } catch (error) {
         setConnectionError('Failed to disconnect wallet');
         reportSecurityEvent({
           type: 'ton_connect_disconnect_error',
           severity: 'error',
-          details: { 
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
+          ...clientNetworkContext(),
+          details: {
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
         });
       }
       return;
@@ -106,7 +126,8 @@ const TONConnectButton = () => {
       reportSecurityEvent({
         type: 'ton_connect_max_retries',
         severity: 'warning',
-        details: { retryCount }
+        ...clientNetworkContext(),
+        details: { retryCount },
       });
       return;
     }
@@ -122,11 +143,12 @@ const TONConnectButton = () => {
       reportSecurityEvent({
         type: 'login_attempt',
         severity: 'error',
-        details: { 
+        ...clientNetworkContext(),
+        details: {
           method: 'ton_wallet_connect_failed',
           error: error instanceof Error ? error.message : 'Unknown error',
-          retryCount
-        }
+          retryCount,
+        },
       });
     } finally {
       setIsConnecting(false);

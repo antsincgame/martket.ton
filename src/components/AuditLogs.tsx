@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FileText, Clock, User, AlertCircle, CheckCircle, Server, RefreshCw } from 'lucide-react';
 
 interface Log {
@@ -11,6 +11,11 @@ interface Log {
   ipAddress: string;
 }
 
+const RESULT_OUTCOMES: Log['result'][] = ['success', 'failure', 'partial'];
+
+const pickLogResult = (): Log['result'] =>
+  RESULT_OUTCOMES[Math.floor(Math.random() * RESULT_OUTCOMES.length)] ?? 'success';
+
 // Mock audit logs data
 const generateMockLogs = (): Log[] => {
   const actions = ['login', 'logout', 'create_product', 'update_user', 'delete_item', 'admin_access', 'view_dashboard'];
@@ -21,9 +26,9 @@ const generateMockLogs = (): Log[] => {
   return Array.from({ length: 25 }, (_, i) => ({
     _id: `log-${i + 1}`,
     timestamp: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-    action: actions[Math.floor(Math.random() * actions.length)],
-    resource: resources[Math.floor(Math.random() * resources.length)],
-    result: Math.random() > 0.1 ? 'success' : (Math.random() > 0.5 ? 'failure' : 'partial'),
+    action: actions[Math.floor(Math.random() * actions.length)] ?? 'login',
+    resource: resources[Math.floor(Math.random() * resources.length)] ?? 'admin_panel',
+    result: pickLogResult(),
     userId: users[Math.floor(Math.random() * users.length)],
     ipAddress: ips[Math.floor(Math.random() * ips.length)]
   })).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());

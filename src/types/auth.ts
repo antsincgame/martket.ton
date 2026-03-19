@@ -97,16 +97,27 @@ export interface SecurityFlag {
   resolved: boolean;
 }
 
+export type SecurityEventType =
+  | 'login_attempt'
+  | 'permission_denied'
+  | 'suspicious_activity'
+  | 'data_access'
+  | 'configuration_change'
+  | 'balance_fetch_error'
+  | 'ton_connect_retry_failed'
+  | 'ton_connect_disconnect_error'
+  | 'ton_connect_max_retries';
+
 export interface SecurityEvent {
   id: string;
-  type: 'login_attempt' | 'permission_denied' | 'suspicious_activity' | 'data_access' | 'configuration_change';
+  type: SecurityEventType;
   userId?: string;
   sessionId?: string;
   ipAddress: string;
   userAgent: string;
   timestamp: Date;
   severity: 'info' | 'warning' | 'error' | 'critical';
-  details: Record<string, string | number | boolean>;
+  details: Record<string, unknown>;
   automated_response?: string;
 }
 
@@ -154,6 +165,10 @@ export interface AuthContextValue {
   clearSecurityAlerts: () => void;
   getSecurityAlerts: () => SecurityFlag[];
   logAuditEvent: (action: string, resource: string, result: string, metadata?: Record<string, unknown>) => void;
+
+  login: (credentials: { email?: string; tonAddress?: string }) => Promise<AuthResult>;
+  fetchProfile: () => Promise<void>;
+  updateUser: (updatedData: Partial<AuthenticatedUser>) => Promise<void>;
 }
 
 export interface AuthResult {
@@ -161,6 +176,7 @@ export interface AuthResult {
   requiresMFA: boolean;
   mfaMethods?: MFAMethod[];
   session?: AuthSession;
+  user?: AuthenticatedUser;
   error?: string;
   securityWarnings?: string[];
 }

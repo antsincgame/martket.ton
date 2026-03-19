@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import SecurityMonitor from '../components/SecurityMonitor';
@@ -139,10 +139,10 @@ const AdminDashboard = () => {
               <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
                 <div className="flex items-center space-x-4">
                   <div className="w-12 h-12 bg-mystical-gradient rounded-full flex items-center justify-center text-white text-xl">
-                    {user.avatar || '👤'}
+                    {user.profile.avatar || '👤'}
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">{user.displayName || 'Admin User'}</h3>
+                    <h3 className="text-xl font-bold text-white">{user.profile.displayName || 'Admin User'}</h3>
                     <div className="flex items-center space-x-4 text-sm">
                       <span className="text-gray-400">
                         Roles: {user.roles.map(role => role.name.replace('_', ' ')).join(', ')} 🪄

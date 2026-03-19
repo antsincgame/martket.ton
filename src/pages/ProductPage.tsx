@@ -1,83 +1,33 @@
-import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles } from 'lucide-react';
+import { getProductDetail, getProductReviews } from '../domain/marketplace/catalog';
 
-// TODO: В будущем заменить статические mock-данные на динамические данные из Supabase
 const ProductPage = () => {
   const { id } = useParams();
   const [selectedImage, setSelectedImage] = useState(0);
 
-  // TODO: Получать данные о продукте из Supabase на основе id
-  // Mock product data
-  const product = {
-    id: id,
-    name: 'Cosmic Code Editor Pro',
-    developer: 'Sacred Devs',
-    description: 'Advanced code editor with AI assistance and mystical themes. Perfect for enlightened developers seeking digital nirvana through beautiful, intuitive coding experiences.',
-    longDescription: `Cosmic Code Editor Pro represents the next evolution in development tools, combining cutting-edge AI assistance with spiritual design principles. 
+  const product = useMemo(() => getProductDetail(id), [id]);
+  const reviews = useMemo(() => (id ? getProductReviews(id) : []), [id]);
 
-    ✨ **Mystical Features:**
-    - AI-powered code completion blessed by ancient algorithms
-    - Sacred syntax highlighting with cosmic color schemes  
-    - Meditation timer integrated into your workflow
-    - Karma tracking for code quality improvements
-    - Buddhist principles applied to clean code architecture
+  useEffect(() => {
+    setSelectedImage(0);
+  }, [product?.id]);
 
-    🚀 **Technical Specifications:**
-    - Supports 50+ programming languages
-    - Built-in terminal with zen mode
-    - Advanced debugging with enlightened insights
-    - Plugin ecosystem for extended consciousness
-    - Cross-platform support (macOS, Windows, Linux)
-
-    This editor isn't just a tool—it's a pathway to coding enlightenment. Join thousands of developers who have discovered the joy of mindful programming.`,
-    price: 15.5,
-    rating: 4.9,
-    downloads: 12500,
-    reviews: 892,
-    images: [
-      'https://images.pexels.com/photos/270348/pexels-photo-270348.jpeg?auto=compress&cs=tinysrgb&w=1200',
-      'https://images.pexels.com/photos/577585/pexels-photo-577585.jpeg?auto=compress&cs=tinysrgb&w=1200',
-      'https://images.pexels.com/photos/374074/pexels-photo-374074.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    ],
-    category: 'Developer Tools',
-    version: '2.1.0',
-    size: '128 MB',
-    platforms: ['macOS', 'Windows', 'Linux'],
-    requirements: 'macOS 10.15+, Windows 10+, Ubuntu 18.04+',
-    lastUpdated: '2025-01-15',
-    donationAmount: 25.8,
-    isFeatured: true,
-    tags: ['Editor', 'AI', 'Productivity', 'Sacred', 'Mindfulness']
-  };
-
-  // TODO: Получать отзывы о продукте из Supabase
-  const reviews = [
-    {
-      id: 1,
-      author: 'ZenCoder',
-      rating: 5,
-      date: '2025-01-10',
-      comment: 'This editor has transformed my coding practice! The meditation integration helps me stay focused and the AI suggestions are incredibly intuitive. Truly enlightened software! 🙏',
-      helpful: 23
-    },
-    {
-      id: 2,
-      author: 'MindfulDev',
-      rating: 5,
-      date: '2025-01-08',
-      comment: 'Finally, a code editor that understands the spiritual aspect of programming. The cosmic themes are beautiful and the karma tracking motivates me to write better code.',
-      helpful: 18
-    },
-    {
-      id: 3,
-      author: 'EnlightenedProgrammer',
-      rating: 4,
-      date: '2025-01-05',
-      comment: 'Great features and beautiful interface. The AI assistance is top-notch. Only minor issue is occasional lag with very large files, but overall excellent product.',
-      helpful: 12
-    }
-  ];
+  if (!product) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
+        <h1 className="text-2xl font-bold text-white mb-4">Товар не найден</h1>
+        <p className="text-gray-400 mb-6">Проверьте ссылку или вернитесь в каталог.</p>
+        <Link
+          to="/category/apps"
+          className="bg-ton-gradient text-white font-semibold px-6 py-3 rounded-full"
+        >
+          В каталог
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-8 px-4">
@@ -123,7 +73,7 @@ const ProductPage = () => {
                   </h1>
                   <p className="text-purple-400 font-medium flex items-center">
                     by {product.developer} 🪄
-                    {product.donationAmount > 0 && (
+                    {(product.donationAmount ?? 0) > 0 && (
                       <span className="ml-4 bg-yellow-500/20 border border-yellow-500/30 px-2 py-1 rounded-full text-xs text-yellow-400 flex items-center">
                         <Heart className="w-3 h-3 mr-1" />
                         {product.donationAmount} TON blessed
@@ -148,7 +98,7 @@ const ProductPage = () => {
                     ))}
                   </div>
                   <span className="text-yellow-400 font-semibold ml-2">{product.rating}</span>
-                  <span className="text-gray-400">({product.reviews} reviews)</span>
+                  <span className="text-gray-400">({product.reviewStatsCount} reviews)</span>
                 </div>
                 <div className="flex items-center space-x-1 text-gray-400">
                   <Download className="w-5 h-5" />

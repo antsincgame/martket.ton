@@ -17,7 +17,7 @@ const MFAVerification: React.FC<MFAVerificationProps> = ({
   onCancel,
   isVisible
 }) => {
-  const { verifyMFA, reportSecurityEvent } = useAuth();
+  const { authenticateWithMFA, reportSecurityEvent } = useAuth();
   const [selectedMethod, setSelectedMethod] = useState<MFAMethod | null>(null);
   const [code, setCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
@@ -107,9 +107,9 @@ const MFAVerification: React.FC<MFAVerificationProps> = ({
     setError('');
 
     try {
-      const success = await verifyMFA(selectedMethod.id, codeToVerify);
-      
-      if (success) {
+      const authResult = await authenticateWithMFA(selectedMethod.id, codeToVerify);
+
+      if (authResult.success) {
         setAttempts(0);
         reportSecurityEvent({
           type: 'login_attempt',

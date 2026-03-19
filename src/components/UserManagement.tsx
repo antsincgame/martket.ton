@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, type FC } from 'react';
 import { Users, UserPlus, Shield, Edit, Trash2, Eye, Ban, CheckCircle, Search, Filter } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { logger } from '../lib/logger';
 import { AuthenticatedUser } from '../types/auth';
 
 interface UserListItem extends AuthenticatedUser {
@@ -10,7 +11,57 @@ interface UserListItem extends AuthenticatedUser {
   riskScore: number;
 }
 
-const UserManagement: React.FC = () => {
+const EMPTY_STATS: AuthenticatedUser['stats'] = {
+  totalSpent: 0,
+  totalDonated: 0,
+  karmaPoints: 0,
+  appsOwned: 0,
+  productsPublished: 0,
+  totalDownloads: 0,
+  donationsReceived: 0,
+  avgRating: 0,
+  totalReviews: 0,
+};
+
+function completeUserListItem(
+  row: Omit<
+    UserListItem,
+    | 'role'
+    | 'mfaEnabled'
+    | 'securityFlags'
+    | 'sessionDuration'
+    | 'requiresMFA'
+    | 'description'
+    | 'stats'
+    | 'library'
+    | 'products'
+    | 'achievements'
+    | 'lastLogin'
+    | 'permissions'
+  > & { lastLogin: Date }
+): UserListItem {
+  const { lastLogin, roles, ...rest } = row;
+  const primary = roles[0];
+  const permissions = roles.flatMap((r) => r.permissions);
+  return {
+    ...rest,
+    roles,
+    permissions,
+    lastLogin: lastLogin.toISOString(),
+    role: primary.name,
+    mfaEnabled: false,
+    securityFlags: [],
+    sessionDuration: primary.sessionDuration,
+    requiresMFA: primary.requiresMFA,
+    description: primary.description,
+    stats: EMPTY_STATS,
+    library: [],
+    products: [],
+    achievements: [],
+  };
+}
+
+const UserManagement: FC = () => {
   const { hasPermission, reportSecurityEvent } = useAuth();
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +81,7 @@ const UserManagement: React.FC = () => {
     try {
       // Mock user data - in real app would fetch from API
       const mockUsers: UserListItem[] = [
-        {
+        completeUserListItem({
           id: 'user-1',
           tonAddress: 'EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N',
           email: 'sacred.admin@tonwebstore.com',
@@ -53,8 +104,8 @@ const UserManagement: React.FC = () => {
           lastActivity: new Date(),
           loginCount: 156,
           riskScore: 5
-        },
-        {
+        }),
+        completeUserListItem({
           id: 'user-2',
           tonAddress: 'EQB1aB2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8S9T0U1V2W3X',
           email: 'dharma.moderator@tonwebstore.com',
@@ -80,8 +131,8 @@ const UserManagement: React.FC = () => {
           lastActivity: new Date(Date.now() - 30 * 60 * 1000),
           loginCount: 89,
           riskScore: 15
-        },
-        {
+        }),
+        completeUserListItem({
           id: 'user-3',
           tonAddress: 'EQC2bC3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y',
           email: 'sacred.dev@tonwebstore.com',
@@ -106,8 +157,8 @@ const UserManagement: React.FC = () => {
           lastActivity: new Date(Date.now() - 4 * 60 * 60 * 1000),
           loginCount: 234,
           riskScore: 8
-        },
-        {
+        }),
+        completeUserListItem({
           id: 'user-4',
           tonAddress: 'EQD3cD4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8S9T0U1V2W3X4Y5Z',
           email: 'support@tonwebstore.com',
@@ -133,22 +184,24 @@ const UserManagement: React.FC = () => {
           lastActivity: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
           loginCount: 45,
           riskScore: 25
-        }
+        })
       ];
 
       setTimeout(() => {
         setUsers(mockUsers);
         setLoading(false);
       }, 1000);
-    } catch (error) {
-      console.error('Failed to load users:', error);
+    } catch (error: unknown) {
+      if (import.meta.env.DEV) {
+        logger.error('Failed to load users:', error);
+      }
       setLoading(false);
     }
   };
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = (user.username?.toLowerCase() ?? '').includes(searchTerm.toLowerCase()) ||
+                         (user.email?.toLowerCase() ?? '').includes(searchTerm.toLowerCase()) ||
                          user.profile.displayName.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesRole = filterRole === 'all' || user.roles.some(role => role.name === filterRole);

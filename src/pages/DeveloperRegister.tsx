@@ -1,13 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Gem, Sparkles, ArrowRight, AlertTriangle } from 'lucide-react';
 import { TonConnectButton, useTonAddress } from '@tonconnect/ui-react';
-import { supabase } from '../utils/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../utils/supabaseClient';
+import {
+  clearDeveloperRegistrationDraft,
+  readDeveloperRegistrationDraft,
+} from '../lib/developerRegistrationDraft';
 
 const DeveloperRegister = () => {
   const navigate = useNavigate();
-  const { hasRole, isAuthenticated, isLoading } = useAuth();
+  const { hasRole, isAuthenticated, isLoading, updateUser, user } = useAuth();
   const tonAddress = useTonAddress();
   const [formData, setFormData] = useState({
     name: '',
@@ -22,6 +26,27 @@ const DeveloperRegister = () => {
       setError(null);
     }
   }, [tonAddress]);
+
+  useEffect(() => {
+    const draft = readDeveloperRegistrationDraft();
+    if (!draft) return;
+    setFormData((prev) => ({
+      ...prev,
+      name: draft.name || prev.name,
+      email: draft.email || prev.email,
+      description:
+        prev.description.trim() !== ''
+          ? prev.description
+          : `Продолжение с дашборда. Кошелёк: ${draft.wallet.slice(0, 8)}…${draft.wallet.slice(-4)}`,
+    }));
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+    if (isAuthenticated && hasRole('developer')) {
+      navigate('/developer', { replace: true });
+    }
+  }, [isLoading, isAuthenticated, hasRole, navigate]);
 
   if (isLoading) {
     return (
@@ -40,11 +65,14 @@ const DeveloperRegister = () => {
   }
 
   if (isAuthenticated && hasRole('developer')) {
-    navigate('/developer');
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-12 h-12 border-4 border-ton-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
@@ -61,6 +89,12 @@ const DeveloperRegister = () => {
       }
       if (!formData.description.trim()) {
         throw new Error('Please tell us about yourself');
+      }
+
+      if (!isSupabaseConfigured) {
+        throw new Error(
+          'Бэкенд не настроен: задайте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в .env (или подключите Appwrite).'
+        );
       }
 
       // Отправляем данные в Supabase
@@ -85,29 +119,17 @@ const DeveloperRegister = () => {
         throw new Error('Failed to register developer. No data returned from Supabase.');
       }
 
-      // Используем useAuth для получения текущего контекста и обновления пользователя
-      // Поскольку useAuth нельзя использовать напрямую в обработчике событий, вызываем обновление через глобальный контекст
-      // Временное решение: перезагрузка страницы после регистрации для обновления контекста
-      // Лучшее решение будет реализовано позже
-      console.log('User registered with role developer. Please reload the page to update context.');
+      clearDeveloperRegistrationDraft();
 
-      // Обновляем данные пользователя в AuthContext
-      if (hasRole && isAuthenticated) {
-        const updatedUserData = {
-          displayName: formData.name,
-          tonAddress: tonAddress,
-          roles: ['developer'],
+      if (isAuthenticated && user) {
+        await updateUser({
+          tonAddress,
           profile: {
+            ...user.profile,
+            displayName: formData.name,
             bio: formData.description,
-            avatarUrl: '',
-            website: '',
-            location: ''
-          }
-        };
-        // Вызываем updateUser из контекста
-        // Поскольку мы не можем использовать хук напрямую, это временное решение
-        // В реальном приложении это будет сделано через useAuth
-        console.log('Updating user context with new developer role');
+          },
+        });
       }
 
       // Обновляем user_metadata в Supabase Auth
@@ -145,6 +167,16 @@ const DeveloperRegister = () => {
             Join our community of creators and share your digital treasures with the world
           </p>
         </div>
+
+        {!isSupabaseConfigured && (
+          <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center space-x-3">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+            <p className="text-amber-200 text-sm">
+              Регистрация в БД недоступна: нет переменных <code className="text-amber-100">VITE_SUPABASE_*</code>.
+              Остальной сайт работает в демо-режиме.
+            </p>
+          </div>
+        )}
 
         {error && (
           <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center space-x-3">
@@ -212,9 +244,9 @@ const DeveloperRegister = () => {
 
           <button
             type="submit"
-            disabled={isSubmitting || !tonAddress}
+            disabled={isSubmitting || !tonAddress || !isSupabaseConfigured}
             className={`w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 flex items-center justify-center space-x-2 ${
-              (isSubmitting || !tonAddress) ? 'opacity-50 cursor-not-allowed' : ''
+              (isSubmitting || !tonAddress || !isSupabaseConfigured) ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
             {isSubmitting ? (

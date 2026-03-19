@@ -1,97 +1,21 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, TrendingUp, Gem, Star, Zap, Heart, Rocket, Bot, Gamepad2 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
+import { getHomeCategorySummaries, getHomeSpotlightProducts } from '../domain/marketplace/catalog';
+import type { HomeCategorySlug } from '../domain/marketplace/types';
+import type { LucideIcon } from 'lucide-react';
 
-// TODO: В будущем заменить статические mock-данные на динамические данные из Supabase
-const featuredProducts = [
-  {
-    id: '1',
-    name: 'Cosmic Code Editor Pro',
-    description: 'Advanced code editor with AI assistance and mystical themes. Perfect for enlightened developers seeking digital nirvana.',
-    price: 15.5,
-    rating: 4.9,
-    downloads: 12500,
-    image: 'https://images.pexels.com/photos/270348/pexels-photo-270348.jpeg?auto=compress&cs=tinysrgb&w=800',
-    category: 'Developer Tools',
-    developer: 'Sacred Devs',
-    isFeatured: true,
-    donationAmount: 25.8
-  },
-  {
-    id: '2',
-    name: 'Meditation Game: Inner Peace',
-    description: 'Immersive meditation experience with beautiful visuals and sacred sounds. Journey to enlightenment through gameplay.',
-    price: 8.2,
-    rating: 4.8,
-    downloads: 8900,
-    image: 'https://images.pexels.com/photos/3408744/pexels-photo-3408744.jpeg?auto=compress&cs=tinysrgb&w=800',
-    category: 'Games',
-    developer: 'Zen Studios',
-    isFeatured: true,
-    donationAmount: 18.5
-  },
-  {
-    id: '3',
-    name: 'AI Wisdom Oracle',
-    description: 'Advanced AI assistant trained on ancient wisdom texts. Get enlightened insights for your projects and life.',
-    price: 22.0,
-    rating: 4.7,
-    downloads: 5600,
-    image: 'https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=800',
-    category: 'AI Services',
-    developer: 'Dharma AI',
-    isFeatured: false,
-    donationAmount: 12.3
-  },
-  {
-    id: '4',
-    name: 'Quantum Task Manager',
-    description: 'Organize your work with quantum efficiency. Task management app inspired by Buddhist mindfulness principles.',
-    price: 5.9,
-    rating: 4.6,
-    downloads: 15200,
-    image: 'https://images.pexels.com/photos/5077047/pexels-photo-5077047.jpeg?auto=compress&cs=tinysrgb&w=800',
-    category: 'Productivity',
-    developer: 'Mindful Apps',
-    isFeatured: false,
-    donationAmount: 8.1
-  }
-];
-
-// TODO: Получать категории из Supabase
-const categories = [
-  {
-    name: 'Apps',
-    icon: Rocket,
-    count: 1250,
-    gradient: 'from-blue-500 to-purple-600',
-    emoji: '🚀'
-  },
-  {
-    name: 'Games',
-    icon: Gamepad2,
-    count: 890,
-    gradient: 'from-green-500 to-teal-600',
-    emoji: '🎮'
-  },
-  {
-    name: 'AI Services',
-    icon: Bot,
-    count: 340,
-    gradient: 'from-purple-500 to-pink-600',
-    emoji: '🤖'
-  },
-  {
-    name: 'Developer Tools',
-    icon: Zap,
-    count: 670,
-    gradient: 'from-yellow-500 to-orange-600',
-    emoji: '⚡'
-  }
-];
+const CATEGORY_ICONS: Record<HomeCategorySlug, LucideIcon> = {
+  apps: Rocket,
+  games: Gamepad2,
+  ai: Bot,
+  'developer-tools': Zap,
+};
 
 const HomePage = () => {
+  const categorySummaries = getHomeCategorySummaries();
+  const spotlightProducts = getHomeSpotlightProducts();
+
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
@@ -180,15 +104,17 @@ const HomePage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {categories.map((category) => (
+            {categorySummaries.map((category) => {
+              const Icon = CATEGORY_ICONS[category.slug];
+              return (
               <Link
-                key={category.name}
-                to={`/category/${category.name.toLowerCase().replace(' ', '-')}`}
+                key={category.slug}
+                to={`/category/${category.slug}`}
                 className="group"
               >
                 <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all duration-300 hover:scale-105 hover:shadow-2xl">
                   <div className={`w-16 h-16 bg-gradient-to-r ${category.gradient} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                    <category.icon className="w-8 h-8 text-white" />
+                    <Icon className="w-8 h-8 text-white" />
                   </div>
                   <h3 className="text-xl font-semibold text-white mb-2 flex items-center">
                     {category.name} <span className="ml-2">{category.emoji}</span>
@@ -201,7 +127,8 @@ const HomePage = () => {
                   </div>
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -220,7 +147,7 @@ const HomePage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredProducts.map((product) => (
+            {spotlightProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Shield, Edit, Trash2, Eye, Ban, CheckCircle, Search, Filter, Database, RefreshCw } from 'lucide-react';
+import { useState, useEffect, type FC } from 'react';
+import { UserPlus, Shield, Trash2, Eye, Search, Database, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../utils/supabaseClient';
+import { logger } from '../lib/logger';
+import { supabase, isSupabaseConfigured } from '../utils/supabaseClient';
 
 interface SupabaseUser {
   id: string;
@@ -16,7 +17,7 @@ interface SupabaseUser {
   risk_score?: number;
 }
 
-const RealUserManagement: React.FC = () => {
+const RealUserManagement: FC = () => {
   const { hasPermission, reportSecurityEvent, user: currentUser } = useAuth();
   const [users, setUsers] = useState<SupabaseUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +41,12 @@ const RealUserManagement: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
+      if (!isSupabaseConfigured) {
+        setUsers([]);
+        setError('База не настроена: задайте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в .env.');
+        return;
+      }
+
       const { data, error: supabaseError } = await supabase
         .from('developers')
         .select('*')
@@ -59,7 +66,7 @@ const RealUserManagement: React.FC = () => {
 
       setUsers(usersWithStatus);
     } catch (err) {
-      console.error('Error loading users:', err);
+      logger.error('Error loading users:', err);
       setError((err as Error).message);
     } finally {
       setLoading(false);
@@ -71,9 +78,13 @@ const RealUserManagement: React.FC = () => {
       alert('Please fill all required fields');
       return;
     }
+    if (!isSupabaseConfigured) {
+      alert('База не настроена (.env)');
+      return;
+    }
 
     try {
-      const { data, error: supabaseError } = await supabase
+      const { error: supabaseError } = await supabase
         .from('developers')
         .insert([{
           name: newUser.name,
@@ -93,21 +104,25 @@ const RealUserManagement: React.FC = () => {
         details: { 
           action: 'create_user',
           user_email: newUser.email,
-          creator: currentUser?.email
-        }
+          creator: currentUser?.email ?? 'unknown',
+        },
       });
 
       setNewUser({ name: '', email: '', description: '', ton_address: '', role: 'user' });
       setShowUserModal(false);
       loadUsers();
     } catch (err) {
-      console.error('Error creating user:', err);
+      logger.error('Error creating user:', err);
       alert('Failed to create user: ' + (err as Error).message);
     }
   };
 
   const deleteUser = async (userId: string) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
+    if (!isSupabaseConfigured) {
+      alert('База не настроена (.env)');
+      return;
+    }
 
     try {
       const { error: supabaseError } = await supabase
@@ -125,13 +140,13 @@ const RealUserManagement: React.FC = () => {
         details: { 
           action: 'delete_user',
           target_user_id: userId,
-          operator: currentUser?.email
-        }
+          operator: currentUser?.email ?? 'unknown',
+        },
       });
 
       loadUsers();
     } catch (err) {
-      console.error('Error deleting user:', err);
+      logger.error('Error deleting user:', err);
       alert('Failed to delete user: ' + (err as Error).message);
     }
   };

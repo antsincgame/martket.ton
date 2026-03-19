@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { Gem, Heart, Star, Sparkles } from 'lucide-react';
 

@@ -1,16 +1,19 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect, useMemo } from 'react';
-import { 
-  AuthContextValue, 
-  AuthenticatedUser, 
-  AuthSession, 
-  TONWalletAuth, 
+import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import type {
+  AuthContextValue,
+  AuthenticatedUser,
+  AuthSession,
+  TONWalletAuth,
   AuthResult,
   SecurityEvent,
   SecurityFlag,
   UserRole,
-  SacredAccess
+  SacredAccess,
+  Stats,
+  Permission,
 } from '../types/auth';
 import { supabase, isSupabaseConfigured } from '../utils/supabaseClient';
+import { logger } from '../lib/logger';
 
 // Security configuration
 const SECURITY_CONFIG = {
@@ -187,6 +190,57 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
   }
 };
 
+const PERMISSION_ACTIONS = ['create', 'read', 'update', 'delete', 'approve', 'ban'] as const;
+
+function isPermissionAction(value: string): value is Permission['actions'][number] {
+  return (PERMISSION_ACTIONS as readonly string[]).includes(value);
+}
+
+function buildEmptyStats(): Stats {
+  return {
+    totalSpent: 0,
+    totalDonated: 0,
+    karmaPoints: 0,
+    appsOwned: 0,
+    productsPublished: 0,
+    totalDownloads: 0,
+    donationsReceived: 0,
+    avgRating: 0,
+    totalReviews: 0,
+  };
+}
+
+function createMantraAuthenticatedUser(email: string): AuthenticatedUser {
+  const adminRole = ROLES.admin;
+  const devRole = ROLES.developer;
+  const nowIso = new Date().toISOString();
+  return {
+    id: 'mantra-user-id',
+    email,
+    tonAddress: 'EQ_MANTRA_PLACEHOLDER',
+    role: adminRole.name,
+    roles: [adminRole, devRole],
+    permissions: [...adminRole.permissions, ...devRole.permissions],
+    mfaMethods: [],
+    mfaEnabled: false,
+    lastLogin: nowIso,
+    securityLevel: 'high',
+    securityFlags: [],
+    sessionDuration: adminRole.sessionDuration,
+    requiresMFA: adminRole.requiresMFA,
+    description: adminRole.description,
+    profile: {
+      displayName: 'Mantra Admin',
+      bio: 'Sacred administrative access',
+      avatar: '🪷',
+    },
+    stats: buildEmptyStats(),
+    library: [],
+    products: [],
+    achievements: [],
+  };
+}
+
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 // Mock users map for mantra authentication
@@ -206,19 +260,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Security monitoring
   const reportSecurityEvent = useCallback((event: Omit<SecurityEvent, 'id' | 'timestamp'>) => {
-    // Mock security event reporting
-    console.log('Security Event:', { ...event, id: Date.now().toString(), timestamp: new Date() });
+    // В production сюда подключается аналитика/бекенд
+    logger.warn('[SecurityEvent]', { ...event, id: String(Date.now()), timestamp: new Date() });
   }, []);
 
-  // Audit logging
-  const logAuditEvent = useCallback((action: string, resource: string, result: string, metadata?: Record<string, unknown>) => {
-    // Mock audit logging
-    console.log('Audit Event:', { action, resource, result, metadata, timestamp: new Date().toISOString() });
+  const logAuditEvent = useCallback((actionLabel: string, resource: string, result: string, metadata?: Record<string, unknown>) => {
+    logger.warn('[Audit]', { action: actionLabel, resource, result, metadata, at: new Date().toISOString() });
   }, []);
 
   const login = useCallback(async (credentials: { email?: string; tonAddress?: string }): Promise<AuthResult> => {
     if (!isSupabaseConfigured) {
-      return { success: false, error: 'Supabase не настроен. Создайте .env с VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY.' };
+      return {
+        success: false,
+        requiresMFA: false,
+        error: 'Supabase не настроен. Создайте .env с VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY.',
+      };
     }
 
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -234,19 +290,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .eq('ton_address', credentials.tonAddress)
           .single();
         if (fetchError) throw fetchError;
-        const user = data;
+        const user = data as AuthenticatedUser;
         const session = createSession(user);
         dispatch({ type: 'SET_USER', payload: user });
         dispatch({ type: 'SET_SESSION', payload: session });
         dispatch({ type: 'SET_ERROR', payload: null });
-        return { success: true, user, session, requiresMFA: false };
+        return { success: true, requiresMFA: false, user, session };
       } else {
         throw new Error('No credentials provided');
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Authentication failed';
       dispatch({ type: 'SET_ERROR', payload: message });
-      return { success: false, error: message };
+      return { success: false, requiresMFA: false, error: message };
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
@@ -279,8 +335,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('id', user.id)
         .single();
       if (fetchError) throw fetchError;
-      dispatch({ type: 'SET_USER', payload: data });
-      dispatch({ type: 'SET_SESSION', payload: createSession(data) });
+      dispatch({ type: 'SET_USER', payload: data as AuthenticatedUser });
+      dispatch({ type: 'SET_SESSION', payload: createSession(data as AuthenticatedUser) });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to fetch profile';
       dispatch({ type: 'SET_ERROR', payload: message });
@@ -289,18 +345,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // useEffect для автоматической загрузки профиля при монтировании
-  useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
-
   // Permission checking
   const hasPermission = useCallback((resource: string, action: string): boolean => {
-    if (!state.user) return false;
-    
+    if (!state.user || !isPermissionAction(action)) return false;
+
     const userPermissions = state.user.permissions || [];
-    
-    return userPermissions.some(permission => {
+
+    return userPermissions.some((permission) => {
       const resourceMatch = permission.resource === '*' || permission.resource === resource;
       const actionMatch = permission.actions.includes(action);
       return resourceMatch && actionMatch;
@@ -317,7 +368,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // super_admin имеет доступ ко всем ролям
     if (roleNames.includes('super_admin')) return true;
 
-    return roleNames.includes(roleName);
+    return (roleNames as string[]).includes(roleName);
   }, [state.user]);
 
   const getSecurityLevel = useCallback((): string => {
@@ -364,40 +415,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: false, requiresMFA: false, error: 'TON authentication not supported' };
   }, []);
 
-  const authenticateWithMFA = useCallback(async (method: string, code: string): Promise<AuthResult> => {
+  const authenticateWithMFA = useCallback(async (_method: string, code: string): Promise<AuthResult> => {
     try {
-      // Mock MFA verification
       if (code === '123456') {
         return {
           success: true,
-          requiresMFA: false
+          requiresMFA: false,
         };
       }
       return {
         success: false,
-        error: 'Invalid MFA code'
+        requiresMFA: false,
+        error: 'Invalid MFA code',
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'MFA verification failed'
+        requiresMFA: false,
+        error: error instanceof Error ? error.message : 'MFA verification failed',
       };
     }
   }, []);
 
   const authenticateWithMantra = useCallback(async (credentials: { email: string }): Promise<AuthResult> => {
-    // Mantra-based authentication for admin/developer access
-    const mockUser: AuthenticatedUser = {
-      id: 'mantra-user-id',
-      email: credentials.email,
-      displayName: 'Mantra Admin',
-      tonAddress: 'EQ...', // Mock TON address
-      roles: [ROLES.admin, ROLES.developer],
-      permissions: [...ROLES.admin.permissions, ...ROLES.developer.permissions],
-      createdAt: new Date().toISOString(),
-      lastLogin: new Date().toISOString(),
-      // ... (rest of the properties)
-    };
+    const mockUser = createMantraAuthenticatedUser(credentials.email);
     dispatch({ type: 'SET_USER', payload: mockUser });
     dispatch({ type: 'SET_SESSION', payload: createSession(mockUser) });
     return { success: true, requiresMFA: false, user: mockUser };
@@ -409,12 +450,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'SET_USER', payload: updatedUser });
     dispatch({ type: 'SET_SESSION', payload: createSession(updatedUser) });
 
-    if (isSupabaseConfigured && (updatedData.roles || updatedData.displayName)) {
+    if (isSupabaseConfigured && (updatedData.roles || updatedData.profile?.displayName)) {
       await supabase.auth.updateUser({
         data: {
-          roles: updatedData.roles || state.user.roles,
-          display_name: updatedData.displayName || state.user.displayName
-        }
+          roles: updatedData.roles ?? state.user.roles,
+          display_name: updatedData.profile?.displayName ?? state.user.profile.displayName,
+        },
       });
     }
   }, [state.user]);
@@ -447,13 +488,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const initializeAuth = async () => {
-      dispatch({ type: 'SET_LOADING', payload: true });
-
       if (!isSupabaseConfigured) {
         dispatch({ type: 'SET_LOADING', payload: false });
         return;
       }
 
+      dispatch({ type: 'SET_LOADING', payload: true });
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
@@ -465,17 +505,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (error) throw error;
 
-          dispatch({ type: 'SET_USER', payload: userProfile });
-          dispatch({ type: 'SET_SESSION', payload: createSession(userProfile) });
+          dispatch({ type: 'SET_USER', payload: userProfile as AuthenticatedUser });
+          dispatch({ type: 'SET_SESSION', payload: createSession(userProfile as AuthenticatedUser) });
         }
       } catch (err) {
-        console.error('Error initializing auth:', err);
+        logger.error('Error initializing auth:', err);
         dispatch({ type: 'SET_ERROR', payload: 'Failed to initialize authentication' });
       } finally {
         dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
-    initializeAuth();
+    void initializeAuth();
 
     if (!isSupabaseConfigured) return;
 
@@ -483,14 +523,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (event, session) => {
         if (event === 'SIGNED_IN' && session) {
           const fetchUserProfile = async () => {
-            const { data: userProfile, error } = await supabase
+            const { data: userProfile } = await supabase
               .from('users')
               .select('*')
               .eq('id', session.user.id)
               .single();
             if (userProfile) {
-              dispatch({ type: 'SET_USER', payload: userProfile });
-              dispatch({ type: 'SET_SESSION', payload: createSession(userProfile) });
+              dispatch({ type: 'SET_USER', payload: userProfile as AuthenticatedUser });
+              dispatch({ type: 'SET_SESSION', payload: createSession(userProfile as AuthenticatedUser) });
             }
           };
           fetchUserProfile();
@@ -512,6 +552,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components -- useAuth экспортируется вместе с провайдером
 export const useAuth = (): AuthContextValue => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -519,12 +560,6 @@ export const useAuth = (): AuthContextValue => {
   }
   return context;
 };
-
-// Utility functions (mock implementations)
-async function verifyTONSignature(): Promise<boolean> {
-  // Mock signature verification - in real app would verify against TON network
-  return true;
-}
 
 async function getUserByTONAddress(address: string, mockUsers: Record<string, AuthenticatedUser>): Promise<AuthenticatedUser | null> {
   return mockUsers[address] || null;
@@ -540,7 +575,7 @@ async function verifyMFACode(method: string, code: string): Promise<boolean> {
 
 function createSession(user: AuthenticatedUser): AuthSession {
   const now = new Date();
-  const role = user.roles[0]; // Get primary role
+  const role = user.roles[0] ?? ROLES.viewer;
   const duration = role.sessionDuration || SECURITY_CONFIG.session.maxDuration;
   
   return {

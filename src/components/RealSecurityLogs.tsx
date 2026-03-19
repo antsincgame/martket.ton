@@ -1,17 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, AlertTriangle, Clock, User, Eye, Search, Filter, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Shield, AlertTriangle, Eye, Search, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { logger } from '../lib/logger';
 
 interface SecurityLog {
   id: string;
   timestamp: string;
-  event_type: 'login_attempt' | 'permission_denied' | 'suspicious_activity' | 'data_access' | 'admin_action' | 'security_alert';
+  event_type:
+    | 'login_attempt'
+    | 'permission_denied'
+    | 'suspicious_activity'
+    | 'data_access'
+    | 'configuration_change'
+    | 'security_alert';
   severity: 'info' | 'warning' | 'error' | 'critical';
   user_id?: string;
   ip_address: string;
   user_agent: string;
   description: string;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   resolved: boolean;
 }
 
@@ -25,11 +32,7 @@ const RealSecurityLogs: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [selectedLog, setSelectedLog] = useState<SecurityLog | null>(null);
 
-  useEffect(() => {
-    loadSecurityLogs();
-  }, []);
-
-  const loadSecurityLogs = async () => {
+  const loadSecurityLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -38,11 +41,13 @@ const RealSecurityLogs: React.FC = () => {
         {
           id: 'log-1',
           timestamp: new Date(currentTime.getTime() - 5 * 60 * 1000).toISOString(),
-          event_type: 'admin_login',
+          event_type: 'login_attempt',
           severity: 'info',
           description: 'Successful admin login',
           ip_address: '192.168.1.100',
-          resolved: true
+          user_agent: 'Mozilla/5.0 (mock)',
+          details: {},
+          resolved: true,
         },
         {
           id: 'log-2',
@@ -51,8 +56,10 @@ const RealSecurityLogs: React.FC = () => {
           severity: 'critical',
           description: 'Suspicious activity detected',
           ip_address: '10.0.0.42',
-          resolved: false
-        }
+          user_agent: 'Mozilla/5.0 (mock)',
+          details: {},
+          resolved: false,
+        },
       ];
       
       setLogs(mockLogs);
@@ -70,12 +77,16 @@ const RealSecurityLogs: React.FC = () => {
       });
 
     } catch (err) {
-      console.error('Error loading security logs:', err);
+      logger.error('Error loading security logs:', err);
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [reportSecurityEvent]);
+
+  useEffect(() => {
+    void loadSecurityLogs();
+  }, [loadSecurityLogs]);
 
   const resolveLog = async (logId: string) => {
     setLogs(prev => prev.map(log => 
@@ -83,15 +94,15 @@ const RealSecurityLogs: React.FC = () => {
     ));
 
     reportSecurityEvent({
-      type: 'admin_action',
+      type: 'configuration_change',
       severity: 'info',
       ipAddress: 'client_ip',
       userAgent: navigator.userAgent,
-      details: { 
+      details: {
         action: 'resolve_security_log',
         log_id: logId,
-        operator: user?.email
-      }
+        operator: user?.email ?? 'unknown',
+      },
     });
   };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Download, Heart, Settings, Wallet, Gift, Trophy, Gem, Users, TrendingUp, Upload, Shield, Star, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 // import { CSSTransition, TransitionGroup } from 'react-transition-group';
@@ -79,7 +79,7 @@ const ProfilePage = () => {
           <div className="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
             <div className="relative">
               <div className="w-32 h-32 rounded-full border-4 border-ton-500 flex items-center justify-center text-4xl">
-                {user.avatar || '👤'}
+                {user.profile.avatar || '👤'}
               </div>
               <div className="absolute -bottom-2 -right-2 bg-mystical-gradient rounded-full p-2">
                 <Trophy className="w-6 h-6 text-white" />
@@ -88,7 +88,7 @@ const ProfilePage = () => {
             
             <div className="flex-1 text-center md:text-left">
               <h1 className="text-3xl font-display font-bold text-white mb-2">
-                {user.displayName || 'Enlightened User'} ✨
+                {user.profile.displayName || 'Enlightened User'} ✨
               </h1>
               <p className="text-purple-400 font-medium mb-1">
                 {user.roles.map(role => role.name.replace('_', ' ')).join(', ')} Level

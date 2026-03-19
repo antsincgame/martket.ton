@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { logger } from '../lib/logger';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -14,7 +15,7 @@ export const supabase: SupabaseClient = createClient(
 );
 
 if (!isSupabaseConfigured) {
-  console.warn(
+  logger.warn(
     '[TON Web Store] Supabase не настроен — приложение работает в демо-режиме. ' +
     'Для полного функционала создайте .env с VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY.'
   );
