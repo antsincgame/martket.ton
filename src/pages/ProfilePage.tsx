@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Download, Heart, Settings, Wallet, Gift, Trophy, Gem, Users, TrendingUp, Upload, Shield, Star, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-// import { CSSTransition, TransitionGroup } from 'react-transition-group';
+
 
 const ProfilePage = () => {
   const { user, hasRole, isAuthenticated, isLoading: isAuthLoading } = useAuth();
@@ -28,7 +28,7 @@ const ProfilePage = () => {
   };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    e.currentTarget.src = 'https://via.placeholder.com/300x200?text=Sacred+Image';
+    e.currentTarget.src = '';
   };
 
   if (isAuthLoading) {

@@ -11,7 +11,9 @@ node_modules/
 dist/
 .vite/
 .vite_cache/
+.bolt/
 .env
+.env.local
 .DS_Store
 *.local
 
@@ -28,3 +30,4 @@ dist/
 
 coverage/
 .netlify/
+backend/data/

@@ -149,10 +149,8 @@ export interface AuthContextValue {
   loginAttempts: { timestamp: number; count: number };
   securityEvents: SecurityEvent[];
   
-  // Authentication methods
   authenticateWithTON: (walletData: TONWalletAuth) => Promise<AuthResult>;
   authenticateWithMFA: (method: string, code: string) => Promise<AuthResult>;
-  authenticateWithMantra: (credentials: { email: string }) => Promise<AuthResult>;
   logout: () => Promise<void>;
   
   // Permission checks

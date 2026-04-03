@@ -9,7 +9,6 @@ import type {
   SecurityFlag,
   UserRole,
   SacredAccess,
-  Stats,
   Permission,
 } from '../types/auth';
 import { supabase, isSupabaseConfigured } from '../utils/supabaseClient';
@@ -196,55 +195,7 @@ function isPermissionAction(value: string): value is Permission['actions'][numbe
   return (PERMISSION_ACTIONS as readonly string[]).includes(value);
 }
 
-function buildEmptyStats(): Stats {
-  return {
-    totalSpent: 0,
-    totalDonated: 0,
-    karmaPoints: 0,
-    appsOwned: 0,
-    productsPublished: 0,
-    totalDownloads: 0,
-    donationsReceived: 0,
-    avgRating: 0,
-    totalReviews: 0,
-  };
-}
-
-function createMantraAuthenticatedUser(email: string): AuthenticatedUser {
-  const adminRole = ROLES.admin;
-  const devRole = ROLES.developer;
-  const nowIso = new Date().toISOString();
-  return {
-    id: 'mantra-user-id',
-    email,
-    tonAddress: 'EQ_MANTRA_PLACEHOLDER',
-    role: adminRole.name,
-    roles: [adminRole, devRole],
-    permissions: [...adminRole.permissions, ...devRole.permissions],
-    mfaMethods: [],
-    mfaEnabled: false,
-    lastLogin: nowIso,
-    securityLevel: 'high',
-    securityFlags: [],
-    sessionDuration: adminRole.sessionDuration,
-    requiresMFA: adminRole.requiresMFA,
-    description: adminRole.description,
-    profile: {
-      displayName: 'Mantra Admin',
-      bio: 'Sacred administrative access',
-      avatar: '🪷',
-    },
-    stats: buildEmptyStats(),
-    library: [],
-    products: [],
-    achievements: [],
-  };
-}
-
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-// Mock users map for mantra authentication
-const mockUsers: Record<string, AuthenticatedUser> = {};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, {
@@ -402,46 +353,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(interval);
   }, [state.session, reportSecurityEvent]);
 
-  // TON wallet authentication stub (TonConnect)
   const authenticateWithTON = useCallback(async (walletData: TONWalletAuth): Promise<AuthResult> => {
-    // Mock TON authentication
-    const mockUser = await getUserByTONAddress(walletData.address, mockUsers);
-    if (mockUser) {
-      dispatch({ type: 'SET_USER', payload: mockUser });
-      dispatch({ type: 'SET_SESSION', payload: createSession(mockUser) });
-      return { success: true, requiresMFA: false, user: mockUser };
+    if (!isSupabaseConfigured) {
+      return { success: false, requiresMFA: false, error: 'Supabase не настроен' };
     }
-    dispatch({ type: 'SET_ERROR', payload: 'TON authentication not supported' });
-    return { success: false, requiresMFA: false, error: 'TON authentication not supported' };
-  }, []);
 
-  const authenticateWithMFA = useCallback(async (_method: string, code: string): Promise<AuthResult> => {
+    dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      if (code === '123456') {
-        return {
-          success: true,
-          requiresMFA: false,
-        };
+      const { data, error: fetchError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('ton_address', walletData.address)
+        .single();
+
+      if (fetchError || !data) {
+        return { success: false, requiresMFA: false, error: 'Пользователь с данным TON адресом не найден' };
       }
-      return {
-        success: false,
-        requiresMFA: false,
-        error: 'Invalid MFA code',
-      };
+
+      const user = data as AuthenticatedUser;
+      const session = createSession(user);
+      dispatch({ type: 'SET_USER', payload: user });
+      dispatch({ type: 'SET_SESSION', payload: session });
+      dispatch({ type: 'SET_ERROR', payload: null });
+      return { success: true, requiresMFA: false, user, session };
     } catch (error: unknown) {
-      return {
-        success: false,
-        requiresMFA: false,
-        error: error instanceof Error ? error.message : 'MFA verification failed',
-      };
+      const message = error instanceof Error ? error.message : 'TON authentication failed';
+      dispatch({ type: 'SET_ERROR', payload: message });
+      return { success: false, requiresMFA: false, error: message };
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, []);
 
-  const authenticateWithMantra = useCallback(async (credentials: { email: string }): Promise<AuthResult> => {
-    const mockUser = createMantraAuthenticatedUser(credentials.email);
-    dispatch({ type: 'SET_USER', payload: mockUser });
-    dispatch({ type: 'SET_SESSION', payload: createSession(mockUser) });
-    return { success: true, requiresMFA: false, user: mockUser };
+  const authenticateWithMFA = useCallback(async (_method: string, _code: string): Promise<AuthResult> => {
+    return {
+      success: false,
+      requiresMFA: false,
+      error: 'MFA не реализован. Подключите TOTP-провайдер для полноценной верификации.',
+    };
   }, []);
 
   const updateUser = useCallback(async (updatedData: Partial<AuthenticatedUser>) => {
@@ -472,7 +421,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     securityEvents: state.securityEvents,
     authenticateWithTON,
     authenticateWithMFA,
-    authenticateWithMantra,
     logout,
     reportSecurityEvent,
     clearSecurityAlerts: () => dispatch({ type: 'CLEAR_SECURITY_ALERTS' }),
@@ -560,18 +508,6 @@ export const useAuth = (): AuthContextValue => {
   }
   return context;
 };
-
-async function getUserByTONAddress(address: string, mockUsers: Record<string, AuthenticatedUser>): Promise<AuthenticatedUser | null> {
-  return mockUsers[address] || null;
-}
-
-/*
-// Mock MFA verification
-async function verifyMFACode(method: string, code: string): Promise<boolean> {
-  // Mock MFA verification
-  return code === '123456'; // Simple mock
-}
-*/
 
 function createSession(user: AuthenticatedUser): AuthSession {
   const now = new Date();

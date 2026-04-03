@@ -5,21 +5,14 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "seed": "node seed.js"
   },
-  "keywords": [
-    "ton",
-    "blockchain",
-    "marketplace",
-    "hackathon"
-  ],
-  "author": "antsincgame",
-  "license": "ISC",
-  "description": "Backend API for TON Web Store - Hackathon MVP",
+  "license": "MIT",
+  "description": "Backend API for TON Web Store",
   "dependencies": {
-    "@supabase/supabase-js": "^2.50.0",
     "@ton/core": "^0.63.1",
     "@tonconnect/sdk": "^3.0.5",
+    "better-sqlite3": "^11.9.1",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",

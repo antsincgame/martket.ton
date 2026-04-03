@@ -104,10 +104,6 @@ export function getHomeCategorySummariesForProducts(
   }));
 }
 
-export function getHomeCategorySummaries(): HomeCategorySummary[] {
-  return getHomeCategorySummariesForProducts(CATALOG_LISTING_PRODUCTS);
-}
-
 export function filterProductsForCategorySlug(
   slug: string,
   inventory: CatalogListingProduct[]
@@ -122,10 +118,6 @@ export function filterProductsForCategorySlug(
   return inventory.filter((product) => labels.includes(product.category));
 }
 
-export function getProductsForCategorySlug(slug: string): CatalogListingProduct[] {
-  return filterProductsForCategorySlug(slug, CATALOG_LISTING_PRODUCTS);
-}
-
 export function getCategoryMetaForInventory(
   slug: string | undefined,
   inventory: CatalogListingProduct[]
@@ -137,10 +129,6 @@ export function getCategoryMetaForInventory(
     ...base,
     count: products.length,
   };
-}
-
-export function getCategoryMeta(slug: string | undefined): CategoryMeta {
-  return getCategoryMetaForInventory(slug, CATALOG_LISTING_PRODUCTS);
 }
 
 export function sortListingProducts(
