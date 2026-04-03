@@ -10,8 +10,7 @@
 | **Routing** | React Router DOM v6 |
 | **Auth** | Supabase Auth (email OTP), TonConnect (кошелёк) |
 | **Backend** | Node.js, Express |
-| **БД** | Supabase (пользователи, разработчики), Appwrite (каталог, commerce) |
-| **Деплой** | Netlify (фронт) |
+| **БД** | Supabase (пользователи, разработчики), Appwrite (каталог, commerce), локально SQLite (бэкенд) |
 
 ## Структура проекта
 
@@ -33,9 +32,8 @@
 │   ├── pages/               # Страницы приложения
 │   ├── types/               # TypeScript типы
 │   └── utils/               # Утилиты
-├── public/                  # Статика
+├── public/                  # Статика (tonconnect-manifest.json)
 ├── .env.example             # Шаблон переменных окружения
-├── netlify.toml             # Конфиг деплоя Netlify
 └── package.json
 ```
 
@@ -121,6 +119,12 @@ npm run preview
 | `GET` | `/api/products/:id` | Продукт по ID |
 | `POST/GET` | `/api/audit-logs` | Аудит-логи (JWT) |
 | — | `/api/v1/commerce/*` | Commerce API (заказы, споры) |
+
+## Деплой и TON Connect
+
+Фронтенд собирается командой `npm run build` (артефакты в `dist/`). Деплой на любой хостинг статики — по выбору команды.
+
+Для продакшена укажите публичный URL приложения в `public/tonconnect-manifest.json` (поля `url`, `iconUrl`, `termsOfUseUrl`, `privacyPolicyUrl`, `app_url`) или задайте `VITE_TONCONNECT_MANIFEST_URL` на URL размещённого манифеста.
 
 ## Лицензия
 

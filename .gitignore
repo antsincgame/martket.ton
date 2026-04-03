@@ -29,5 +29,4 @@ dist/
 *.sw?
 
 coverage/
-.netlify/
 backend/data/
