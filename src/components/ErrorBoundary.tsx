@@ -1,6 +1,5 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
-import { logger } from '../lib/logger';
 
 interface Props {
   children: ReactNode;
@@ -23,7 +22,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    logger.error('🚨 Sacred Error Caught by Mahakala Guardian:', error, errorInfo);
+    console.error('🚨 Sacred Error Caught by Mahakala Guardian:', error, errorInfo);
     this.setState({ error, errorInfo });
   }
 

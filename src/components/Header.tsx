@@ -1,8 +1,6 @@
-// Хедер теперь ориентируется на wallet connection, чтобы профиль и publisher flow были доступны без legacy auth-зависимости.
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, User, Menu, X, Sparkles, Gem } from 'lucide-react';
-import { useTonAddress } from '@tonconnect/ui-react';
 import TONConnectButton from './TONConnectButton';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -14,8 +12,6 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { isAuthenticated } = useAuth();
-  const tonAddress = useTonAddress();
-  const canOpenProfile = Boolean(isAuthenticated || tonAddress);
 
   return (
     <header className="py-4 px-6 bg-black/30 backdrop-blur-md sticky top-0 z-50 border-b border-white/10">
@@ -31,7 +27,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
           </div>
           <div>
             <h1 className="font-display font-bold text-xl bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              TonForge
+              TON Web Store
             </h1>
             <p className="text-xs text-gray-400 font-medium">☸️ Digital Enlightenment</p>
           </div>
@@ -50,9 +46,6 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
           </Link>
           <Link to="/developer" className="text-gray-300 hover:text-white transition-colors">
             Developer Store 🛍️
-          </Link>
-          <Link to="/seller/commerce" className="text-gray-300 hover:text-white transition-colors">
-            Продажа 💎
           </Link>
         </nav>
 
@@ -81,8 +74,8 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
           {/* TON Connect Button */}
           <TONConnectButton />
 
-          {/* Profile доступен и для wallet-first сценария */}
-          {canOpenProfile && (
+          {/* Profile (только для авторизованных) */}
+          {isAuthenticated && (
             <Link
               to="/profile"
               className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-full transition-colors"
@@ -148,13 +141,6 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             >
               Developer Store 🛍️
             </Link>
-            <Link
-              to="/seller/commerce"
-              className="text-gray-300 hover:text-white transition-colors py-2"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Продажа 💎
-            </Link>
             <button
               onClick={() => {
                 setIsMenuOpen(false);
@@ -164,8 +150,8 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             >
               Become Developer 🪄
             </button>
-            {/* Профиль доступен и для wallet-first сценария */}
-            {canOpenProfile && (
+            {/* Профиль только для авторизованных */}
+            {isAuthenticated && (
               <Link
                 to="/profile"
                 className="text-gray-300 hover:text-white transition-colors py-2"

@@ -1,18 +1,13 @@
-import type { FC } from 'react';
+import React from 'react';
 import { Shield, User, Lock, KeyRound } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
 
-const SecurityStats: FC = () => {
-  const { securityAlerts, securityEvents, user } = useAuth();
-
-  const activeAlerts = securityAlerts.filter(a => !a.resolved).length;
-  const recentEvents = securityEvents.length;
-
+const SecurityStats: React.FC = () => {
+  // Мок-статистика
   const stats = [
-    { label: 'Security Alerts', value: activeAlerts, icon: <Shield className="w-6 h-6 text-blue-400" /> },
-    { label: 'Blocked', value: 0, icon: <Lock className="w-6 h-6 text-red-400" /> },
-    { label: 'Events', value: recentEvents, icon: <KeyRound className="w-6 h-6 text-green-400" /> },
-    { label: 'Status', value: user ? 'Online' : 'Offline', icon: <User className="w-6 h-6 text-purple-400" /> },
+    { label: 'Active Sessions', value: 3, icon: <Shield className="w-6 h-6 text-blue-400" /> },
+    { label: 'Blocked Users', value: 1, icon: <Lock className="w-6 h-6 text-red-400" /> },
+    { label: 'MFA Enabled', value: 2, icon: <KeyRound className="w-6 h-6 text-green-400" /> },
+    { label: 'Admins Online', value: 1, icon: <User className="w-6 h-6 text-purple-400" /> }
   ];
 
   return (
@@ -33,4 +28,4 @@ const SecurityStats: FC = () => {
   );
 };
 
-export default SecurityStats;
+export default SecurityStats; 

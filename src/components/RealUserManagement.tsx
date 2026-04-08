@@ -1,11 +1,9 @@
-import { useState, useEffect, type FC } from 'react';
-import { UserPlus, Shield, Trash2, Eye, Search, Database, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Users, UserPlus, Shield, Edit, Trash2, Eye, Ban, CheckCircle, Search, Filter, Database, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { logger } from '../lib/logger';
-import { appwriteAccount, isAppwriteConfigured } from '../lib/appwriteClient';
 import { storeApiUrl } from '../lib/storeApi';
 
-interface ManagedDeveloper {
+interface SupabaseUser {
   id: string;
   name: string;
   email: string;
@@ -18,13 +16,13 @@ interface ManagedDeveloper {
   risk_score?: number;
 }
 
-const RealUserManagement: FC = () => {
+const RealUserManagement: React.FC = () => {
   const { hasPermission, reportSecurityEvent, user: currentUser } = useAuth();
-  const [users, setUsers] = useState<ManagedDeveloper[]>([]);
+  const [users, setUsers] = useState<SupabaseUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUser, setSelectedUser] = useState<ManagedDeveloper | null>(null);
+  const [selectedUser, setSelectedUser] = useState<SupabaseUser | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [newUser, setNewUser] = useState({
     name: '',
@@ -42,25 +40,22 @@ const RealUserManagement: FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(storeApiUrl('/api/developers'));
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = (await res.json()) as { data: ManagedDeveloper[] };
-      const usersWithStatus: ManagedDeveloper[] =
-        body.data?.map((user) => ({
-          ...user,
-          role: user.email?.includes('admin')
-            ? 'admin'
-            : user.email?.includes('mod')
-              ? 'moderator'
-              : 'developer',
-          status: (Math.random() > 0.8 ? 'suspended' : 'active') as ManagedDeveloper['status'],
-          last_login: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-          risk_score: Math.floor(Math.random() * 30),
-        })) ?? [];
+      const response = await fetch(storeApiUrl('/api/developers'));
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data: SupabaseUser[] = await response.json();
+
+      const usersWithStatus = data?.map(user => ({
+        ...user,
+        role: user.email?.includes('admin') ? 'admin' : 
+              user.email?.includes('mod') ? 'moderator' : 'developer',
+        status: Math.random() > 0.8 ? 'suspended' : 'active',
+        last_login: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+        risk_score: Math.floor(Math.random() * 30)
+      })) || [];
 
       setUsers(usersWithStatus);
     } catch (err) {
-      logger.error('Error loading users:', err);
+      console.error('Error loading users:', err);
       setError((err as Error).message);
     } finally {
       setLoading(false);
@@ -72,19 +67,11 @@ const RealUserManagement: FC = () => {
       alert('Please fill all required fields');
       return;
     }
-    if (!isAppwriteConfigured || !appwriteAccount) {
-      alert('Нужны Appwrite и активная сессия для записи');
-      return;
-    }
 
     try {
-      const { jwt } = await appwriteAccount.createJWT();
-      const res = await fetch(storeApiUrl('/api/developers'), {
+      const response = await fetch(storeApiUrl('/api/developers'), {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newUser.name,
           email: newUser.email,
@@ -92,7 +79,7 @@ const RealUserManagement: FC = () => {
           ton_address: newUser.ton_address,
         }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       reportSecurityEvent({
         type: 'data_access',
@@ -102,33 +89,27 @@ const RealUserManagement: FC = () => {
         details: { 
           action: 'create_user',
           user_email: newUser.email,
-          creator: currentUser?.email ?? 'unknown',
-        },
+          creator: currentUser?.email
+        }
       });
 
       setNewUser({ name: '', email: '', description: '', ton_address: '', role: 'user' });
       setShowUserModal(false);
       loadUsers();
     } catch (err) {
-      logger.error('Error creating user:', err);
+      console.error('Error creating user:', err);
       alert('Failed to create user: ' + (err as Error).message);
     }
   };
 
   const deleteUser = async (userId: string) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
-    if (!isAppwriteConfigured || !appwriteAccount) {
-      alert('Нужны Appwrite и активная сессия');
-      return;
-    }
 
     try {
-      const { jwt } = await appwriteAccount.createJWT();
-      const res = await fetch(storeApiUrl(`/api/developers/${encodeURIComponent(userId)}`), {
+      const response = await fetch(storeApiUrl(`/api/developers/${userId}`), {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${jwt}` },
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       reportSecurityEvent({
         type: 'data_access',
@@ -138,13 +119,13 @@ const RealUserManagement: FC = () => {
         details: { 
           action: 'delete_user',
           target_user_id: userId,
-          operator: currentUser?.email ?? 'unknown',
-        },
+          operator: currentUser?.email
+        }
       });
 
       loadUsers();
     } catch (err) {
-      logger.error('Error deleting user:', err);
+      console.error('Error deleting user:', err);
       alert('Failed to delete user: ' + (err as Error).message);
     }
   };
@@ -416,7 +397,7 @@ const RealUserManagement: FC = () => {
 
       <div className="mt-6 text-center">
         <p className="text-gray-400 text-sm">
-          Developers (Appwrite core + backend API)
+          🌟 Real-time user management connected to Supabase database
         </p>
       </div>
     </div>

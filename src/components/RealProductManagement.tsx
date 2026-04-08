@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, type FC } from 'react';
-import { Package, Plus, Trash2, Eye, Search, RefreshCw, Star, DollarSign } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Package, Plus, Edit, Trash2, Eye, Search, Filter, RefreshCw, Star, DollarSign } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { logger } from '../lib/logger';
+import { storeApiUrl } from '../lib/storeApi';
 
 interface Product {
   id: string;
@@ -18,7 +18,7 @@ interface Product {
   image_url?: string;
 }
 
-const RealProductManagement: FC = () => {
+const RealProductManagement: React.FC = () => {
   const { hasPermission, user, reportSecurityEvent } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +36,11 @@ const RealProductManagement: FC = () => {
     status: 'draft' as const
   });
 
-  const loadProducts = useCallback(async () => {
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const loadProducts = async () => {
     setLoading(true);
     setError(null);
     try {
@@ -114,16 +118,12 @@ const RealProductManagement: FC = () => {
       });
 
     } catch (err) {
-      logger.error('Error loading products:', err);
+      console.error('Error loading products:', err);
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [user?.id, reportSecurityEvent]);
-
-  useEffect(() => {
-    void loadProducts();
-  }, [loadProducts]);
+  };
 
   const createProduct = async () => {
     if (!newProduct.name || !newProduct.description || newProduct.price <= 0) {
@@ -152,14 +152,14 @@ const RealProductManagement: FC = () => {
         details: { 
           action: 'create_product',
           product_name: newProduct.name,
-          creator: user?.email ?? 'unknown',
-        },
+          creator: user?.email
+        }
       });
 
       setNewProduct({ name: '', description: '', price: 0, category: 'digital', status: 'draft' });
       setShowProductModal(false);
     } catch (err) {
-      logger.error('Error creating product:', err);
+      console.error('Error creating product:', err);
       alert('Failed to create product: ' + (err as Error).message);
     }
   };
@@ -178,11 +178,11 @@ const RealProductManagement: FC = () => {
         details: { 
           action: 'delete_product',
           product_id: productId,
-          operator: user?.email ?? 'unknown',
-        },
+          operator: user?.email
+        }
       });
     } catch (err) {
-      logger.error('Error deleting product:', err);
+      console.error('Error deleting product:', err);
       alert('Failed to delete product: ' + (err as Error).message);
     }
   };
@@ -202,11 +202,11 @@ const RealProductManagement: FC = () => {
           action: 'update_product_status',
           product_id: productId,
           new_status: newStatus,
-          operator: user?.email ?? 'unknown',
-        },
+          operator: user?.email
+        }
       });
     } catch (err) {
-      logger.error('Error updating product status:', err);
+      console.error('Error updating product status:', err);
       alert('Failed to update product status: ' + (err as Error).message);
     }
   };
