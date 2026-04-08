@@ -1,19 +1,17 @@
-import { useCallback, useEffect, useState, type FC } from 'react';
+// Компонент переведён на TonForge purchase flow, чтобы покупка заканчивалась license/session/device activation вместо legacy deliveryPayload.
+import { useEffect, useMemo, useState, type FC } from 'react';
 import { useTonAddress } from '@tonconnect/ui-react';
-import { Copy, ExternalLink, Loader2, ShieldCheck, Wallet } from 'lucide-react';
-import type {
-  CommerceConfigResponse,
-  CommerceListingPublic,
-  CreateOrderResponse,
-} from '../domain/commerce/types';
+import { Copy, Loader2, ShieldCheck, Wallet, BadgeCheck, Fingerprint, ScrollText } from 'lucide-react';
+import type { TonForgeApp, TonForgeLicense, TonForgePurchaseSession } from '../domain/tonforge/types';
 import {
-  confirmCommerceOrder,
-  createCommerceOrder,
-  fetchCommerceConfig,
-  fetchCommerceOrder,
-  fetchListingsForCatalog,
-  openCommerceDispute,
-} from '../lib/commerceApi';
+  activateLicenseDevice,
+  confirmPurchaseSession,
+  createPurchaseSession,
+  fetchTonForgeAppDetails,
+  fetchTonForgeConfig,
+  fetchWalletProfile,
+  openLicenseDispute,
+} from '../services/tonforgeApi';
 
 interface ProductCryptoCheckoutProps {
   /** Идентификатор карточки витрины (как в URL /product/:id) */
@@ -24,271 +22,352 @@ function copyText(text: string): void {
   void navigator.clipboard.writeText(text);
 }
 
+function formatIso(iso: string): string {
+  return new Date(iso).toLocaleString('ru-RU');
+}
+
 const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductId }) => {
   const buyerAddress = useTonAddress();
-  const [config, setConfig] = useState<CommerceConfigResponse | null>(null);
-  const [primary, setPrimary] = useState<CommerceListingPublic | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [order, setOrder] = useState<CreateOrderResponse | null>(null);
+  const [configWallet, setConfigWallet] = useState('');
+  const [app, setApp] = useState<TonForgeApp | null>(null);
+  const [session, setSession] = useState<TonForgePurchaseSession | null>(null);
+  const [license, setLicense] = useState<TonForgeLicense | null>(null);
   const [txHash, setTxHash] = useState('');
-  const [delivery, setDelivery] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [deviceId, setDeviceId] = useState('');
   const [disputeReason, setDisputeReason] = useState('');
-  const [orderState, setOrderState] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const [cfg, listings] = await Promise.all([
-          fetchCommerceConfig(),
-          fetchListingsForCatalog(catalogProductId),
-        ]);
-        if (!cancelled) {
-          setConfig(cfg);
-          setPrimary(listings.primary);
-          setLoadError(null);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setLoadError(e instanceof Error ? e.message : 'Commerce API недоступен');
-          setPrimary(null);
-        }
-      }
-    })();
+    void Promise.all([fetchTonForgeConfig(), fetchTonForgeAppDetails(catalogProductId)])
+      .then(([config, details]) => {
+        if (cancelled) return;
+        setConfigWallet(config.treasuryWallet);
+        setApp(details.app);
+        setLoadError(null);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setLoadError(error instanceof Error ? error.message : 'TonForge API недоступен');
+        setApp(null);
+      });
+
     return () => {
       cancelled = true;
     };
   }, [catalogProductId]);
 
-  const refreshOrder = useCallback(
-    async (orderId: string, wallet: string) => {
-      const st = await fetchCommerceOrder(orderId, wallet);
-      setOrderState(st.order.state);
-      setDelivery(st.deliveryPayload);
-    },
-    []
-  );
-
   useEffect(() => {
-    if (!order?.orderId || !buyerAddress) return;
-    const t = window.setInterval(() => {
-      void refreshOrder(order.orderId, buyerAddress).catch(() => undefined);
-    }, 12_000);
-    return () => window.clearInterval(t);
-  }, [order?.orderId, buyerAddress, refreshOrder]);
+    if (!buyerAddress || !app) {
+      setLicense(null);
+      return;
+    }
 
-  const onCreateOrder = async () => {
-    if (!primary || !buyerAddress) return;
+    let cancelled = false;
+    void fetchWalletProfile(buyerAddress)
+      .then((profile) => {
+        if (cancelled) return;
+        setLicense(profile.licenses.find((item) => item.appId === app.appId) ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLicense(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [buyerAddress, app]);
+
+  const checkoutState = useMemo(() => {
+    if (license) return license.state;
+    if (session) return session.state;
+    return 'ready';
+  }, [license, session]);
+
+  const onCreateSession = async () => {
+    if (!app || !buyerAddress) return;
     setBusy(true);
     setLoadError(null);
+    setSuccessMessage(null);
     try {
-      const o = await createCommerceOrder(primary.id, buyerAddress);
-      setOrder(o);
-      setOrderState(o.state);
-      setDelivery(null);
-    } catch (e) {
-      setLoadError(e instanceof Error ? e.message : 'Ошибка заказа');
+      const created = await createPurchaseSession({ appId: app.appId, buyerWallet: buyerAddress });
+      setSession(created.session);
+      setLicense(null);
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : 'Не удалось создать purchase session');
     } finally {
       setBusy(false);
     }
   };
 
-  const onConfirm = async () => {
-    if (!order || !buyerAddress || !txHash.trim()) return;
+  const onConfirmPurchase = async () => {
+    if (!session || !buyerAddress) return;
     setBusy(true);
     setLoadError(null);
+    setSuccessMessage(null);
     try {
-      const res = await confirmCommerceOrder(order.orderId, buyerAddress, txHash.trim());
-      setOrderState(res.state);
-      setDelivery(res.entitlement?.deliveryPayload ?? null);
-    } catch (e) {
-      setLoadError(e instanceof Error ? e.message : 'Подтверждение не прошло');
+      const confirmed = await confirmPurchaseSession({
+        purchaseSessionId: session.purchaseSessionId,
+        buyerWallet: buyerAddress,
+        txHash: txHash.trim() || undefined,
+      });
+      setSession(confirmed.session);
+      setLicense(confirmed.license);
+      setSuccessMessage('NFT-лицензия выпущена. Теперь закрепите устройство для runtime verification.');
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : 'Не удалось подтвердить purchase session');
     } finally {
       setBusy(false);
     }
   };
 
-  const onDispute = async () => {
-    if (!order || !buyerAddress || !disputeReason.trim()) return;
+  const onActivateDevice = async () => {
+    if (!license || !buyerAddress || !deviceId.trim()) return;
     setBusy(true);
+    setLoadError(null);
     try {
-      await openCommerceDispute(order.orderId, buyerAddress, disputeReason.trim());
+      const activated = await activateLicenseDevice({
+        licenseId: license.licenseId,
+        buyerWallet: buyerAddress,
+        deviceId: deviceId.trim(),
+      });
+      setLicense(activated.license);
+      setDeviceId('');
+      setSuccessMessage('Устройство привязано. Runtime verification теперь может сверять device_id.');
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : 'Не удалось привязать устройство');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onOpenDispute = async () => {
+    if (!license || !buyerAddress || !disputeReason.trim()) return;
+    setBusy(true);
+    setLoadError(null);
+    try {
+      await openLicenseDispute({
+        licenseId: license.licenseId,
+        buyerWallet: buyerAddress,
+        reason: disputeReason.trim(),
+      });
       setDisputeReason('');
-    } catch (e) {
-      setLoadError(e instanceof Error ? e.message : 'Спор не открыт');
+      setSuccessMessage('Dispute открыт и ждёт разбора escrow/trial цепочки.');
+    } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error.message : 'Не удалось открыть dispute');
     } finally {
       setBusy(false);
     }
   };
 
-  const tonkeeperUrl =
-    order && config?.treasuryAddress
-      ? `https://app.tonkeeper.com/transfer/${encodeURIComponent(config.treasuryAddress)}?amount=${encodeURIComponent(order.amountRaw)}&text=${encodeURIComponent(order.memo)}`
-      : '';
-
-  if (loadError && !primary) {
+  if (loadError && !app) {
     return (
       <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-200">
-        <p className="font-medium">Коммерция недоступна</p>
-        <p className="text-yellow-200/80 mt-1">{loadError}</p>
-        <p className="text-xs mt-2 text-yellow-200/60">
-          Запустите backend с <code className="font-mono">TREASURY_WALLET_ADDRESS</code> и выполните{' '}
-          <code className="font-mono">npm run provision:commerce</code>.
+        <p className="font-medium">TonForge checkout недоступен</p>
+        <p className="mt-1 text-yellow-200/80">{loadError}</p>
+        <p className="mt-2 text-xs text-yellow-200/60">
+          Поднимите backend route <code className="font-mono">/api/tonforge</code> и задайте
+          <code className="font-mono"> TREASURY_WALLET_ADDRESS</code>.
         </p>
       </div>
     );
   }
 
-  if (!primary) {
+  if (!app) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-400">
-        Для этого товара ещё нет активного листинга. Продавец может добавить его в разделе «Продажа».
+        Для этого продукта ещё нет TonForge-конфигурации лицензии.
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
-      <div className="flex items-center gap-2 text-ton-400 font-semibold">
-        <ShieldCheck className="w-5 h-5" />
-        <span>Оплата в блокчейне</span>
+    <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-6">
+      <div className="flex items-center gap-2 font-semibold text-ton-400">
+        <ShieldCheck className="h-5 w-5" />
+        <span>TonForge NFT License Checkout</span>
       </div>
       <p className="text-sm text-gray-400">
-        {primary.currency === 'JETTON' && !config?.jettonMasterConfigured
-          ? 'Jetton: выпустите токен и задайте COMMERCE_JETTON_MASTER на сервере. Пока подтверждение jetton может быть отклонено.'
-          : 'Цена фиксируется в заказе. Перевод на адрес казначейства платформы с точной суммой и комментарием (memo).'}
+        Покупка создаёт `purchase session`, затем escrow удерживает trial, а NFT-лицензия становится единственным источником правды для device activation.
       </p>
-      <div className="text-white">
-        <span className="text-gray-400 text-sm">Листинг:</span>{' '}
-        <span className="font-medium">{primary.title}</span>
-        <div className="text-lg mt-1">
-          {primary.currency === 'TON' && primary.priceTonHuman !== undefined
-            ? `${primary.priceTonHuman} TON`
-            : `${primary.priceAmountRaw} raw (${primary.currency})`}
+
+      <div className="space-y-3 text-white">
+        <div>
+          <span className="text-sm text-gray-400">Приложение:</span> <span className="font-medium">{app.name}</span>
+          <div className="mt-1 text-lg">{app.priceTon} TON</div>
+        </div>
+        <div className="grid gap-2 text-sm text-gray-300">
+          <div className="flex items-center gap-2">
+            <BadgeCheck className="h-4 w-4 text-green-400" />
+            <span>{app.trust.sellerBadge} · KYC {app.trust.kycStatus}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <ScrollText className="h-4 w-4 text-cyan-300" />
+            <span>
+              {app.license.type} license · escrow {app.buyerProtectionHours}h · hash {app.artifact.sha256.slice(0, 14)}...
+            </span>
+          </div>
         </div>
       </div>
 
       {!buyerAddress && (
-        <div className="flex items-center gap-2 text-amber-300 text-sm">
-          <Wallet className="w-4 h-4" />
-          Подключите TON-кошелёк (кнопка в шапке), чтобы создать заказ.
+        <div className="flex items-center gap-2 text-sm text-amber-300">
+          <Wallet className="h-4 w-4" />
+          Подключите TON-кошелёк в шапке, чтобы создать purchase session.
         </div>
       )}
 
-      {loadError && primary && (
-        <div className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg p-3">{loadError}</div>
+      {loadError && app && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">{loadError}</div>
       )}
 
-      {!order && buyerAddress && (
+      {successMessage && (
+        <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-300">
+          {successMessage}
+        </div>
+      )}
+
+      {!session && !license && buyerAddress && (
         <button
           type="button"
-          onClick={() => void onCreateOrder()}
+          onClick={() => void onCreateSession()}
           disabled={busy}
-          className="w-full py-3 rounded-xl bg-ton-gradient font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-ton-gradient py-3 font-semibold disabled:opacity-50"
         >
-          {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-          Создать заказ и получить реквизиты
+          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+          Создать purchase session
         </button>
       )}
 
-      {order && config?.treasuryAddress && (
-        <div className="space-y-3 text-sm border-t border-white/10 pt-4">
+      {session && !license && (
+        <div className="space-y-3 border-t border-white/10 pt-4 text-sm">
           <div>
-            <div className="text-gray-400 mb-1">Адрес казначейства</div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <code className="text-xs break-all bg-black/30 px-2 py-1 rounded">{config.treasuryAddress}</code>
+            <div className="mb-1 text-gray-400">Escrow address</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="break-all rounded bg-black/30 px-2 py-1 text-xs">{session.escrowAddress}</code>
               <button
                 type="button"
-                onClick={() => copyText(config.treasuryAddress)}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20"
-                aria-label="Копировать адрес"
+                onClick={() => copyText(session.escrowAddress)}
+                className="rounded-lg bg-white/10 p-2 hover:bg-white/20"
               >
-                <Copy className="w-4 h-4" />
+                <Copy className="h-4 w-4" />
               </button>
             </div>
           </div>
           <div>
-            <div className="text-gray-400 mb-1">Memo (комментарий к переводу)</div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <code className="text-xs break-all bg-black/30 px-2 py-1 rounded">{order.memo}</code>
+            <div className="mb-1 text-gray-400">Treasury wallet</div>
+            <code className="break-all rounded bg-black/30 px-2 py-1 text-xs">{configWallet}</code>
+          </div>
+          <div>
+            <div className="mb-1 text-gray-400">Memo</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="break-all rounded bg-black/30 px-2 py-1 text-xs">{session.memo}</code>
               <button
                 type="button"
-                onClick={() => copyText(order.memo)}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20"
+                onClick={() => copyText(session.memo)}
+                className="rounded-lg bg-white/10 p-2 hover:bg-white/20"
               >
-                <Copy className="w-4 h-4" />
+                <Copy className="h-4 w-4" />
               </button>
             </div>
           </div>
           <div>
-            <div className="text-gray-400 mb-1">Сумма (nanoTON)</div>
-            <code className="text-xs bg-black/30 px-2 py-1 rounded">{order.amountRaw}</code>
-            {order.amountTonHuman !== undefined && (
-              <span className="ml-2 text-ton-400">≈ {order.amountTonHuman} TON</span>
-            )}
+            <div className="mb-1 text-gray-400">Сумма</div>
+            <code className="rounded bg-black/30 px-2 py-1 text-xs">{session.amountNano} nanoTON</code>
+            <span className="ml-2 text-ton-400">≈ {session.amountTon} TON</span>
           </div>
-          {tonkeeperUrl && (
-            <a
-              href={tonkeeperUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 text-purple-300 hover:text-purple-200"
-            >
-              <ExternalLink className="w-4 h-4" />
-              Открыть перевод в Tonkeeper
-            </a>
-          )}
           <div>
-            <label className="text-gray-400 block mb-1">Хэш транзакции после оплаты</label>
+            <label className="mb-1 block text-gray-400">Хэш транзакции после оплаты</label>
             <input
               value={txHash}
-              onChange={(e) => setTxHash(e.target.value)}
-              placeholder="0x..."
-              className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white font-mono text-sm"
+              onChange={(event) => setTxHash(event.target.value)}
+              placeholder="0x... или пусто для demo confirmation"
+              className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 font-mono text-sm text-white"
             />
+          </div>
+          <div className="text-xs text-gray-500">
+            Trial завершится: <span className="text-gray-300">{formatIso(session.trialEndsAt)}</span>
           </div>
           <button
             type="button"
-            onClick={() => void onConfirm()}
-            disabled={busy || !txHash.trim()}
-            className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 font-semibold disabled:opacity-50"
+            onClick={() => void onConfirmPurchase()}
+            disabled={busy}
+            className="w-full rounded-xl bg-purple-600 py-3 font-semibold disabled:opacity-50 hover:bg-purple-500"
           >
-            {busy ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Подтвердить оплату'}
+            {busy ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : 'Подтвердить выпуск лицензии'}
           </button>
         </div>
       )}
 
-      {orderState && (
-        <div className="text-sm text-gray-300 border-t border-white/10 pt-4">
-          Статус заказа: <span className="text-white font-mono">{orderState}</span>
+      <div className="border-t border-white/10 pt-4 text-sm text-gray-300">
+        Текущее состояние: <span className="font-mono text-white">{checkoutState}</span>
+      </div>
+
+      {license && (
+        <div className="space-y-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4">
+          <div className="font-medium text-green-300">NFT-лицензия активна</div>
+          <div className="space-y-1 break-all text-sm text-gray-200">
+            <p>NFT: {license.nftAddress}</p>
+            <p>Collection: {license.collectionAddress}</p>
+            <p>Escrow: {license.escrowAddress}</p>
+            <p>Trial ends: {formatIso(license.trialEndsAt)}</p>
+            <p>Purchase tx: {license.purchaseTxHash}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+            <div className="mb-2 flex items-center gap-2 font-medium text-white">
+              <Fingerprint className="h-4 w-4 text-cyan-300" />
+              Device activation
+            </div>
+            <input
+              value={deviceId}
+              onChange={(event) => setDeviceId(event.target.value)}
+              placeholder="например astra-macbook-pro"
+              className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white"
+            />
+            <button
+              type="button"
+              onClick={() => void onActivateDevice()}
+              disabled={busy || !deviceId.trim()}
+              className="mt-3 w-full rounded-xl bg-cyan-600 py-3 font-semibold disabled:opacity-50 hover:bg-cyan-500"
+            >
+              {busy ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : 'Привязать device_id'}
+            </button>
+            {license.activatedDevices.length > 0 && (
+              <div className="mt-3 space-y-1 text-xs text-gray-300">
+                {license.activatedDevices.map((device) => (
+                  <div key={device.deviceId}>
+                    {device.deviceId} · {formatIso(device.activatedAt)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {delivery && (
-        <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4">
-          <div className="text-green-300 font-medium mb-2">Доступ к покупке</div>
-          <p className="text-sm text-gray-200 break-all whitespace-pre-wrap">{delivery}</p>
-        </div>
-      )}
-
-      {order && buyerAddress && orderState === 'paid' && (
-        <div className="border-t border-white/10 pt-4 space-y-2">
-          <p className="text-sm text-gray-400">Проблема с заказом? Откройте спор.</p>
+      {license && buyerAddress && (
+        <div className="space-y-2 border-t border-white/10 pt-4">
+          <p className="text-sm text-gray-400">
+            Если лицензия, артефакт или trial ведут себя неверно, откройте dispute до завершения escrow.
+          </p>
           <textarea
             value={disputeReason}
-            onChange={(e) => setDisputeReason(e.target.value)}
-            placeholder="Опишите проблему"
+            onChange={(event) => setDisputeReason(event.target.value)}
+            placeholder="Опишите проблему с escrow, artifact или activation"
             rows={3}
-            className="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-sm text-white"
+            className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white"
           />
           <button
             type="button"
-            onClick={() => void onDispute()}
+            onClick={() => void onOpenDispute()}
             disabled={busy || !disputeReason.trim()}
-            className="px-4 py-2 rounded-lg bg-amber-600/80 hover:bg-amber-600 text-sm font-medium disabled:opacity-50"
+            className="rounded-lg bg-amber-600/80 px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-amber-600"
           >
-            Открыть спор
+            Открыть dispute
           </button>
         </div>
       )}

@@ -1,274 +1,89 @@
-import { useState, useEffect, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { Gem, Sparkles, ArrowRight, AlertTriangle } from 'lucide-react';
-import { TonConnectButton, useTonAddress } from '@tonconnect/ui-react';
-import { supabase, isSupabaseConfigured } from '../utils/supabaseClient';
-import {
-  clearDeveloperRegistrationDraft,
-  readDeveloperRegistrationDraft,
-} from '../lib/developerRegistrationDraft';
+// Страница регистрации разработчика теперь ведёт в единый TonForge publisher onboarding вместо legacy Supabase-only сценария.
+import { Link } from 'react-router-dom';
+import { useTonAddress, TonConnectButton } from '@tonconnect/ui-react';
+import { ArrowRight, Gem, ShieldCheck, Sparkles } from 'lucide-react';
 
 const DeveloperRegister = () => {
-  const navigate = useNavigate();
-  const { hasRole, isAuthenticated, isLoading, updateUser, user } = useAuth();
   const tonAddress = useTonAddress();
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    description: ''
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (tonAddress) {
-      setError(null);
-    }
-  }, [tonAddress]);
-
-  useEffect(() => {
-    const draft = readDeveloperRegistrationDraft();
-    if (!draft) return;
-    setFormData((prev) => ({
-      ...prev,
-      name: draft.name || prev.name,
-      email: draft.email || prev.email,
-      description:
-        prev.description.trim() !== ''
-          ? prev.description
-          : `Продолжение с дашборда. Кошелёк: ${draft.wallet.slice(0, 8)}…${draft.wallet.slice(-4)}`,
-    }));
-  }, []);
-
-  useEffect(() => {
-    if (isLoading) return;
-    if (isAuthenticated && hasRole('developer')) {
-      navigate('/developer', { replace: true });
-    }
-  }, [isLoading, isAuthenticated, hasRole, navigate]);
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="w-20 h-20 border-4 border-ton-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-          <h2 className="text-xl font-display font-bold text-white mb-2">
-            Loading Developer Registration...
-          </h2>
-          <p className="text-gray-400">
-            Please wait while we prepare your journey ✨
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isAuthenticated && hasRole('developer')) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-12 h-12 border-4 border-ton-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
-
-    try {
-      if (!tonAddress) {
-        throw new Error('Please connect your TON wallet first');
-      }
-      if (!formData.name.trim()) {
-        throw new Error('Please enter your developer name');
-      }
-      if (!formData.email.trim()) {
-        throw new Error('Please enter your email');
-      }
-      if (!formData.description.trim()) {
-        throw new Error('Please tell us about yourself');
-      }
-
-      if (!isSupabaseConfigured) {
-        throw new Error(
-          'Бэкенд не настроен: задайте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в .env (или подключите Appwrite).'
-        );
-      }
-
-      // Отправляем данные в Supabase
-      const { data, error: supabaseError } = await supabase
-        .from('developers')
-        .insert([
-          {
-            name: formData.name,
-            email: formData.email,
-            description: formData.description,
-            ton_address: tonAddress,
-            created_at: new Date().toISOString()
-          }
-        ])
-        .select();
-
-      if (supabaseError) {
-        throw new Error(`Supabase error: ${supabaseError.message}`);
-      }
-
-      if (!data || data.length === 0) {
-        throw new Error('Failed to register developer. No data returned from Supabase.');
-      }
-
-      clearDeveloperRegistrationDraft();
-
-      if (isAuthenticated && user) {
-        await updateUser({
-          tonAddress,
-          profile: {
-            ...user.profile,
-            displayName: formData.name,
-            bio: formData.description,
-          },
-        });
-      }
-
-      // Обновляем user_metadata в Supabase Auth
-      await supabase.auth.updateUser({
-        data: { roles: ['developer'], display_name: formData.name }
-      });
-
-      // Перенаправляем на страницу разработчика после успешной регистрации
-      navigate('/developer');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
-    <div className="min-h-screen py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-6">
+    <div className="min-h-screen px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-12 text-center">
+          <div className="mb-6 flex justify-center">
             <div className="relative">
-              <div className="w-20 h-20 bg-ton-gradient rounded-full flex items-center justify-center">
-                <Gem className="w-10 h-10 text-white" />
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-ton-gradient">
+                <Gem className="h-10 w-10 text-white" />
               </div>
-              <div className="absolute -top-2 -right-2 text-yellow-400">
-                <Sparkles className="w-8 h-8" />
+              <div className="absolute -right-2 -top-2 text-yellow-400">
+                <Sparkles className="h-8 w-8" />
               </div>
             </div>
           </div>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-            Become a Developer
-          </h2>
+          <h1 className="bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-3xl font-bold text-transparent">
+            Publish on TonForge
+          </h1>
           <p className="mt-4 text-gray-300">
-            Join our community of creators and share your digital treasures with the world
+            Единый onboarding для KYC, artifact scan, NFT license policy и публикации приложений на TON.
           </p>
         </div>
 
-        {!isSupabaseConfigured && (
-          <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center space-x-3">
-            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-            <p className="text-amber-200 text-sm">
-              Регистрация в БД недоступна: нет переменных <code className="text-amber-100">VITE_SUPABASE_*</code>.
-              Остальной сайт работает в демо-режиме.
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-lg">
+          <div className="mb-8 flex justify-center">
+            <TonConnectButton />
+          </div>
+
+          {tonAddress ? (
+            <div className="mb-6 rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-sm text-green-300">
+              Подключён кошелёк: {tonAddress.slice(0, 6)}...{tonAddress.slice(-4)}
+            </div>
+          ) : (
+            <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
+              Сначала подключите кошелёк. Он станет developer identity для publisher workspace.
+            </div>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-2 font-semibold text-white">1. KYC</div>
+              <p className="text-sm text-gray-400">Подтверждение разработчика и seller badge до публикации.</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-2 font-semibold text-white">2. Artifact scan</div>
+              <p className="text-sm text-gray-400">SHA-256 и anti-malware проверка перед публикацией.</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-2 font-semibold text-white">3. NFT license</div>
+              <p className="text-sm text-gray-400">Escrow, trial и device binding на базе TonForge API.</p>
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+            <Link
+              to="/seller/commerce"
+              className="inline-flex flex-1 items-center justify-center rounded-xl bg-ton-gradient px-6 py-3 font-semibold text-white"
+            >
+              Открыть Publisher Console
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Link>
+            <Link
+              to="/developer"
+              className="inline-flex flex-1 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-6 py-3 font-semibold text-white"
+            >
+              Перейти в Developer Dashboard
+            </Link>
+          </div>
+
+          <div className="mt-6 flex items-start gap-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-100">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-cyan-300" />
+            <p>
+              Новый onboarding не зависит от старой Supabase-only регистрации. Источник developer identity теперь wallet + TonForge canonical API.
             </p>
           </div>
-        )}
-
-        {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center space-x-3">
-            <AlertTriangle className="w-5 h-5 text-red-400" />
-            <p className="text-red-400">{error}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-6 bg-white/5 p-8 rounded-2xl backdrop-blur-lg border border-white/10">
-          <div className="flex flex-col items-center space-y-4">
-            <div className="w-full max-w-xs">
-              <TonConnectButton />
-            </div>
-            {tonAddress && (
-              <div className="text-sm text-green-400 bg-green-500/10 px-4 py-2 rounded-full">
-                🪷 Connected: {tonAddress.slice(0, 6)}...{tonAddress.slice(-4)}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-300">
-              Developer Name
-            </label>
-            <input
-              type="text"
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="mt-1 block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Enter your developer name"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-300">
-              Email Address
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="mt-1 block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Enter your email"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-300">
-              About You
-            </label>
-            <textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={4}
-              className="mt-1 block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Tell us about yourself and your experience"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSubmitting || !tonAddress || !isSupabaseConfigured}
-            className={`w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 flex items-center justify-center space-x-2 ${
-              (isSubmitting || !tonAddress || !isSupabaseConfigured) ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            {isSubmitting ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Processing...</span>
-              </>
-            ) : (
-              <>
-                <span>Start Your Journey</span>
-                <ArrowRight className="w-5 h-5" />
-              </>
-            )}
-          </button>
-        </form>
-
-        <div className="mt-8 text-center text-gray-400 text-sm">
-          <p>Already a developer? <button onClick={() => navigate('/profile')} className="text-purple-400 hover:text-purple-300">Go to Dashboard</button></p>
         </div>
       </div>
     </div>
   );
 };
 
-export default DeveloperRegister; 
+export default DeveloperRegister;

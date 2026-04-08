@@ -1,4 +1,4 @@
-import { Client, Databases } from 'appwrite';
+import { Account, Client, Databases } from 'appwrite';
 import { logger } from './logger';
 
 const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT ?? '';
@@ -17,4 +17,6 @@ if (isAppwriteConfigured) {
   );
 }
 
+export const appwriteClient = client;
 export const appwriteDatabases: Databases | null = isAppwriteConfigured ? new Databases(client) : null;
+export const appwriteAccount: Account | null = isAppwriteConfigured ? new Account(client) : null;

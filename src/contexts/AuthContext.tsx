@@ -7,12 +7,40 @@ import type {
   AuthResult,
   SecurityEvent,
   SecurityFlag,
-  UserRole,
   SacredAccess,
   Permission,
 } from '../types/auth';
-import { supabase, isSupabaseConfigured } from '../utils/supabaseClient';
+import { appwriteAccount, isAppwriteConfigured } from '../lib/appwriteClient';
+import { profileRowToAuthenticatedUser, type ProfileRow } from '../lib/authProfileMap';
+import { storeApiUrl } from '../lib/storeApi';
+import { ROLES } from '../domain/auth/roleCatalog';
 import { logger } from '../lib/logger';
+import type { Account } from 'appwrite';
+
+async function fetchProfileRowWithJwt(jwt: string): Promise<ProfileRow | null> {
+  const res = await fetch(storeApiUrl('/api/session/profile'), {
+    headers: { Authorization: `Bearer ${jwt}` },
+  });
+  if (!res.ok) return null;
+  const body = (await res.json()) as { success?: boolean; data?: ProfileRow };
+  return body.data ?? null;
+}
+
+async function syncAppwriteProfile(account: Account, name?: string): Promise<void> {
+  const { jwt } = await account.createJWT();
+  const res = await fetch(storeApiUrl('/api/auth/appwrite/sync'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${jwt}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name: name ?? '' }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || 'sync failed');
+  }
+}
 
 // Security configuration
 const SECURITY_CONFIG = {
@@ -31,99 +59,6 @@ const SECURITY_CONFIG = {
     loginAttempts: 5,
     windowMinutes: 15,
     blockDuration: 30
-  }
-};
-
-// Role definitions with permissions
-const ROLES: Record<string, UserRole> = {
-  super_admin: {
-    id: 'super_admin',
-    name: 'super_admin',
-    permissions: [
-      { resource: '*', actions: ['create', 'read', 'update', 'delete', 'approve', 'ban'] }
-    ],
-    sessionDuration: 120, // 2 hours
-    requiresMFA: true,
-    description: 'Supreme cosmic administrator with all divine permissions'
-  },
-  admin: {
-    id: 'admin', 
-    name: 'admin',
-    permissions: [
-      { resource: 'users', actions: ['create', 'read', 'update', 'ban'] },
-      { resource: 'products', actions: ['create', 'read', 'update', 'delete', 'approve'] },
-      { resource: 'categories', actions: ['create', 'read', 'update', 'delete'] },
-      { resource: 'donations', actions: ['read', 'approve'] }
-    ],
-    sessionDuration: 240, // 4 hours
-    requiresMFA: true,
-    description: 'Administrative guardian with elevated access'
-  },
-  moderator: {
-    id: 'moderator',
-    name: 'moderator', 
-    permissions: [
-      { resource: 'products', actions: ['read', 'update', 'approve'] },
-      { resource: 'users', actions: ['read', 'ban'] },
-      { resource: 'reviews', actions: ['read', 'update', 'delete'] }
-    ],
-    sessionDuration: 360, // 6 hours
-    requiresMFA: false,
-    description: 'Content moderator ensuring marketplace harmony'
-  },
-  developer: {
-    id: 'developer',
-    name: 'developer',
-    permissions: [
-      { resource: 'products', actions: ['create', 'read', 'update'], conditions: { owner: true } },
-      { resource: 'analytics', actions: ['read'], conditions: { owner: true } }
-    ],
-    sessionDuration: 480, // 8 hours  
-    requiresMFA: false,
-    description: 'Sacred developer creating digital treasures'
-  },
-  support: {
-    id: 'support',
-    name: 'support',
-    permissions: [
-      { resource: 'users', actions: ['read'] },
-      { resource: 'tickets', actions: ['create', 'read', 'update'] }
-    ],
-    sessionDuration: 1440, // 24 hours
-    requiresMFA: false,
-    description: 'Compassionate support helping users'
-  },
-  analyst: {
-    id: 'analyst',
-    name: 'analyst',
-    permissions: [
-      { resource: 'analytics', actions: ['read'] },
-      { resource: 'reports', actions: ['create', 'read'] }
-    ],
-    sessionDuration: 480, // 8 hours
-    requiresMFA: false,
-    description: 'Data analyst seeking marketplace insights'
-  },
-  viewer: {
-    id: 'viewer',
-    name: 'viewer',
-    permissions: [
-      { resource: 'dashboard', actions: ['read'] }
-    ],
-    sessionDuration: 240, // 4 hours
-    requiresMFA: false,
-    description: 'Observer with read-only access'
-  },
-  auditor: {
-    id: 'auditor',
-    name: 'auditor',
-    permissions: [
-      { resource: 'audit_logs', actions: ['read'] },
-      { resource: 'security_events', actions: ['read'] }
-    ],
-    sessionDuration: 120, // 2 hours
-    requiresMFA: true,
-    description: 'Security auditor monitoring system integrity'
   }
 };
 
@@ -219,76 +154,100 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logger.warn('[Audit]', { action: actionLabel, resource, result, metadata, at: new Date().toISOString() });
   }, []);
 
-  const login = useCallback(async (credentials: { email?: string; tonAddress?: string }): Promise<AuthResult> => {
-    if (!isSupabaseConfigured) {
-      return {
-        success: false,
-        requiresMFA: false,
-        error: 'Supabase не настроен. Создайте .env с VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY.',
-      };
-    }
-
-    dispatch({ type: 'SET_LOADING', payload: true });
-    try {
-      if (credentials.email) {
-        const { error: signInError } = await supabase.auth.signInWithOtp({ email: credentials.email });
-        if (signInError) throw signInError;
-        return { success: true, requiresMFA: false };
-      } else if (credentials.tonAddress) {
-        const { data, error: fetchError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('ton_address', credentials.tonAddress)
-          .single();
-        if (fetchError) throw fetchError;
-        const user = data as AuthenticatedUser;
-        const session = createSession(user);
-        dispatch({ type: 'SET_USER', payload: user });
-        dispatch({ type: 'SET_SESSION', payload: session });
-        dispatch({ type: 'SET_ERROR', payload: null });
-        return { success: true, requiresMFA: false, user, session };
-      } else {
-        throw new Error('No credentials provided');
+  const login = useCallback(
+    async (credentials: { email?: string; password?: string; tonAddress?: string }): Promise<AuthResult> => {
+      if (credentials.email && credentials.password) {
+        if (!appwriteAccount || !isAppwriteConfigured) {
+          return {
+            success: false,
+            requiresMFA: false,
+            error: 'Appwrite не настроен. Задайте VITE_APPWRITE_ENDPOINT и VITE_APPWRITE_PROJECT_ID.',
+          };
+        }
+        dispatch({ type: 'SET_LOADING', payload: true });
+        try {
+          await appwriteAccount.createEmailPasswordSession(credentials.email, credentials.password);
+          await syncAppwriteProfile(appwriteAccount);
+          const { jwt } = await appwriteAccount.createJWT();
+          const row = await fetchProfileRowWithJwt(jwt);
+          if (!row) throw new Error('Профиль не найден после входа');
+          const user = profileRowToAuthenticatedUser(row);
+          const session = createSession(user);
+          dispatch({ type: 'SET_USER', payload: user });
+          dispatch({ type: 'SET_SESSION', payload: session });
+          dispatch({ type: 'SET_ERROR', payload: null });
+          return { success: true, requiresMFA: false, user, session };
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Authentication failed';
+          dispatch({ type: 'SET_ERROR', payload: message });
+          return { success: false, requiresMFA: false, error: message };
+        } finally {
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
       }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Authentication failed';
-      dispatch({ type: 'SET_ERROR', payload: message });
-      return { success: false, requiresMFA: false, error: message };
-    } finally {
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
-  }, []);
+
+      if (credentials.tonAddress) {
+        dispatch({ type: 'SET_LOADING', payload: true });
+        try {
+          const res = await fetch(
+            storeApiUrl(`/api/profiles/by-ton/${encodeURIComponent(credentials.tonAddress)}`)
+          );
+          if (!res.ok) throw new Error('Пользователь с данным TON адресом не найден');
+          const body = (await res.json()) as { data: ProfileRow };
+          const user = profileRowToAuthenticatedUser(body.data);
+          const session = createSession(user);
+          dispatch({ type: 'SET_USER', payload: user });
+          dispatch({ type: 'SET_SESSION', payload: session });
+          dispatch({ type: 'SET_ERROR', payload: null });
+          return { success: true, requiresMFA: false, user, session };
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Authentication failed';
+          dispatch({ type: 'SET_ERROR', payload: message });
+          return { success: false, requiresMFA: false, error: message };
+        } finally {
+          dispatch({ type: 'SET_LOADING', payload: false });
+        }
+      }
+
+      return { success: false, requiresMFA: false, error: 'Укажите email и пароль или TON-адрес' };
+    },
+    []
+  );
 
   const logout = useCallback(async (): Promise<void> => {
-    if (isSupabaseConfigured) {
-      await supabase.auth.signOut();
+    if (appwriteAccount && isAppwriteConfigured) {
+      try {
+        await appwriteAccount.deleteSessions();
+      } catch {
+        /* сессия уже сброшена */
+      }
     }
     dispatch({ type: 'LOGOUT' });
   }, []);
 
   const fetchProfile = useCallback(async () => {
-    if (!isSupabaseConfigured) {
+    if (!appwriteAccount || !isAppwriteConfigured) {
       dispatch({ type: 'SET_LOADING', payload: false });
       return;
     }
 
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error || !user) {
+      await appwriteAccount.get();
+      const { jwt } = await appwriteAccount.createJWT();
+      const row = await fetchProfileRowWithJwt(jwt);
+      if (!row) {
         dispatch({ type: 'SET_USER', payload: null });
         dispatch({ type: 'SET_SESSION', payload: null });
         return;
       }
-      const { data, error: fetchError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      if (fetchError) throw fetchError;
-      dispatch({ type: 'SET_USER', payload: data as AuthenticatedUser });
-      dispatch({ type: 'SET_SESSION', payload: createSession(data as AuthenticatedUser) });
+      const user = profileRowToAuthenticatedUser(row);
+      dispatch({ type: 'SET_USER', payload: user });
+      dispatch({ type: 'SET_SESSION', payload: createSession(user) });
+      dispatch({ type: 'SET_ERROR', payload: null });
     } catch (error: unknown) {
+      dispatch({ type: 'SET_USER', payload: null });
+      dispatch({ type: 'SET_SESSION', payload: null });
       const message = error instanceof Error ? error.message : 'Failed to fetch profile';
       dispatch({ type: 'SET_ERROR', payload: message });
     } finally {
@@ -354,23 +313,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [state.session, reportSecurityEvent]);
 
   const authenticateWithTON = useCallback(async (walletData: TONWalletAuth): Promise<AuthResult> => {
-    if (!isSupabaseConfigured) {
-      return { success: false, requiresMFA: false, error: 'Supabase не настроен' };
-    }
-
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      const { data, error: fetchError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('ton_address', walletData.address)
-        .single();
-
-      if (fetchError || !data) {
+      const res = await fetch(storeApiUrl(`/api/profiles/by-ton/${encodeURIComponent(walletData.address)}`));
+      if (!res.ok) {
         return { success: false, requiresMFA: false, error: 'Пользователь с данным TON адресом не найден' };
       }
-
-      const user = data as AuthenticatedUser;
+      const body = (await res.json()) as { data: ProfileRow };
+      const user = profileRowToAuthenticatedUser(body.data);
       const session = createSession(user);
       dispatch({ type: 'SET_USER', payload: user });
       dispatch({ type: 'SET_SESSION', payload: session });
@@ -398,15 +348,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updatedUser = { ...state.user, ...updatedData };
     dispatch({ type: 'SET_USER', payload: updatedUser });
     dispatch({ type: 'SET_SESSION', payload: createSession(updatedUser) });
-
-    if (isSupabaseConfigured && (updatedData.roles || updatedData.profile?.displayName)) {
-      await supabase.auth.updateUser({
-        data: {
-          roles: updatedData.roles ?? state.user.roles,
-          display_name: updatedData.profile?.displayName ?? state.user.profile.displayName,
-        },
-      });
-    }
   }, [state.user]);
 
   const contextValue: AuthContextValue = {
@@ -435,63 +376,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      if (!isSupabaseConfigured) {
-        dispatch({ type: 'SET_LOADING', payload: false });
-        return;
-      }
-
-      dispatch({ type: 'SET_LOADING', payload: true });
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          const { data: userProfile, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-
-          if (error) throw error;
-
-          dispatch({ type: 'SET_USER', payload: userProfile as AuthenticatedUser });
-          dispatch({ type: 'SET_SESSION', payload: createSession(userProfile as AuthenticatedUser) });
-        }
-      } catch (err) {
-        logger.error('Error initializing auth:', err);
-        dispatch({ type: 'SET_ERROR', payload: 'Failed to initialize authentication' });
-      } finally {
-        dispatch({ type: 'SET_LOADING', payload: false });
-      }
-    };
-    void initializeAuth();
-
-    if (!isSupabaseConfigured) return;
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          const fetchUserProfile = async () => {
-            const { data: userProfile } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-            if (userProfile) {
-              dispatch({ type: 'SET_USER', payload: userProfile as AuthenticatedUser });
-              dispatch({ type: 'SET_SESSION', payload: createSession(userProfile as AuthenticatedUser) });
-            }
-          };
-          fetchUserProfile();
-        } else if (event === 'SIGNED_OUT') {
-          dispatch({ type: 'LOGOUT' });
-        }
-      }
-    );
-
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
-  }, []);
+    void fetchProfile();
+  }, [fetchProfile]);
 
   return (
     <AuthContext.Provider value={contextValue}>

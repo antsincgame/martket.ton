@@ -5,14 +5,14 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "provision-core": "node ../scripts/provision-core.mjs"
   },
   "license": "MIT",
   "description": "Backend API for TON Web Store",
   "dependencies": {
     "@ton/core": "^0.63.1",
     "@tonconnect/sdk": "^3.0.5",
-    "better-sqlite3": "^11.9.1",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",

@@ -8,9 +8,9 @@
 |------|-----------|
 | **Frontend** | React 18, TypeScript (strict), Vite 5, Tailwind CSS 3 |
 | **Routing** | React Router DOM v6 |
-| **Auth** | Supabase Auth (email OTP), TonConnect (кошелёк) |
+| **Auth** | Appwrite Account (email+пароль), TonConnect (кошелёк), JWT API для кошелька |
 | **Backend** | Node.js, Express |
-| **БД** | Supabase (пользователи, разработчики), Appwrite (каталог, commerce), локально SQLite (бэкенд) |
+| **БД** | Appwrite Databases (витрина, commerce, core: профили/legacy API), Appwrite Storage (снимок TonForge) |
 
 ## Структура проекта
 
@@ -18,7 +18,7 @@
 ├── backend/                 # Express API сервер
 │   ├── commerce/            # Commerce API (заказы, споры, аудит)
 │   ├── server.js            # Точка входа бэкенда
-│   ├── supabase.js          # Supabase клиент
+│   ├── core/                # Репозиторий Appwrite (database core)
 │   └── logger.js            # Логгер
 ├── scripts/                 # Провижининг и сид-данные
 ├── src/
@@ -42,8 +42,7 @@
 ### Предварительные требования
 
 - Node.js 20+
-- Проект в Supabase (таблицы: `users`, `developers`, `products`, `audit_logs`)
-- Проект в Appwrite (провижининг через скрипты)
+- Проект в Appwrite (провижининг: `provision:appwrite`, `provision:commerce`, `provision:core`)
 
 ### Установка
 
@@ -66,8 +65,8 @@ cp .env.example .env
 
 Заполните `.env` по шаблону `.env.example`. Обязательные переменные:
 
-- `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` — фронтенд Supabase
-- `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — бэкенд Supabase
+- `VITE_APPWRITE_*` — фронтенд (каталог + Auth)
+- `APPWRITE_*` — бэкенд (server API key)
 - `JWT_SECRET` — секрет для подписи JWT токенов
 
 ### Запуск в режиме разработки

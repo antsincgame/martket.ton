@@ -1,0 +1,30 @@
+# Статический фронт (Vite build) + nginx; переменные VITE_* нужны на этапе сборки.
+FROM node:20-bookworm-slim AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+ARG VITE_APPWRITE_ENDPOINT
+ARG VITE_APPWRITE_PROJECT_ID
+ARG VITE_COMMERCE_API_URL
+ARG VITE_TONCONNECT_MANIFEST_URL
+ARG VITE_TONFORGE_API_URL
+
+ENV VITE_APPWRITE_ENDPOINT=$VITE_APPWRITE_ENDPOINT
+ENV VITE_APPWRITE_PROJECT_ID=$VITE_APPWRITE_PROJECT_ID
+ENV VITE_COMMERCE_API_URL=$VITE_COMMERCE_API_URL
+ENV VITE_TONCONNECT_MANIFEST_URL=$VITE_TONCONNECT_MANIFEST_URL
+ENV VITE_TONFORGE_API_URL=$VITE_TONFORGE_API_URL
+
+RUN npm run build
+
+FROM nginx:1.27-alpine
+
+COPY deploy/nginx-spa.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+EXPOSE 80

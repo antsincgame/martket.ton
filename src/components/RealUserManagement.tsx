@@ -2,9 +2,10 @@ import { useState, useEffect, type FC } from 'react';
 import { UserPlus, Shield, Trash2, Eye, Search, Database, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { logger } from '../lib/logger';
-import { supabase, isSupabaseConfigured } from '../utils/supabaseClient';
+import { appwriteAccount, isAppwriteConfigured } from '../lib/appwriteClient';
+import { storeApiUrl } from '../lib/storeApi';
 
-interface SupabaseUser {
+interface ManagedDeveloper {
   id: string;
   name: string;
   email: string;
@@ -19,11 +20,11 @@ interface SupabaseUser {
 
 const RealUserManagement: FC = () => {
   const { hasPermission, reportSecurityEvent, user: currentUser } = useAuth();
-  const [users, setUsers] = useState<SupabaseUser[]>([]);
+  const [users, setUsers] = useState<ManagedDeveloper[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUser, setSelectedUser] = useState<SupabaseUser | null>(null);
+  const [selectedUser, setSelectedUser] = useState<ManagedDeveloper | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [newUser, setNewUser] = useState({
     name: '',
@@ -41,28 +42,21 @@ const RealUserManagement: FC = () => {
     setLoading(true);
     setError(null);
     try {
-      if (!isSupabaseConfigured) {
-        setUsers([]);
-        setError('База не настроена: задайте VITE_SUPABASE_URL и VITE_SUPABASE_ANON_KEY в .env.');
-        return;
-      }
-
-      const { data, error: supabaseError } = await supabase
-        .from('developers')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (supabaseError) throw supabaseError;
-
-      // Add mock user properties for demo
-      const usersWithStatus = data?.map(user => ({
-        ...user,
-        role: user.email?.includes('admin') ? 'admin' : 
-              user.email?.includes('mod') ? 'moderator' : 'developer',
-        status: Math.random() > 0.8 ? 'suspended' : 'active',
-        last_login: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-        risk_score: Math.floor(Math.random() * 30)
-      })) || [];
+      const res = await fetch(storeApiUrl('/api/developers'));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = (await res.json()) as { data: ManagedDeveloper[] };
+      const usersWithStatus: ManagedDeveloper[] =
+        body.data?.map((user) => ({
+          ...user,
+          role: user.email?.includes('admin')
+            ? 'admin'
+            : user.email?.includes('mod')
+              ? 'moderator'
+              : 'developer',
+          status: (Math.random() > 0.8 ? 'suspended' : 'active') as ManagedDeveloper['status'],
+          last_login: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+          risk_score: Math.floor(Math.random() * 30),
+        })) ?? [];
 
       setUsers(usersWithStatus);
     } catch (err) {
@@ -78,23 +72,27 @@ const RealUserManagement: FC = () => {
       alert('Please fill all required fields');
       return;
     }
-    if (!isSupabaseConfigured) {
-      alert('База не настроена (.env)');
+    if (!isAppwriteConfigured || !appwriteAccount) {
+      alert('Нужны Appwrite и активная сессия для записи');
       return;
     }
 
     try {
-      const { error: supabaseError } = await supabase
-        .from('developers')
-        .insert([{
+      const { jwt } = await appwriteAccount.createJWT();
+      const res = await fetch(storeApiUrl('/api/developers'), {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           name: newUser.name,
           email: newUser.email,
           description: newUser.description,
-          ton_address: newUser.ton_address
-        }])
-        .select();
-
-      if (supabaseError) throw supabaseError;
+          ton_address: newUser.ton_address,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
 
       reportSecurityEvent({
         type: 'data_access',
@@ -119,18 +117,18 @@ const RealUserManagement: FC = () => {
 
   const deleteUser = async (userId: string) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
-    if (!isSupabaseConfigured) {
-      alert('База не настроена (.env)');
+    if (!isAppwriteConfigured || !appwriteAccount) {
+      alert('Нужны Appwrite и активная сессия');
       return;
     }
 
     try {
-      const { error: supabaseError } = await supabase
-        .from('developers')
-        .delete()
-        .eq('id', userId);
-
-      if (supabaseError) throw supabaseError;
+      const { jwt } = await appwriteAccount.createJWT();
+      const res = await fetch(storeApiUrl(`/api/developers/${encodeURIComponent(userId)}`), {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+      if (!res.ok) throw new Error(await res.text());
 
       reportSecurityEvent({
         type: 'data_access',
@@ -418,7 +416,7 @@ const RealUserManagement: FC = () => {
 
       <div className="mt-6 text-center">
         <p className="text-gray-400 text-sm">
-          🌟 Real-time user management connected to Supabase database
+          Developers (Appwrite core + backend API)
         </p>
       </div>
     </div>

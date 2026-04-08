@@ -1,3 +1,4 @@
+// Страница продукта обновлена по терминологии TonForge, чтобы purchase card объясняла escrow/NFT/device flow вместо старых обещаний.
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles } from 'lucide-react';
@@ -267,24 +268,24 @@ const ProductPage = () => {
               <div className="mt-6 pt-6 border-t border-white/10">
                 <h4 className="font-semibold text-white mb-3 flex items-center">
                   <Shield className="w-5 h-5 mr-2 text-green-400" />
-                  Sacred Guarantees
+                  TonForge Guarantees
                 </h4>
                 <div className="space-y-2 text-sm text-gray-400">
                   <div className="flex items-center">
                     <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-                    30-day money-back guarantee
+                    72h escrow and dispute window
                   </div>
                   <div className="flex items-center">
                     <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-                    Malware-free verification
+                    SHA-256 and malware verification
                   </div>
                   <div className="flex items-center">
                     <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-                    Lifetime updates
+                    NFT-based lifetime entitlement
                   </div>
                   <div className="flex items-center">
                     <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-                    24/7 spiritual support 🪷
+                    Device activation and runtime checks
                   </div>
                 </div>
               </div>

@@ -1,3 +1,4 @@
+// Роутинг ослаблен для нового wallet-first developer flow, чтобы TonForge dashboard открывался без legacy Supabase-сессии.
 import { useState, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
@@ -48,7 +49,7 @@ function App() {
                     <Route path="/product/:id" element={<ProductPage />} />
                     <Route path="/category/:id" element={<CategoryPage />} />
                     <Route path="/profile" element={<ProfilePage />} />
-                    <Route path="/developer" element={<ProtectedRoute requiresAuthentication={true}><DeveloperDashboard /></ProtectedRoute>} />
+                    <Route path="/developer" element={<DeveloperDashboard />} />
                     <Route path="/developer/register" element={<DeveloperRegister />} />
                     <Route path="/seller/commerce" element={<SellerCommercePage />} />
                     <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />

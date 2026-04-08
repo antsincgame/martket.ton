@@ -1,0 +1,7 @@
+# Исключаем артефакты локальной разработки из контекста сборки backend.
+node_modules
+npm-debug.log
+data
+*.db
+.env
+.env.*

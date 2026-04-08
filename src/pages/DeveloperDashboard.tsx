@@ -1,469 +1,197 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, TrendingUp, DollarSign, Users, Heart, Star, Upload, Sparkles, Gem } from 'lucide-react';
-import DeveloperRegisterModal from '../components/DeveloperRegisterModal';
-import { useAuth } from '../contexts/AuthContext';
-import { persistDeveloperRegistrationDraft } from '../lib/developerRegistrationDraft';
+// Дашборд разработчика подключён к TonForge workspace и показывает реальные KYC/license/contract сигналы вместо placeholder-статистики.
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useTonAddress } from '@tonconnect/ui-react';
+import { Boxes, FileCheck, Rocket, ShieldCheck, Sparkles, Wallet } from 'lucide-react';
+import type { TonForgeDeveloperWorkspace } from '../domain/tonforge/types';
+import { fetchDeveloperWorkspace, fetchTonForgeConfig } from '../services/tonforgeApi';
 
 const DeveloperDashboard = () => {
-  const navigate = useNavigate();
-  const registerPromptShownRef = useRef(false);
-  const [activeTab, setActiveTab] = useState('overview');
-  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
-  const [developer, setDeveloper] = useState<{ wallet: string; email: string; name: string } | null>(null);
-  const { hasRole, user, isLoading, isAuthenticated } = useAuth();
-
-  // Если пользователь не аутентифицирован или не является разработчиком, показываем сообщение
-  const userProducts = user?.products || [];
-  const userStats = user?.stats || {
-    totalSpent: 0,
-    totalDonated: 0,
-    karmaPoints: 0,
-    appsOwned: 0,
-    productsPublished: 0,
-    totalDownloads: 0,
-    donationsReceived: 0,
-    avgRating: 0,
-    totalReviews: 0
-  };
+  const wallet = useTonAddress();
+  const [workspace, setWorkspace] = useState<TonForgeDeveloperWorkspace | null>(null);
+  const [treasuryWallet, setTreasuryWallet] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isLoading || !isAuthenticated || !user || developer || hasRole('developer')) return;
-    if (registerPromptShownRef.current) return;
-    registerPromptShownRef.current = true;
-    setIsRegisterOpen(true);
-  }, [isLoading, isAuthenticated, user, developer, hasRole]);
+    if (!wallet) {
+      setWorkspace(null);
+      setLoading(false);
+      return;
+    }
 
-  if (isLoading) {
+    let cancelled = false;
+    setLoading(true);
+    void Promise.all([fetchDeveloperWorkspace(wallet), fetchTonForgeConfig()])
+      .then(([nextWorkspace, config]) => {
+        if (cancelled) return;
+        setWorkspace(nextWorkspace);
+        setTreasuryWallet(config.treasuryWallet);
+        setError(null);
+      })
+      .catch((reason: unknown) => {
+        if (cancelled) return;
+        setError(reason instanceof Error ? reason.message : 'Не удалось загрузить developer workspace');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet]);
+
+  const metrics = useMemo(() => {
+    const apps = workspace?.apps ?? [];
+    return {
+      apps: apps.length,
+      activeLicenses: apps.reduce((sum, app) => sum + app.metrics.activeLicenses, 0),
+      weeklyPurchases: apps.reduce((sum, app) => sum + app.metrics.weeklyPurchases, 0),
+      passedScans: workspace?.recentScans.filter((scan) => scan.status === 'passed').length ?? 0,
+    };
+  }, [workspace]);
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="flex min-h-screen items-center justify-center p-4">
         <div className="text-center">
-          <div className="w-20 h-20 border-4 border-ton-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-          <h2 className="text-xl font-display font-bold text-white mb-2">
-            Loading Developer Dashboard...
-          </h2>
-          <p className="text-gray-400">
-            Please wait while we gather your divine data ✨
-          </p>
+          <div className="mx-auto mb-6 h-20 w-20 animate-spin rounded-full border-4 border-ton-500 border-t-transparent"></div>
+          <h2 className="mb-2 text-xl font-display font-bold text-white">Загрузка TonForge workspace...</h2>
+          <p className="text-gray-400">Проверяю KYC, публикации и contract readiness.</p>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated || !user) {
+  if (!wallet) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-8 max-w-md w-full text-center">
-          <div className="w-20 h-20 bg-ton-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Sparkles className="w-10 h-10 text-ton-400" />
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur-sm">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-ton-500/20">
+            <Wallet className="h-10 w-10 text-ton-400" />
           </div>
-          <h1 className="text-2xl font-display font-bold text-white mb-4">
-            🪷 Developer Dashboard Awaits
-          </h1>
-          <p className="text-gray-300 mb-6">
-            Connect your TON wallet to access your enlightened dashboard and begin your developer journey.
-          </p>
-          <button
-            onClick={() => window.location.href = '/'}
-            className="w-full bg-ton-gradient hover:scale-105 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg"
-          >
-            Connect Wallet & Begin 🔮
-          </button>
+          <h1 className="mb-4 text-2xl font-display font-bold text-white">Подключите кошелёк разработчика</h1>
+          <p className="mb-6 text-gray-300">Дашборд использует адрес кошелька как owner developer workspace и publisher identity.</p>
+          <Link to="/" className="inline-flex w-full items-center justify-center rounded-xl bg-ton-gradient px-6 py-3 font-semibold text-white">
+            Вернуться на витрину
+          </Link>
         </div>
       </div>
     );
-  }
-
-  function handleRegister(data: { wallet: string; email: string; name: string }) {
-    setDeveloper(data);
-    persistDeveloperRegistrationDraft(data);
-    navigate('/developer/register');
   }
 
   return (
-    <div className="min-h-screen py-8 px-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
+    <div className="min-h-screen px-4 py-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-display font-bold text-white mb-2 flex items-center">
-              <Sparkles className="w-8 h-8 mr-3 text-purple-400" />
-              Developer Dashboard
+            <h1 className="flex items-center text-3xl font-display font-bold text-white">
+              <Sparkles className="mr-3 h-8 w-8 text-purple-400" />
+              TonForge Developer Dashboard
             </h1>
-            <p className="text-gray-400">Manage your digital treasures and sacred offerings 🪄</p>
+            <p className="text-gray-400">Wallet-driven publisher console для KYC, artifact scan, license policy и escrow-aware релизов.</p>
           </div>
-          {!developer && !hasRole('developer') && (
-            <button
-              className="mt-4 md:mt-0 bg-ton-gradient hover:scale-105 text-white font-semibold px-6 py-3 rounded-full transition-all duration-300 shadow-lg hover:shadow-ton-500/50 flex items-center space-x-2"
-              onClick={() => setIsRegisterOpen(true)}
-            >
-            <Plus className="w-5 h-5" />
-              <span>Стать разработчиком</span>
-          </button>
-          )}
+          <Link to="/seller/commerce" className="inline-flex items-center justify-center rounded-full bg-ton-gradient px-6 py-3 font-semibold text-white">
+            Открыть Publisher Console
+          </Link>
         </div>
-        <DeveloperRegisterModal
-          isOpen={isRegisterOpen}
-          onClose={() => setIsRegisterOpen(false)}
-          onRegister={handleRegister}
-        />
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-green-400" />
-              </div>
-              <TrendingUp className="w-5 h-5 text-green-400" />
+        {error && <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>}
+
+        <div className="mb-8 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <Boxes className="h-6 w-6 text-purple-400" />
+              <span className="text-xs text-gray-400">apps</span>
             </div>
-            <div className="text-2xl font-bold text-white mb-1">{userStats.donationsReceived || 0} TON</div>
-            <div className="text-gray-400 text-sm">Total Revenue 💰</div>
+            <div className="text-2xl font-bold text-white">{metrics.apps}</div>
+            <div className="text-sm text-gray-400">Опубликованные приложения</div>
           </div>
-
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6 text-blue-400" />
-              </div>
-              <TrendingUp className="w-5 h-5 text-blue-400" />
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <Rocket className="h-6 w-6 text-cyan-300" />
+              <span className="text-xs text-gray-400">licenses</span>
             </div>
-            <div className="text-2xl font-bold text-white mb-1">{(userStats.totalDownloads || 0).toLocaleString()}</div>
-            <div className="text-gray-400 text-sm">Total Downloads 📈</div>
+            <div className="text-2xl font-bold text-white">{metrics.activeLicenses}</div>
+            <div className="text-sm text-gray-400">Активные лицензии</div>
           </div>
-
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                <Gem className="w-6 h-6 text-purple-400" />
-              </div>
-              <span className="text-purple-400 text-sm font-medium">Active</span>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <ShieldCheck className="h-6 w-6 text-green-400" />
+              <span className="text-xs text-gray-400">kyc</span>
             </div>
-            <div className="text-2xl font-bold text-white mb-1">{userStats.productsPublished || 0}</div>
-            <div className="text-gray-400 text-sm">Active Products 🚀</div>
+            <div className="text-2xl font-bold capitalize text-white">{workspace?.developer.kycStatus ?? 'draft'}</div>
+            <div className="text-sm text-gray-400">{workspace?.developer.sellerBadge ?? 'Нет бейджа'}</div>
           </div>
-
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-pink-500/20 rounded-xl flex items-center justify-center">
-                <Heart className="w-6 h-6 text-pink-400" />
-              </div>
-              <TrendingUp className="w-5 h-5 text-pink-400" />
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <FileCheck className="h-6 w-6 text-yellow-400" />
+              <span className="text-xs text-gray-400">weekly</span>
             </div>
-            <div className="text-2xl font-bold text-white mb-1">{userStats.donationsReceived || 0} TON</div>
-            <div className="text-gray-400 text-sm">Donations Received ❤️</div>
-          </div>
-
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center">
-                <Star className="w-6 h-6 text-yellow-400" />
-              </div>
-              <span className="text-yellow-400 text-sm font-medium">Excellent</span>
-            </div>
-            <div className="text-2xl font-bold text-white mb-1">{userStats.avgRating || 0}</div>
-            <div className="text-gray-400 text-sm">Average Rating ⭐</div>
-          </div>
-
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-indigo-500/20 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6 text-indigo-400" />
-              </div>
-              <span className="text-indigo-400 text-sm font-medium">Growing</span>
-            </div>
-            <div className="text-2xl font-bold text-white mb-1">{userStats.totalReviews || 0}</div>
-            <div className="text-gray-400 text-sm">Total Reviews 💬</div>
+            <div className="text-2xl font-bold text-white">{metrics.weeklyPurchases}</div>
+            <div className="text-sm text-gray-400">Покупки за неделю</div>
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-2 mb-8">
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-            {[
-              { id: 'overview', label: 'Overview', icon: TrendingUp },
-              { id: 'products', label: 'Products', icon: Gem },
-              { id: 'donations', label: 'Donations', icon: Heart },
-              { id: 'upload', label: 'Upload New', icon: Upload }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center justify-center space-x-2 px-6 py-3 rounded-xl font-medium transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-ton-gradient text-white shadow-lg'
-                    : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <tab.icon className="w-5 h-5" />
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Tab Content */}
-        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
-          {activeTab === 'overview' && (
-            <div>
-              <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
-                <TrendingUp className="w-6 h-6 mr-3 text-ton-400" />
-                Revenue Overview
-              </h2>
-              <div className="bg-white/5 rounded-xl p-6 mb-6">
-                <div className="text-center">
-                  <div className="text-4xl font-display font-bold text-ton-400 mb-2">
-                    {userStats.donationsReceived} TON
-                  </div>
-                  <p className="text-gray-400 mb-4">Total Earnings This Month</p>
-                  <div className="text-green-400 font-medium">
-                    Sacred offerings received ✨
-                  </div>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white/5 rounded-xl p-6">
-                  <h3 className="font-semibold text-white mb-4">Top Performing Products</h3>
-                  <div className="space-y-3">
-                    {userProducts.slice(0, 3).map((product, index) => (
-                      <div key={product.id} className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
-                            index === 0 ? 'bg-gold' : index === 1 ? 'bg-silver' : 'bg-bronze'
-                          }`}>
-                            {index + 1}
-                          </div>
-                          <span className="text-white">{product.name}</span>
-                        </div>
-                        <span className="text-ton-400 font-semibold">{product.price} TON</span>
-                      </div>
-                    ))}
-                    {userProducts.length === 0 && (
-                      <div className="text-center text-gray-400 py-8">
-                        No products yet. Start creating! 🚀
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="bg-white/5 rounded-xl p-6">
-                  <h3 className="font-semibold text-white mb-4">Sacred Donation Ranking</h3>
-                  <div className="space-y-3">
-                    {userProducts.sort((a, b) => b.price - a.price).slice(0, 3).map((product, index) => (
-                      <div key={product.id} className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="text-2xl">
-                            {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
-                          </div>
-                          <span className="text-white">{product.name}</span>
-                        </div>
-                        <span className="text-pink-400 font-semibold">{product.price} TON ❤️</span>
-                      </div>
-                    ))}
-                    {userProducts.length === 0 && (
-                      <div className="text-center text-gray-400 py-8">
-                        Upload products to see rankings! ✨
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'products' && (
-            <div>
-              <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
-                <Gem className="w-6 h-6 mr-3 text-purple-400" />
-                Your Sacred Products
-              </h2>
+        <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+          <section className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <h2 className="mb-4 text-xl font-semibold text-white">Мои приложения</h2>
+            {workspace?.apps.length ? (
               <div className="space-y-4">
-                {userProducts.map((product) => (
-                  <div key={product.id} className="bg-white/5 border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all">
-                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="text-xl font-semibold text-white">{product.name}</h3>
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
-                            Active
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-400">Price:</span>
-                            <div className="text-green-400 font-semibold">{product.price} TON</div>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">Downloads:</span>
-                            <div className="text-blue-400 font-semibold">{product.downloads.toLocaleString()}</div>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">Rating:</span>
-                            <div className="text-yellow-400 font-semibold">{product.rating} ⭐</div>
-                          </div>
-                          <div>
-                            <span className="text-gray-400">Downloads:</span>
-                            <div className="text-pink-400 font-semibold">{product.downloads}</div>
-                          </div>
+                {workspace.apps.map((app) => (
+                  <div key={app.appId} className="rounded-xl border border-white/10 p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <h3 className="font-semibold text-white">{app.name}</h3>
+                        <p className="text-sm text-gray-400">{app.summary}</p>
+                        <div className="mt-2 text-xs text-gray-500">
+                          {app.license.type} · {app.artifact.malwareStatus} · {app.license.contractStatus}
                         </div>
                       </div>
-                      <div className="flex space-x-2">
-                        <button className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors">
-                          Edit
-                        </button>
-                        <button className="bg-ton-gradient hover:scale-105 text-white px-4 py-2 rounded-lg transition-all">
-                          View
-                        </button>
+                      <div className="text-right text-sm">
+                        <div className="text-ton-400">{app.priceTon} TON</div>
+                        <div className="text-gray-400">{app.metrics.activeLicenses} лицензий</div>
+                        <Link to={`/product/${app.catalogProductId}`} className="text-purple-300 hover:text-purple-200">
+                          Страница товара →
+                        </Link>
                       </div>
                     </div>
                   </div>
                 ))}
-                {userProducts.length === 0 && (
-                  <div className="text-center py-12">
-                    <div className="w-20 h-20 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Gem className="w-10 h-10 text-purple-400" />
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Пока нет опубликованных приложений. Начните с Publisher Console.</p>
+            )}
+          </section>
+
+          <section className="space-y-6">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+              <h2 className="mb-3 text-xl font-semibold text-white">Contract readiness</h2>
+              <div className="space-y-2 text-sm text-gray-300">
+                <p>Treasury wallet: <span className="break-all text-white">{treasuryWallet || 'не задан'}</span></p>
+                <p>Последних успешных scan: <span className="text-white">{metrics.passedScans}</span></p>
+                <p>Подход: Registry → AppCollection → LicenseNFT → Escrow</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+              <h2 className="mb-3 text-xl font-semibold text-white">Последние scan</h2>
+              {workspace?.recentScans.length ? (
+                <div className="space-y-3 text-sm text-gray-300">
+                  {workspace.recentScans.map((scan) => (
+                    <div key={scan.scanId} className="rounded-xl border border-white/10 p-3">
+                      <div className="font-medium text-white">{scan.fileName}</div>
+                      <div>{scan.status} · {new Date(scan.scannedAt).toLocaleString('ru-RU')}</div>
                     </div>
-                    <h3 className="text-xl font-semibold text-white mb-2">No Products Yet</h3>
-                    <p className="text-gray-400 mb-6">
-                      Start your sacred journey by uploading your first digital treasure! ✨
-                    </p>
-                    <button 
-                      onClick={() => setActiveTab('upload')}
-                      className="bg-ton-gradient hover:scale-105 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 shadow-lg"
-                    >
-                      Upload Your First Product 🚀
-                    </button>
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">Scan-отчётов пока нет.</p>
+              )}
             </div>
-          )}
-
-          {activeTab === 'donations' && (
-            <div>
-              <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
-                <Heart className="w-6 h-6 mr-3 text-pink-400" />
-                Sacred Donation System
-              </h2>
-              
-              <div className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-orange-500/10 rounded-2xl p-8 mb-8 border border-white/10">
-                <div className="text-center mb-6">
-                  <h3 className="text-2xl font-bold text-white mb-2">Boost Your Product Ranking 🚀</h3>
-                  <p className="text-gray-300 max-w-2xl mx-auto">
-                    Make a donation to elevate your product in our mystical marketplace. 
-                    Products with higher donations receive sacred blessings and better visibility.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <div className="bg-white/10 rounded-xl p-6 text-center">
-                    <div className="text-3xl mb-3">🥉</div>
-                    <div className="text-yellow-400 font-bold text-xl mb-2">1-10 TON</div>
-                    <div className="text-gray-300">Bronze Blessing</div>
-                    <div className="text-sm text-gray-400 mt-2">+20% visibility boost</div>
-                  </div>
-                  <div className="bg-white/10 rounded-xl p-6 text-center border-2 border-purple-500/50">
-                    <div className="text-3xl mb-3">🥈</div>
-                    <div className="text-purple-400 font-bold text-xl mb-2">11-25 TON</div>
-                    <div className="text-gray-300">Silver Enlightenment</div>
-                    <div className="text-sm text-gray-400 mt-2">+50% visibility boost</div>
-                  </div>
-                  <div className="bg-white/10 rounded-xl p-6 text-center">
-                    <div className="text-3xl mb-3">🥇</div>
-                    <div className="text-pink-400 font-bold text-xl mb-2">25+ TON</div>
-                    <div className="text-gray-300">Golden Nirvana</div>
-                    <div className="text-sm text-gray-400 mt-2">+100% visibility boost</div>
-                  </div>
-                </div>
-
-                <div className="text-center">
-                  <button className="bg-sacred-gradient hover:scale-105 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 shadow-lg">
-                    Make Sacred Donation 🪷
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white/5 rounded-xl p-6">
-                <h3 className="font-semibold text-white mb-4">Your Donation History</h3>
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-pink-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Heart className="w-8 h-8 text-pink-400" />
-                  </div>
-                  <p className="text-gray-400">
-                    Total donations received: <span className="text-pink-400 font-semibold">{userStats.donationsReceived} TON</span> ✨
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'upload' && (
-            <div>
-              <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
-                <Upload className="w-6 h-6 mr-3 text-blue-400" />
-                Upload New Sacred Product
-              </h2>
-              
-              <div className="max-w-2xl mx-auto">
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-white font-semibold mb-2">Product Name ✨</label>
-                    <input
-                      type="text"
-                      placeholder="Enter your product's sacred name..."
-                      className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ton-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-white font-semibold mb-2">Category 🚀</label>
-                    <select className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-ton-500">
-                      <option value="">Select a category...</option>
-                      <option value="apps">Apps</option>
-                      <option value="games">Games</option>
-                      <option value="ai">AI Services</option>
-                      <option value="tools">Developer Tools</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-white font-semibold mb-2">Price (TON) 💎</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      placeholder="0.0"
-                      className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ton-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-white font-semibold mb-2">Description 📝</label>
-                    <textarea
-                      rows={4}
-                      placeholder="Describe your sacred creation..."
-                      className="w-full p-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ton-500 resize-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-white font-semibold mb-2">Upload Files 📎</label>
-                    <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-white/40 transition-colors">
-                      <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-400 mb-2">Drag and drop your files here, or click to browse</p>
-                      <p className="text-gray-500 text-sm">Supported formats: .zip, .dmg, .exe, .deb</p>
-                    </div>
-                  </div>
-
-                  <div className="pt-6">
-                    <button className="w-full bg-ton-gradient hover:scale-105 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 shadow-lg hover:shadow-ton-500/50">
-                      Submit for Sacred Review 🪷
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          </section>
         </div>
       </div>
     </div>

@@ -19,7 +19,7 @@ export interface MFAMethod {
 
 export interface UserRole {
   id: string;
-  name: 'super_admin' | 'admin' | 'moderator' | 'developer' | 'support' | 'analyst' | 'viewer' | 'auditor';
+  name: 'super_admin' | 'admin' | 'moderator' | 'developer' | 'support' | 'analyst' | 'viewer' | 'auditor' | 'user';
   permissions: Permission[];
   sessionDuration: number; // in minutes
   requiresMFA: boolean;
@@ -164,7 +164,7 @@ export interface AuthContextValue {
   getSecurityAlerts: () => SecurityFlag[];
   logAuditEvent: (action: string, resource: string, result: string, metadata?: Record<string, unknown>) => void;
 
-  login: (credentials: { email?: string; tonAddress?: string }) => Promise<AuthResult>;
+  login: (credentials: { email?: string; password?: string; tonAddress?: string }) => Promise<AuthResult>;
   fetchProfile: () => Promise<void>;
   updateUser: (updatedData: Partial<AuthenticatedUser>) => Promise<void>;
 }

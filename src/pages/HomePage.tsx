@@ -1,3 +1,4 @@
+// Главная страница ребрендирована под TonForge, чтобы storefront не расходился с новым NFT licensing и escrow narrative.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, TrendingUp, Gem, Star, Zap, Heart, Rocket, Bot, Gamepad2 } from 'lucide-react';
@@ -53,17 +54,16 @@ const HomePage = () => {
           
           <h1 className="text-4xl md:text-6xl font-display font-bold mb-6">
             <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              TON Web Store
+              TonForge
             </span>
           </h1>
           
           <p className="text-xl md:text-2xl text-gray-300 mb-4 max-w-3xl mx-auto">
-            ☸️ Decentralized Digital Marketplace for Enlightened Souls
+            NFT-Licensed Software Marketplace on TON
           </p>
           
           <p className="text-gray-400 mb-8 max-w-2xl mx-auto">
-            Discover apps, games, and AI services that elevate consciousness. 
-            Built on TON blockchain with love and compassion for developers. 🪷✨
+            Покупайте цифровые продукты с NFT-лицензиями, 72h escrow и device activation на базе TON blockchain.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
@@ -72,14 +72,14 @@ const HomePage = () => {
               className="bg-ton-gradient hover:scale-105 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 shadow-lg hover:shadow-ton-500/50 flex items-center space-x-2"
             >
               <Sparkles className="w-5 h-5" />
-              <span>Explore Treasures</span>
+              <span>Исследовать приложения</span>
             </Link>
             <Link
               to="/developer/register"
               className="bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 border border-white/20 flex items-center space-x-2"
             >
               <Heart className="w-5 h-5 text-red-400" />
-              <span>Join as Developer</span>
+              <span>Стать издателем</span>
             </Link>
           </div>
 

@@ -29,9 +29,9 @@ const SecretAdminAccess: React.FC<SecretAdminAccessProps> = ({ isVisible, onClos
     setMessage('');
 
     try {
-      const result = await login({ email });
+      const result = await login({ email, password });
       if (result.success) {
-        setMessage('Авторизация успешна. Проверьте email для подтверждения.');
+        setMessage('Авторизация успешна.');
         setTimeout(() => {
           onClose();
           navigate('/admin-dashboard');

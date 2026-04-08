@@ -1,0 +1,11 @@
+# Уменьшаем контекст сборки фронтенда для Docker/Coolify.
+node_modules
+dist
+.git
+.vite_cache
+*.log
+.env
+.env.*
+!.env.example
+coverage
+backend
