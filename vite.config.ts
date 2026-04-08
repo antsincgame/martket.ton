@@ -1,14 +1,16 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
+import { tonconnectManifestPlugin } from './vite-plugin-tonconnect-manifest';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [tonconnectManifestPlugin(), react()],
   server: {
-    host: true, // Слушаем все интерфейсы
-    port: 8080, // DEV-сервер на уникальном порту 🚀
-    strictPort: true, // Не пытаться использовать другой порт
+    host: true,
+    port: 8080,
+    strictPort: true,
+    allowedHosts: true,
     hmr: {
       protocol: 'ws',
       host: 'localhost',

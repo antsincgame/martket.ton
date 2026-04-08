@@ -20,9 +20,22 @@ const CategoryPage = lazy(() => import('./pages/CategoryPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const SellerCommercePage = lazy(() => import('./pages/SellerCommercePage'));
 
-const manifestUrl =
-  import.meta.env.VITE_TONCONNECT_MANIFEST_URL ||
-  `https://${window.location.host}/tonconnect-manifest.json`;
+/** Всегда используем same-origin manifest URL, чтобы кошелёк не падал на чужом или устаревшем домене. */
+function getManifestUrl(): string {
+  const sameOriginManifestUrl = new URL('/tonconnect-manifest.json', window.location.origin);
+  const configuredManifestUrl = import.meta.env.VITE_TONCONNECT_MANIFEST_URL?.trim();
+
+  if (!configuredManifestUrl) {
+    return sameOriginManifestUrl.toString();
+  }
+
+  const resolvedManifestUrl = new URL(configuredManifestUrl, window.location.origin);
+  return resolvedManifestUrl.origin === window.location.origin
+    ? resolvedManifestUrl.toString()
+    : sameOriginManifestUrl.toString();
+}
+
+const manifestUrl = getManifestUrl();
 
 function App() {
   const [isSecretVisible, setIsSecretVisible] = useState(false);

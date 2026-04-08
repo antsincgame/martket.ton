@@ -1,4 +1,3 @@
-// Главная страница ребрендирована под TonForge, чтобы storefront не расходился с новым NFT licensing и escrow narrative.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, TrendingUp, Gem, Star, Zap, Heart, Rocket, Bot, Gamepad2 } from 'lucide-react';
@@ -122,26 +121,26 @@ const HomePage = () => {
             {categorySummaries.map((category) => {
               const Icon = CATEGORY_ICONS[category.slug];
               return (
-              <Link
-                key={category.slug}
-                to={`/category/${category.slug}`}
-                className="group"
-              >
-                <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all duration-300 hover:scale-105 hover:shadow-2xl">
-                  <div className={`w-16 h-16 bg-gradient-to-r ${category.gradient} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon className="w-8 h-8 text-white" />
+                <Link
+                  key={category.slug}
+                  to={`/category/${category.slug}`}
+                  className="group"
+                >
+                  <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all duration-300 hover:scale-105 hover:shadow-2xl">
+                    <div className={`w-16 h-16 bg-gradient-to-r ${category.gradient} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                      <Icon className="w-8 h-8 text-white" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-2 flex items-center">
+                      {category.name} <span className="ml-2">{category.emoji}</span>
+                    </h3>
+                    <p className="text-gray-400 text-sm mb-3">
+                      {category.count.toLocaleString()} products
+                    </p>
+                    <div className="text-ton-400 text-sm font-medium group-hover:text-ton-300">
+                      Explore Collection →
+                    </div>
                   </div>
-                  <h3 className="text-xl font-semibold text-white mb-2 flex items-center">
-                    {category.name} <span className="ml-2">{category.emoji}</span>
-                  </h3>
-                  <p className="text-gray-400 text-sm mb-3">
-                    {category.count.toLocaleString()} products
-                  </p>
-                  <div className="text-ton-400 text-sm font-medium group-hover:text-ton-300">
-                    Explore Collection →
-                  </div>
-                </div>
-              </Link>
+                </Link>
               );
             })}
           </div>
@@ -212,7 +211,7 @@ const HomePage = () => {
                 </div>
                 <div className="bg-white/5 rounded-xl p-4">
                   <div className="text-2xl mb-2">🥇</div>
-                  <div className="text-pink-400 font-semibold">0+ TON</div>
+                  <div className="text-pink-400 font-semibold">25+ TON</div>
                   <div className="text-gray-400 text-sm">Golden Nirvana</div>
                 </div>
               </div>

@@ -1,18 +1,53 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Filter, SortDesc, Grid, List, Star, TrendingUp } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import LoadingScreen from '../components/LoadingScreen';
-import { filterProductsForCategorySlug, sortListingProducts } from '../domain/marketplace/catalog';
 import {
   getMarketplaceInventoryOnce,
-  resolveCategoryMeta,
   type MarketplaceInventoryLoad,
 } from '../domain/marketplace/marketplaceRemote';
+import type { CatalogListingProduct } from '../domain/marketplace/types';
+
+const categoryInfo: Record<string, { title: string; description: string; emoji: string }> = {
+  apps: {
+    title: 'Sacred Apps',
+    description: 'Discover enlightened applications that elevate your digital experience',
+    emoji: '🚀',
+  },
+  games: {
+    title: 'Mystical Games',
+    description: 'Immersive gaming experiences for the conscious soul',
+    emoji: '🎮',
+  },
+  ai: {
+    title: 'AI Wisdom Services',
+    description: 'Artificial intelligence tools blessed with digital consciousness',
+    emoji: '🤖',
+  },
+  'developer-tools': {
+    title: 'Developer Sacred Tools',
+    description: 'Essential tools for enlightened software development',
+    emoji: '⚡',
+  },
+  featured: {
+    title: 'Featured Treasures',
+    description: 'Handpicked gems blessed by the community',
+    emoji: '💎',
+  },
+};
+
+const filters = [
+  { label: 'Price Range', options: ['Free', '0-5 TON', '5-15 TON', '15+ TON'] },
+  { label: 'Rating', options: ['4.5+ Stars', '4.0+ Stars', '3.5+ Stars', 'All Ratings'] },
+  { label: 'Platform', options: ['macOS', 'Windows', 'Linux', 'Cross-platform'] },
+  { label: 'Features', options: ['AI Powered', 'Open Source', 'Offline Mode', 'Cloud Sync'] },
+];
 
 const CategoryPage = () => {
-  const { category } = useParams();
-  const [viewMode, setViewMode] = useState('grid');
+  const { id } = useParams();
+  const category = id ?? 'apps';
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('popularity');
   const [showFilters, setShowFilters] = useState(false);
   const [inventory, setInventory] = useState<MarketplaceInventoryLoad | null>(null);
@@ -21,27 +56,16 @@ const CategoryPage = () => {
     getMarketplaceInventoryOnce().then(setInventory);
   }, []);
 
-  const currentCategory = useMemo(
-    () => (inventory ? resolveCategoryMeta(category, inventory.products) : null),
-    [category, inventory]
-  );
-
-  const products = useMemo(() => {
-    if (!inventory) return [];
-    const raw = filterProductsForCategorySlug(category ?? '', inventory.products);
-    return sortListingProducts(raw, sortBy);
-  }, [category, sortBy, inventory]);
-
-  if (!inventory || !currentCategory) {
+  if (!inventory) {
     return <LoadingScreen message="Загрузка категории..." />;
   }
 
-  const filters = [
-    { label: 'Price Range', options: ['Free', '0-5 TON', '5-15 TON', '15+ TON'] },
-    { label: 'Rating', options: ['4.5+ Stars', '4.0+ Stars', '3.5+ Stars', 'All Ratings'] },
-    { label: 'Platform', options: ['macOS', 'Windows', 'Linux', 'Cross-platform'] },
-    { label: 'Features', options: ['AI Powered', 'Open Source', 'Offline Mode', 'Cloud Sync'] }
-  ];
+  const currentCategory = categoryInfo[category] ?? categoryInfo['apps'];
+  const products: CatalogListingProduct[] = inventory.products;
+  const featuredProducts = products.filter((p) => p.isFeatured);
+  const sortedByDonation = [...products]
+    .sort((a, b) => (b.donationAmount ?? 0) - (a.donationAmount ?? 0))
+    .slice(0, 4);
 
   return (
     <div className="min-h-screen py-8 px-4">
@@ -56,7 +80,7 @@ const CategoryPage = () => {
             {currentCategory.description}
           </p>
           <div className="text-ton-400 font-semibold">
-            {currentCategory.count.toLocaleString()} sacred treasures available
+            {products.length.toLocaleString()} sacred treasures available
           </div>
         </div>
 
@@ -65,7 +89,6 @@ const CategoryPage = () => {
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
             <div className="flex flex-wrap items-center gap-4">
               <button
-                type="button"
                 onClick={() => setShowFilters(!showFilters)}
                 className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors"
               >
@@ -75,7 +98,7 @@ const CategoryPage = () => {
 
               <div className="flex items-center space-x-2">
                 <SortDesc className="w-5 h-5 text-gray-400" />
-                <select                  
+                <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
                   className="bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-ton-500"
@@ -92,7 +115,6 @@ const CategoryPage = () => {
 
             <div className="flex items-center space-x-2">
               <button
-                type="button"
                 onClick={() => setViewMode('grid')}
                 className={`p-2 rounded-lg transition-colors ${
                   viewMode === 'grid' ? 'bg-ton-500 text-white' : 'bg-white/10 text-gray-400 hover:text-white'
@@ -101,7 +123,6 @@ const CategoryPage = () => {
                 <Grid className="w-5 h-5" />
               </button>
               <button
-                type="button"
                 onClick={() => setViewMode('list')}
                 className={`p-2 rounded-lg transition-colors ${
                   viewMode === 'list' ? 'bg-ton-500 text-white' : 'bg-white/10 text-gray-400 hover:text-white'
@@ -112,6 +133,7 @@ const CategoryPage = () => {
             </div>
           </div>
 
+          {/* Expanded Filters */}
           {showFilters && (
             <div className="mt-6 pt-6 border-t border-white/10">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -133,33 +155,37 @@ const CategoryPage = () => {
           )}
         </div>
 
-        <div className="mb-12">
-          <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
-            <Star className="w-6 h-6 mr-3 text-yellow-400" />
-            Featured in {currentCategory.title}
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {products.filter((item) => item.isFeatured).map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        </div>
-
-        <div className="mb-12">
-          <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
-            <TrendingUp className="w-6 h-6 mr-3 text-purple-400" />
-            Most Blessed Products ❤️
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[...products]
-              .sort((a, b) => (b.donationAmount ?? 0) - (a.donationAmount ?? 0))
-              .slice(0, 4)
-              .map((product) => (
-                <ProductCard key={`blessed-${product.id}`} product={product} />
+        {/* Featured Section */}
+        {featuredProducts.length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
+              <Star className="w-6 h-6 mr-3 text-yellow-400" />
+              Featured in {currentCategory.title}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
               ))}
+            </div>
           </div>
-        </div>
+        )}
 
+        {/* Most Blessed Section */}
+        {sortedByDonation.length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
+              <TrendingUp className="w-6 h-6 mr-3 text-purple-400" />
+              Most Blessed Products ❤️
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {sortedByDonation.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* All Products */}
         <div>
           <h2 className="text-2xl font-display font-bold text-white mb-6">
             All {currentCategory.title}
@@ -195,7 +221,7 @@ const CategoryPage = () => {
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-ton-400 mb-1">{product.price} TON</div>
-                      {product.donationAmount && (
+                      {(product.donationAmount ?? 0) > 0 && (
                         <div className="text-sm text-pink-400">❤️ {product.donationAmount} TON blessed</div>
                       )}
                     </div>
@@ -206,8 +232,9 @@ const CategoryPage = () => {
           )}
         </div>
 
+        {/* Load More */}
         <div className="text-center mt-12">
-          <button type="button" className="bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 border border-white/20">
+          <button className="bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 border border-white/20">
             Load More Sacred Treasures ✨
           </button>
         </div>
