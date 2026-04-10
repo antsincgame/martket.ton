@@ -12,7 +12,7 @@ services:
         VITE_TONFORGE_API_URL: ${VITE_TONFORGE_API_URL:-/api/tonforge}
         VITE_APP_ORIGIN: ${VITE_APP_ORIGIN}
     ports:
-      - "${WEB_HOST_PORT:-80}:80"
+      - "8092:80"
     depends_on:
       api:
         condition: service_healthy
@@ -38,7 +38,7 @@ services:
       BOOTSTRAP_SELLER_WALLET: ${BOOTSTRAP_SELLER_WALLET}
       COMMERCE_JETTON_MASTER: ${COMMERCE_JETTON_MASTER}
     ports:
-      - "${API_HOST_PORT:-8081}:${API_PORT:-8081}"
+      - "8093:8081"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8081/api/health').then(r=>{if(!r.ok)throw 1})"]
       interval: 10s
