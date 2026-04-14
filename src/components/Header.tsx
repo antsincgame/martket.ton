@@ -2,29 +2,25 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, User, Menu, X, Sparkles, Gem, LogIn, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { SignedIn, SignedOut, useAuthModal } from '../lib/clerkSafe';
-import { useClerk } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, useAuthModal, CLERK_CONFIGURED } from '../lib/clerkSafe';
+import * as ClerkReact from '@clerk/clerk-react';
 
 interface HeaderProps {
   onLogoClick?: () => void;
 }
 
-const SignOutButton = () => {
-  try {
-    const { signOut } = useClerk();
-    return (
-      <button
-        onClick={() => signOut({ redirectUrl: '/' })}
-        className="p-2 text-[#999] hover:text-[#FF4444] transition-colors"
-        title="Sign Out"
-      >
-        <LogOut className="w-5 h-5" />
-      </button>
-    );
-  } catch {
-    return null;
-  }
-};
+function SignOutButton() {
+  const { signOut } = ClerkReact.useClerk();
+  return (
+    <button
+      onClick={() => signOut({ redirectUrl: '/' })}
+      className="p-2 text-[#999] hover:text-[#FF4444] transition-colors"
+      title="Sign Out"
+    >
+      <LogOut className="w-5 h-5" />
+    </button>
+  );
+}
 
 const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

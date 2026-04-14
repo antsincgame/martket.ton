@@ -64,11 +64,15 @@ function useAuthCore(
     setIsLoadingProfile(true);
     setError(null);
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
     const tryFetch = async (): Promise<ProfileRow | null> => {
       const token = await getToken();
       if (!token) return null;
       const res = await fetch(storeApiUrl('/api/session/profile'), {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
       if (!res.ok) return null;
       const body = (await res.json()) as { success?: boolean; data?: ProfileRow };
@@ -78,7 +82,6 @@ function useAuthCore(
     try {
       let data = await tryFetch();
       if (!data) {
-        logger.warn('Profile not found on first try, retrying in 1.5s...');
         await new Promise(r => setTimeout(r, 1500));
         data = await tryFetch();
       }
@@ -87,16 +90,19 @@ function useAuthCore(
         setProfile(u);
         setSession(createSession(u));
       } else {
-        logger.warn('Profile still not available after retry');
         setProfile(null);
         setSession(null);
       }
     } catch (err: unknown) {
-      logger.error('fetchProfile error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch profile');
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('Profile request timed out');
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to fetch profile');
+      }
       setProfile(null);
       setSession(null);
     } finally {
+      clearTimeout(timeout);
       setIsLoadingProfile(false);
     }
   }, [isSignedIn, getToken]);
@@ -134,11 +140,14 @@ function useAuthCore(
 
   const isLoading = !isClerkLoaded || isLoadingProfile;
 
+  const clearAlerts = useCallback(() => setSecurityAlerts([]), []);
+
   const value: AuthContextValue = useMemo(() => ({
     user: profile,
     session,
     isLoading,
     isAuthenticated: !!isSignedIn && !!profile,
+    clerkSignedIn: !!isSignedIn,
     securityAlerts,
     sacredAccess: null,
     error,
@@ -151,7 +160,7 @@ function useAuthCore(
     hasRole,
     getSecurityLevel,
     reportSecurityEvent,
-    clearSecurityAlerts: () => setSecurityAlerts([]),
+    clearSecurityAlerts: clearAlerts,
     getSecurityAlerts,
     logAuditEvent,
     login: noop,
@@ -161,7 +170,7 @@ function useAuthCore(
   }), [
     profile, session, isLoading, isSignedIn, securityAlerts, error, securityEvents,
     noop, logout, hasPermission, hasRole, getSecurityLevel, reportSecurityEvent,
-    getSecurityAlerts, logAuditEvent, fetchProfile, updateUser, getToken,
+    clearAlerts, getSecurityAlerts, logAuditEvent, fetchProfile, updateUser, getToken,
   ]);
 
   return value;

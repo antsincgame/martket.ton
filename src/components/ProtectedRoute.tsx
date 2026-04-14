@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Shield, Lock, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { CLERK_CONFIGURED, useAuthModal, useClerkAuthForRoute } from '../lib/clerkSafe';
+import { CLERK_CONFIGURED, useAuthModal } from '../lib/clerkSafe';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,21 +10,20 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
-  const { isAuthenticated, hasRole, isLoading, user, fetchProfile } = useAuth();
+  const { isAuthenticated, clerkSignedIn, hasRole, isLoading, user, fetchProfile } = useAuth();
   const { openAuthModal } = useAuthModal();
-  const clerkAuth = useClerkAuthForRoute();
   const location = useLocation();
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-[#FFD700] border-t-transparent rounded-full animate-spin" />
+        <div className="w-16 h-16 border-4 border-[#FFD700]/30 border-t-[#FFD700] rounded-full animate-spin" />
       </div>
     );
   }
 
   if (!isAuthenticated) {
-    if (CLERK_CONFIGURED && clerkAuth.isSignedIn) {
+    if (CLERK_CONFIGURED && clerkSignedIn) {
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center max-w-sm">

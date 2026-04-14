@@ -407,12 +407,13 @@ app.get(
       return res.status(403).json({ success: false, message: 'Profile not found' });
     }
     const purchases = await repo.listPurchasesByUser(profile.id);
-    const enriched = await Promise.all(
-      purchases.map(async (p) => {
-        const product = await repo.findProductById(p.product_id);
-        return { ...p, product: product || null };
-      })
-    );
+    const productIds = [...new Set(purchases.map(p => p.product_id).filter(Boolean))];
+    const products = await Promise.all(productIds.map(id => repo.findProductById(id)));
+    const productMap = new Map(products.filter(Boolean).map(p => [p.id, p]));
+    const enriched = purchases.map(p => ({
+      ...p,
+      product: productMap.get(p.product_id) || null,
+    }));
     res.json({ success: true, data: enriched });
   })
 );

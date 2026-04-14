@@ -143,6 +143,7 @@ export interface AuthContextValue {
   session: AuthSession | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  clerkSignedIn: boolean;
   securityAlerts: SecurityFlag[];
   sacredAccess: SacredAccess | null;
   error: string | null;
