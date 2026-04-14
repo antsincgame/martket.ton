@@ -7,6 +7,17 @@ export const CLERK_CONFIGURED = !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 export const useClerkUser = ClerkReact.useUser;
 export const useClerkAuth = ClerkReact.useAuth;
 
+export function useClerkAuthForRoute() {
+  if (!CLERK_CONFIGURED) return { isSignedIn: false };
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { isSignedIn } = ClerkReact.useAuth();
+    return { isSignedIn: !!isSignedIn };
+  } catch {
+    return { isSignedIn: false };
+  }
+}
+
 export function useClerkUserStub() {
   return { user: null, isLoaded: true, isSignedIn: false as const };
 }

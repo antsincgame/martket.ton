@@ -68,6 +68,26 @@ function useAuthCore(
       const res = await fetch(storeApiUrl('/api/session/profile'), {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (res.status === 404) {
+        logger.warn('Profile not found — webhook may not have fired yet, retrying in 2s...');
+        await new Promise(r => setTimeout(r, 2000));
+        const retry = await fetch(storeApiUrl('/api/session/profile'), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (retry.ok) {
+          const retryBody = (await retry.json()) as { success?: boolean; data?: ProfileRow };
+          if (retryBody.data) {
+            const user = profileRowToAuthenticatedUser(retryBody.data);
+            setProfile(user);
+            setSession(createSession(user));
+            setError(null);
+            return;
+          }
+        }
+        setProfile(null);
+        setSession(null);
+        return;
+      }
       if (!res.ok) { setProfile(null); setSession(null); return; }
       const body = (await res.json()) as { success?: boolean; data?: ProfileRow };
       if (!body.data) { setProfile(null); setSession(null); return; }

@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Shield, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { CLERK_CONFIGURED, useAuthModal } from '../lib/clerkSafe';
+import { CLERK_CONFIGURED, useAuthModal, useClerkAuthForRoute } from '../lib/clerkSafe';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -11,19 +11,30 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
   const { isAuthenticated, hasRole, isLoading, user } = useAuth();
+  const { openAuthModal } = useAuthModal();
+  const clerkAuth = useClerkAuthForRoute();
   const location = useLocation();
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-ton-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-16 h-16 border-4 border-[#FFD700] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  const { openAuthModal } = useAuthModal();
-
   if (!isAuthenticated) {
+    if (CLERK_CONFIGURED && clerkAuth.isSignedIn) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-16 h-16 border-4 border-[#FFD700] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-[#999] text-sm">Setting up your profile...</p>
+          </div>
+        </div>
+      );
+    }
+
     if (CLERK_CONFIGURED) {
       if (typeof window !== 'undefined' && window.innerWidth >= 768) {
         openAuthModal('sign-in');

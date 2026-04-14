@@ -140,9 +140,18 @@ app.get(
   '/api/session/profile',
   requireAuth(),
   asyncHandler(async (req, res) => {
-    const profile = await resolveProfile(req);
+    let profile = await resolveProfile(req);
     if (!profile) {
-      return res.status(404).json({ success: false, message: 'Profile not found. It will be created via webhook.' });
+      const auth = getAuth(req);
+      if (auth && auth.userId) {
+        logger.info(`Auto-creating profile for Clerk user ${auth.userId} (webhook may be delayed)`);
+        profile = await repo.upsertProfileForClerkUser(auth.userId, {
+          role: 'demiurge',
+        });
+      }
+    }
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Profile not found' });
     }
     res.json({ success: true, data: profile });
   })
