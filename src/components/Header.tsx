@@ -1,18 +1,34 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, User, Menu, X, Sparkles, Gem, LogIn } from 'lucide-react';
+import { Search, User, Menu, X, Sparkles, Gem, LogIn, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { SignedIn, SignedOut, UserButton, useAuthModal } from '../lib/clerkSafe';
-import { useAuth } from '../contexts/AuthContext';
+import { SignedIn, SignedOut, useAuthModal } from '../lib/clerkSafe';
+import { useClerk } from '@clerk/clerk-react';
 
 interface HeaderProps {
   onLogoClick?: () => void;
 }
 
+const SignOutButton = () => {
+  try {
+    const { signOut } = useClerk();
+    return (
+      <button
+        onClick={() => signOut({ redirectUrl: '/' })}
+        className="p-2 text-[#999] hover:text-[#FF4444] transition-colors"
+        title="Sign Out"
+      >
+        <LogOut className="w-5 h-5" />
+      </button>
+    );
+  } catch {
+    return null;
+  }
+};
+
 const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const { isAuthenticated } = useAuth();
   const { openAuthModal } = useAuthModal();
   const navigate = useNavigate();
 
@@ -79,11 +95,11 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <Search className="w-5 h-5" />
           </button>
 
-          {/* Clerk Auth */}
+          {/* Auth */}
           <SignedOut>
             <button
               onClick={handleSignIn}
-              className="flex items-center space-x-2 bg-ton-gradient hover:scale-105 px-4 py-2 rounded-full transition-all duration-300 text-white font-medium text-sm"
+              className="flex items-center space-x-2 bg-[#FFD700] hover:shadow-[0_0_20px_rgba(255,215,0,0.4)] px-4 py-2 rounded-full transition-all duration-300 text-[#0A0A0A] font-semibold text-sm"
             >
               <LogIn className="w-4 h-4" />
               <span className="hidden sm:inline">Sign In</span>
@@ -91,26 +107,15 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
           </SignedOut>
 
           <SignedIn>
-            <UserButton
-              afterSignOutUrl="/"
-              appearance={{
-                elements: {
-                  avatarBox: 'w-9 h-9 border-2 border-white/20',
-                },
-              }}
-            />
-          </SignedIn>
-
-          {/* Profile link for signed-in users */}
-          {isAuthenticated && (
             <Link
               to="/profile"
-              className="flex items-center space-x-2 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-full transition-colors"
+              className="flex items-center space-x-2 bg-[#FFD700]/10 hover:bg-[#FFD700]/20 border border-[#FFD700]/30 px-4 py-2 rounded-full transition-all duration-300"
             >
-              <User className="w-5 h-5 text-gray-300" />
-              <span className="hidden sm:inline text-gray-300">Profile</span>
+              <User className="w-5 h-5 text-[#FFD700]" />
+              <span className="hidden sm:inline text-[#FFD700] font-medium text-sm">Profile</span>
             </Link>
-          )}
+            <SignOutButton />
+          </SignedIn>
 
           {/* Mobile Menu Button */}
           <button
@@ -149,11 +154,11 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <Link to="/category/ai" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
               AI Services
             </Link>
-            {isAuthenticated && (
-              <Link to="/profile" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
+            <SignedIn>
+              <Link to="/profile" className="text-[#FFD700] hover:text-[#FFE066] transition-colors py-2 font-medium" onClick={() => setIsMenuOpen(false)}>
                 Profile
               </Link>
-            )}
+            </SignedIn>
           </nav>
         </div>
       )}
