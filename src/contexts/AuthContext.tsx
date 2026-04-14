@@ -62,40 +62,37 @@ function useAuthCore(
       return;
     }
     setIsLoadingProfile(true);
-    try {
+    setError(null);
+
+    const tryFetch = async (): Promise<ProfileRow | null> => {
       const token = await getToken();
-      if (!token) throw new Error('No auth token');
+      if (!token) return null;
       const res = await fetch(storeApiUrl('/api/session/profile'), {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.status === 404) {
-        logger.warn('Profile not found — webhook may not have fired yet, retrying in 2s...');
-        await new Promise(r => setTimeout(r, 2000));
-        const retry = await fetch(storeApiUrl('/api/session/profile'), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (retry.ok) {
-          const retryBody = (await retry.json()) as { success?: boolean; data?: ProfileRow };
-          if (retryBody.data) {
-            const user = profileRowToAuthenticatedUser(retryBody.data);
-            setProfile(user);
-            setSession(createSession(user));
-            setError(null);
-            return;
-          }
-        }
+      if (!res.ok) return null;
+      const body = (await res.json()) as { success?: boolean; data?: ProfileRow };
+      return body.data ?? null;
+    };
+
+    try {
+      let data = await tryFetch();
+      if (!data) {
+        logger.warn('Profile not found on first try, retrying in 1.5s...');
+        await new Promise(r => setTimeout(r, 1500));
+        data = await tryFetch();
+      }
+      if (data) {
+        const u = profileRowToAuthenticatedUser(data);
+        setProfile(u);
+        setSession(createSession(u));
+      } else {
+        logger.warn('Profile still not available after retry');
         setProfile(null);
         setSession(null);
-        return;
       }
-      if (!res.ok) { setProfile(null); setSession(null); return; }
-      const body = (await res.json()) as { success?: boolean; data?: ProfileRow };
-      if (!body.data) { setProfile(null); setSession(null); return; }
-      const user = profileRowToAuthenticatedUser(body.data);
-      setProfile(user);
-      setSession(createSession(user));
-      setError(null);
     } catch (err: unknown) {
+      logger.error('fetchProfile error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch profile');
       setProfile(null);
       setSession(null);

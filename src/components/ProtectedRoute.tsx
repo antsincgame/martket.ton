@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { Shield, Lock } from 'lucide-react';
+import { Shield, Lock, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { CLERK_CONFIGURED, useAuthModal, useClerkAuthForRoute } from '../lib/clerkSafe';
 
@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
-  const { isAuthenticated, hasRole, isLoading, user } = useAuth();
+  const { isAuthenticated, hasRole, isLoading, user, fetchProfile } = useAuth();
   const { openAuthModal } = useAuthModal();
   const clerkAuth = useClerkAuthForRoute();
   const location = useLocation();
@@ -27,9 +27,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
     if (CLERK_CONFIGURED && clerkAuth.isSignedIn) {
       return (
         <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-[#FFD700] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-[#999] text-sm">Setting up your profile...</p>
+          <div className="text-center max-w-sm">
+            <div className="w-16 h-16 border-4 border-[#FFD700]/30 border-t-[#FFD700] rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-[#999] text-sm mb-4">Setting up your profile...</p>
+            <button
+              onClick={() => fetchProfile()}
+              className="inline-flex items-center gap-2 text-[#FFD700] text-sm hover:text-[#FFE066] transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry
+            </button>
           </div>
         </div>
       );
