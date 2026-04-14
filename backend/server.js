@@ -90,8 +90,28 @@ app.use('/api/', globalLimiter);
 
 app.post('/api/webhooks/clerk', webhookLimiter, express.raw({ type: 'application/json' }), require('./webhooks/clerk'));
 
+// ── Health (before auth middleware — always reachable) ───────────
+app.get('/api/health', (_req, res) => {
+  const { isR2Configured } = require('./r2/client');
+  res.json({
+    status: 'OK',
+    message: 'TON Web Store API is running',
+    db: 'appwrite',
+    auth: process.env.CLERK_SECRET_KEY ? 'clerk' : 'clerk_not_configured',
+    shield: 'mahakala',
+    model: 'demiurge',
+    storage: isR2Configured() ? 'r2' : 'not_configured',
+  });
+});
+
 app.use(express.json());
-app.use(clerkMiddleware());
+
+try {
+  app.use(clerkMiddleware());
+} catch (err) {
+  logger.error('clerkMiddleware init failed:', err.message);
+  app.use((_req, _res, next) => next());
+}
 
 function sanitizeBody(req, _res, next) {
   if (req.body && typeof req.body === 'object') {
@@ -118,21 +138,6 @@ const asyncHandler =
   };
 
 const { resolveProfile, requireAdmin } = require('./middleware/auth');
-
-// ── Health ──────────────────────────────────────────────────────────
-
-app.get('/api/health', (_req, res) => {
-  const { isR2Configured } = require('./r2/client');
-  res.json({
-    status: 'OK',
-    message: 'TON Web Store API is running',
-    db: 'appwrite',
-    auth: 'clerk',
-    shield: 'mahakala',
-    model: 'demiurge',
-    storage: isR2Configured() ? 'r2' : 'not_configured',
-  });
-});
 
 // ── Profile (Demiurge) ─────────────────────────────────────────────
 
@@ -559,8 +564,8 @@ if (r2Routes) {
   app.use('/api/r2', r2Routes);
 }
 
-app.use((err, _req, res, _next) => {
-  logger.error('Unhandled error:', err);
+app.use((err, req, res, _next) => {
+  logger.error(`Unhandled error on ${req.method} ${req.path}:`, err.message, err.stack);
   res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
