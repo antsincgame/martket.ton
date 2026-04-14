@@ -32,13 +32,11 @@ const app = express();
 const PORT = process.env.PORT || 8081;
 
 if (!process.env.CLERK_SECRET_KEY) {
-  throw new Error('CLERK_SECRET_KEY must be set in environment variables');
+  logger.warn('CLERK_SECRET_KEY is not set — auth endpoints will reject requests');
 }
 
 if (!isCoreConfigured()) {
-  throw new Error(
-    'Appwrite core не настроен: задайте APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY'
-  );
+  logger.warn('Appwrite core не настроен — database endpoints will fail');
 }
 
 // 𝕸 Mahakala Dharma Shield — encrypted guardian mantra
