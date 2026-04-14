@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock, Coins } from 'lucide-react';
+import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock, Coins, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import SecurityMonitor from '../components/SecurityMonitor';
 import UserManagement from '../components/UserManagement';
 import AuditLogs from '../components/AuditLogs';
 import CommerceAdminPanel from '../components/admin/CommerceAdminPanel';
+import ResendSettings from '../components/admin/ResendSettings';
 
 const AdminDashboard = () => {
   const { user, hasPermission, getSecurityLevel, hasRole, isAuthenticated, isLoading } = useAuth();
@@ -97,10 +98,17 @@ const AdminDashboard = () => {
       requiredPermission: { resource: 'products', action: 'read' }
     },
     {
+      id: 'email',
+      label: 'Email / Resend',
+      icon: Mail,
+      component: ResendSettings,
+      requiredPermission: { resource: '*', action: 'update' }
+    },
+    {
       id: 'system',
       label: 'System Config',
       icon: Settings,
-      component: () => <div className="p-8 text-white">System Configuration Coming Soon ⚙️</div>,
+      component: () => <div className="p-8 text-white">System Configuration Coming Soon</div>,
       requiredPermission: { resource: '*', action: 'update' }
     }
   ];

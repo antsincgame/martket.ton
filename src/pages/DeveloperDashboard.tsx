@@ -1,14 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Plus, TrendingUp, DollarSign, Users, Heart, Star, Upload, Sparkles, Gem } from 'lucide-react';
-import DeveloperRegisterModal from '../components/DeveloperRegisterModal';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { storeApiUrl } from '../lib/storeApi';
-import { logger } from '../lib/logger';
 
 const DeveloperDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
-  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
-  const [developer, setDeveloper] = useState<{ wallet: string; email: string; name: string } | null>(null);
+  const navigate = useNavigate();
   const { hasRole, user, isLoading, isAuthenticated } = useAuth();
 
   const userProducts = user?.products ?? [];
@@ -25,10 +22,10 @@ const DeveloperDashboard = () => {
   };
 
   useEffect(() => {
-    if (isAuthenticated && !hasRole('developer') && !developer && !isRegisterOpen) {
-      setIsRegisterOpen(true);
+    if (isAuthenticated && !hasRole('developer')) {
+      navigate('/developer/register');
     }
-  }, [isAuthenticated, hasRole, developer, isRegisterOpen]);
+  }, [isAuthenticated, hasRole, navigate]);
 
   if (isLoading) {
     return (
@@ -63,29 +60,13 @@ const DeveloperDashboard = () => {
             onClick={() => window.location.href = '/'}
             className="w-full bg-ton-gradient hover:scale-105 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg"
           >
-            Connect Wallet & Begin 🔓
+            Sign In to Continue
           </button>
         </div>
       </div>
     );
   }
 
-  async function handleRegister(data: { wallet: string; email: string; name: string }) {
-    try {
-      const response = await fetch(storeApiUrl('/api/developers'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorBody.error ?? `HTTP ${response.status}`);
-      }
-      setDeveloper(data);
-    } catch (error) {
-      logger.error('[DeveloperDashboard] Registration failed', error);
-    }
-  }
 
   return (
     <div className="min-h-screen py-8 px-4">
@@ -99,21 +80,17 @@ const DeveloperDashboard = () => {
             </h1>
             <p className="text-gray-400">Manage your digital treasures and sacred offerings 🪄</p>
           </div>
-          {!developer && !hasRole('developer') && (
+          {!hasRole('developer') && (
             <button
               className="mt-4 md:mt-0 bg-ton-gradient hover:scale-105 text-white font-semibold px-6 py-3 rounded-full transition-all duration-300 shadow-lg hover:shadow-ton-500/50 flex items-center space-x-2"
-              onClick={() => setIsRegisterOpen(true)}
+              onClick={() => navigate('/developer/register')}
             >
               <Plus className="w-5 h-5" />
-              <span>Стать разработчиком</span>
+              <span>Become Developer</span>
             </button>
           )}
         </div>
-        <DeveloperRegisterModal
-          isOpen={isRegisterOpen}
-          onClose={() => setIsRegisterOpen(false)}
-          onRegister={handleRegister}
-        />
+        {/* Registration moved to /developer/register */}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">

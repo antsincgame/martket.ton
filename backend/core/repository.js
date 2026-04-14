@@ -33,6 +33,7 @@ function mapProfile(doc) {
     security_level: doc.security_level ?? 'low',
     is_active: doc.is_active !== false,
     appwrite_user_id: doc.appwrite_user_id ?? null,
+    clerk_user_id: doc.clerk_user_id ?? null,
     created_at: doc.$createdAt,
     updated_at: doc.$updatedAt,
   };
@@ -257,6 +258,48 @@ async function listAuditLogs(limit) {
   return res.documents.map(mapAudit);
 }
 
+async function findUserByClerkId(clerkUserId) {
+  const res = await databases().listDocuments(CORE_DATABASE_ID, COL_PROFILES, [
+    Query.equal('clerk_user_id', clerkUserId),
+    Query.limit(1),
+  ]);
+  return res.documents[0] ? mapProfile(res.documents[0]) : null;
+}
+
+async function updateProfileField(profileId, field, value) {
+  await databases().updateDocument(CORE_DATABASE_ID, COL_PROFILES, profileId, { [field]: value });
+}
+
+async function upsertProfileForClerkUser(clerkUserId, payload) {
+  let existing = await findUserByClerkId(clerkUserId);
+  if (!existing && payload.email) {
+    const byEmail = await findUserByEmail(payload.email);
+    if (byEmail && !byEmail.clerk_user_id) {
+      existing = byEmail;
+    }
+  }
+
+  const data = {
+    clerk_user_id: clerkUserId,
+    email: payload.email ?? existing?.email ?? null,
+    ton_address: payload.ton_address ?? existing?.ton_address ?? null,
+    name: payload.name ?? existing?.name ?? 'User',
+    role: payload.role ?? existing?.role ?? 'user',
+    avatar: payload.avatar ?? existing?.avatar ?? null,
+    bio: payload.bio ?? existing?.bio ?? null,
+    security_level: payload.security_level ?? existing?.security_level ?? 'low',
+    is_active: payload.is_active !== false,
+  };
+
+  if (existing) {
+    await databases().updateDocument(CORE_DATABASE_ID, COL_PROFILES, existing.id, data);
+    return findUserById(existing.id);
+  }
+  const id = generateId();
+  await databases().createDocument(CORE_DATABASE_ID, COL_PROFILES, id, data);
+  return findUserById(id);
+}
+
 async function upsertProfileForAppwriteUser(appwriteUserId, payload) {
   const byAccount = await findUserByAppwriteId(appwriteUserId);
   const byEmail = payload.email ? await findUserByEmail(payload.email) : null;
@@ -295,6 +338,9 @@ module.exports = {
   findUserById,
   findUserByAppwriteId,
   findUserByEmail,
+  findUserByClerkId,
+  updateProfileField,
+  upsertProfileForClerkUser,
   insertUser,
   listUsers,
   countUsers,

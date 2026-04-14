@@ -2,18 +2,17 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Gem, Sparkles, ArrowRight, AlertTriangle } from 'lucide-react';
-import { TonConnectButton, useTonAddress } from '@tonconnect/ui-react';
 import { storeApiUrl } from '../lib/storeApi';
 import { logger } from '../lib/logger';
 
 const DeveloperRegister = () => {
   const navigate = useNavigate();
-  const { hasRole, isAuthenticated, isLoading } = useAuth();
-  const tonAddress = useTonAddress();
+  const { hasRole, isAuthenticated, isLoading, getToken } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     description: '',
+    portfolio: '',
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,13 +21,8 @@ const DeveloperRegister = () => {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="w-20 h-20 border-4 border-ton-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-          <h2 className="text-xl font-display font-bold text-white mb-2">
-            Loading Developer Registration...
-          </h2>
-          <p className="text-gray-400">
-            Please wait while we prepare your journey ✨
-          </p>
+          <div className="w-20 h-20 border-4 border-ton-500 border-t-transparent rounded-full animate-spin mx-auto mb-6" />
+          <h2 className="text-xl font-display font-bold text-white mb-2">Loading...</h2>
         </div>
       </div>
     );
@@ -45,33 +39,28 @@ const DeveloperRegister = () => {
     setIsSubmitting(true);
 
     try {
-      if (!tonAddress) {
-        throw new Error('Please connect your TON wallet first');
-      }
-      if (!formData.name.trim()) {
-        throw new Error('Please enter your developer name');
-      }
-      if (!formData.email.trim()) {
-        throw new Error('Please enter your email');
-      }
-      if (!formData.description.trim()) {
-        throw new Error('Please tell us about yourself');
-      }
+      if (!formData.name.trim()) throw new Error('Please enter your developer name');
+      if (!formData.email.trim()) throw new Error('Please enter your email');
+      if (!formData.description.trim()) throw new Error('Please tell us about yourself');
+
+      const token = await getToken();
 
       const response = await fetch(storeApiUrl('/api/developers'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
           description: formData.description,
-          tonAddress,
         }),
       });
 
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorBody.error ?? `Registration failed: HTTP ${response.status}`);
+        const errorBody = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorBody.message ?? `Registration failed: HTTP ${response.status}`);
       }
 
       logger.info('[DeveloperRegister] Developer registered successfully');
@@ -103,7 +92,7 @@ const DeveloperRegister = () => {
             Become a Developer
           </h2>
           <p className="mt-4 text-gray-300">
-            Join our community of creators and share your digital treasures with the world
+            Submit your application to join our developer community. An admin will review and approve it.
           </p>
         </div>
 
@@ -115,17 +104,6 @@ const DeveloperRegister = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6 bg-white/5 p-8 rounded-2xl backdrop-blur-lg border border-white/10">
-          <div className="flex flex-col items-center space-y-4">
-            <div className="w-full max-w-xs">
-              <TonConnectButton />
-            </div>
-            {tonAddress && (
-              <div className="text-sm text-green-400 bg-green-500/10 px-4 py-2 rounded-full">
-                🪷 Connected: {tonAddress.slice(0, 6)}...{tonAddress.slice(-4)}
-              </div>
-            )}
-          </div>
-
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-300">
               Developer Name
@@ -136,14 +114,14 @@ const DeveloperRegister = () => {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               className="mt-1 block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Enter your developer name"
+              placeholder="Your developer / studio name"
               required
             />
           </div>
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-300">
-              Email Address
+              Contact Email
             </label>
             <input
               type="email"
@@ -151,8 +129,22 @@ const DeveloperRegister = () => {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="mt-1 block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Enter your email"
+              placeholder="your@email.com"
               required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="portfolio" className="block text-sm font-medium text-gray-300">
+              Portfolio / Website (optional)
+            </label>
+            <input
+              type="url"
+              id="portfolio"
+              value={formData.portfolio}
+              onChange={(e) => setFormData({ ...formData, portfolio: e.target.value })}
+              className="mt-1 block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              placeholder="https://your-website.com"
             />
           </div>
 
@@ -166,16 +158,22 @@ const DeveloperRegister = () => {
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               rows={4}
               className="mt-1 block w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Tell us about yourself and your experience"
+              placeholder="Tell us about yourself, your experience, and what you plan to build"
               required
             />
           </div>
 
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+            <p className="text-blue-300 text-sm">
+              After submitting, an admin will review your application. You can link your TON wallet later in your profile settings.
+            </p>
+          </div>
+
           <button
             type="submit"
-            disabled={isSubmitting || !tonAddress}
+            disabled={isSubmitting}
             className={`w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 flex items-center justify-center space-x-2 ${
-              (isSubmitting || !tonAddress) ? 'opacity-50 cursor-not-allowed' : ''
+              isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >
             {isSubmitting ? (
@@ -185,7 +183,7 @@ const DeveloperRegister = () => {
               </>
             ) : (
               <>
-                <span>Start Your Journey</span>
+                <span>Submit Application</span>
                 <ArrowRight className="w-5 h-5" />
               </>
             )}
@@ -193,7 +191,7 @@ const DeveloperRegister = () => {
         </form>
 
         <div className="mt-8 text-center text-gray-400 text-sm">
-          <p>Already a developer? <button onClick={() => navigate('/profile')} className="text-purple-400 hover:text-purple-300">Go to Dashboard</button></p>
+          <p>Already a developer? <button onClick={() => navigate('/developer')} className="text-purple-400 hover:text-purple-300">Go to Dashboard</button></p>
         </div>
       </div>
     </div>

@@ -1,12 +1,10 @@
-// API на Appwrite (core DB + Storage); JWT кошелька и сессия Appwrite для защищённых маршрутов.
 const express = require('express');
 const cors = require('cors');
-const jwt = require('jsonwebtoken');
+const { clerkMiddleware, requireAuth, getAuth } = require('@clerk/express');
 const { logger } = require('./logger');
 const { isCoreConfigured } = require('./core/appwriteServer');
 const repo = require('./core/repository');
 const { generateId } = require('./core/generateId');
-const { getAppwriteAccount } = require('./core/session');
 const { createTonForgeService, setTonForgeService } = require('./tonforge/service');
 const { createDemoState } = require('./tonforge/demoData');
 const { loadTonForgeStateJson, saveTonForgeStateJson } = require('./tonforge/persistAppwrite');
@@ -17,15 +15,21 @@ let commerceRoutes;
 try {
   commerceRoutes = require('./commerce/routes');
 } catch (err) {
-  logger.warn('Commerce routes not loaded (Appwrite not configured):', err.message);
+  logger.warn('Commerce routes not loaded:', err.message);
+}
+
+let resendRoutes;
+try {
+  resendRoutes = require('./resend/routes');
+} catch (err) {
+  logger.warn('Resend routes not loaded:', err.message);
 }
 
 const app = express();
 const PORT = process.env.PORT || 8081;
-const JWT_SECRET = process.env.JWT_SECRET;
 
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET must be set in environment variables');
+if (!process.env.CLERK_SECRET_KEY) {
+  throw new Error('CLERK_SECRET_KEY must be set in environment variables');
 }
 
 if (!isCoreConfigured()) {
@@ -40,45 +44,11 @@ app.use(
     credentials: true,
   })
 );
+
+app.post('/api/webhooks/clerk', express.raw({ type: 'application/json' }), require('./webhooks/clerk'));
+
 app.use(express.json());
-
-function signToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
-}
-
-async function authenticateHybrid(req, res, next) {
-  const authHeader = req.headers.authorization;
-  const token = authHeader && authHeader.split(' ')[1];
-  if (!token) {
-    return res.sendStatus(401);
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    return next();
-  } catch {
-    /* не JWT бэкенда */
-  }
-
-  try {
-    const account = await getAppwriteAccount(token);
-    const profile = await repo.findUserByAppwriteId(account.$id);
-    if (!profile) {
-      return res.status(403).json({ success: false, message: 'Профиль не найден для пользователя Appwrite' });
-    }
-    req.user = {
-      userId: profile.id,
-      wallet: profile.ton_address,
-      role: profile.role,
-      appwriteUserId: account.$id,
-    };
-    return next();
-  } catch (err) {
-    logger.warn('Auth hybrid Appwrite failed:', err.message);
-    return res.sendStatus(403);
-  }
-}
+app.use(clerkMiddleware());
 
 const asyncHandler =
   (fn) =>
@@ -86,26 +56,67 @@ const asyncHandler =
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 
+async function resolveProfile(req) {
+  const auth = getAuth(req);
+  if (!auth || !auth.userId) return null;
+  return repo.findUserByClerkId(auth.userId);
+}
+
+function requireAdmin(req, res, next) {
+  resolveProfile(req).then((profile) => {
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
+    req.profile = profile;
+    next();
+  }).catch((err) => {
+    logger.error('requireAdmin error:', err);
+    res.status(500).json({ success: false, message: 'Internal error' });
+  });
+}
+
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'OK', message: 'TON Web Store API is running', db: 'appwrite' });
+  res.json({ status: 'OK', message: 'TON Web Store API is running', db: 'appwrite', auth: 'clerk' });
 });
 
-app.post(
-  '/api/auth/appwrite/sync',
+app.get(
+  '/api/session/profile',
+  requireAuth(),
   asyncHandler(async (req, res) => {
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ success: false, message: 'Authorization required' });
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Profile not found. It will be created via webhook.' });
     }
-    const account = await getAppwriteAccount(token);
-    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
-    const profile = await repo.upsertProfileForAppwriteUser(account.$id, {
-      email: account.email,
-      name: name || account.name || 'User',
-      role: 'user',
-    });
     res.json({ success: true, data: profile });
+  })
+);
+
+app.patch(
+  '/api/session/profile',
+  requireAuth(),
+  asyncHandler(async (req, res) => {
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Profile not found' });
+    }
+
+    const { ton_address } = req.body;
+
+    if (ton_address !== undefined) {
+      if (ton_address) {
+        const existing = await repo.findUserByTonAddress(ton_address);
+        if (existing && existing.id !== profile.id) {
+          return res.status(409).json({
+            success: false,
+            message: 'This TON wallet is already linked to another account',
+          });
+        }
+      }
+      await repo.updateProfileField(profile.id, 'ton_address', ton_address || null);
+    }
+
+    const updated = await repo.findUserById(profile.id);
+    res.json({ success: true, data: updated });
   })
 );
 
@@ -121,84 +132,11 @@ app.get(
 );
 
 app.get(
-  '/api/session/profile',
-  authenticateHybrid,
-  asyncHandler(async (req, res) => {
-    let profile;
-    if (req.user.appwriteUserId) {
-      profile = await repo.findUserByAppwriteId(req.user.appwriteUserId);
-    } else {
-      profile = await repo.findUserById(req.user.userId);
-    }
-    if (!profile) {
-      return res.status(404).json({ success: false, message: 'Profile not found' });
-    }
-    res.json({ success: true, data: profile });
-  })
-);
-
-app.post(
-  '/api/auth/login',
-  asyncHandler(async (req, res) => {
-    const { wallet, signature } = req.body;
-
-    if (!wallet || !signature) {
-      return res.status(400).json({ success: false, message: 'wallet and signature are required' });
-    }
-
-    let user = await repo.findUserByTonAddress(wallet);
-
-    if (!user) {
-      const newId = generateId();
-      user = await repo.insertUser({
-        id: newId,
-        email: null,
-        ton_address: wallet,
-        name: `User_${wallet.slice(-6)}`,
-        role: 'user',
-        avatar: null,
-        bio: null,
-        security_level: 'low',
-        is_active: true,
-      });
-    }
-
-    const token = signToken({
-      userId: user.id,
-      wallet: user.ton_address,
-      role: user.role,
-    });
-
-    await repo.insertAuditLog({
-      id: generateId(),
-      user_id: user.id,
-      action: 'login',
-      resource: 'auth',
-      resource_id: null,
-      result: 'success',
-      metadata: JSON.stringify({ method: 'ton_wallet' }),
-      ip_address: req.ip,
-      user_agent: req.get('user-agent') || '',
-    });
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        wallet: user.ton_address,
-        role: user.role,
-        name: user.name,
-      },
-    });
-  })
-);
-
-app.get(
   '/api/users',
-  authenticateHybrid,
+  requireAuth(),
   asyncHandler(async (req, res) => {
-    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+    const profile = await resolveProfile(req);
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
       return res.status(403).json({ success: false, message: 'Admin access required' });
     }
     const users = await repo.listUsers();
@@ -208,7 +146,7 @@ app.get(
 
 app.get(
   '/api/users/:id',
-  authenticateHybrid,
+  requireAuth(),
   asyncHandler(async (req, res) => {
     const user = await repo.findUserById(req.params.id);
     if (!user) {
@@ -228,10 +166,14 @@ app.get(
 
 app.post(
   '/api/developers',
-  authenticateHybrid,
+  requireAuth(),
   asyncHandler(async (req, res) => {
-    const { name, email, description, ton_address } = req.body;
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      return res.status(403).json({ success: false, message: 'Profile not found' });
+    }
 
+    const { name, email, description } = req.body;
     if (!name || !email) {
       return res.status(400).json({ success: false, message: 'name and email are required' });
     }
@@ -244,17 +186,17 @@ app.post(
     const newId = generateId();
     const developer = await repo.insertDeveloper({
       id: newId,
-      user_id: req.user.userId,
+      user_id: profile.id,
       name,
       email,
       description: description || null,
-      ton_address: ton_address || null,
+      ton_address: profile.ton_address || null,
       status: 'pending',
     });
 
     await repo.insertAuditLog({
       id: generateId(),
-      user_id: req.user.userId,
+      user_id: profile.id,
       action: 'create',
       resource: 'developer',
       resource_id: newId,
@@ -270,9 +212,10 @@ app.post(
 
 app.delete(
   '/api/developers/:id',
-  authenticateHybrid,
+  requireAuth(),
   asyncHandler(async (req, res) => {
-    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+    const profile = await resolveProfile(req);
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
       return res.status(403).json({ success: false, message: 'Admin access required' });
     }
 
@@ -285,7 +228,7 @@ app.delete(
 
     await repo.insertAuditLog({
       id: generateId(),
-      user_id: req.user.userId,
+      user_id: profile.id,
       action: 'delete',
       resource: 'developer',
       resource_id: req.params.id,
@@ -320,10 +263,9 @@ app.get(
 
 app.post(
   '/api/products',
-  authenticateHybrid,
+  requireAuth(),
   asyncHandler(async (req, res) => {
     const { name, description, short_description, price_ton, category, image } = req.body;
-
     if (!name) {
       return res.status(400).json({ success: false, message: 'name is required' });
     }
@@ -347,13 +289,14 @@ app.post(
 
 app.post(
   '/api/audit-logs',
-  authenticateHybrid,
+  requireAuth(),
   asyncHandler(async (req, res) => {
+    const profile = await resolveProfile(req);
     const { action, resource, resource_id, result, metadata } = req.body;
 
     await repo.insertAuditLog({
       id: generateId(),
-      user_id: req.user.userId,
+      user_id: profile?.id || 'unknown',
       action: action || 'unknown',
       resource: resource || 'unknown',
       resource_id: resource_id || null,
@@ -369,23 +312,16 @@ app.post(
 
 app.get(
   '/api/audit-logs',
-  authenticateHybrid,
+  requireAuth(),
+  requireAdmin,
   asyncHandler(async (req, res) => {
-    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
-      return res.status(403).json({ success: false, message: 'Admin access required' });
-    }
-
     const limit = Math.min(parseInt(String(req.query.limit), 10) || 100, 500);
     const logs = await repo.listAuditLogs(limit);
 
     const parsed = logs.map((log) => {
       let metaParsed = null;
       if (log.metadata) {
-        try {
-          metaParsed = JSON.parse(log.metadata);
-        } catch {
-          metaParsed = log.metadata;
-        }
+        try { metaParsed = JSON.parse(log.metadata); } catch { metaParsed = log.metadata; }
       }
       return { ...log, metadata: metaParsed };
     });
@@ -396,12 +332,9 @@ app.get(
 
 app.get(
   '/api/stats',
-  authenticateHybrid,
-  asyncHandler(async (req, res) => {
-    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
-      return res.status(403).json({ success: false, message: 'Admin access required' });
-    }
-
+  requireAuth(),
+  requireAdmin,
+  asyncHandler(async (_req, res) => {
     const userCount = await repo.countUsers();
     const developers = await repo.listDevelopers();
     const products = await repo.listAllProducts();
@@ -427,6 +360,10 @@ if (commerceRoutes) {
   app.use('/api/v1/commerce', commerceRoutes);
 }
 
+if (resendRoutes) {
+  app.use('/api/admin/resend', resendRoutes);
+}
+
 app.use((err, _req, res, _next) => {
   logger.error('Unhandled error:', err);
   res.status(500).json({ success: false, message: 'Internal server error' });
@@ -436,18 +373,12 @@ async function bootstrapTonForge() {
   try {
     const raw = await loadTonForgeStateJson();
     const state = raw && typeof raw === 'object' ? raw : createDemoState();
-    const svc = createTonForgeService(state, {
-      debounceMs: 600,
-      save: saveTonForgeStateJson,
-    });
+    const svc = createTonForgeService(state, { debounceMs: 600, save: saveTonForgeStateJson });
     setTonForgeService(svc);
   } catch (err) {
-    logger.warn('TonForge: старт с демо-состоянием (Storage недоступен):', err.message);
+    logger.warn('TonForge: starting with demo state:', err.message);
     setTonForgeService(
-      createTonForgeService(createDemoState(), {
-        debounceMs: 600,
-        save: saveTonForgeStateJson,
-      })
+      createTonForgeService(createDemoState(), { debounceMs: 600, save: saveTonForgeStateJson })
     );
   }
 }
@@ -457,7 +388,7 @@ async function start() {
   app.listen(PORT, () => {
     logger.info(`TON Web Store API running on port ${PORT}`);
     logger.info(`Health: http://localhost:${PORT}/api/health`);
-    logger.info('Database: Appwrite (core)');
+    logger.info('Auth: Clerk | Database: Appwrite');
   });
 }
 

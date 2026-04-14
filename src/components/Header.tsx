@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, User, Menu, X, Sparkles, Gem } from 'lucide-react';
-import TONConnectButton from './TONConnectButton';
+import { Search, User, Menu, X, Sparkles, Gem, LogIn } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { SignedIn, SignedOut, UserButton, useAuthModal } from '../lib/clerkSafe';
 import { useAuth } from '../contexts/AuthContext';
 
 interface HeaderProps {
@@ -12,6 +13,16 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { isAuthenticated } = useAuth();
+  const { openAuthModal } = useAuthModal();
+  const navigate = useNavigate();
+
+  const handleSignIn = () => {
+    if (window.innerWidth < 768) {
+      navigate('/sign-in');
+    } else {
+      openAuthModal('sign-in');
+    }
+  };
 
   return (
     <header className="py-4 px-6 bg-black/30 backdrop-blur-md sticky top-0 z-50 border-b border-white/10">
@@ -29,23 +40,23 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <h1 className="font-display font-bold text-xl bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
               TON Web Store
             </h1>
-            <p className="text-xs text-gray-400 font-medium">☸️ Digital Enlightenment</p>
+            <p className="text-xs text-gray-400 font-medium">Digital Marketplace</p>
           </div>
         </Link>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-8">
           <Link to="/category/apps" className="text-gray-300 hover:text-white transition-colors">
-            Apps 🚀
+            Apps
           </Link>
           <Link to="/category/games" className="text-gray-300 hover:text-white transition-colors">
-            Games 🎮
+            Games
           </Link>
           <Link to="/category/ai" className="text-gray-300 hover:text-white transition-colors">
-            AI Services 🤖
+            AI Services
           </Link>
           <Link to="/developer" className="text-gray-300 hover:text-white transition-colors">
-            Developer Store 🛍️
+            Developer Store
           </Link>
         </nav>
 
@@ -55,7 +66,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search digital treasures... 🔮"
+              placeholder="Search products..."
               className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-full text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ton-500 focus:border-transparent"
             />
           </div>
@@ -71,10 +82,29 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <Search className="w-5 h-5" />
           </button>
 
-          {/* TON Connect Button */}
-          <TONConnectButton />
+          {/* Clerk Auth */}
+          <SignedOut>
+            <button
+              onClick={handleSignIn}
+              className="flex items-center space-x-2 bg-ton-gradient hover:scale-105 px-4 py-2 rounded-full transition-all duration-300 text-white font-medium text-sm"
+            >
+              <LogIn className="w-4 h-4" />
+              <span className="hidden sm:inline">Sign In</span>
+            </button>
+          </SignedOut>
 
-          {/* Profile (только для авторизованных) */}
+          <SignedIn>
+            <UserButton
+              afterSignOutUrl="/"
+              appearance={{
+                elements: {
+                  avatarBox: 'w-9 h-9 border-2 border-white/20',
+                },
+              }}
+            />
+          </SignedIn>
+
+          {/* Profile link for signed-in users */}
           {isAuthenticated && (
             <Link
               to="/profile"
@@ -102,7 +132,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search digital treasures... 🔮"
+              placeholder="Search products..."
               className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-full text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ton-500 focus:border-transparent"
             />
           </div>
@@ -113,51 +143,28 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
       {isMenuOpen && (
         <div className="md:hidden py-4 border-t border-white/10">
           <nav className="flex flex-col space-y-3">
-            <Link
-              to="/category/apps"
-              className="text-gray-300 hover:text-white transition-colors py-2"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Apps 🚀
+            <Link to="/category/apps" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
+              Apps
+            </Link>
+            <Link to="/category/games" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
+              Games
+            </Link>
+            <Link to="/category/ai" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
+              AI Services
+            </Link>
+            <Link to="/developer" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
+              Developer Store
             </Link>
             <Link
-              to="/category/games"
-              className="text-gray-300 hover:text-white transition-colors py-2"
+              to="/developer/register"
+              className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 transform hover:scale-105 mt-2 text-center"
               onClick={() => setIsMenuOpen(false)}
             >
-              Games 🎮
+              Become Developer
             </Link>
-            <Link
-              to="/category/ai"
-              className="text-gray-300 hover:text-white transition-colors py-2"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              AI Services 🤖
-            </Link>
-            <Link
-              to="/developer"
-              className="text-gray-300 hover:text-white transition-colors py-2"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Developer Store 🛍️
-            </Link>
-            <button
-              onClick={() => {
-                setIsMenuOpen(false);
-                window.location.href = '/developer/register';
-              }}
-              className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 transform hover:scale-105 mt-2"
-            >
-              Become Developer 🪄
-            </button>
-            {/* Профиль только для авторизованных */}
             {isAuthenticated && (
-              <Link
-                to="/profile"
-                className="text-gray-300 hover:text-white transition-colors py-2"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Profile 👤
+              <Link to="/profile" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
+                Profile
               </Link>
             )}
           </nav>

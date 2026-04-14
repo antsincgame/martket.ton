@@ -167,6 +167,7 @@ export interface AuthContextValue {
   login: (credentials: { email?: string; password?: string; tonAddress?: string }) => Promise<AuthResult>;
   fetchProfile: () => Promise<void>;
   updateUser: (updatedData: Partial<AuthenticatedUser>) => Promise<void>;
+  getToken: () => Promise<string | null>;
 }
 
 export interface AuthResult {
