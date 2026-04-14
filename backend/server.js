@@ -3,8 +3,21 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { clerkMiddleware, requireAuth, getAuth } = require('@clerk/express');
-const { Address } = require('@ton/core');
 const { logger } = require('./logger');
+
+let TonAddress = null;
+try {
+  TonAddress = require('@ton/core').Address;
+} catch {
+  logger.warn('@ton/core not available — TON address validation will use regex fallback');
+}
+
+function isValidTonAddress(addr) {
+  if (TonAddress) {
+    try { TonAddress.parse(addr); return true; } catch { return false; }
+  }
+  return /^(EQ|UQ|0:|kQ)[A-Za-z0-9_-]{46,48}$/.test(addr);
+}
 const { isCoreConfigured } = require('./core/appwriteServer');
 const repo = require('./core/repository');
 const { generateId } = require('./core/generateId');
@@ -145,9 +158,7 @@ app.patch(
 
     if (ton_address !== undefined) {
       if (ton_address) {
-        try {
-          Address.parse(ton_address);
-        } catch {
+        if (!isValidTonAddress(ton_address)) {
           return res.status(400).json({ success: false, message: 'Invalid TON address format' });
         }
 
