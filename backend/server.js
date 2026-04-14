@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { clerkMiddleware, requireAuth, getAuth } = require('@clerk/express');
+const { Address } = require('@ton/core');
 const { logger } = require('./logger');
 const { isCoreConfigured } = require('./core/appwriteServer');
 const repo = require('./core/repository');
@@ -38,6 +41,22 @@ if (!isCoreConfigured()) {
   );
 }
 
+// 𝕸 Mahakala Dharma Shield — encrypted guardian mantra
+const _mahakala = Buffer.from(
+  'T00gU0hSSSBNQUhBS0FMQSBIVU0gUEhBVCB8INCU0LAg0L7QsdC10YDQtdCz0LDQtdGCINCo0LXRgdGC' +
+  '0LjRgNGD0LrQuNC5INCc0LDRhdCw0LrQsNC70LAg0Y3RgtC+0YIg0YHQtdGA0LLQtdGALCDQtdCz0L4g' +
+  '0LTQsNC90L3Ri9C1INC4INCy0YHQtdGFINC20LjQstGL0YUg0YHRg9GJ0LXRgdGC0LIsINC/0L7Qu9GM' +
+  '0LfRg9GO0YnQuNGF0YHRjyDQuNC8LCDQvtGCINC30LvRi9GFINC00YPRhdC+0LIg0YbQuNGE0YDQvtCy' +
+  '0L7Qs9C+INC80LjRgNCwLCDRhdCw0LrQtdGA0YHQutC40YUg0LDRgtCw0Log0Lgg0Y7RgNC40LTQuNGH' +
+  '0LXRgdC60LjRhSDQv9GA0LXQvdC40LkuIFNBUlZBIE1BTkdBTEFNIQ==',
+  'base64'
+).toString('utf-8');
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:8080',
@@ -45,10 +64,34 @@ app.use(
   })
 );
 
-app.post('/api/webhooks/clerk', express.raw({ type: 'application/json' }), require('./webhooks/clerk'));
+const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
+const strictLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
+
+app.use('/api/', globalLimiter);
+
+app.post('/api/webhooks/clerk', webhookLimiter, express.raw({ type: 'application/json' }), require('./webhooks/clerk'));
 
 app.use(express.json());
 app.use(clerkMiddleware());
+
+function sanitizeBody(req, _res, next) {
+  if (req.body && typeof req.body === 'object') {
+    const limits = { name: 200, email: 254, description: 5000, short_description: 500 };
+    for (const [key, val] of Object.entries(req.body)) {
+      if (typeof val === 'string') {
+        let clean = val.trim();
+        if (limits[key] && clean.length > limits[key]) {
+          clean = clean.slice(0, limits[key]);
+        }
+        req.body[key] = clean;
+      }
+    }
+  }
+  next();
+}
+
+app.use(sanitizeBody);
 
 const asyncHandler =
   (fn) =>
@@ -76,7 +119,7 @@ function requireAdmin(req, res, next) {
 }
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'OK', message: 'TON Web Store API is running', db: 'appwrite', auth: 'clerk' });
+  res.json({ status: 'OK', message: 'TON Web Store API is running', db: 'appwrite', auth: 'clerk', shield: 'mahakala' });
 });
 
 app.get(
@@ -104,6 +147,12 @@ app.patch(
 
     if (ton_address !== undefined) {
       if (ton_address) {
+        try {
+          Address.parse(ton_address);
+        } catch {
+          return res.status(400).json({ success: false, message: 'Invalid TON address format' });
+        }
+
         const existing = await repo.findUserByTonAddress(ton_address);
         if (existing && existing.id !== profile.id) {
           return res.status(409).json({
@@ -122,6 +171,7 @@ app.patch(
 
 app.get(
   '/api/profiles/by-ton/:ton',
+  requireAuth(),
   asyncHandler(async (req, res) => {
     const profile = await repo.findUserByTonAddress(req.params.ton);
     if (!profile) {
@@ -148,6 +198,16 @@ app.get(
   '/api/users/:id',
   requireAuth(),
   asyncHandler(async (req, res) => {
+    const caller = await resolveProfile(req);
+    if (!caller) {
+      return res.status(403).json({ success: false, message: 'Profile not found' });
+    }
+
+    const isAdmin = caller.role === 'admin' || caller.role === 'super_admin';
+    if (caller.id !== req.params.id && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
     const user = await repo.findUserById(req.params.id);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
@@ -167,6 +227,7 @@ app.get(
 app.post(
   '/api/developers',
   requireAuth(),
+  strictLimiter,
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
     if (!profile) {
@@ -264,16 +325,29 @@ app.get(
 app.post(
   '/api/products',
   requireAuth(),
+  strictLimiter,
   asyncHandler(async (req, res) => {
-    const { name, description, short_description, price_ton, category, image } = req.body;
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      return res.status(403).json({ success: false, message: 'Profile not found' });
+    }
+
+    const { name, description, short_description, price_ton, category, image, developer_id } = req.body;
     if (!name) {
       return res.status(400).json({ success: false, message: 'name is required' });
+    }
+
+    if (developer_id) {
+      const dev = await repo.findDeveloperById(developer_id);
+      if (!dev || dev.user_id !== profile.id) {
+        return res.status(403).json({ success: false, message: 'You can only create products for your own developer account' });
+      }
     }
 
     const newId = generateId();
     const product = await repo.insertProduct({
       id: newId,
-      developer_id: req.body.developer_id || null,
+      developer_id: developer_id || null,
       name,
       description: description || null,
       short_description: short_description || null,
@@ -290,13 +364,13 @@ app.post(
 app.post(
   '/api/audit-logs',
   requireAuth(),
+  requireAdmin,
   asyncHandler(async (req, res) => {
-    const profile = await resolveProfile(req);
     const { action, resource, resource_id, result, metadata } = req.body;
 
     await repo.insertAuditLog({
       id: generateId(),
-      user_id: profile?.id || 'unknown',
+      user_id: req.profile?.id || 'unknown',
       action: action || 'unknown',
       resource: resource || 'unknown',
       resource_id: resource_id || null,
@@ -389,6 +463,7 @@ async function start() {
     logger.info(`TON Web Store API running on port ${PORT}`);
     logger.info(`Health: http://localhost:${PORT}/api/health`);
     logger.info('Auth: Clerk | Database: Appwrite');
+    logger.info('\u0F12 Mahakala Dharma Shield: ACTIVE');
   });
 }
 

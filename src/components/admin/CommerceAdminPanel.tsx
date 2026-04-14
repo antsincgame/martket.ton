@@ -2,11 +2,9 @@ import { useCallback, useState, type FC } from 'react';
 import { Loader2, Lock, RefreshCw } from 'lucide-react';
 import { adminCommerceFetch } from '../../lib/commerceApi';
 
-const SESSION_KEY = 'tonwebstore_commerce_admin_secret';
-
 const CommerceAdminPanel: FC = () => {
-  const [secretInput, setSecretInput] = useState(() => sessionStorage.getItem(SESSION_KEY) ?? '');
-  const [secret, setSecret] = useState(() => sessionStorage.getItem(SESSION_KEY) ?? '');
+  const [secretInput, setSecretInput] = useState('');
+  const [secret, setSecret] = useState('');
   const [orders, setOrders] = useState<unknown[]>([]);
   const [disputes, setDisputes] = useState<unknown[]>([]);
   const [audit, setAudit] = useState<unknown[]>([]);
@@ -19,9 +17,7 @@ const CommerceAdminPanel: FC = () => {
   const [resolveNote, setResolveNote] = useState('');
 
   const persistSecret = useCallback(() => {
-    const s = secretInput.trim();
-    sessionStorage.setItem(SESSION_KEY, s);
-    setSecret(s);
+    setSecret(secretInput.trim());
   }, [secretInput]);
 
   const loadAll = useCallback(async () => {
@@ -91,7 +87,7 @@ const CommerceAdminPanel: FC = () => {
         <Lock className="w-4 h-4 mt-0.5 shrink-0" />
         <p>
           Секрет берётся из <code className="font-mono">COMMERCE_ADMIN_SECRET</code> на сервере. Хранится только в
-          sessionStorage браузера для этой вкладки.
+          памяти браузера — при обновлении страницы потребуется ввести заново.
         </p>
       </div>
 
