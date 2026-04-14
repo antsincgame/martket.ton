@@ -41,8 +41,17 @@ try {
   logger.warn('Resend routes not loaded:', err.message);
 }
 
+let r2Routes;
+try {
+  r2Routes = require('./r2/routes');
+} catch (err) {
+  logger.warn('R2 routes not loaded:', err.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 8081;
+
+app.set('trust proxy', 1);
 
 if (!process.env.CLERK_SECRET_KEY) {
   logger.warn('CLERK_SECRET_KEY is not set — auth endpoints will reject requests');
@@ -52,21 +61,19 @@ if (!isCoreConfigured()) {
   logger.warn('Appwrite core не настроен — database endpoints will fail');
 }
 
-// 𝕸 Mahakala Dharma Shield — encrypted guardian mantra
-const _mahakala = Buffer.from(
-  'T00gU0hSSSBNQUhBS0FMQSBIVU0gUEhBVCB8INCU0LAg0L7QsdC10YDQtdCz0LDQtdGCINCo0LXRgdGC' +
-  '0LjRgNGD0LrQuNC5INCc0LDRhdCw0LrQsNC70LAg0Y3RgtC+0YIg0YHQtdGA0LLQtdGALCDQtdCz0L4g' +
-  '0LTQsNC90L3Ri9C1INC4INCy0YHQtdGFINC20LjQstGL0YUg0YHRg9GJ0LXRgdGC0LIsINC/0L7Qu9GM' +
-  '0LfRg9GO0YnQuNGF0YHRjyDQuNC8LCDQvtGCINC30LvRi9GFINC00YPRhdC+0LIg0YbQuNGE0YDQvtCy' +
-  '0L7Qs9C+INC80LjRgNCwLCDRhdCw0LrQtdGA0YHQutC40YUg0LDRgtCw0Log0Lgg0Y7RgNC40LTQuNGH' +
-  '0LXRgdC60LjRhSDQv9GA0LXQvdC40LkuIFNBUlZBIE1BTkdBTEFNIQ==',
-  'base64'
-).toString('utf-8');
+const { mahakalaHeaders, logShieldStatus } = require('./middleware/mahakala');
 
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
   crossOriginEmbedderPolicy: false,
 }));
+
+app.use(mahakalaHeaders);
 
 app.use(
   cors({
@@ -88,7 +95,7 @@ app.use(clerkMiddleware());
 
 function sanitizeBody(req, _res, next) {
   if (req.body && typeof req.body === 'object') {
-    const limits = { name: 200, email: 254, description: 5000, short_description: 500 };
+    const limits = { name: 200, email: 254, description: 5000, short_description: 500, display_name: 200, bio: 2000 };
     for (const [key, val] of Object.entries(req.body)) {
       if (typeof val === 'string') {
         let clean = val.trim();
@@ -110,28 +117,24 @@ const asyncHandler =
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 
-async function resolveProfile(req) {
-  const auth = getAuth(req);
-  if (!auth || !auth.userId) return null;
-  return repo.findUserByClerkId(auth.userId);
-}
+const { resolveProfile, requireAdmin } = require('./middleware/auth');
 
-function requireAdmin(req, res, next) {
-  resolveProfile(req).then((profile) => {
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
-      return res.status(403).json({ success: false, message: 'Admin access required' });
-    }
-    req.profile = profile;
-    next();
-  }).catch((err) => {
-    logger.error('requireAdmin error:', err);
-    res.status(500).json({ success: false, message: 'Internal error' });
-  });
-}
+// ── Health ──────────────────────────────────────────────────────────
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'OK', message: 'TON Web Store API is running', db: 'appwrite', auth: 'clerk', shield: 'mahakala' });
+  const { isR2Configured } = require('./r2/client');
+  res.json({
+    status: 'OK',
+    message: 'TON Web Store API is running',
+    db: 'appwrite',
+    auth: 'clerk',
+    shield: 'mahakala',
+    model: 'demiurge',
+    storage: isR2Configured() ? 'r2' : 'not_configured',
+  });
 });
+
+// ── Profile (Demiurge) ─────────────────────────────────────────────
 
 app.get(
   '/api/session/profile',
@@ -154,14 +157,14 @@ app.patch(
       return res.status(404).json({ success: false, message: 'Profile not found' });
     }
 
-    const { ton_address } = req.body;
+    const { ton_address, display_name, bio, avatar } = req.body;
+    const updates = {};
 
     if (ton_address !== undefined) {
       if (ton_address) {
         if (!isValidTonAddress(ton_address)) {
           return res.status(400).json({ success: false, message: 'Invalid TON address format' });
         }
-
         const existing = await repo.findUserByTonAddress(ton_address);
         if (existing && existing.id !== profile.id) {
           return res.status(409).json({
@@ -170,7 +173,15 @@ app.patch(
           });
         }
       }
-      await repo.updateProfileField(profile.id, 'ton_address', ton_address || null);
+      updates.ton_address = ton_address || null;
+    }
+
+    if (display_name !== undefined) updates.display_name = display_name;
+    if (bio !== undefined) updates.bio = bio;
+    if (avatar !== undefined) updates.avatar = avatar;
+
+    if (Object.keys(updates).length > 0) {
+      await repo.updateProfile(profile.id, updates);
     }
 
     const updated = await repo.findUserById(profile.id);
@@ -189,6 +200,8 @@ app.get(
     res.json({ success: true, data: profile });
   })
 );
+
+// ── Users (Admin) ──────────────────────────────────────────────────
 
 app.get(
   '/api/users',
@@ -225,92 +238,33 @@ app.get(
   })
 );
 
+// ── Demiurge public profile ────────────────────────────────────────
+
 app.get(
-  '/api/developers',
-  asyncHandler(async (_req, res) => {
-    const developers = await repo.listDevelopers();
-    res.json({ success: true, data: developers });
-  })
-);
-
-app.post(
-  '/api/developers',
-  requireAuth(),
-  strictLimiter,
+  '/api/demiurge/:id',
   asyncHandler(async (req, res) => {
-    const profile = await resolveProfile(req);
-    if (!profile) {
-      return res.status(403).json({ success: false, message: 'Profile not found' });
+    const user = await repo.findUserById(req.params.id);
+    if (!user || !user.is_active) {
+      return res.status(404).json({ success: false, message: 'Demiurge not found' });
     }
-
-    const { name, email, description } = req.body;
-    if (!name || !email) {
-      return res.status(400).json({ success: false, message: 'name and email are required' });
-    }
-
-    const existing = await repo.findDeveloperByEmail(email);
-    if (existing) {
-      return res.status(409).json({ success: false, message: 'Developer with this email already exists' });
-    }
-
-    const newId = generateId();
-    const developer = await repo.insertDeveloper({
-      id: newId,
-      user_id: profile.id,
-      name,
-      email,
-      description: description || null,
-      ton_address: profile.ton_address || null,
-      status: 'pending',
+    const products = await repo.listProductsByCreator(req.params.id);
+    const published = products.filter(p => p.status === 'published');
+    res.json({
+      success: true,
+      data: {
+        id: user.id,
+        display_name: user.display_name,
+        avatar: user.avatar,
+        bio: user.bio,
+        created_at: user.created_at,
+        products_count: published.length,
+        products: published,
+      },
     });
-
-    await repo.insertAuditLog({
-      id: generateId(),
-      user_id: profile.id,
-      action: 'create',
-      resource: 'developer',
-      resource_id: newId,
-      result: 'success',
-      metadata: JSON.stringify({ name, email }),
-      ip_address: req.ip,
-      user_agent: req.get('user-agent') || '',
-    });
-
-    res.json({ success: true, data: developer });
   })
 );
 
-app.delete(
-  '/api/developers/:id',
-  requireAuth(),
-  asyncHandler(async (req, res) => {
-    const profile = await resolveProfile(req);
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
-      return res.status(403).json({ success: false, message: 'Admin access required' });
-    }
-
-    const developer = await repo.findDeveloperById(req.params.id);
-    if (!developer) {
-      return res.status(404).json({ success: false, message: 'Developer not found' });
-    }
-
-    await repo.deleteDeveloperById(req.params.id);
-
-    await repo.insertAuditLog({
-      id: generateId(),
-      user_id: profile.id,
-      action: 'delete',
-      resource: 'developer',
-      resource_id: req.params.id,
-      result: 'success',
-      metadata: JSON.stringify({ name: developer.name }),
-      ip_address: req.ip,
-      user_agent: req.get('user-agent') || '',
-    });
-
-    res.json({ success: true });
-  })
-);
+// ── Products ───────────────────────────────────────────────────────
 
 app.get(
   '/api/products',
@@ -331,6 +285,19 @@ app.get(
   })
 );
 
+app.get(
+  '/api/session/products',
+  requireAuth(),
+  asyncHandler(async (req, res) => {
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      return res.status(403).json({ success: false, message: 'Profile not found' });
+    }
+    const products = await repo.listProductsByCreator(profile.id);
+    res.json({ success: true, data: products });
+  })
+);
+
 app.post(
   '/api/products',
   requireAuth(),
@@ -341,34 +308,164 @@ app.post(
       return res.status(403).json({ success: false, message: 'Profile not found' });
     }
 
-    const { name, description, short_description, price_ton, category, image, developer_id } = req.body;
+    const { name, description, short_description, price_ton, category, image, version } = req.body;
     if (!name) {
       return res.status(400).json({ success: false, message: 'name is required' });
-    }
-
-    if (developer_id) {
-      const dev = await repo.findDeveloperById(developer_id);
-      if (!dev || dev.user_id !== profile.id) {
-        return res.status(403).json({ success: false, message: 'You can only create products for your own developer account' });
-      }
     }
 
     const newId = generateId();
     const product = await repo.insertProduct({
       id: newId,
-      developer_id: developer_id || null,
+      creator_id: profile.id,
       name,
       description: description || null,
       short_description: short_description || null,
       price_ton: price_ton || 0,
       category: category || 'other',
       image: image || null,
+      version: version || '1.0.0',
       status: 'draft',
+    });
+
+    await repo.insertAuditLog({
+      id: generateId(),
+      user_id: profile.id,
+      action: 'create',
+      resource: 'product',
+      resource_id: newId,
+      result: 'success',
+      metadata: JSON.stringify({ name }),
+      ip_address: req.ip,
+      user_agent: req.get('user-agent') || '',
     });
 
     res.json({ success: true, data: product });
   })
 );
+
+app.patch(
+  '/api/products/:id',
+  requireAuth(),
+  asyncHandler(async (req, res) => {
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      return res.status(403).json({ success: false, message: 'Profile not found' });
+    }
+
+    const product = await repo.findProductById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
+    const isOwner = product.creator_id === profile.id;
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only the creator or admin can edit this product' });
+    }
+
+    const allowedFields = ['name', 'description', 'short_description', 'price_ton', 'category', 'image', 'version'];
+    if (isAdmin) allowedFields.push('status');
+
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid fields to update' });
+    }
+
+    const updated = await repo.updateProduct(req.params.id, updates);
+    res.json({ success: true, data: updated });
+  })
+);
+
+// ── Purchases (Library) ────────────────────────────────────────────
+
+app.get(
+  '/api/session/library',
+  requireAuth(),
+  asyncHandler(async (req, res) => {
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      return res.status(403).json({ success: false, message: 'Profile not found' });
+    }
+    const purchases = await repo.listPurchasesByUser(profile.id);
+    const enriched = await Promise.all(
+      purchases.map(async (p) => {
+        const product = await repo.findProductById(p.product_id);
+        return { ...p, product: product || null };
+      })
+    );
+    res.json({ success: true, data: enriched });
+  })
+);
+
+app.get(
+  '/api/session/owns/:productId',
+  requireAuth(),
+  asyncHandler(async (req, res) => {
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      return res.json({ success: true, data: { owns: false } });
+    }
+    const purchase = await repo.findPurchase(profile.id, req.params.productId);
+    res.json({ success: true, data: { owns: !!purchase } });
+  })
+);
+
+app.post(
+  '/api/purchases',
+  requireAuth(),
+  strictLimiter,
+  asyncHandler(async (req, res) => {
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      return res.status(403).json({ success: false, message: 'Profile not found' });
+    }
+
+    const { product_id, tx_hash } = req.body;
+    if (!product_id) {
+      return res.status(400).json({ success: false, message: 'product_id is required' });
+    }
+
+    const product = await repo.findProductById(product_id);
+    if (!product || product.status !== 'published') {
+      return res.status(404).json({ success: false, message: 'Product not found or not published' });
+    }
+
+    const existingPurchase = await repo.findPurchase(profile.id, product_id);
+    if (existingPurchase) {
+      return res.status(409).json({ success: false, message: 'You already own this product' });
+    }
+
+    const purchase = await repo.insertPurchase({
+      id: generateId(),
+      user_id: profile.id,
+      product_id,
+      price_ton: product.price_ton,
+      tx_hash: tx_hash || null,
+    });
+
+    await repo.insertAuditLog({
+      id: generateId(),
+      user_id: profile.id,
+      action: 'purchase',
+      resource: 'product',
+      resource_id: product_id,
+      result: 'success',
+      metadata: JSON.stringify({ price_ton: product.price_ton, tx_hash }),
+      ip_address: req.ip,
+      user_agent: req.get('user-agent') || '',
+    });
+
+    res.json({ success: true, data: purchase });
+  })
+);
+
+// ── Audit ──────────────────────────────────────────────────────────
 
 app.post(
   '/api/audit-logs',
@@ -413,21 +510,21 @@ app.get(
   })
 );
 
+// ── Stats ──────────────────────────────────────────────────────────
+
 app.get(
   '/api/stats',
   requireAuth(),
   requireAdmin,
   asyncHandler(async (_req, res) => {
     const userCount = await repo.countUsers();
-    const developers = await repo.listDevelopers();
     const products = await repo.listAllProducts();
     const recentLogs = await repo.listAuditLogs(10);
 
     res.json({
       success: true,
       data: {
-        users: userCount,
-        developers: developers.length,
+        demiurges: userCount,
         products: products.length,
         publishedProducts: products.filter((p) => p.status === 'published').length,
         recentActivity: recentLogs.length,
@@ -435,6 +532,8 @@ app.get(
     });
   })
 );
+
+// ── Sub-routers ────────────────────────────────────────────────────
 
 const tonForgeRouter = require('./tonforge/router');
 app.use('/api/tonforge', tonForgeRouter);
@@ -445,6 +544,10 @@ if (commerceRoutes) {
 
 if (resendRoutes) {
   app.use('/api/admin/resend', resendRoutes);
+}
+
+if (r2Routes) {
+  app.use('/api/r2', r2Routes);
 }
 
 app.use((err, _req, res, _next) => {
@@ -471,8 +574,8 @@ async function start() {
   app.listen(PORT, () => {
     logger.info(`TON Web Store API running on port ${PORT}`);
     logger.info(`Health: http://localhost:${PORT}/api/health`);
-    logger.info('Auth: Clerk | Database: Appwrite');
-    logger.info('\u0F12 Mahakala Dharma Shield: ACTIVE');
+    logger.info('Auth: Clerk | Database: Appwrite | Model: Demiurge');
+    logShieldStatus();
   });
 }
 

@@ -254,12 +254,24 @@ router.patch('/listings/:id', async (req, res) => {
   }
 });
 
+const COMMERCE_ALLOWED_EXT = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg',
+  '.zip', '.pdf', '.mp4', '.webm',
+]);
+
 router.post('/listings/:id/asset', upload.single('file'), async (req, res) => {
   try {
     const listingId = req.params.id;
     const sellerWallet = req.body.sellerWallet;
     if (!sellerWallet || !req.file) {
       return res.status(400).json({ error: 'Нужны sellerWallet и файл', code: 'VALIDATION' });
+    }
+
+    const origName = (req.file.originalname || '').toLowerCase();
+    const dotIdx = origName.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? origName.slice(dotIdx) : '';
+    if (!COMMERCE_ALLOWED_EXT.has(ext)) {
+      return res.status(400).json({ error: `File type "${ext}" not allowed`, code: 'FILE_TYPE' });
     }
     const db = databases();
     const existing = await db.getDocument(DATABASE_ID, COL_LISTINGS, listingId);

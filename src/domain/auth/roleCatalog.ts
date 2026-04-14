@@ -1,4 +1,3 @@
-// Каталог ролей вынесен из AuthContext, чтобы маппить профили Appwrite без циклических импортов.
 import type { UserRole } from '../../types/auth';
 
 export const ROLES: Record<string, UserRole> = {
@@ -35,38 +34,17 @@ export const ROLES: Record<string, UserRole> = {
     requiresMFA: false,
     description: 'Content moderator ensuring marketplace harmony',
   },
-  developer: {
-    id: 'developer',
-    name: 'developer',
+  demiurge: {
+    id: 'demiurge',
+    name: 'demiurge',
     permissions: [
-      { resource: 'products', actions: ['create', 'read', 'update'], conditions: { owner: true } },
-      { resource: 'analytics', actions: ['read'], conditions: { owner: true } },
+      { resource: 'products', actions: ['create', 'read', 'update'] },
+      { resource: 'purchases', actions: ['create', 'read'] },
+      { resource: 'dashboard', actions: ['read'] },
     ],
     sessionDuration: 480,
     requiresMFA: false,
-    description: 'Sacred developer creating digital treasures',
-  },
-  support: {
-    id: 'support',
-    name: 'support',
-    permissions: [
-      { resource: 'users', actions: ['read'] },
-      { resource: 'tickets', actions: ['create', 'read', 'update'] },
-    ],
-    sessionDuration: 1440,
-    requiresMFA: false,
-    description: 'Compassionate support helping users',
-  },
-  analyst: {
-    id: 'analyst',
-    name: 'analyst',
-    permissions: [
-      { resource: 'analytics', actions: ['read'] },
-      { resource: 'reports', actions: ['create', 'read'] },
-    ],
-    sessionDuration: 480,
-    requiresMFA: false,
-    description: 'Data analyst seeking marketplace insights',
+    description: 'Creator and consumer of digital realms',
   },
   viewer: {
     id: 'viewer',
@@ -75,27 +53,5 @@ export const ROLES: Record<string, UserRole> = {
     sessionDuration: 240,
     requiresMFA: false,
     description: 'Observer with read-only access',
-  },
-  auditor: {
-    id: 'auditor',
-    name: 'auditor',
-    permissions: [
-      { resource: 'audit_logs', actions: ['read'] },
-      { resource: 'security_events', actions: ['read'] },
-    ],
-    sessionDuration: 120,
-    requiresMFA: true,
-    description: 'Security auditor monitoring system integrity',
-  },
-  user: {
-    id: 'user',
-    name: 'user',
-    permissions: [
-      { resource: 'dashboard', actions: ['read'] },
-      { resource: 'products', actions: ['read'] },
-    ],
-    sessionDuration: 480,
-    requiresMFA: false,
-    description: 'Standard marketplace user',
   },
 };

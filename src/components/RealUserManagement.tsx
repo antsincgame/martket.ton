@@ -1,165 +1,73 @@
-import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Shield, Edit, Trash2, Eye, Ban, CheckCircle, Search, Filter, Database, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Users, Shield, Eye, Search, Database, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { storeApiUrl } from '../lib/storeApi';
 
-interface SupabaseUser {
+interface DemiurgeProfile {
   id: string;
   name: string;
+  display_name: string;
   email: string;
-  description: string;
-  ton_address: string;
+  ton_address: string | null;
+  role: string;
+  bio: string | null;
+  is_active: boolean;
   created_at: string;
-  role?: string;
-  status?: 'active' | 'suspended' | 'pending';
-  last_login?: string;
-  risk_score?: number;
+  updated_at: string;
 }
 
 const RealUserManagement: React.FC = () => {
-  const { hasPermission, reportSecurityEvent, user: currentUser } = useAuth();
-  const [users, setUsers] = useState<SupabaseUser[]>([]);
+  const { hasPermission, getToken } = useAuth();
+  const [users, setUsers] = useState<DemiurgeProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUser, setSelectedUser] = useState<SupabaseUser | null>(null);
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [newUser, setNewUser] = useState({
-    name: '',
-    email: '',
-    description: '',
-    ton_address: '',
-    role: 'user'
-  });
+  const [selectedUser, setSelectedUser] = useState<DemiurgeProfile | null>(null);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(storeApiUrl('/api/developers'));
+      const token = await getToken();
+      const response = await fetch(storeApiUrl('/api/users'), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data: SupabaseUser[] = await response.json();
-
-      const usersWithStatus = data?.map(user => ({
-        ...user,
-        role: user.email?.includes('admin') ? 'admin' : 
-              user.email?.includes('mod') ? 'moderator' : 'developer',
-        status: Math.random() > 0.8 ? 'suspended' : 'active',
-        last_login: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-        risk_score: Math.floor(Math.random() * 30)
-      })) || [];
-
-      setUsers(usersWithStatus);
+      const body = await response.json();
+      setUsers(body.data || []);
     } catch (err) {
-      console.error('Error loading users:', err);
       setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [getToken]);
 
-  const createUser = async () => {
-    if (!newUser.name || !newUser.email || !newUser.ton_address) {
-      alert('Please fill all required fields');
-      return;
-    }
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
-    try {
-      const response = await fetch(storeApiUrl('/api/developers'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newUser.name,
-          email: newUser.email,
-          description: newUser.description,
-          ton_address: newUser.ton_address,
-        }),
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      reportSecurityEvent({
-        type: 'data_access',
-        severity: 'info',
-        ipAddress: 'client_ip',
-        userAgent: navigator.userAgent,
-        details: { 
-          action: 'create_user',
-          user_email: newUser.email,
-          creator: currentUser?.email
-        }
-      });
-
-      setNewUser({ name: '', email: '', description: '', ton_address: '', role: 'user' });
-      setShowUserModal(false);
-      loadUsers();
-    } catch (err) {
-      console.error('Error creating user:', err);
-      alert('Failed to create user: ' + (err as Error).message);
-    }
-  };
-
-  const deleteUser = async (userId: string) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-
-    try {
-      const response = await fetch(storeApiUrl(`/api/developers/${userId}`), {
-        method: 'DELETE',
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      reportSecurityEvent({
-        type: 'data_access',
-        severity: 'warning',
-        ipAddress: 'client_ip',
-        userAgent: navigator.userAgent,
-        details: { 
-          action: 'delete_user',
-          target_user_id: userId,
-          operator: currentUser?.email
-        }
-      });
-
-      loadUsers();
-    } catch (err) {
-      console.error('Error deleting user:', err);
-      alert('Failed to delete user: ' + (err as Error).message);
-    }
-  };
-
-  const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.ton_address.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = users.filter(user =>
+    (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.display_name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'admin': return 'text-red-400 bg-red-500/20';
-      case 'moderator': return 'text-yellow-400 bg-yellow-500/20';
-      case 'developer': return 'text-blue-400 bg-blue-500/20';
-      default: return 'text-gray-400 bg-gray-500/20';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'text-green-400 bg-green-500/20';
-      case 'suspended': return 'text-red-400 bg-red-500/20';
-      case 'pending': return 'text-yellow-400 bg-yellow-500/20';
-      default: return 'text-gray-400 bg-gray-500/20';
+      case 'super_admin':
+      case 'admin': return 'text-[#FF4444] bg-[#FF4444]/10';
+      case 'moderator': return 'text-[#FFD700] bg-[#FFD700]/10';
+      case 'demiurge': return 'text-[#00F5FF] bg-[#00F5FF]/10';
+      default: return 'text-[#999999] bg-white/5';
     }
   };
 
   if (!hasPermission('users', 'read')) {
     return (
-      <div className="text-center p-8 bg-red-500/10 rounded-lg">
-        <Shield className="w-12 h-12 mx-auto mb-4 text-red-400" />
-        <h3 className="text-xl font-bold text-red-400 mb-2">Access Denied</h3>
-        <p className="text-gray-400">You don't have permission to view user management.</p>
+      <div className="text-center p-8 rounded-xl border border-[#FF4444]/20 bg-[#FF4444]/5">
+        <Shield className="w-12 h-12 mx-auto mb-4 text-[#FF4444]" />
+        <h3 className="text-xl font-bold text-[#FF4444] mb-2">Access Denied</h3>
+        <p className="text-[#999999]">You don't have permission to view user management.</p>
       </div>
     );
   }
@@ -168,147 +76,112 @@ const RealUserManagement: React.FC = () => {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-white flex items-center">
-          <Database className="mr-3 text-blue-400" />
-          Real User Management 👥
+          <Database className="mr-3 text-[#00F5FF]" />
+          Demiurge Management
         </h2>
-        <div className="flex space-x-2">
-          <button 
-            onClick={loadUsers}
-            disabled={loading}
-            className="bg-blue-500/20 text-blue-300 px-4 py-2 rounded-lg hover:bg-blue-500/30 transition-colors flex items-center space-x-2"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
-          {hasPermission('users', 'create') && (
-            <button 
-              onClick={() => setShowUserModal(true)}
-              className="bg-green-500/20 text-green-300 px-4 py-2 rounded-lg hover:bg-green-500/30 transition-colors flex items-center space-x-2"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Add User</span>
-            </button>
-          )}
+        <button
+          onClick={loadUsers}
+          disabled={loading}
+          className="border border-[#00F5FF]/30 text-[#00F5FF] px-4 py-2 rounded-lg hover:bg-[#00F5FF]/10 transition-colors flex items-center space-x-2"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-[#666666]" />
+          <input
+            type="text"
+            placeholder="Search demiurges..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-[#666666] focus:border-[#FFD700]/50 focus:outline-none"
+          />
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="mb-6 flex flex-wrap gap-4">
-        <div className="flex-1 min-w-64">
-          <div className="relative">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400 focus:border-blue-500/50 focus:outline-none"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="rounded-lg border border-[#FFD700]/10 bg-[#0D0D1A] p-4">
           <div className="text-2xl font-bold text-white">{users.length}</div>
-          <div className="text-gray-400 text-sm">Total Users</div>
+          <div className="text-[#666666] text-sm">Total Demiurges</div>
         </div>
-        <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-          <div className="text-2xl font-bold text-green-400">{users.filter(u => u.status === 'active').length}</div>
-          <div className="text-gray-400 text-sm">Active</div>
+        <div className="rounded-lg border border-[#00FF88]/10 bg-[#0D0D1A] p-4">
+          <div className="text-2xl font-bold text-[#00FF88]">{users.filter(u => u.is_active).length}</div>
+          <div className="text-[#666666] text-sm">Active</div>
         </div>
-        <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-          <div className="text-2xl font-bold text-red-400">{users.filter(u => u.status === 'suspended').length}</div>
-          <div className="text-gray-400 text-sm">Suspended</div>
-        </div>
-        <div className="bg-white/5 border border-white/10 rounded-lg p-4">
-          <div className="text-2xl font-bold text-blue-400">{users.filter(u => u.role === 'admin').length}</div>
-          <div className="text-gray-400 text-sm">Admins</div>
+        <div className="rounded-lg border border-[#FF4444]/10 bg-[#0D0D1A] p-4">
+          <div className="text-2xl font-bold text-[#FF4444]">{users.filter(u => u.role === 'admin' || u.role === 'super_admin').length}</div>
+          <div className="text-[#666666] text-sm">Admins</div>
         </div>
       </div>
 
-      {/* Users Table */}
       {loading ? (
         <div className="text-center p-8">
-          <RefreshCw className="w-8 h-8 mx-auto animate-spin mb-4 text-blue-400" />
-          <p className="text-gray-400">Loading sacred users... ✨</p>
+          <RefreshCw className="w-8 h-8 mx-auto animate-spin mb-4 text-[#FFD700]" />
+          <p className="text-[#999999]">Loading demiurges...</p>
         </div>
       ) : error ? (
-        <div className="text-center p-8 bg-red-500/10 rounded-lg">
-          <Shield className="w-8 h-8 mx-auto mb-4 text-red-400" />
-          <p className="text-red-400 font-semibold">Error loading users</p>
-          <p className="text-gray-400 text-sm mb-4">{error}</p>
-          <button onClick={loadUsers} className="bg-blue-500/20 text-blue-300 px-4 py-2 rounded-lg hover:bg-blue-500/30 transition-colors">
+        <div className="text-center p-8 rounded-xl border border-[#FF4444]/20 bg-[#FF4444]/5">
+          <Shield className="w-8 h-8 mx-auto mb-4 text-[#FF4444]" />
+          <p className="text-[#FF4444] font-semibold">Error loading demiurges</p>
+          <p className="text-[#999999] text-sm mb-4">{error}</p>
+          <button onClick={loadUsers} className="border border-[#00F5FF]/30 text-[#00F5FF] px-4 py-2 rounded-lg hover:bg-[#00F5FF]/10 transition-colors">
             Retry
           </button>
         </div>
       ) : (
-        <div className="bg-white/5 rounded-lg border border-white/10 overflow-hidden">
+        <div className="rounded-xl border border-[#FFD700]/10 bg-[#0D0D1A] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead className="bg-white/5">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">User</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Role</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">TON Address</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Risk</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#666666] uppercase tracking-wider">Demiurge</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#666666] uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#666666] uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#666666] uppercase tracking-wider">Wallet</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-[#666666] uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody className="divide-y divide-white/5">
                 {filteredUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-white/5">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="font-medium text-white">{user.name}</div>
-                        <div className="text-sm text-gray-400">{user.email}</div>
-                        <div className="text-xs text-gray-500">{new Date(user.created_at).toLocaleDateString()}</div>
+                        <div className="font-medium text-white">{user.display_name || user.name}</div>
+                        <div className="text-sm text-[#666666]">{user.email}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${getRoleColor(user.role || 'user')}`}>
-                        {user.role?.toUpperCase()}
+                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${getRoleColor(user.role || 'demiurge')}`}>
+                        {(user.role || 'demiurge').toUpperCase()}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${getStatusColor(user.status || 'active')}`}>
-                        {user.status?.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-mono text-sm text-blue-400">
-                        {user.ton_address.slice(0, 8)}...{user.ton_address.slice(-8)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm font-medium ${
-                        (user.risk_score || 0) >= 20 ? 'text-red-400' :
-                        (user.risk_score || 0) >= 10 ? 'text-yellow-400' : 'text-green-400'
+                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${
+                        user.is_active ? 'text-[#00FF88] bg-[#00FF88]/10' : 'text-[#FF4444] bg-[#FF4444]/10'
                       }`}>
-                        {user.risk_score || 0}%
-                      </div>
+                        {user.is_active ? 'ACTIVE' : 'INACTIVE'}
+                      </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => setSelectedUser(user)}
-                          className="text-blue-400 hover:text-blue-300"
-                          title="View Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        {hasPermission('users', 'delete') && (
-                          <button
-                            onClick={() => deleteUser(user.id)}
-                            className="text-red-400 hover:text-red-300"
-                            title="Delete User"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {user.ton_address ? (
+                        <div className="font-mono text-sm text-[#00F5FF]">
+                          {user.ton_address.slice(0, 6)}...{user.ton_address.slice(-4)}
+                        </div>
+                      ) : (
+                        <span className="text-[#666666] text-sm">Not linked</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => setSelectedUser(user)}
+                        className="text-[#00F5FF] hover:text-white transition-colors"
+                        title="View Details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -318,90 +191,30 @@ const RealUserManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Create User Modal */}
-      {showUserModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 max-w-md w-full">
-            <h3 className="text-xl font-bold text-white mb-4">Create New User</h3>
-            <div className="space-y-4">
-              <input
-                type="text"
-                placeholder="Full Name"
-                value={newUser.name}
-                onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400"
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={newUser.email}
-                onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400"
-              />
-              <input
-                type="text"
-                placeholder="TON Address"
-                value={newUser.ton_address}
-                onChange={(e) => setNewUser({...newUser, ton_address: e.target.value})}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400"
-              />
-              <textarea
-                placeholder="Description"
-                value={newUser.description}
-                onChange={(e) => setNewUser({...newUser, description: e.target.value})}
-                className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-400"
-                rows={3}
-              />
-            </div>
-            <div className="flex space-x-4 mt-6">
-              <button
-                onClick={createUser}
-                className="flex-1 bg-green-500/20 text-green-300 py-2 rounded-lg hover:bg-green-500/30 transition-colors"
-              >
-                Create
-              </button>
-              <button
-                onClick={() => setShowUserModal(false)}
-                className="flex-1 bg-gray-500/20 text-gray-300 py-2 rounded-lg hover:bg-gray-500/30 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* User Details Modal */}
       {selectedUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 max-w-lg w-full">
-            <h3 className="text-xl font-bold text-white mb-4">User Details</h3>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="rounded-2xl border border-[#FFD700]/20 bg-[#1A1A1A] p-6 max-w-lg w-full shadow-[0_0_40px_rgba(255,215,0,0.08)]">
+            <h3 className="text-xl font-bold uppercase tracking-widest text-white mb-4">Demiurge Details</h3>
             <div className="space-y-3">
-              <div><span className="text-gray-400">Name:</span> <span className="text-white">{selectedUser.name}</span></div>
-              <div><span className="text-gray-400">Email:</span> <span className="text-white">{selectedUser.email}</span></div>
-              <div><span className="text-gray-400">Description:</span> <span className="text-white">{selectedUser.description}</span></div>
-              <div><span className="text-gray-400">TON Address:</span> <span className="text-blue-400 font-mono">{selectedUser.ton_address}</span></div>
-              <div><span className="text-gray-400">Created:</span> <span className="text-white">{new Date(selectedUser.created_at).toLocaleString()}</span></div>
-              <div><span className="text-gray-400">Role:</span> <span className={getRoleColor(selectedUser.role || 'user')}>{selectedUser.role}</span></div>
-              <div><span className="text-gray-400">Status:</span> <span className={getStatusColor(selectedUser.status || 'active')}>{selectedUser.status}</span></div>
+              <div><span className="text-[#666666]">Name:</span> <span className="text-white ml-2">{selectedUser.display_name || selectedUser.name}</span></div>
+              <div><span className="text-[#666666]">Email:</span> <span className="text-white ml-2">{selectedUser.email}</span></div>
+              <div><span className="text-[#666666]">Bio:</span> <span className="text-white ml-2">{selectedUser.bio || 'N/A'}</span></div>
+              <div><span className="text-[#666666]">TON Address:</span> <span className="text-[#00F5FF] font-mono ml-2">{selectedUser.ton_address || 'Not linked'}</span></div>
+              <div><span className="text-[#666666]">Created:</span> <span className="text-white ml-2">{new Date(selectedUser.created_at).toLocaleString()}</span></div>
+              <div><span className="text-[#666666]">Role:</span> <span className={`ml-2 ${getRoleColor(selectedUser.role || 'demiurge')}`}>{selectedUser.role}</span></div>
+              <div><span className="text-[#666666]">Status:</span> <span className={`ml-2 ${selectedUser.is_active ? 'text-[#00FF88]' : 'text-[#FF4444]'}`}>{selectedUser.is_active ? 'Active' : 'Inactive'}</span></div>
             </div>
             <button
               onClick={() => setSelectedUser(null)}
-              className="w-full mt-6 bg-blue-500/20 text-blue-300 py-2 rounded-lg hover:bg-blue-500/30 transition-colors"
+              className="w-full mt-6 border border-[#FFD700]/50 bg-transparent py-2 rounded-lg text-[#FFD700] font-semibold uppercase tracking-widest text-sm hover:bg-[#FFD700]/10 transition-all"
             >
               Close
             </button>
           </div>
         </div>
       )}
-
-      <div className="mt-6 text-center">
-        <p className="text-gray-400 text-sm">
-          🌟 Real-time user management connected to Supabase database
-        </p>
-      </div>
     </div>
   );
 };
 
-export default RealUserManagement; 
+export default RealUserManagement;

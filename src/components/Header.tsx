@@ -55,9 +55,6 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
           <Link to="/category/ai" className="text-gray-300 hover:text-white transition-colors">
             AI Services
           </Link>
-          <Link to="/developer" className="text-gray-300 hover:text-white transition-colors">
-            Developer Store
-          </Link>
         </nav>
 
         {/* Search Bar */}
@@ -151,16 +148,6 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             </Link>
             <Link to="/category/ai" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
               AI Services
-            </Link>
-            <Link to="/developer" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              Developer Store
-            </Link>
-            <Link
-              to="/developer/register"
-              className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 transform hover:scale-105 mt-2 text-center"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              Become Developer
             </Link>
             {isAuthenticated && (
               <Link to="/profile" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>

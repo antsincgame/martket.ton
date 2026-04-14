@@ -1,4 +1,3 @@
-// Маппинг строки профиля из Appwrite (API) в AuthenticatedUser для AuthContext.
 import type { AuthenticatedUser } from '../types/auth';
 import { ROLES } from '../domain/auth/roleCatalog';
 
@@ -7,6 +6,7 @@ export interface ProfileRow {
   email?: string | null;
   ton_address?: string | null;
   name?: string | null;
+  display_name?: string | null;
   role?: string | null;
   avatar?: string | null;
   bio?: string | null;
@@ -15,8 +15,8 @@ export interface ProfileRow {
 }
 
 export function profileRowToAuthenticatedUser(row: ProfileRow): AuthenticatedUser {
-  const roleKey = row.role || 'viewer';
-  const primaryRole = ROLES[roleKey] ?? ROLES.viewer;
+  const roleKey = row.role || 'demiurge';
+  const primaryRole = ROLES[roleKey] ?? ROLES.demiurge;
   const sec = (row.security_level || 'low') as AuthenticatedUser['securityLevel'];
 
   return {
@@ -37,7 +37,7 @@ export function profileRowToAuthenticatedUser(row: ProfileRow): AuthenticatedUse
     requiresMFA: primaryRole.requiresMFA,
     description: primaryRole.description,
     profile: {
-      displayName: row.name ?? 'User',
+      displayName: row.display_name || row.name || 'Demiurge',
       bio: row.bio ?? undefined,
       avatar: row.avatar ?? undefined,
     },

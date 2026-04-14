@@ -2,9 +2,10 @@
 
 const express = require('express');
 const { Resend } = require('resend');
-const { requireAuth, getAuth } = require('@clerk/express');
+const { requireAuth } = require('@clerk/express');
 const { logger } = require('../logger');
 const repo = require('../core/repository');
+const { requireAdmin: requireAdminRole } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -12,17 +13,6 @@ function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return null;
   return new Resend(apiKey);
-}
-
-async function requireAdminRole(req, res, next) {
-  const auth = getAuth(req);
-  if (!auth?.userId) return res.sendStatus(401);
-  const profile = await repo.findUserByClerkId(auth.userId);
-  if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
-    return res.status(403).json({ success: false, message: 'Admin access required' });
-  }
-  req.profile = profile;
-  next();
 }
 
 const TEMPLATES_STORE = new Map([

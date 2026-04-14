@@ -42,15 +42,16 @@ module.exports = async function clerkWebhookHandler(req, res) {
         const name =
           [data.first_name, data.last_name].filter(Boolean).join(' ') ||
           data.username ||
-          'User';
+          'Demiurge';
         await repo.upsertProfileForClerkUser(data.id, {
           email,
           name,
+          display_name: name,
           avatar: data.image_url || null,
-          role: 'user',
+          role: 'demiurge',
           is_active: true,
         });
-        logger.info(`Profile created for Clerk user ${data.id}`);
+        logger.info(`Demiurge profile created for Clerk user ${data.id}`);
         break;
       }
 
@@ -59,13 +60,14 @@ module.exports = async function clerkWebhookHandler(req, res) {
         const name =
           [data.first_name, data.last_name].filter(Boolean).join(' ') ||
           data.username ||
-          'User';
+          'Demiurge';
         await repo.upsertProfileForClerkUser(data.id, {
           email,
           name,
+          display_name: name,
           avatar: data.image_url || null,
         });
-        logger.info(`Profile updated for Clerk user ${data.id}`);
+        logger.info(`Demiurge profile updated for Clerk user ${data.id}`);
         break;
       }
 

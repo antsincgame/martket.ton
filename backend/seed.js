@@ -1,4 +1,3 @@
-// Сид демо-данных в Appwrite (core) вместо SQLite.
 require('dotenv').config();
 const { logger } = require('./logger');
 const { isCoreConfigured } = require('./core/appwriteServer');
@@ -17,91 +16,67 @@ async function seed() {
     return;
   }
 
-  logger.info('Seeding Appwrite core...');
+  logger.info('Seeding Appwrite core (Demiurge model)...');
 
   const adminId = generateId();
-  const dev1Id = generateId();
-  const dev2Id = generateId();
-  const user1Id = generateId();
+  const demiurge1Id = generateId();
+  const demiurge2Id = generateId();
+  const demiurge3Id = generateId();
 
   await repo.insertUser({
     id: adminId,
     email: 'admin@tonstore.io',
     ton_address: 'EQCD39VS5jcptHL8vMjEXrzGaRcCVYto7HUn4bpAOg8xqB2N',
     name: 'Admin',
+    display_name: 'Platform Admin',
     role: 'admin',
-    avatar: null,
     bio: 'Platform administrator',
     security_level: 'high',
     is_active: true,
   });
 
   await repo.insertUser({
-    id: dev1Id,
+    id: demiurge1Id,
     email: 'zen@tonstore.io',
     ton_address: 'EQBvW8Z5huBkMJYdnfAEM5JqTNkuFX17_AND_EXAMPLE_1',
     name: 'ZenCoder',
-    role: 'developer',
-    avatar: null,
-    bio: 'Meditation app developer',
+    display_name: 'ZenCoder',
+    role: 'demiurge',
+    bio: 'Meditation app creator & mindfulness enthusiast',
     security_level: 'medium',
     is_active: true,
   });
 
   await repo.insertUser({
-    id: dev2Id,
+    id: demiurge2Id,
     email: 'trade@tonstore.io',
     ton_address: 'EQBvW8Z5huBkMJYdnfAEM5JqTNkuFX17_AND_EXAMPLE_2',
     name: 'TradeMaster',
-    role: 'developer',
-    avatar: null,
-    bio: 'Crypto trading tools',
+    display_name: 'TradeMaster',
+    role: 'demiurge',
+    bio: 'Crypto trading tools creator',
     security_level: 'medium',
     is_active: true,
   });
 
   await repo.insertUser({
-    id: user1Id,
+    id: demiurge3Id,
     email: 'user@tonstore.io',
     ton_address: 'EQBvW8Z5huBkMJYdnfAEM5JqTNkuFX17_AND_EXAMPLE_3',
-    name: 'TestUser',
-    role: 'user',
-    avatar: null,
-    bio: null,
+    name: 'Explorer',
+    display_name: 'Explorer',
+    role: 'demiurge',
+    bio: 'Digital realm explorer',
     security_level: 'low',
     is_active: true,
-  });
-
-  const devReg1Id = generateId();
-  const devReg2Id = generateId();
-
-  await repo.insertDeveloper({
-    id: devReg1Id,
-    user_id: dev1Id,
-    name: 'ZenCoder',
-    email: 'zen@tonstore.io',
-    description: 'Building mindfulness and wellness apps for the TON ecosystem',
-    ton_address: 'EQBvW8Z5huBkMJYdnfAEM5JqTNkuFX17_AND_EXAMPLE_1',
-    status: 'approved',
-  });
-
-  await repo.insertDeveloper({
-    id: devReg2Id,
-    user_id: dev2Id,
-    name: 'TradeMaster',
-    email: 'trade@tonstore.io',
-    description: 'Automated trading tools for TON DeFi',
-    ton_address: 'EQBvW8Z5huBkMJYdnfAEM5JqTNkuFX17_AND_EXAMPLE_2',
-    status: 'approved',
   });
 
   const products = [
     {
       id: generateId(),
-      developer_id: devReg1Id,
+      creator_id: demiurge1Id,
       name: 'Sacred Meditation App',
-      description:
-        'A comprehensive meditation app with guided sessions, breathing exercises, and progress tracking. Built natively for the TON ecosystem.',
+      description: 'A comprehensive meditation app with guided sessions, breathing exercises, and progress tracking. Built natively for the TON ecosystem.',
       short_description: 'Find inner peace with guided meditation',
       price_ton: 10,
       category: 'wellness',
@@ -113,10 +88,9 @@ async function seed() {
     },
     {
       id: generateId(),
-      developer_id: devReg2Id,
+      creator_id: demiurge2Id,
       name: 'Crypto Trading Bot',
-      description:
-        'Automated trading bot for TON DeFi protocols. Supports limit orders, stop-loss, and portfolio rebalancing with real-time analytics.',
+      description: 'Automated trading bot for TON DeFi protocols. Supports limit orders, stop-loss, and portfolio rebalancing with real-time analytics.',
       short_description: 'Automated trading for TON ecosystem',
       price_ton: 25,
       category: 'finance',
@@ -128,10 +102,9 @@ async function seed() {
     },
     {
       id: generateId(),
-      developer_id: devReg1Id,
+      creator_id: demiurge1Id,
       name: 'TON Wallet Tracker',
-      description:
-        'Track your TON wallet portfolio, NFTs, and DeFi positions in one place. Push notifications for significant changes.',
+      description: 'Track your TON wallet portfolio, NFTs, and DeFi positions in one place. Push notifications for significant changes.',
       short_description: 'Track your TON portfolio in real-time',
       price_ton: 5,
       category: 'finance',
@@ -143,10 +116,9 @@ async function seed() {
     },
     {
       id: generateId(),
-      developer_id: devReg2Id,
+      creator_id: demiurge2Id,
       name: 'NFT Gallery Creator',
-      description:
-        'Create beautiful 3D galleries for your NFT collection. Share with friends or embed on your website.',
+      description: 'Create beautiful 3D galleries for your NFT collection. Share with friends or embed on your website.',
       short_description: 'Showcase your NFTs in 3D galleries',
       price_ton: 15,
       category: 'creative',
@@ -158,10 +130,9 @@ async function seed() {
     },
     {
       id: generateId(),
-      developer_id: devReg1Id,
+      creator_id: demiurge1Id,
       name: 'Decentralized Messenger',
-      description:
-        'End-to-end encrypted messaging built on TON blockchain. No central servers, no data collection, full privacy.',
+      description: 'End-to-end encrypted messaging built on TON blockchain. No central servers, no data collection, full privacy.',
       short_description: 'Private messaging on TON blockchain',
       price_ton: 0,
       category: 'social',
@@ -173,10 +144,9 @@ async function seed() {
     },
     {
       id: generateId(),
-      developer_id: devReg2Id,
+      creator_id: demiurge2Id,
       name: 'Smart Contract IDE',
-      description:
-        'Full-featured IDE for writing, testing, and deploying FunC and Tact smart contracts. Includes debugger and gas estimator.',
+      description: 'Full-featured IDE for writing, testing, and deploying FunC and Tact smart contracts. Includes debugger and gas estimator.',
       short_description: 'Build smart contracts for TON',
       price_ton: 30,
       category: 'developer-tools',
@@ -199,13 +169,13 @@ async function seed() {
     resource: 'database',
     resource_id: null,
     result: 'success',
-    metadata: JSON.stringify({ message: 'Initial Appwrite core seed' }),
+    metadata: JSON.stringify({ message: 'Initial Appwrite core seed (Demiurge model)' }),
     ip_address: '127.0.0.1',
     user_agent: 'seed-script',
   });
 
   const finalCount = await repo.countUsers();
-  logger.info(`Seed complete: ${finalCount} users, products and developers created`);
+  logger.info(`Seed complete: ${finalCount} demiurges, ${products.length} products created`);
 }
 
 seed().catch((err) => {

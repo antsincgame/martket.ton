@@ -8,6 +8,10 @@ RUN npm ci --omit=dev
 
 COPY . .
 
+RUN chown -R node:node /app
+
+USER node
+
 ENV NODE_ENV=production
 ENV PORT=8081
 

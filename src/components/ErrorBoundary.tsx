@@ -22,7 +22,9 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('🚨 Sacred Error Caught by Mahakala Guardian:', error, errorInfo);
+    if (import.meta.env.DEV) {
+      console.error('Mahakala Guardian caught error:', error, errorInfo);
+    }
     this.setState({ error, errorInfo });
   }
 
@@ -53,10 +55,9 @@ class ErrorBoundary extends Component<Props, State> {
               Your sacred journey was temporarily interrupted, but fear not - enlightenment awaits!
             </p>
 
-            {/* Error Details (always shown in production for debugging) */}
-            {this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <div className="bg-black/20 rounded-xl p-4 mb-6 text-left">
-                <div className="text-red-400 font-semibold text-sm mb-2">Error Details:</div>
+                <div className="text-red-400 font-semibold text-sm mb-2">Error Details (dev only):</div>
                 <div className="text-gray-300 text-xs font-mono overflow-auto max-h-32">
                   {this.state.error.message}
                 </div>

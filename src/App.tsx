@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy } from 'react';
+import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { AuthProvider } from './contexts/AuthContext';
@@ -6,8 +6,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LoadingScreen from './components/LoadingScreen';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import SecretAdminAccess from './components/SecretAdminAccess';
-import SecretTrigger from './components/SecretTrigger';
 import ErrorBoundary from './components/ErrorBoundary';
 import TonConnectWrapper from './components/TonConnectWrapper';
 import { CLERK_CONFIGURED, ClerkSignIn, ClerkSignUp, AuthModalProvider } from './lib/clerkSafe';
@@ -15,8 +13,6 @@ import { CLERK_CONFIGURED, ClerkSignIn, ClerkSignUp, AuthModalProvider } from '.
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ProductPage = lazy(() => import('./pages/ProductPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const DeveloperDashboard = lazy(() => import('./pages/DeveloperDashboard'));
-const DeveloperRegister = lazy(() => import('./pages/DeveloperRegister'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const SellerCommercePage = lazy(() => import('./pages/SellerCommercePage'));
@@ -69,8 +65,6 @@ const MaybeClerk: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 function App() {
-  const [isSecretVisible, setIsSecretVisible] = useState(false);
-
   return (
     <ErrorBoundary>
       <MaybeClerk>
@@ -88,8 +82,6 @@ function App() {
                     <Route path="/sign-in/*" element={<ClerkSignIn routing="path" path="/sign-in" afterSignInUrl="/profile" />} />
                     <Route path="/sign-up/*" element={<ClerkSignUp routing="path" path="/sign-up" afterSignUpUrl="/profile" />} />
                     <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-                    <Route path="/developer" element={<DeveloperDashboard />} />
-                    <Route path="/developer/register" element={<ProtectedRoute><DeveloperRegister /></ProtectedRoute>} />
                     <Route path="/seller/commerce" element={<TonConnectWrapper><SellerCommercePage /></TonConnectWrapper>} />
                     <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
                     <Route path="/admin-dashboard" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
@@ -97,8 +89,6 @@ function App() {
                 </Suspense>
               </main>
               <Footer />
-              <SecretTrigger onActivate={() => setIsSecretVisible(true)} />
-              <SecretAdminAccess isVisible={isSecretVisible} onClose={() => setIsSecretVisible(false)} />
             </div>
           </Router>
         </AuthModalProvider>
