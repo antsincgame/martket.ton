@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { TrendingUp, Star, Sparkles, Heart } from 'lucide-react';
+import { TrendingUp, Star, Sparkles, Heart, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import SteamProductRow from './SteamProductRow';
@@ -7,6 +7,8 @@ import CategorySidebar from './CategorySidebar';
 import ProductPreview from './ProductPreview';
 import { filterProductsForCategorySlug } from '../domain/marketplace/catalog';
 import type { CatalogListingProduct, HomeCategorySummary, HomeCategorySlug } from '../domain/marketplace/types';
+
+const PAGE_SIZE = 10;
 
 type SortTab = 'trending' | 'top-rated' | 'newest' | 'most-blessed';
 
@@ -46,6 +48,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   const [activeTab, setActiveTab] = useState<SortTab>('trending');
   const [activeCategory, setActiveCategory] = useState<HomeCategorySlug | 'all'>('all');
   const [hoveredProduct, setHoveredProduct] = useState<CatalogListingProduct | null>(null);
+  const [page, setPage] = useState(0);
 
   const filtered = useMemo(() => {
     if (activeCategory === 'all') return products;
@@ -54,9 +57,25 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
 
   const sorted = useMemo(() => sortProducts(filtered, activeTab), [filtered, activeTab]);
 
-  const previewProduct = hoveredProduct ?? sorted[0] ?? null;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageProducts = sorted.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
+  const previewProduct = hoveredProduct ?? pageProducts[0] ?? null;
 
   const handleHover = useCallback((p: CatalogListingProduct) => setHoveredProduct(p), []);
+
+  const handleTabChange = useCallback((tab: SortTab) => {
+    setActiveTab(tab);
+    setPage(0);
+    setHoveredProduct(null);
+  }, []);
+
+  const handleCategoryChange = useCallback((slug: HomeCategorySlug | 'all') => {
+    setActiveCategory(slug);
+    setPage(0);
+    setHoveredProduct(null);
+  }, []);
 
   return (
     <section className="py-8">
@@ -71,7 +90,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
                     isActive
                       ? 'bg-blue-500/15 text-blue-300 shadow-[0_0_8px_rgba(59,130,246,0.2)]'
@@ -89,15 +108,15 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
           <div className="bg-white/[0.03] border border-white/10 rounded-xl p-2">
             <AnimatePresence mode="wait">
               <motion.div
-                key={`${activeTab}-${activeCategory}`}
+                key={`${activeTab}-${activeCategory}-${safePage}`}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.18 }}
                 className="space-y-0.5"
               >
-                {sorted.length > 0 ? (
-                  sorted.map((product) => (
+                {pageProducts.length > 0 ? (
+                  pageProducts.map((product) => (
                     <SteamProductRow
                       key={product.id}
                       product={product}
@@ -113,6 +132,45 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
               </motion.div>
             </AnimatePresence>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-3 px-1">
+              <button
+                disabled={safePage === 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Prev
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPage(i)}
+                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-all duration-150 ${
+                      i === safePage
+                        ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                disabled={safePage >= totalPages - 1}
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10"
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right column: categories + preview */}
@@ -120,7 +178,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
           <CategorySidebar
             categories={categories}
             active={activeCategory}
-            onChange={setActiveCategory}
+            onChange={handleCategoryChange}
           />
           <div className="hidden lg:block">
             <ProductPreview product={previewProduct} />
