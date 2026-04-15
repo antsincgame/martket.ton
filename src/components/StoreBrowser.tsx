@@ -203,7 +203,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             onMouseMove={handleMouseMove}
           >
             {/* Column headers */}
-            <div className={`hidden sm:grid ${ROW_GRID} items-center gap-x-2 px-3 py-1.5 border-b border-[#FFD700]/10`}>
+            <div className={`hidden sm:grid ${ROW_GRID} items-center gap-x-3 px-3 py-1.5 border-b border-[#FFD700]/10`}>
               {HEADER_LABELS.map((label, i) => (
                 <span
                   key={i}
