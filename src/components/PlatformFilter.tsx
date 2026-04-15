@@ -2,12 +2,12 @@ import React from 'react';
 import { Monitor } from 'lucide-react';
 
 const PLATFORMS = [
-  { id: 'Windows', label: 'Windows', color: '#4A9EAA' },
-  { id: 'macOS', label: 'macOS', color: '#8B5A8B' },
-  { id: 'Linux', label: 'Linux', color: '#4A8B5A' },
-  { id: 'iOS', label: 'iOS', color: '#6B5A8B' },
-  { id: 'Android', label: 'Android', color: '#4A8B5A' },
-  { id: 'Web', label: 'Web', color: '#8B7A3A' },
+  { id: 'Windows', label: 'Windows', color: '#00F5FF' },
+  { id: 'macOS', label: 'macOS', color: '#FF00FF' },
+  { id: 'Linux', label: 'Linux', color: '#00FF88' },
+  { id: 'iOS', label: 'iOS', color: '#8B5CF6' },
+  { id: 'Android', label: 'Android', color: '#00FF88' },
+  { id: 'Web', label: 'Web', color: '#FFD700' },
 ];
 
 interface PlatformFilterProps {
@@ -29,8 +29,8 @@ const PlatformFilter: React.FC<PlatformFilterProps> = ({ selected, onChange }) =
   const clearAll = () => onChange(new Set());
 
   return (
-    <div className="bg-[#111]/80 border border-white/5 rounded-xl p-3">
-      <h3 className="text-[0.65rem] font-semibold uppercase tracking-widest text-gray-500 mb-2 px-2">
+    <div className="bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-xl p-3">
+      <h3 className="text-xs font-semibold uppercase tracking-widest text-[#FFD700]/50 mb-2 px-2">
         Platforms
       </h3>
 
@@ -38,15 +38,15 @@ const PlatformFilter: React.FC<PlatformFilterProps> = ({ selected, onChange }) =
         onClick={clearAll}
         className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-r-lg text-sm transition-all duration-200 ${
           selected.size === 0
-            ? 'border-l-2 border-gray-500 bg-white/[0.04] text-gray-300'
-            : 'border-l-2 border-transparent text-gray-500 hover:bg-white/[0.03] hover:text-gray-300'
+            ? 'border-l-2 border-[#FFD700] bg-[#FFD700]/10 text-[#FFD700]'
+            : 'border-l-2 border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200'
         }`}
       >
         <Monitor className="w-4 h-4 flex-shrink-0" />
         <span className="truncate">All Platforms</span>
       </button>
 
-      <div className="h-px bg-white/5 my-1.5" />
+      <div className="h-px bg-[#FFD700]/5 my-1.5" />
 
       <div className="space-y-0.5">
         {PLATFORMS.map((p) => {
@@ -57,18 +57,21 @@ const PlatformFilter: React.FC<PlatformFilterProps> = ({ selected, onChange }) =
               onClick={() => toggle(p.id)}
               className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-r-lg text-sm transition-all duration-200 ${
                 isActive
-                  ? 'border-l-2 bg-white/[0.04]'
-                  : 'border-l-2 border-transparent text-gray-500 hover:bg-white/[0.03] hover:text-gray-400'
+                  ? 'border-l-2 bg-white/5'
+                  : 'border-l-2 border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200'
               }`}
               style={isActive ? { borderColor: p.color, color: p.color } : undefined}
             >
               <span
                 className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: p.color, opacity: isActive ? 1 : 0.4 }}
+                style={{
+                  backgroundColor: p.color,
+                  boxShadow: isActive ? `0 0 8px ${p.color}80` : 'none',
+                }}
               />
               <span className="truncate flex-1 text-left">{p.label}</span>
               {isActive && (
-                <span className="text-[0.55rem] opacity-40">ON</span>
+                <span className="text-[0.6rem] opacity-60">ON</span>
               )}
             </button>
           );
