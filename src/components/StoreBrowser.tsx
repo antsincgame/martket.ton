@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import SteamProductRow, { ROW_GRID } from './SteamProductRow';
 import CategorySidebar from './CategorySidebar';
 import PlatformFilter from './PlatformFilter';
+import TagCloud from './TagCloud';
 import CategoryFilterChips from './CategoryFilterChips';
 import ProductPreview from './ProductPreview';
 import { filterProductsForCategorySlug } from '../domain/marketplace/catalog';
@@ -55,7 +56,7 @@ function matchesSearch(product: CatalogListingProduct, q: string): boolean {
   return false;
 }
 
-const HEADER_LABELS = ['', 'Name', 'Developer', 'Platform', 'Tags', 'Downloads', 'Rating', 'Price'];
+const HEADER_LABELS = ['', 'Name', 'Developer', 'Platform', 'Downloads', 'Rating', 'Price'];
 
 interface StoreBrowserProps {
   products: CatalogListingProduct[];
@@ -66,6 +67,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   const [activeTab, setActiveTab] = useState<SortTab>('top-rated');
   const [activeCategory, setActiveCategory] = useState<HomeCategorySlug | 'all'>('all');
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [hoveredProduct, setHoveredProduct] = useState<CatalogListingProduct | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [page, setPage] = useState(0);
@@ -86,11 +88,16 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
         [...selectedPlatforms].every((plat) => p.platforms?.includes(plat))
       );
     }
+    if (selectedTags.size > 0) {
+      list = list.filter((p) =>
+        [...selectedTags].every((t) => p.tags?.includes(t))
+      );
+    }
     if (searchQuery.trim()) {
       list = list.filter((p) => matchesSearch(p, searchQuery.trim()));
     }
     return list;
-  }, [products, activeCategory, selectedPlatforms, searchQuery]);
+  }, [products, activeCategory, selectedPlatforms, selectedTags, searchQuery]);
 
   const sorted = useMemo(() => sortByTab(filtered, activeTab), [filtered, activeTab]);
 
@@ -140,6 +147,12 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
     setHoveredProduct(null);
   }, []);
 
+  const handleTagChange = useCallback((tags: Set<string>) => {
+    setSelectedTags(tags);
+    setPage(0);
+    setHoveredProduct(null);
+  }, []);
+
   return (
     <section className="py-8">
       <div className="lg:hidden mb-4">
@@ -153,7 +166,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1 min-w-0">
           {/* Tab bar */}
-          <div className="flex items-center gap-1 mb-3 bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-xl p-1">
+          <div className="flex items-center gap-1 mb-3 bg-[#111]/80 border border-white/5 rounded-xl p-1">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -163,8 +176,8 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                   onClick={() => handleTabChange(tab.id)}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                     isActive
-                      ? 'bg-[#FFD700]/10 text-[#FFD700] shadow-[0_0_12px_rgba(255,215,0,0.12)] border border-[#FFD700]/20'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent'
+                      ? 'bg-white/[0.06] text-gray-200 border border-white/10'
+                      : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03] border border-transparent'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -187,17 +200,17 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
                 placeholder="Search by name, developer, or tag..."
-                className="w-full pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#FFD700]/25 focus:bg-white/[0.07] transition-all duration-200"
+                className="w-full pl-8 pr-4 py-2 bg-white/[0.03] border border-white/5 rounded-lg text-sm text-gray-300 placeholder-gray-600 focus:outline-none focus:border-white/15 focus:bg-white/[0.05] transition-all duration-200"
               />
             </div>
 
             {/* Column headers */}
-            <div className={`hidden sm:grid ${ROW_GRID} items-center gap-x-2 px-3 py-1.5 border-b border-[#FFD700]/10`}>
+            <div className={`hidden sm:grid ${ROW_GRID} items-center gap-x-2 px-3 py-1.5 border-b border-white/5`}>
               {HEADER_LABELS.map((label, i) => (
                 <span
                   key={i}
-                  className={`text-[9px] uppercase tracking-widest font-semibold text-[#FFD700]/40 ${
-                    i === 5 || i === 7 ? 'text-right' : i === 3 || i === 6 ? 'text-center' : ''
+                  className={`text-[9px] uppercase tracking-widest font-semibold text-gray-600 ${
+                    i === 4 || i === 6 ? 'text-right' : i === 3 || i === 5 ? 'text-center' : ''
                   }`}
                 >
                   {label}
@@ -246,7 +259,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
               <button
                 disabled={safePage === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed bg-[#1A1A1A] border border-[#FFD700]/10 text-gray-300 hover:bg-[#FFD700]/5 hover:border-[#FFD700]/20 hover:text-[#FFD700]"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed bg-[#111] border border-white/5 text-gray-400 hover:bg-white/[0.04] hover:border-white/10 hover:text-gray-300"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Prev
@@ -259,8 +272,8 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                     onClick={() => setPage(i)}
                     className={`w-8 h-8 rounded-lg text-sm font-medium transition-all duration-200 ${
                       i === safePage
-                        ? 'bg-[#FFD700]/10 text-[#FFD700] border border-[#FFD700]/25 shadow-[0_0_8px_rgba(255,215,0,0.1)]'
-                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
+                        ? 'bg-white/[0.06] text-gray-200 border border-white/10'
+                        : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.03]'
                     }`}
                   >
                     {i + 1}
@@ -271,7 +284,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
               <button
                 disabled={safePage >= totalPages - 1}
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed bg-[#1A1A1A] border border-[#FFD700]/10 text-gray-300 hover:bg-[#FFD700]/5 hover:border-[#FFD700]/20 hover:text-[#FFD700]"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed bg-[#111] border border-white/5 text-gray-400 hover:bg-white/[0.04] hover:border-white/10 hover:text-gray-300"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
@@ -280,7 +293,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
           )}
         </div>
 
-        {/* Right column: categories + platforms (desktop only) */}
+        {/* Right column: filters (desktop only) */}
         <div className="hidden lg:block w-[280px] flex-shrink-0 space-y-4">
           <PlatformFilter
             selected={selectedPlatforms}
@@ -290,6 +303,11 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             categories={categories}
             active={activeCategory}
             onChange={handleCategoryChange}
+          />
+          <TagCloud
+            products={products}
+            selected={selectedTags}
+            onChange={handleTagChange}
           />
         </div>
       </div>

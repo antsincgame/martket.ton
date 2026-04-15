@@ -11,8 +11,8 @@ interface CategorySidebarProps {
 
 const CategorySidebar: React.FC<CategorySidebarProps> = ({ categories, active, onChange }) => {
   return (
-    <div className="bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-xl p-3">
-      <h3 className="text-xs font-semibold uppercase tracking-widest text-[#FFD700]/50 mb-2 px-2">
+    <div className="bg-[#111]/80 border border-white/5 rounded-xl p-3">
+      <h3 className="text-[0.65rem] font-semibold uppercase tracking-widest text-gray-500 mb-2 px-2">
         Categories
       </h3>
 
@@ -20,15 +20,15 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({ categories, active, o
         onClick={() => onChange('all')}
         className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-r-lg text-sm transition-all duration-200 ${
           active === 'all'
-            ? 'border-l-2 border-[#FFD700] bg-[#FFD700]/10 text-[#FFD700]'
-            : 'border-l-2 border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200'
+            ? 'border-l-2 border-gray-500 bg-white/[0.04] text-gray-300'
+            : 'border-l-2 border-transparent text-gray-500 hover:bg-white/[0.03] hover:text-gray-300'
         }`}
       >
         <LayoutGrid className="w-4 h-4 flex-shrink-0" />
         <span className="truncate">All Categories</span>
       </button>
 
-      <div className="h-px bg-[#FFD700]/5 my-1.5" />
+      <div className="h-px bg-white/5 my-1.5" />
 
       <div className="space-y-0.5">
         {categories.map((cat) => {
@@ -40,13 +40,13 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({ categories, active, o
               onClick={() => onChange(cat.slug)}
               className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-r-lg text-sm transition-all duration-200 ${
                 isActive
-                  ? 'border-l-2 border-[#FFD700] bg-[#FFD700]/10 text-[#FFD700]'
-                  : 'border-l-2 border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                  ? 'border-l-2 border-cyan-700 bg-white/[0.04] text-gray-300'
+                  : 'border-l-2 border-transparent text-gray-500 hover:bg-white/[0.03] hover:text-gray-400'
               }`}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
               <span className="truncate flex-1 text-left">{cat.name}</span>
-              <span className={`text-xs flex-shrink-0 ${isActive ? 'text-[#FFD700]/50' : 'text-gray-600'}`}>
+              <span className={`text-xs flex-shrink-0 ${isActive ? 'text-gray-500' : 'text-gray-700'}`}>
                 {cat.count}
               </span>
             </button>
