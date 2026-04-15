@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react';
-import { TrendingUp, Star, Sparkles, Heart, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import React, { useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
+import { TrendingUp, Star, Sparkles, Heart, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import SteamProductRow, { ROW_GRID } from './SteamProductRow';
@@ -72,21 +72,9 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   const [hoveredProduct, setHoveredProduct] = useState<CatalogListingProduct | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [page, setPage] = useState(0);
-  const { query: searchQuery, setQuery: setSearchQuery, setListSearchVisible } = useSearch();
+  const { query: searchQuery, setQuery: setSearchQuery } = useSearch();
   const previewRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLDivElement>(null);
   const [previewH, setPreviewH] = useState(400);
-
-  useEffect(() => {
-    const el = searchRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setListSearchVisible(entry.isIntersecting),
-      { threshold: 0.5, rootMargin: '-60px 0px 0px 0px' },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [setListSearchVisible]);
 
   useLayoutEffect(() => {
     if (previewRef.current) {
@@ -209,26 +197,9 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             })}
           </div>
 
-          {/* Search — sticky при скролле, вынесен из overflow-hidden */}
-          <div
-            ref={searchRef}
-            className="sticky top-[56px] z-30 bg-[#0D0D1A]/95 backdrop-blur-xl px-3 py-2 -mb-1 rounded-t-xl border border-b-0 border-white/10"
-          >
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
-                placeholder="Search by name, developer, or tag..."
-                className="w-full pl-10 pr-4 py-2 bg-white/[0.06] border border-white/10 rounded-full text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#FFD700]/30 focus:bg-white/[0.08] focus:shadow-[0_0_20px_rgba(255,215,0,0.15)] transition-all duration-300"
-              />
-            </div>
-          </div>
-
           {/* Product list block */}
           <div
-            className="bg-[#1A1A1A]/50 border border-white/10 rounded-b-xl overflow-hidden"
+            className="bg-[#1A1A1A]/50 border border-white/10 rounded-xl overflow-hidden"
             onMouseMove={handleMouseMove}
           >
             {/* Column headers */}
