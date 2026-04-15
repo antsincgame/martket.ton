@@ -14,7 +14,7 @@ import type { CatalogListingProduct, HomeCategorySummary, HomeCategorySlug } fro
 
 const PREVIEW_W = 320;
 const PREVIEW_GAP = 16;
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 type SortTab = 'trending' | 'top-rated' | 'newest' | 'most-blessed';
 
@@ -268,11 +268,6 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
 
         {/* Right column: tags + platforms + categories (desktop only) */}
         <div className="hidden lg:block w-[240px] flex-shrink-0 space-y-4">
-          <TagCloud
-            products={products}
-            selected={selectedTags}
-            onChange={handleTagChange}
-          />
           <PlatformFilter
             selected={selectedPlatforms}
             onChange={handlePlatformChange}
@@ -281,6 +276,11 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             categories={categories}
             active={activeCategory}
             onChange={handleCategoryChange}
+          />
+          <TagCloud
+            products={products}
+            selected={selectedTags}
+            onChange={handleTagChange}
           />
         </div>
       </div>

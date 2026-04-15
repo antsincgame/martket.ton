@@ -1,11 +1,25 @@
 import React, { useMemo } from 'react';
-import { Tag, Hash } from 'lucide-react';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
 interface TagCloudProps {
   products: CatalogListingProduct[];
   selected: Set<string>;
   onChange: (tags: Set<string>) => void;
+}
+
+const NEON_PALETTE = [
+  { text: 'text-[#00F5FF]', bg: 'bg-[#00F5FF]', border: 'border-[#00F5FF]', glow: 'rgba(0,245,255,' },
+  { text: 'text-[#FF00FF]', bg: 'bg-[#FF00FF]', border: 'border-[#FF00FF]', glow: 'rgba(255,0,255,' },
+  { text: 'text-[#8B5CF6]', bg: 'bg-[#8B5CF6]', border: 'border-[#8B5CF6]', glow: 'rgba(139,92,246,' },
+  { text: 'text-[#00FF88]', bg: 'bg-[#00FF88]', border: 'border-[#00FF88]', glow: 'rgba(0,255,136,' },
+  { text: 'text-[#FFD700]', bg: 'bg-[#FFD700]', border: 'border-[#FFD700]', glow: 'rgba(255,215,0,' },
+  { text: 'text-[#FF6B35]', bg: 'bg-[#FF6B35]', border: 'border-[#FF6B35]', glow: 'rgba(255,107,53,' },
+];
+
+function sizeClass(rank: number): string {
+  if (rank < 3) return 'text-sm font-semibold px-3 py-1.5';
+  if (rank < 8) return 'text-xs font-medium px-2.5 py-1';
+  return 'text-[11px] font-normal px-2 py-0.5';
 }
 
 const TagCloud: React.FC<TagCloudProps> = ({ products, selected, onChange }) => {
@@ -18,7 +32,7 @@ const TagCloud: React.FC<TagCloudProps> = ({ products, selected, onChange }) => 
     }
     return [...map.entries()]
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 24);
+      .slice(0, 28);
   }, [products]);
 
   const toggle = (tag: string) => {
@@ -31,43 +45,40 @@ const TagCloud: React.FC<TagCloudProps> = ({ products, selected, onChange }) => 
   const clearAll = () => onChange(new Set());
 
   return (
-    <div className="bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-xl p-3">
-      <div className="flex items-center justify-between mb-2 px-2">
-        <h3 className="text-xs font-semibold uppercase tracking-widest text-[#FFD700]/50">
+    <div className="bg-[#0D0D1A]/80 border border-[#00F5FF]/10 rounded-xl p-4 backdrop-blur-sm">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-[#00F5FF]/70">
           Tags
         </h3>
         {selected.size > 0 && (
           <button
             onClick={clearAll}
-            className="text-[10px] text-gray-500 hover:text-[#FFD700] transition-colors uppercase tracking-wider"
+            className="text-[10px] text-gray-500 hover:text-[#FF00FF] transition-colors uppercase tracking-wider"
           >
             Clear
           </button>
         )}
       </div>
 
-      <div className="space-y-0.5">
-        {tagCounts.map(([tag, count]) => {
+      <div className="flex flex-wrap gap-1.5">
+        {tagCounts.map(([tag, count], i) => {
           const isActive = selected.has(tag);
+          const palette = NEON_PALETTE[i % NEON_PALETTE.length];
+          const size = sizeClass(i);
+
           return (
             <button
               key={tag}
               onClick={() => toggle(tag)}
-              className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-r-lg text-sm transition-all duration-200 ${
+              title={`${tag} (${count})`}
+              className={`rounded-full border transition-all duration-200 whitespace-nowrap ${size} ${
                 isActive
-                  ? 'border-l-2 border-[#00F5FF] bg-[#00F5FF]/10 text-[#00F5FF]'
-                  : 'border-l-2 border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                  ? `${palette.bg}/15 ${palette.border}/50 ${palette.text}`
+                  : 'bg-white/[0.04] border-white/10 text-gray-400 hover:bg-white/[0.08] hover:text-gray-200 hover:border-white/20'
               }`}
+              style={isActive ? { boxShadow: `0 0 12px ${palette.glow}0.25)` } : undefined}
             >
-              {isActive ? (
-                <Tag className="w-3.5 h-3.5 flex-shrink-0" />
-              ) : (
-                <Hash className="w-3.5 h-3.5 flex-shrink-0" />
-              )}
-              <span className="truncate flex-1 text-left text-xs">{tag}</span>
-              <span className={`text-[10px] flex-shrink-0 ${isActive ? 'text-[#00F5FF]/50' : 'text-gray-600'}`}>
-                {count}
-              </span>
+              {tag}
             </button>
           );
         })}
