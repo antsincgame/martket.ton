@@ -187,28 +187,28 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             })}
           </div>
 
+          {/* Search — sticky при скролле, вынесен из overflow-hidden */}
+          <div
+            ref={searchRef}
+            className="sticky top-[56px] z-30 bg-[#0D0D1A]/95 backdrop-blur-xl px-3 py-2 -mb-1 rounded-t-xl border border-b-0 border-white/10"
+          >
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+                placeholder="Search by name, developer, or tag..."
+                className="w-full pl-10 pr-4 py-2 bg-white/[0.06] border border-white/10 rounded-full text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#FFD700]/30 focus:bg-white/[0.08] focus:shadow-[0_0_20px_rgba(255,215,0,0.15)] transition-all duration-300"
+              />
+            </div>
+          </div>
+
           {/* Product list block */}
           <div
-            className="bg-[#1A1A1A]/50 border border-white/10 rounded-xl overflow-hidden"
+            className="bg-[#1A1A1A]/50 border border-white/10 rounded-b-xl overflow-hidden"
             onMouseMove={handleMouseMove}
           >
-            {/* Search — sticky при скролле */}
-            <div
-              ref={searchRef}
-              className="sticky top-[60px] z-30 bg-[#1A1A1A]/95 backdrop-blur-md px-3 pt-2 pb-1"
-            >
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
-                  placeholder="Search by name, developer, or tag..."
-                  className="w-full pl-10 pr-4 py-2 bg-white/[0.06] border border-white/10 rounded-full text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#FFD700]/30 focus:bg-white/[0.08] focus:shadow-[0_0_20px_rgba(255,215,0,0.15)] transition-all duration-300"
-                />
-              </div>
-            </div>
-
             {/* Column headers */}
             <div className={`hidden sm:grid ${ROW_GRID} items-center gap-x-2 px-3 py-1.5 border-b border-[#FFD700]/10`}>
               {HEADER_LABELS.map((label, i) => (
