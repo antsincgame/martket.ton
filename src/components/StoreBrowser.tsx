@@ -6,6 +6,7 @@ import SteamProductRow, { ROW_GRID } from './SteamProductRow';
 import CategorySidebar from './CategorySidebar';
 import PlatformFilter from './PlatformFilter';
 import CategoryFilterChips from './CategoryFilterChips';
+import TagCloud from './TagCloud';
 import ProductPreview from './ProductPreview';
 import { filterProductsForCategorySlug } from '../domain/marketplace/catalog';
 import { useSearch } from '../contexts/SearchContext';
@@ -67,6 +68,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   const [activeTab, setActiveTab] = useState<SortTab>('top-rated');
   const [activeCategory, setActiveCategory] = useState<HomeCategorySlug | 'all'>('all');
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [hoveredProduct, setHoveredProduct] = useState<CatalogListingProduct | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [page, setPage] = useState(0);
@@ -99,11 +101,16 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
         [...selectedPlatforms].every((plat) => p.platforms?.includes(plat))
       );
     }
+    if (selectedTags.size > 0) {
+      list = list.filter((p) =>
+        [...selectedTags].every((t) => p.tags?.includes(t))
+      );
+    }
     if (searchQuery.trim()) {
       list = list.filter((p) => matchesSearch(p, searchQuery.trim()));
     }
     return list;
-  }, [products, activeCategory, selectedPlatforms, searchQuery]);
+  }, [products, activeCategory, selectedPlatforms, selectedTags, searchQuery]);
 
   const sorted = useMemo(() => sortByTab(filtered, activeTab), [filtered, activeTab]);
 
@@ -153,6 +160,12 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
     setHoveredProduct(null);
   }, []);
 
+  const handleTagChange = useCallback((tags: Set<string>) => {
+    setSelectedTags(tags);
+    setPage(0);
+    setHoveredProduct(null);
+  }, []);
+
   return (
     <section className="py-8">
       <div className="lg:hidden mb-4">
@@ -164,6 +177,15 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
+        {/* Left column: tags (desktop only) */}
+        <div className="hidden lg:block w-[220px] flex-shrink-0">
+          <TagCloud
+            products={products}
+            selected={selectedTags}
+            onChange={handleTagChange}
+          />
+        </div>
+
         <div className="flex-1 min-w-0">
           {/* Tab bar */}
           <div className="flex items-center gap-1 mb-3 bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-xl p-1">

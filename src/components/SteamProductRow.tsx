@@ -37,7 +37,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
     <div
       role="link"
       tabIndex={0}
-      className={`group grid ${ROW_GRID} items-center gap-x-2 px-3 py-2 rounded-lg transition-all duration-200 border cursor-pointer ${
+      className={`group grid ${ROW_GRID} items-center gap-x-2 px-3 py-4 rounded-lg transition-all duration-200 border cursor-pointer ${
         isActive
           ? 'bg-[#FFD700]/[0.04] border-[#FFD700]/20 shadow-[0_0_20px_rgba(255,215,0,0.08)]'
           : 'bg-transparent border-transparent hover:bg-white/[0.03] hover:border-white/5'
@@ -49,7 +49,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
       <img
         src={product.image}
         alt={product.name}
-        className={`w-full h-[2.8rem] rounded object-cover transition-all duration-200 ${
+        className={`w-full h-[5rem] rounded-lg object-cover transition-all duration-200 ${
           isActive ? 'ring-1 ring-[#FFD700]/30' : ''
         }`}
         onMouseEnter={() => onHover(product)}
@@ -62,7 +62,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
         onMouseEnter={() => onHover(product)}
         onMouseLeave={onHoverEnd}
       >
-        <h4 className={`text-sm font-medium truncate transition-colors duration-150 ${
+        <h4 className={`text-sm font-medium leading-snug line-clamp-2 transition-colors duration-150 ${
           isActive ? 'text-[#FFD700]' : 'text-white group-hover:text-gray-100'
         }`}>
           {product.name}
@@ -90,7 +90,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
           return (
             <span
               key={p}
-              className="text-[0.6rem] font-bold tracking-wide px-1.5 py-0.5 rounded border"
+              className="text-[0.7rem] font-bold tracking-wide px-2 py-0.5 rounded border"
               style={{
                 color: cfg.color,
                 borderColor: `${cfg.color}40`,
@@ -110,7 +110,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
         {tags.map((tag) => (
           <span
             key={tag}
-            className={`text-[0.55rem] leading-tight px-1.5 py-px rounded truncate max-w-full transition-colors duration-150 ${
+            className={`text-[0.65rem] leading-tight px-2 py-0.5 rounded truncate max-w-full transition-colors duration-150 ${
               isActive
                 ? 'bg-[#00F5FF]/10 text-[#00F5FF]/70 border border-[#00F5FF]/10'
                 : 'bg-white/5 text-gray-500 border border-transparent'
