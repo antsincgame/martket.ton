@@ -10,31 +10,19 @@ import {
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
 const categoryInfo: Record<string, { title: string; description: string; emoji: string }> = {
-  apps: {
-    title: 'Sacred Apps',
-    description: 'Discover enlightened applications that elevate your digital experience',
-    emoji: '🚀',
-  },
-  games: {
-    title: 'Mystical Games',
-    description: 'Immersive gaming experiences for the conscious soul',
-    emoji: '🎮',
-  },
-  ai: {
-    title: 'AI Wisdom Services',
-    description: 'Artificial intelligence tools blessed with digital consciousness',
-    emoji: '🤖',
-  },
-  'developer-tools': {
-    title: 'Developer Sacred Tools',
-    description: 'Essential tools for enlightened software development',
-    emoji: '⚡',
-  },
-  featured: {
-    title: 'Featured Treasures',
-    description: 'Handpicked gems blessed by the community',
-    emoji: '💎',
-  },
+  apps: { title: 'Apps', description: 'Productivity and lifestyle applications for your digital life', emoji: '🚀' },
+  games: { title: 'Games', description: 'Immersive gaming experiences with NFT rewards', emoji: '🎮' },
+  ai: { title: 'AI Services', description: 'Artificial intelligence tools powered by cutting-edge models', emoji: '🤖' },
+  'developer-tools': { title: 'Developer Tools', description: 'Essential tools for modern software development', emoji: '⚡' },
+  design: { title: 'Design & Creative', description: 'Creative tools for designers, artists, and content creators', emoji: '🎨' },
+  defi: { title: 'Finance & DeFi', description: 'Wallets, portfolio trackers, and decentralized finance tools', emoji: '💰' },
+  education: { title: 'Education', description: 'Courses, tutors, and learning platforms for Web3 and beyond', emoji: '📚' },
+  security: { title: 'Security & Privacy', description: 'VPN, firewalls, and security tools for the decentralized world', emoji: '🔒' },
+  media: { title: 'Media & Entertainment', description: 'Streaming, podcasts, and content creation tools', emoji: '🎬' },
+  social: { title: 'Social & Communication', description: 'Encrypted messaging, collaboration, and community tools', emoji: '💬' },
+  health: { title: 'Health & Wellness', description: 'Meditation, fitness, sleep tracking, and mental health', emoji: '🧘' },
+  utilities: { title: 'Utilities & System', description: 'Monitoring, backups, and system administration tools', emoji: '🔧' },
+  featured: { title: 'Featured Treasures', description: 'Handpicked digital gems blessed by the community', emoji: '💎' },
 };
 
 const filters = [

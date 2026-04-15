@@ -49,6 +49,14 @@ export type CategorySlug =
   | 'games'
   | 'ai'
   | 'developer-tools'
+  | 'design'
+  | 'defi'
+  | 'education'
+  | 'security'
+  | 'media'
+  | 'social'
+  | 'health'
+  | 'utilities'
   | 'featured';
 
 export type HomeCategorySlug = Exclude<CategorySlug, 'featured'>;

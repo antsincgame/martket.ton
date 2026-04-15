@@ -1,6 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingUp, Gem, Zap, Rocket, Bot, Gamepad2 } from 'lucide-react';
+import {
+  TrendingUp,
+  Gem,
+  Zap,
+  Rocket,
+  Bot,
+  Gamepad2,
+  Palette,
+  Coins,
+  GraduationCap,
+  ShieldCheck,
+  Film,
+  MessageCircle,
+  HeartPulse,
+  Wrench,
+} from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import LoadingScreen from '../components/LoadingScreen';
 import {
@@ -15,6 +30,14 @@ const CATEGORY_ICONS: Record<HomeCategorySlug, LucideIcon> = {
   games: Gamepad2,
   ai: Bot,
   'developer-tools': Zap,
+  design: Palette,
+  defi: Coins,
+  education: GraduationCap,
+  security: ShieldCheck,
+  media: Film,
+  social: MessageCircle,
+  health: HeartPulse,
+  utilities: Wrench,
 };
 
 const HomePage = () => {
@@ -34,7 +57,7 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen">
-      {/* Products */}
+      {/* Featured Treasures — 2 rows x 4 */}
       <section className="pt-6 pb-12 px-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-6">
@@ -51,7 +74,7 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Categories */}
+      {/* Categories — 3 rows x 4 */}
       <section className="py-12 px-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-8">
@@ -61,7 +84,7 @@ const HomePage = () => {
             </h2>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {categorySummaries.map((category) => {
               const Icon = CATEGORY_ICONS[category.slug];
               return (
