@@ -43,7 +43,20 @@ async function loadFromAppwrite(): Promise<MarketplaceInventoryLoad | null> {
     const remoteProducts = await fetchListingProducts();
     const seedById = new Map(CATALOG_LISTING_PRODUCTS.map((p) => [p.id, p]));
     for (const rp of remoteProducts) {
-      seedById.set(rp.id, rp);
+      const seed = seedById.get(rp.id);
+      if (seed) {
+        seedById.set(rp.id, {
+          ...seed,
+          ...rp,
+          platforms: rp.platforms ?? seed.platforms,
+          tags: rp.tags ?? seed.tags,
+          reviewCount: rp.reviewCount ?? seed.reviewCount,
+          releaseDate: rp.releaseDate ?? seed.releaseDate,
+          donationAmount: rp.donationAmount ?? seed.donationAmount,
+        });
+      } else {
+        seedById.set(rp.id, rp);
+      }
     }
     const products = [...seedById.values()];
     if (products.length === 0) {
