@@ -236,6 +236,14 @@ export interface UserProfile {
   displayName: string;
   bio?: string;
   avatar?: string;
+  slug?: string;
+  bannerUrl?: string;
+  website?: string;
+  github?: string;
+  telegram?: string;
+  twitter?: string;
+  featuredProductIds?: string[];
+  aboutLong?: string;
 }
 
 export interface Stats {

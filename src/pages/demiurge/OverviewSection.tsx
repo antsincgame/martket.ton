@@ -1,6 +1,7 @@
-import { Package, Download, TrendingUp, Zap, ArrowRight } from 'lucide-react';
+import { Package, Download, TrendingUp, Zap, ArrowRight, UserCheck, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { useAuth } from '../../contexts/AuthContext';
 import type { CreatedProduct, PurchaseWithProduct } from './types';
 
 interface OverviewProps {
@@ -11,8 +12,18 @@ interface OverviewProps {
 }
 
 export default function OverviewSection({ library, myProducts, isLoading, displayName }: OverviewProps) {
+  const { user } = useAuth();
   const publishedCount = myProducts.filter((p) => p.status === 'published').length;
   const totalDownloads = myProducts.reduce((s, p) => s + (p.downloads || 0), 0);
+
+  const profileChecks = [
+    { label: 'Avatar', done: Boolean(user?.profile?.avatar) },
+    { label: 'Bio', done: Boolean(user?.profile?.bio) },
+    { label: 'Slug', done: Boolean(user?.profile?.slug) },
+    { label: 'Products', done: myProducts.length > 0 },
+    { label: 'Banner', done: Boolean(user?.profile?.bannerUrl) },
+  ];
+  const profilePercent = Math.round((profileChecks.filter((c) => c.done).length / profileChecks.length) * 100);
 
   return (
     <div className="space-y-8">
@@ -22,6 +33,54 @@ export default function OverviewSection({ library, myProducts, isLoading, displa
           Welcome, <span className="text-[#FFD700]">{displayName}</span>
         </h1>
         <p className="text-[#666] text-sm mt-1">Your forge overview</p>
+      </div>
+
+      {/* Public Profile Card */}
+      <div className="rounded-xl border border-[#00F5FF]/15 bg-gradient-to-r from-[#00F5FF]/[0.03] to-transparent p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-[#00F5FF]" />
+            <h2 className="text-sm font-semibold text-white">Public Profile</h2>
+          </div>
+          <span className="text-xs font-bold tabular-nums" style={{ color: profilePercent === 100 ? '#00FF88' : '#FFD700' }}>
+            {profilePercent}%
+          </span>
+        </div>
+        <div className="w-full h-1.5 bg-white/[0.06] rounded-full mb-3 overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${profilePercent}%`,
+              background: profilePercent === 100
+                ? 'linear-gradient(90deg, #00FF88, #00F5FF)'
+                : 'linear-gradient(90deg, #FFD700, #F4A836)',
+            }}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {profileChecks.map((check) => (
+            <span
+              key={check.label}
+              className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                check.done
+                  ? 'bg-[#00FF88]/10 border-[#00FF88]/30 text-[#00FF88]'
+                  : 'bg-white/[0.03] border-white/10 text-gray-500'
+              }`}
+            >
+              {check.done ? '\u2713' : '\u25CB'} {check.label}
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-3">
+          <Link to="/profile/settings" className="text-xs text-[#FFD700] hover:underline">
+            Complete your profile
+          </Link>
+          {user?.profile?.slug && (
+            <a href={`/developer/${user.profile.slug}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#00F5FF] hover:underline flex items-center gap-1">
+              View public page <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Stats grid */}

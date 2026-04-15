@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Star, Download } from 'lucide-react';
 import { formatDownloads } from '../domain/marketplace/platformIcons';
+import { slugify } from '../utils/slugify';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
 const PLATFORM_SHORT: Record<string, string> = {
@@ -64,7 +65,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = memo(({ product, isActiv
         </h4>
         <div className="flex items-center gap-1.5 mt-0.5 min-w-0 overflow-hidden">
           <Link
-            to={`/developer/${encodeURIComponent(product.developer)}`}
+            to={`/developer/${slugify(product.developer)}`}
             data-stop
             className="text-xs text-gray-500 hover:text-gray-300 underline decoration-gray-700 underline-offset-2 transition-colors truncate flex-shrink-0 max-w-[120px]"
           >

@@ -50,8 +50,8 @@ const Footer = () => {
               <Link to="/category/ai" className="block text-gray-400 hover:text-white transition-colors">
                 AI Services
               </Link>
-              <Link to="/developer" className="block text-gray-400 hover:text-white transition-colors">
-                Developer Hub
+              <Link to="/category/developer-tools" className="block text-gray-400 hover:text-white transition-colors">
+                Developer Tools
               </Link>
             </div>
           </div>

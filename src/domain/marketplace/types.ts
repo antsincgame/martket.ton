@@ -61,6 +61,25 @@ export interface DeveloperProfile {
   totalDownloads: number;
 }
 
+export interface PublicDeveloperProfile {
+  slug: string;
+  displayName: string;
+  avatar: string;
+  bio: string;
+  aboutLong: string;
+  bannerUrl: string;
+  website?: string;
+  github?: string;
+  telegram?: string;
+  twitter?: string;
+  joinedDate: string;
+  productCount: number;
+  totalDownloads: number;
+  avgRating: number;
+  featuredProductIds: string[];
+  products: CatalogListingProduct[];
+}
+
 export interface UserProfile {
   id: string;
   username: string;

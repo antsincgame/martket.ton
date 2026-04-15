@@ -14,12 +14,14 @@ import {
   getProductReviews,
 } from './catalog';
 import { CATALOG_LISTING_PRODUCTS } from './seed';
+import { slugify } from '../../utils/slugify';
 import type {
   CatalogListingProduct,
   CategoryMeta,
   HomeCategorySummary,
   ProductDetail,
   ProductReview,
+  PublicDeveloperProfile,
 } from './types';
 
 export interface MarketplaceInventoryLoad {
@@ -121,6 +123,44 @@ export async function resolveProductReviews(productId: string): Promise<ProductR
     }
   }
   return getProductReviews(productId);
+}
+
+/** Публичный профиль разработчика по slug. Seed-фоллбэк агрегирует из каталога. */
+export async function resolvePublicDeveloperProfile(
+  slug: string
+): Promise<PublicDeveloperProfile | null> {
+  const inventory = await getMarketplaceInventoryOnce();
+  const allProducts = inventory.products;
+
+  const developerNames = new Map<string, CatalogListingProduct[]>();
+  for (const p of allProducts) {
+    const devSlug = slugify(p.developer);
+    const arr = developerNames.get(devSlug) ?? [];
+    arr.push(p);
+    developerNames.set(devSlug, arr);
+  }
+
+  const products = developerNames.get(slug);
+  if (!products || products.length === 0) return null;
+
+  const displayName = products[0].developer;
+  const totalDownloads = products.reduce((s, p) => s + p.downloads, 0);
+  const avgRating = products.reduce((s, p) => s + p.rating, 0) / products.length;
+
+  return {
+    slug,
+    displayName,
+    avatar: '',
+    bio: `Creator of ${products.length} product${products.length > 1 ? 's' : ''} on TON Web Store`,
+    aboutLong: '',
+    bannerUrl: '',
+    joinedDate: products[0].releaseDate ?? '2024-01-01',
+    productCount: products.length,
+    totalDownloads,
+    avgRating: Math.round(avgRating * 10) / 10,
+    featuredProductIds: products.filter((p) => p.isFeatured).map((p) => p.id).slice(0, 4),
+    products: products.sort((a, b) => b.downloads - a.downloads),
+  };
 }
 
 export function resolveCategoryMeta(

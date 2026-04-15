@@ -12,6 +12,14 @@ export interface ProfileRow {
   bio?: string | null;
   security_level?: string | null;
   is_active?: boolean;
+  slug?: string | null;
+  banner_url?: string | null;
+  website?: string | null;
+  github?: string | null;
+  telegram?: string | null;
+  twitter?: string | null;
+  featured_product_ids?: string | null;
+  about_long?: string | null;
 }
 
 export function profileRowToAuthenticatedUser(row: ProfileRow): AuthenticatedUser {
@@ -40,6 +48,14 @@ export function profileRowToAuthenticatedUser(row: ProfileRow): AuthenticatedUse
       displayName: row.display_name || row.name || 'Demiurge',
       bio: row.bio ?? undefined,
       avatar: row.avatar ?? undefined,
+      slug: row.slug ?? undefined,
+      bannerUrl: row.banner_url ?? undefined,
+      website: row.website ?? undefined,
+      github: row.github ?? undefined,
+      telegram: row.telegram ?? undefined,
+      twitter: row.twitter ?? undefined,
+      featuredProductIds: row.featured_product_ids ? JSON.parse(row.featured_product_ids) : undefined,
+      aboutLong: row.about_long ?? undefined,
     },
     stats: {
       totalSpent: 0,

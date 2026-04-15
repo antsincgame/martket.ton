@@ -19,6 +19,7 @@ const DemiurgePage = lazy(() => import('./pages/demiurge/DemiurgePage'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const SellerCommercePage = lazy(() => import('./pages/SellerCommercePage'));
+const DeveloperPage = lazy(() => import('./pages/DeveloperPage'));
 
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
 
@@ -89,6 +90,7 @@ function App() {
                     <Route path="/" element={<HomePage />} />
                     <Route path="/product/:id" element={<TonConnectWrapper><ProductPage /></TonConnectWrapper>} />
                     <Route path="/category/:id" element={<CategoryPage />} />
+                    <Route path="/developer/:slug" element={<DeveloperPage />} />
                     <Route path="/sign-in/*" element={<ClerkSignIn routing="path" path="/sign-in" afterSignInUrl="/profile" />} />
                     <Route path="/sign-up/*" element={<ClerkSignUp routing="path" path="/sign-up" afterSignUpUrl="/profile" />} />
                     <Route path="/profile/*" element={<ProtectedRoute><DemiurgePage /></ProtectedRoute>} />

@@ -90,7 +90,7 @@ export default function DemiurgePage() {
             <ForgeSection myProducts={myProducts} isLoading={isLoadingData} getToken={getToken} onRefresh={fetchMyProducts} />
           } />
           <Route path="wallet" element={<WalletSection />} />
-          <Route path="settings" element={<SettingsSection />} />
+          <Route path="settings" element={<SettingsSection myProducts={myProducts} />} />
         </Routes>
       </DemiurgeLayout>
     </TonConnectWrapper>
