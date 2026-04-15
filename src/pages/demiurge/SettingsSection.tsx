@@ -47,8 +47,12 @@ export default function SettingsSection() {
 
       <div className="rounded-xl border border-white/[0.06] bg-[#111119] p-6 space-y-5">
         <div className="flex items-center gap-4 pb-5 border-b border-white/[0.06]">
-          <div className="w-16 h-16 rounded-full border-2 border-[#FFD700]/30 bg-[#0D0D1A] flex items-center justify-center text-2xl">
-            {user?.profile?.avatar || '🌌'}
+          <div className="w-16 h-16 rounded-full border-2 border-[#FFD700]/30 bg-[#0D0D1A] flex items-center justify-center text-2xl overflow-hidden">
+            {user?.profile?.avatar && user.profile.avatar.startsWith('http') ? (
+              <img src={user.profile.avatar} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <span>{user?.profile?.avatar || '🌌'}</span>
+            )}
           </div>
           <div>
             <p className="text-white font-semibold">{user?.profile?.displayName || user?.username || 'Demiurge'}</p>

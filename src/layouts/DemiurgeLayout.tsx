@@ -33,8 +33,12 @@ function SidebarProfile({ collapsed }: { collapsed: boolean }) {
   return (
     <div className={`px-3 py-4 border-b border-white/[0.06] ${collapsed ? 'text-center' : ''}`}>
       <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
-        <div className="w-10 h-10 rounded-full border-2 border-[#FFD700]/40 bg-[#0D0D1A] flex items-center justify-center text-lg flex-shrink-0">
-          {user?.profile?.avatar || '🌌'}
+        <div className="w-10 h-10 rounded-full border-2 border-[#FFD700]/40 bg-[#0D0D1A] flex items-center justify-center text-lg flex-shrink-0 overflow-hidden">
+          {user?.profile?.avatar && user.profile.avatar.startsWith('http') ? (
+            <img src={user.profile.avatar} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span>{user?.profile?.avatar || '🌌'}</span>
+          )}
         </div>
         {!collapsed && (
           <div className="min-w-0">
