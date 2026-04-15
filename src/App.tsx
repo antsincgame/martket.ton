@@ -1,11 +1,12 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoadingScreen from './components/LoadingScreen';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import SecretTrigger from './components/SecretTrigger';
 import ErrorBoundary from './components/ErrorBoundary';
 import TonConnectWrapper from './components/TonConnectWrapper';
 import { CLERK_CONFIGURED, ClerkSignIn, ClerkSignUp, AuthModalProvider } from './lib/clerkSafe';
@@ -65,6 +66,11 @@ const MaybeClerk: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   );
 };
 
+const SacredGem: React.FC = () => {
+  const navigate = useNavigate();
+  return <SecretTrigger onActivate={() => navigate('/admin')} />;
+};
+
 function App() {
   return (
     <ErrorBoundary>
@@ -91,6 +97,7 @@ function App() {
                 </Suspense>
               </main>
               <Footer />
+              <SacredGem />
             </div>
           </Router>
         </AuthModalProvider>

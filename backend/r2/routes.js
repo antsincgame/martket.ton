@@ -5,11 +5,10 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { requireAuth } = require('@clerk/express');
 const multer = require('multer');
 const { logger } = require('../logger');
 const { getR2Client, getBucketName, isR2Configured } = require('./client');
-const { resolveProfile } = require('../middleware/auth');
+const { resolveProfile, apiRequireAuth } = require('../middleware/auth');
 const repo = require('../core/repository');
 const { generateId } = require('../core/generateId');
 
@@ -61,7 +60,7 @@ function buildR2Key(productId, version, filename) {
 router.post(
   '/upload/:productId',
   uploadLimiter,
-  requireAuth(),
+  apiRequireAuth(),
   requireR2,
   upload.single('build'),
   async (req, res) => {
@@ -162,7 +161,7 @@ router.post(
 // ── Download build (presigned URL) ─────────────────────────────────
 router.get(
   '/download/:productId',
-  requireAuth(),
+  apiRequireAuth(),
   requireR2,
   async (req, res) => {
     try {
@@ -262,7 +261,7 @@ router.get(
 // ── Delete build (creator or admin) ────────────────────────────────
 router.delete(
   '/build/:productId',
-  requireAuth(),
+  apiRequireAuth(),
   requireR2,
   async (req, res) => {
     try {

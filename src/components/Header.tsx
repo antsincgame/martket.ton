@@ -51,20 +51,23 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <h1 className="font-display font-bold text-xl bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
               TON Web Store
             </h1>
-            <p className="text-xs text-gray-400 font-medium">Digital Marketplace</p>
+            <p className="text-xs text-gray-400 font-medium">☸️ Digital Enlightenment</p>
           </div>
         </Link>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-8">
           <Link to="/category/apps" className="text-gray-300 hover:text-white transition-colors">
-            Apps
+            Apps 🚀
           </Link>
           <Link to="/category/games" className="text-gray-300 hover:text-white transition-colors">
-            Games
+            Games 🎮
           </Link>
           <Link to="/category/ai" className="text-gray-300 hover:text-white transition-colors">
-            AI Services
+            AI Services 🤖
+          </Link>
+          <Link to="/seller/commerce" className="text-gray-300 hover:text-white transition-colors">
+            Developer Store 🛍️
           </Link>
         </nav>
 
@@ -74,7 +77,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search products..."
+              placeholder="Search digital treasures... 🔮"
               className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-full text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ton-500 focus:border-transparent"
             />
           </div>
@@ -129,7 +132,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search products..."
+              placeholder="Search digital treasures... 🔮"
               className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-full text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ton-500 focus:border-transparent"
             />
           </div>
@@ -141,17 +144,20 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
         <div className="md:hidden py-4 border-t border-white/10">
           <nav className="flex flex-col space-y-3">
             <Link to="/category/apps" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              Apps
+              Apps 🚀
             </Link>
             <Link to="/category/games" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              Games
+              Games 🎮
             </Link>
             <Link to="/category/ai" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              AI Services
+              AI Services 🤖
+            </Link>
+            <Link to="/seller/commerce" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
+              Developer Store 🛍️
             </Link>
             <SignedIn>
               <Link to="/profile" className="text-[#FFD700] hover:text-[#FFE066] transition-colors py-2 font-medium" onClick={() => setIsMenuOpen(false)}>
-                Profile
+                Profile 👤
               </Link>
             </SignedIn>
           </nav>

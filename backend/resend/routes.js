@@ -2,10 +2,9 @@
 
 const express = require('express');
 const { Resend } = require('resend');
-const { requireAuth } = require('@clerk/express');
 const { logger } = require('../logger');
 const repo = require('../core/repository');
-const { requireAdmin: requireAdminRole } = require('../middleware/auth');
+const { requireAdmin: requireAdminRole, apiRequireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -25,7 +24,7 @@ const CAMPAIGNS_STORE = [];
 
 router.get(
   '/status',
-  requireAuth(),
+  apiRequireAuth(),
   requireAdminRole,
   async (_req, res) => {
     const resend = getResendClient();
@@ -60,7 +59,7 @@ router.get(
 
 router.post(
   '/test',
-  requireAuth(),
+  apiRequireAuth(),
   requireAdminRole,
   async (req, res) => {
     const resend = getResendClient();
@@ -88,7 +87,7 @@ router.post(
 
 router.get(
   '/templates',
-  requireAuth(),
+  apiRequireAuth(),
   requireAdminRole,
   async (_req, res) => {
     res.json({ success: true, data: Array.from(TEMPLATES_STORE.values()) });
@@ -97,7 +96,7 @@ router.get(
 
 router.put(
   '/templates/:id',
-  requireAuth(),
+  apiRequireAuth(),
   requireAdminRole,
   async (req, res) => {
     const template = TEMPLATES_STORE.get(req.params.id);
@@ -117,7 +116,7 @@ router.put(
 
 router.get(
   '/campaigns',
-  requireAuth(),
+  apiRequireAuth(),
   requireAdminRole,
   async (_req, res) => {
     res.json({ success: true, data: CAMPAIGNS_STORE });
@@ -126,7 +125,7 @@ router.get(
 
 router.post(
   '/campaigns',
-  requireAuth(),
+  apiRequireAuth(),
   requireAdminRole,
   async (req, res) => {
     const { templateId, audience, scheduledAt } = req.body;
@@ -155,7 +154,7 @@ router.post(
 
 router.post(
   '/campaigns/:id/send',
-  requireAuth(),
+  apiRequireAuth(),
   requireAdminRole,
   async (req, res) => {
     const resend = getResendClient();

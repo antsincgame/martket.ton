@@ -27,4 +27,19 @@ function isAdminRole(role) {
   return role === 'admin' || role === 'super_admin';
 }
 
-module.exports = { resolveProfile, requireAdmin, isAdminRole };
+function apiRequireAuth() {
+  return (req, res, next) => {
+    try {
+      const auth = getAuth(req);
+      if (!auth || !auth.userId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+      }
+      next();
+    } catch (err) {
+      logger.error('Auth verification failed:', err.message);
+      return res.status(401).json({ success: false, message: 'Authentication failed' });
+    }
+  };
+}
+
+module.exports = { resolveProfile, requireAdmin, isAdminRole, apiRequireAuth };

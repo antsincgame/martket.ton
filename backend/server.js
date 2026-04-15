@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { clerkMiddleware, requireAuth, getAuth } = require('@clerk/express');
+const { clerkMiddleware, getAuth } = require('@clerk/express');
 const { logger } = require('./logger');
 
 let TonAddress = null;
@@ -64,12 +64,7 @@ if (!isCoreConfigured()) {
 const { mahakalaHeaders, logShieldStatus } = require('./middleware/mahakala');
 
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'none'"],
-      frameAncestors: ["'none'"],
-    },
-  },
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
 }));
 
@@ -137,13 +132,13 @@ const asyncHandler =
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 
-const { resolveProfile, requireAdmin } = require('./middleware/auth');
+const { resolveProfile, requireAdmin, apiRequireAuth } = require('./middleware/auth');
 
 // ── Profile (Demiurge) ─────────────────────────────────────────────
 
 app.get(
   '/api/session/profile',
-  requireAuth(),
+  apiRequireAuth(),
   asyncHandler(async (req, res) => {
     let profile = await resolveProfile(req);
     if (!profile) {
@@ -164,7 +159,7 @@ app.get(
 
 app.patch(
   '/api/session/profile',
-  requireAuth(),
+  apiRequireAuth(),
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
     if (!profile) {
@@ -205,7 +200,7 @@ app.patch(
 
 app.get(
   '/api/profiles/by-ton/:ton',
-  requireAuth(),
+  apiRequireAuth(),
   asyncHandler(async (req, res) => {
     const profile = await repo.findUserByTonAddress(req.params.ton);
     if (!profile) {
@@ -219,7 +214,7 @@ app.get(
 
 app.get(
   '/api/users',
-  requireAuth(),
+  apiRequireAuth(),
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
     if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
@@ -232,7 +227,7 @@ app.get(
 
 app.get(
   '/api/users/:id',
-  requireAuth(),
+  apiRequireAuth(),
   asyncHandler(async (req, res) => {
     const caller = await resolveProfile(req);
     if (!caller) {
@@ -301,7 +296,7 @@ app.get(
 
 app.get(
   '/api/session/products',
-  requireAuth(),
+  apiRequireAuth(),
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
     if (!profile) {
@@ -314,7 +309,7 @@ app.get(
 
 app.post(
   '/api/products',
-  requireAuth(),
+  apiRequireAuth(),
   strictLimiter,
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
@@ -359,7 +354,7 @@ app.post(
 
 app.patch(
   '/api/products/:id',
-  requireAuth(),
+  apiRequireAuth(),
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
     if (!profile) {
@@ -400,7 +395,7 @@ app.patch(
 
 app.get(
   '/api/session/library',
-  requireAuth(),
+  apiRequireAuth(),
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
     if (!profile) {
@@ -420,7 +415,7 @@ app.get(
 
 app.get(
   '/api/session/owns/:productId',
-  requireAuth(),
+  apiRequireAuth(),
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
     if (!profile) {
@@ -433,7 +428,7 @@ app.get(
 
 app.post(
   '/api/purchases',
-  requireAuth(),
+  apiRequireAuth(),
   strictLimiter,
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
@@ -484,7 +479,7 @@ app.post(
 
 app.post(
   '/api/audit-logs',
-  requireAuth(),
+  apiRequireAuth(),
   requireAdmin,
   asyncHandler(async (req, res) => {
     const { action, resource, resource_id, result, metadata } = req.body;
@@ -507,7 +502,7 @@ app.post(
 
 app.get(
   '/api/audit-logs',
-  requireAuth(),
+  apiRequireAuth(),
   requireAdmin,
   asyncHandler(async (req, res) => {
     const limit = Math.min(parseInt(String(req.query.limit), 10) || 100, 500);
@@ -529,7 +524,7 @@ app.get(
 
 app.get(
   '/api/stats',
-  requireAuth(),
+  apiRequireAuth(),
   requireAdmin,
   asyncHandler(async (_req, res) => {
     const userCount = await repo.countUsers();

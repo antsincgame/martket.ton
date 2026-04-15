@@ -73,7 +73,7 @@ function useAuthCore(
     setIsLoadingProfile(true);
     setError(null);
 
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 5000);
 
     const tryFetch = async (): Promise<ProfileRow | null> => {
       if (controller.signal.aborted) return null;
@@ -83,7 +83,11 @@ function useAuthCore(
         headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        logger.warn(`[fetchProfile] ${res.status} ${res.statusText}`);
+        if (res.status === 401) setError('Authentication expired — please sign in again');
+        return null;
+      }
       const body = (await res.json()) as { success?: boolean; data?: ProfileRow };
       return body.data ?? null;
     };
