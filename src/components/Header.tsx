@@ -25,7 +25,7 @@ function SignOutButton() {
 const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
   const { openAuthModal } = useAuthModal();
   const navigate = useNavigate();
-  const { query, setQuery } = useSearch();
+  const { query, setQuery, listSearchVisible } = useSearch();
 
   const handleSignIn = () => {
     if (window.innerWidth < 768) {
@@ -56,8 +56,14 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
           </div>
         </Link>
 
-        {/* Search — всегда в хедере */}
-        <div className="flex-1 max-w-2xl mx-auto">
+        {/* Search bar — скрывается когда поиск в списке виден */}
+        <div
+          className={`flex-1 max-w-2xl mx-auto transition-all duration-300 ${
+            listSearchVisible
+              ? 'opacity-0 pointer-events-none translate-y-2'
+              : 'opacity-100 pointer-events-auto translate-y-0'
+          }`}
+        >
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
             <input
@@ -65,7 +71,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name, developer, or tag..."
-              className="w-full pl-10 pr-4 py-2 bg-white/[0.06] border border-white/10 rounded-full text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#FFD700]/30 focus:bg-white/[0.08] focus:shadow-[0_0_20px_rgba(255,215,0,0.15)] transition-all duration-300"
+              className="w-full pl-10 pr-4 py-2 bg-white/[0.06] border border-white/10 rounded-full text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.08] focus:shadow-[0_0_20px_rgba(59,130,246,0.15)] transition-all duration-300"
             />
           </div>
         </div>
