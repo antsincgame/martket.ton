@@ -282,14 +282,14 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
 
         {/* Right column: categories + platforms (desktop only) */}
         <div className="hidden lg:block w-[280px] flex-shrink-0 space-y-4">
+          <PlatformFilter
+            selected={selectedPlatforms}
+            onChange={handlePlatformChange}
+          />
           <CategorySidebar
             categories={categories}
             active={activeCategory}
             onChange={handleCategoryChange}
-          />
-          <PlatformFilter
-            selected={selectedPlatforms}
-            onChange={handlePlatformChange}
           />
         </div>
       </div>
