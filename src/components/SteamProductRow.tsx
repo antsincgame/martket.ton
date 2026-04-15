@@ -5,7 +5,7 @@ import { Star, Zap, Download, Wand2 } from 'lucide-react';
 import { formatDownloads } from '../domain/marketplace/platformIcons';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
-export const ROW_GRID = 'grid-cols-[7.5rem_1fr_9rem_12rem_5rem_4.5rem_3.5rem_5rem]';
+export const ROW_GRID = 'grid-cols-[7.5rem_1fr_9rem_12rem_4.5rem_3.5rem_5rem]';
 
 const PLATFORM_CFG: Record<string, { label: string; color: string }> = {
   Windows: { label: 'Windows', color: '#00F5FF' },
@@ -26,7 +26,6 @@ interface SteamProductRowProps {
 const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, onHover, onHoverEnd }) => {
   const navigate = useNavigate();
   const platforms = (product.platforms ?? []).slice(0, 3);
-  const tags = (product.tags ?? []).slice(0, 2);
 
   const handleRowClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('[data-dev-link]')) return;
@@ -103,22 +102,6 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
             </span>
           );
         })}
-      </div>
-
-      {/* Tags */}
-      <div className="flex flex-col items-start gap-0.5">
-        {tags.map((tag) => (
-          <span
-            key={tag}
-            className={`text-[0.65rem] leading-tight px-2 py-0.5 rounded truncate max-w-full transition-colors duration-150 ${
-              isActive
-                ? 'bg-[#00F5FF]/10 text-[#00F5FF]/70 border border-[#00F5FF]/10'
-                : 'bg-white/5 text-gray-500 border border-transparent'
-            }`}
-          >
-            {tag}
-          </span>
-        ))}
       </div>
 
       {/* Downloads */}

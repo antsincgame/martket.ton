@@ -57,7 +57,7 @@ function matchesSearch(product: CatalogListingProduct, q: string): boolean {
   return false;
 }
 
-const HEADER_LABELS = ['', 'Name', 'Developer', 'Platform', 'Tags', 'Downloads', 'Rating', 'Price'];
+const HEADER_LABELS = ['', 'Name', 'Developer', 'Platform', 'Downloads', 'Rating', 'Price'];
 
 interface StoreBrowserProps {
   products: CatalogListingProduct[];
@@ -91,7 +91,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
     }
     if (selectedTags.size > 0) {
       list = list.filter((p) =>
-        [...selectedTags].every((t) => p.tags?.includes(t))
+        [...selectedTags].some((t) => p.tags?.includes(t))
       );
     }
     if (searchQuery.trim()) {
@@ -208,7 +208,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                 <span
                   key={i}
                   className={`text-[9px] uppercase tracking-widest font-semibold text-[#FFD700]/40 ${
-                    i === 5 || i === 7 ? 'text-right' : i === 3 || i === 6 ? 'text-center' : ''
+                    i === 4 || i === 6 ? 'text-right' : i === 3 || i === 5 ? 'text-center' : ''
                   }`}
                 >
                   {label}
