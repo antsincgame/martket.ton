@@ -164,6 +164,15 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
+        {/* Left column: tag cloud (desktop only) */}
+        <div className="hidden lg:block w-[220px] flex-shrink-0">
+          <TagCloud
+            products={products}
+            selected={selectedTags}
+            onChange={handleTagChange}
+          />
+        </div>
+
         <div className="flex-1 min-w-0">
           {/* Tab bar */}
           <div className="flex items-center gap-1 mb-3 bg-[#111]/80 border border-white/5 rounded-xl p-1">
@@ -303,11 +312,6 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             categories={categories}
             active={activeCategory}
             onChange={handleCategoryChange}
-          />
-          <TagCloud
-            products={products}
-            selected={selectedTags}
-            onChange={handleTagChange}
           />
         </div>
       </div>
