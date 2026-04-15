@@ -83,7 +83,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
     let list = activeCategory === 'all' ? products : filterProductsForCategorySlug(activeCategory, products);
     if (selectedPlatforms.size > 0) {
       list = list.filter((p) =>
-        p.platforms?.some((plat) => selectedPlatforms.has(plat))
+        [...selectedPlatforms].every((plat) => p.platforms?.includes(plat))
       );
     }
     if (searchQuery.trim()) {
