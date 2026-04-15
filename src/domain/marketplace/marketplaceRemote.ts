@@ -58,7 +58,14 @@ async function loadFromAppwrite(): Promise<MarketplaceInventoryLoad | null> {
         seedById.set(rp.id, rp);
       }
     }
-    const products = [...seedById.values()];
+    // Дедупликация по name+developer — удаляем дубли (приоритет у записей с меньшим id, т.е. seed)
+    const seen = new Map<string, boolean>();
+    const products = [...seedById.values()].filter((p) => {
+      const key = `${p.name}||${p.developer}`;
+      if (seen.has(key)) return false;
+      seen.set(key, true);
+      return true;
+    });
     if (products.length === 0) {
       logger.warn('[marketplace] Каталог пуст — используется сид.');
       return null;
