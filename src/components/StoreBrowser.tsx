@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { TrendingUp, Star, Sparkles, Heart, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Search } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -8,6 +8,9 @@ import CategoryFilterChips from './CategoryFilterChips';
 import ProductPreview from './ProductPreview';
 import { filterProductsForCategorySlug } from '../domain/marketplace/catalog';
 import type { CatalogListingProduct, HomeCategorySummary, HomeCategorySlug } from '../domain/marketplace/types';
+
+const PREVIEW_W = 320;
+const PREVIEW_GAP = 16;
 
 const PAGE_SIZE = 10;
 
@@ -101,8 +104,17 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   const [sortMode, setSortMode] = useState<SortMode>({ type: 'tab', tab: 'trending' });
   const [activeCategory, setActiveCategory] = useState<HomeCategorySlug | 'all'>('all');
   const [hoveredProduct, setHoveredProduct] = useState<CatalogListingProduct | null>(null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [page, setPage] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [previewH, setPreviewH] = useState(400);
+
+  useEffect(() => {
+    if (previewRef.current) {
+      setPreviewH(previewRef.current.offsetHeight);
+    }
+  }, [hoveredProduct]);
 
   const filtered = useMemo(() => {
     let list = activeCategory === 'all' ? products : filterProductsForCategorySlug(activeCategory, products);
@@ -121,9 +133,29 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   const safePage = Math.min(page, totalPages - 1);
   const pageProducts = sorted.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
-  const previewProduct = hoveredProduct ?? pageProducts[0] ?? null;
-
   const handleHover = useCallback((p: CatalogListingProduct) => setHoveredProduct(p), []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    setMousePos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setHoveredProduct(null);
+    setMousePos(null);
+  }, []);
+
+  const tooltipStyle = useMemo<React.CSSProperties>(() => {
+    if (!mousePos) return { display: 'none' };
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = mousePos.x + PREVIEW_GAP;
+    let top = mousePos.y - previewH / 2;
+    if (left + PREVIEW_W > vw - PREVIEW_GAP) {
+      left = mousePos.x - PREVIEW_W - PREVIEW_GAP;
+    }
+    top = Math.max(PREVIEW_GAP, Math.min(top, vh - previewH - PREVIEW_GAP));
+    return { position: 'fixed', left, top, width: PREVIEW_W, zIndex: 100, pointerEvents: 'none' as const };
+  }, [mousePos, previewH]);
 
   const handleTabChange = useCallback((tab: SortTab) => {
     setSortMode({ type: 'tab', tab });
@@ -164,7 +196,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1 min-w-0">
           {/* Tab bar */}
-          <div className="flex gap-1 mb-3 bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-xl p-1">
+          <div className="flex items-center gap-1 mb-3 bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-xl p-1">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -185,22 +217,26 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             })}
           </div>
 
-          {/* Search bar */}
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
-              placeholder="Search by name, developer, or tag..."
-              className="w-full pl-10 pr-4 py-2 bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#FFD700]/30 focus:shadow-[0_0_12px_rgba(255,215,0,0.08)] transition-all duration-200"
-            />
-          </div>
+          {/* Product list block (search fused into top) */}
+          <div
+            className="bg-[#1A1A1A]/50 border border-white/10 rounded-xl overflow-hidden"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+          >
+            {/* Search — fused into the table block */}
+            <div className="relative px-3 pt-2 pb-1">
+              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 w-4 h-4" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+                placeholder="Search by name, developer, or tag..."
+                className="w-full pl-8 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#FFD700]/25 focus:bg-white/[0.07] transition-all duration-200"
+              />
+            </div>
 
-          {/* Product list */}
-          <div className="bg-[#1A1A1A]/50 border border-white/10 rounded-xl p-2">
             {/* Column headers */}
-            <div className={`hidden sm:grid ${ROW_GRID} items-center gap-x-2 px-3 py-1.5 mb-1 border-b border-[#FFD700]/10`}>
+            <div className={`hidden sm:grid ${ROW_GRID} items-center gap-x-2 px-3 py-1.5 border-b border-[#FFD700]/10`}>
               {COLUMNS.map((col, i) => {
                 if (!col.label) return <span key={i} />;
                 const isSortable = col.field !== null;
@@ -237,14 +273,14 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.18 }}
-                className="space-y-0.5"
+                className="space-y-0.5 px-2 pb-2"
               >
                 {pageProducts.length > 0 ? (
                   pageProducts.map((product) => (
                     <SteamProductRow
                       key={product.id}
                       product={product}
-                      isActive={previewProduct?.id === product.id}
+                      isActive={hoveredProduct?.id === product.id}
                       onHover={handleHover}
                     />
                   ))
@@ -256,6 +292,13 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
               </motion.div>
             </AnimatePresence>
           </div>
+
+          {/* Floating preview tooltip */}
+          {hoveredProduct && mousePos && (
+            <div ref={previewRef} style={tooltipStyle}>
+              <ProductPreview product={hoveredProduct} />
+            </div>
+          )}
 
           {/* Pagination */}
           {totalPages > 1 && (
@@ -297,14 +340,13 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
           )}
         </div>
 
-        {/* Right column: categories + preview (desktop only) */}
-        <div className="hidden lg:block w-[280px] flex-shrink-0 space-y-4">
+        {/* Right column: categories (desktop only) */}
+        <div className="hidden lg:block w-[280px] flex-shrink-0">
           <CategorySidebar
             categories={categories}
             active={activeCategory}
             onChange={handleCategoryChange}
           />
-          <ProductPreview product={previewProduct} />
         </div>
       </div>
     </section>

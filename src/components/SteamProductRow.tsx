@@ -4,7 +4,7 @@ import { Star, Zap, Download } from 'lucide-react';
 import { getPlatformEntries, formatDownloads } from '../domain/marketplace/platformIcons';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
-export const ROW_GRID = 'grid-cols-[120px_1fr_90px_48px_80px_72px_56px_80px]';
+export const ROW_GRID = 'grid-cols-[120px_1fr_90px_56px_80px_72px_56px_80px]';
 
 interface SteamProductRowProps {
   product: CatalogListingProduct;
@@ -49,14 +49,17 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
         {product.developer}
       </span>
 
-      {/* COL 4: Platforms (vertical, max 3) */}
+      {/* COL 4: Platforms (vertical, max 3, sized to row height) */}
       <div
-        className="flex flex-col items-center justify-center gap-px"
+        className="flex flex-col items-center justify-center gap-0.5 h-[45px]"
         title={getPlatformEntries(product.platforms ?? []).map((p) => p.name).join(', ')}
       >
-        {platforms.map(({ name, icon }) => (
-          <img key={name} src={icon} alt={name} className="w-[14px] h-[14px] object-contain" title={name} />
-        ))}
+        {platforms.map(({ name, icon }) => {
+          const size = platforms.length === 1 ? 'w-7 h-7' : platforms.length === 2 ? 'w-5 h-5' : 'w-[14px] h-[14px]';
+          return (
+            <img key={name} src={icon} alt={name} className={`${size} object-contain`} title={name} />
+          );
+        })}
       </div>
 
       {/* COL 5: Tags */}
