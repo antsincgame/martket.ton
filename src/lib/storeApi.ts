@@ -5,6 +5,10 @@ export function storeApiBaseUrl(): string {
 }
 
 export function storeApiUrl(path: string): string {
+  const base = storeApiBaseUrl();
   const p = path.startsWith('/') ? path : `/${path}`;
-  return `${storeApiBaseUrl()}${p}`;
+  if (base.endsWith('/api') && p.startsWith('/api/')) {
+    return `${base}${p.slice(4)}`;
+  }
+  return `${base}${p}`;
 }
