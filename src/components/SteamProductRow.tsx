@@ -1,11 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import { Star, Zap, Download, Wand2 } from 'lucide-react';
+import { Star, Zap, Download } from 'lucide-react';
 import { formatDownloads } from '../domain/marketplace/platformIcons';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
-export const ROW_GRID = 'grid-cols-[7.5rem_1fr_9rem_12rem_4.5rem_3.5rem_5rem]';
+export const ROW_GRID = 'grid-cols-[7.5rem_9rem_12rem_4.5rem_3.5rem_5rem]';
 
 const PLATFORM_CFG: Record<string, { label: string; color: string }> = {
   Windows: { label: 'Windows', color: '#00F5FF' },
@@ -25,7 +25,7 @@ interface SteamProductRowProps {
 
 const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, onHover, onHoverEnd }) => {
   const navigate = useNavigate();
-  const platforms = (product.platforms ?? []).slice(0, 3);
+  const platforms = product.platforms ?? [];
 
   const handleRowClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('[data-dev-link]')) return;
@@ -36,7 +36,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
     <div
       role="link"
       tabIndex={0}
-      className={`group grid ${ROW_GRID} items-center gap-x-2 px-3 py-4 rounded-lg transition-all duration-200 border cursor-pointer ${
+      className={`group rounded-lg transition-all duration-200 border cursor-pointer px-3 py-2 ${
         isActive
           ? 'bg-[#FFD700]/[0.04] border-[#FFD700]/20 shadow-[0_0_20px_rgba(255,215,0,0.08)]'
           : 'bg-transparent border-transparent hover:bg-white/[0.03] hover:border-white/5'
@@ -44,86 +44,82 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
       onClick={handleRowClick}
       onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/product/${product.id}`); }}
     >
-      {/* Thumbnail — triggers preview */}
-      <img
-        src={product.image}
-        alt={product.name}
-        className={`w-full h-[5rem] rounded-lg object-cover transition-all duration-200 ${
-          isActive ? 'ring-1 ring-[#FFD700]/30' : ''
+      {/* App name — top row */}
+      <h4
+        className={`text-sm font-semibold mb-2 transition-colors duration-150 ${
+          isActive ? 'text-[#FFD700]' : 'text-white group-hover:text-gray-100'
         }`}
         onMouseEnter={() => onHover(product)}
         onMouseLeave={onHoverEnd}
-      />
-
-      {/* Name — triggers preview */}
-      <div
-        className="min-w-0 pl-1"
-        onMouseEnter={() => onHover(product)}
-        onMouseLeave={onHoverEnd}
       >
-        <h4 className={`text-sm font-medium leading-snug line-clamp-2 transition-colors duration-150 ${
-          isActive ? 'text-[#FFD700]' : 'text-white group-hover:text-gray-100'
-        }`}>
-          {product.name}
-        </h4>
-      </div>
+        {product.name}
+      </h4>
 
-      {/* Developer — Neon Demiurge link */}
-      <div className="min-w-0" data-dev-link>
-        <Link
-          to={`/developer/${encodeURIComponent(product.developer)}`}
-          className="group/dev flex items-center gap-1.5 min-w-0"
-        >
-          <Wand2 className="w-3.5 h-3.5 flex-shrink-0 text-[#FFD700]/60 group-hover/dev:text-[#FFD700] transition-colors duration-200" />
-          <span className="text-sm font-semibold truncate text-[#FFD700] group-hover/dev:text-[#FFE066] transition-all duration-200 drop-shadow-[0_0_8px_rgba(255,215,0,0.4)] group-hover/dev:drop-shadow-[0_0_16px_rgba(255,215,0,0.7)]">
+      {/* Content row */}
+      <div className={`grid ${ROW_GRID} items-center gap-x-2`}>
+        {/* Thumbnail */}
+        <img
+          src={product.image}
+          alt={product.name}
+          className={`w-full h-[4rem] rounded-lg object-cover transition-all duration-200 ${
+            isActive ? 'ring-1 ring-[#FFD700]/30' : ''
+          }`}
+          onMouseEnter={() => onHover(product)}
+          onMouseLeave={onHoverEnd}
+        />
+
+        {/* Developer */}
+        <div className="min-w-0" data-dev-link>
+          <Link
+            to={`/developer/${encodeURIComponent(product.developer)}`}
+            className="text-sm truncate text-gray-300 underline decoration-gray-600 underline-offset-2 hover:text-white hover:decoration-gray-400 transition-colors duration-200 block"
+          >
             {product.developer}
-          </span>
-        </Link>
-      </div>
+          </Link>
+        </div>
 
-      {/* Platforms — neon text badges */}
-      <div className="flex items-center justify-center gap-1 flex-wrap">
-        {platforms.map((p) => {
-          const cfg = PLATFORM_CFG[p];
-          if (!cfg) return null;
-          return (
-            <span
-              key={p}
-              className="text-[0.7rem] font-bold tracking-wide px-2 py-0.5 rounded border"
-              style={{
-                color: cfg.color,
-                borderColor: `${cfg.color}40`,
-                backgroundColor: `${cfg.color}15`,
-                textShadow: `0 0 8px ${cfg.color}80`,
-                boxShadow: `inset 0 0 6px ${cfg.color}15, 0 0 4px ${cfg.color}20`,
-              }}
-            >
-              {cfg.label}
-            </span>
-          );
-        })}
-      </div>
+        {/* Platforms — 2 rows max */}
+        <div className="flex items-center justify-center gap-1 flex-wrap max-h-[3.2rem] overflow-hidden">
+          {platforms.map((p) => {
+            const cfg = PLATFORM_CFG[p];
+            if (!cfg) return null;
+            return (
+              <span
+                key={p}
+                className="text-[0.65rem] font-bold tracking-wide px-1.5 py-0.5 rounded border"
+                style={{
+                  color: cfg.color,
+                  borderColor: `${cfg.color}40`,
+                  backgroundColor: `${cfg.color}15`,
+                }}
+              >
+                {cfg.label}
+              </span>
+            );
+          })}
+        </div>
 
-      {/* Downloads */}
-      <div className="flex items-center justify-end gap-1 text-gray-500 tabular-nums">
-        <Download className="w-3 h-3 flex-shrink-0" />
-        <span className="text-[0.7rem]">{formatDownloads(product.downloads)}</span>
-      </div>
+        {/* Downloads */}
+        <div className="flex items-center justify-end gap-1 text-gray-500 tabular-nums">
+          <Download className="w-3 h-3 flex-shrink-0" />
+          <span className="text-[0.7rem]">{formatDownloads(product.downloads)}</span>
+        </div>
 
-      {/* Rating */}
-      <div className="flex items-center justify-center gap-0.5">
-        <Star className="w-3 h-3 fill-[#FFD700] text-[#FFD700] flex-shrink-0" />
-        <span className="text-[0.7rem] text-[#FFD700]/80 tabular-nums">{product.rating}</span>
-      </div>
+        {/* Rating */}
+        <div className="flex items-center justify-center gap-0.5">
+          <Star className="w-3 h-3 fill-[#FFD700] text-[#FFD700] flex-shrink-0" />
+          <span className="text-[0.7rem] text-[#FFD700]/80 tabular-nums">{product.rating}</span>
+        </div>
 
-      {/* Price */}
-      <div className={`flex items-center justify-end gap-1 font-semibold text-[0.8rem] transition-colors duration-150 ${
-        product.price > 0
-          ? isActive ? 'text-[#00F5FF]' : 'text-blue-400'
-          : 'text-emerald-400'
-      }`}>
-        <Zap className="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="tabular-nums">{product.price > 0 ? `${product.price}` : 'Free'}</span>
+        {/* Price */}
+        <div className={`flex items-center justify-end gap-1 font-semibold text-[0.8rem] transition-colors duration-150 ${
+          product.price > 0
+            ? isActive ? 'text-[#00F5FF]' : 'text-blue-400'
+            : 'text-emerald-400'
+        }`}>
+          <Zap className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="tabular-nums">{product.price > 0 ? `${product.price}` : 'Free'}</span>
+        </div>
       </div>
     </div>
   );

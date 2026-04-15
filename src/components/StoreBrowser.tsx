@@ -57,7 +57,7 @@ function matchesSearch(product: CatalogListingProduct, q: string): boolean {
   return false;
 }
 
-const HEADER_LABELS = ['', 'Name', 'Developer', 'Platform', 'Downloads', 'Rating', 'Price'];
+const HEADER_LABELS = ['', 'Developer', 'Platform', 'Downloads', 'Rating', 'Price'];
 
 interface StoreBrowserProps {
   products: CatalogListingProduct[];
@@ -208,7 +208,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                 <span
                   key={i}
                   className={`text-[9px] uppercase tracking-widest font-semibold text-[#FFD700]/40 ${
-                    i === 4 || i === 6 ? 'text-right' : i === 3 || i === 5 ? 'text-center' : ''
+                    i === 3 || i === 5 ? 'text-right' : i === 2 || i === 4 ? 'text-center' : ''
                   }`}
                 >
                   {label}
