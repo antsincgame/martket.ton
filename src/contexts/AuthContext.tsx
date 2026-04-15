@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import type {
   AuthContextValue,
   AuthenticatedUser,
@@ -49,10 +49,14 @@ function useAuthCore(
 ): AuthContextValue {
   const [profile, setProfile] = useState<AuthenticatedUser | null>(null);
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [securityAlerts, setSecurityAlerts] = useState<SecurityFlag[]>([]);
   const [securityEvents] = useState<SecurityEvent[]>([]);
+
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchProfile = useCallback(async () => {
     if (!isSignedIn) {
@@ -61,15 +65,20 @@ function useAuthCore(
       setIsLoadingProfile(false);
       return;
     }
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setIsLoadingProfile(true);
     setError(null);
 
-    const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
 
     const tryFetch = async (): Promise<ProfileRow | null> => {
-      const token = await getToken();
-      if (!token) return null;
+      if (controller.signal.aborted) return null;
+      const token = await getTokenRef.current();
+      if (!token || controller.signal.aborted) return null;
       const res = await fetch(storeApiUrl('/api/session/profile'), {
         headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
@@ -81,10 +90,11 @@ function useAuthCore(
 
     try {
       let data = await tryFetch();
-      if (!data) {
+      if (!data && !controller.signal.aborted) {
         await new Promise(r => setTimeout(r, 1500));
         data = await tryFetch();
       }
+      if (controller.signal.aborted) return;
       if (data) {
         const u = profileRowToAuthenticatedUser(data);
         setProfile(u);
@@ -94,6 +104,7 @@ function useAuthCore(
         setSession(null);
       }
     } catch (err: unknown) {
+      if (controller.signal.aborted) return;
       if (err instanceof DOMException && err.name === 'AbortError') {
         setError('Profile request timed out');
       } else {
@@ -103,12 +114,19 @@ function useAuthCore(
       setSession(null);
     } finally {
       clearTimeout(timeout);
-      setIsLoadingProfile(false);
+      if (!controller.signal.aborted) setIsLoadingProfile(false);
     }
-  }, [isSignedIn, getToken]);
+  }, [isSignedIn]);
 
   useEffect(() => {
-    if (isClerkLoaded) void fetchProfile();
+    if (isClerkLoaded && isSignedIn) {
+      void fetchProfile();
+    } else if (isClerkLoaded && !isSignedIn) {
+      setProfile(null);
+      setSession(null);
+      setIsLoadingProfile(false);
+    }
+    return () => { abortRef.current?.abort(); };
   }, [isClerkLoaded, isSignedIn, fetchProfile]);
 
   const reportSecurityEvent = useCallback((event: Omit<SecurityEvent, 'id' | 'timestamp'>) => {
@@ -138,9 +156,11 @@ function useAuthCore(
     setSession(createSession(u));
   }, [profile]);
 
-  const isLoading = !isClerkLoaded || isLoadingProfile;
+  const isLoading = !isClerkLoaded || (isSignedIn && isLoadingProfile);
 
   const clearAlerts = useCallback(() => setSecurityAlerts([]), []);
+
+  const stableGetToken = useCallback(async () => getTokenRef.current(), []);
 
   const value: AuthContextValue = useMemo(() => ({
     user: profile,
@@ -166,11 +186,11 @@ function useAuthCore(
     login: noop,
     fetchProfile,
     updateUser,
-    getToken,
+    getToken: stableGetToken,
   }), [
     profile, session, isLoading, isSignedIn, securityAlerts, error, securityEvents,
     noop, logout, hasPermission, hasRole, getSecurityLevel, reportSecurityEvent,
-    clearAlerts, getSecurityAlerts, logAuditEvent, fetchProfile, updateUser, getToken,
+    clearAlerts, getSecurityAlerts, logAuditEvent, fetchProfile, updateUser, stableGetToken,
   ]);
 
   return value;
