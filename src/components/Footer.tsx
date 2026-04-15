@@ -62,30 +62,30 @@ const Footer = () => {
               Support
             </h4>
             <div className="space-y-2">
-              <a href="#" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+              <span className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors cursor-pointer">
                 <HelpCircle className="w-3.5 h-3.5" /> Help Center
-              </a>
-              <a href="#" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+              </span>
+              <span className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors cursor-pointer">
                 <Users className="w-3.5 h-3.5" /> Community
-              </a>
-              <a href="#" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+              </span>
+              <span className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors cursor-pointer">
                 <BookOpen className="w-3.5 h-3.5" /> Documentation
-              </a>
-              <a href="#" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+              </span>
+              <span className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors cursor-pointer">
                 <Zap className="w-3.5 h-3.5" /> TON Integration
-              </a>
+              </span>
             </div>
           </div>
         </div>
 
         <div className="border-t border-white/10 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
           <div className="text-gray-400 text-sm mb-4 md:mb-0">
-            &copy; 2025 TON Web Store. Built for the decentralized future.
+            &copy; {new Date().getFullYear()} TON Web Store. Built for the decentralized future.
           </div>
           <div className="flex items-center space-x-6 text-sm text-gray-400">
-            <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
-            <a href="#" className="hover:text-white transition-colors">TON Network</a>
+            <span className="hover:text-white transition-colors cursor-pointer">Privacy Policy</span>
+            <span className="hover:text-white transition-colors cursor-pointer">Terms of Service</span>
+            <span className="hover:text-white transition-colors cursor-pointer">TON Network</span>
           </div>
         </div>
 

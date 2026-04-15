@@ -33,9 +33,7 @@ export default defineConfig({
     host: true
   },
   optimizeDeps: {
-    exclude: ['lucide-react'],
-    include: ['react', 'react-dom', 'react-router-dom'],
-    force: true
+    include: ['react', 'react-dom', 'react-router-dom', 'lucide-react'],
   },
   build: {
     sourcemap: process.env.NODE_ENV !== 'production',

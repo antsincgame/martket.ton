@@ -49,11 +49,6 @@ body {
   animation: sparkle 2s ease-in-out infinite;
 }
 
-.fade-enter { opacity: 0; transform: translateY(20px);}
-.fade-enter-active { opacity: 1; transform: translateY(0); transition: opacity 350ms, transform 350ms;}
-.fade-exit { opacity: 1; }
-.fade-exit-active { opacity: 0; transition: opacity 350ms;}
-
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;

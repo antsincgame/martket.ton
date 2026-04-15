@@ -1,6 +1,5 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Link } from 'react-router-dom';
+import React, { memo } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { Star, Download } from 'lucide-react';
 import { formatDownloads } from '../domain/marketplace/platformIcons';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
@@ -21,7 +20,7 @@ interface SteamProductRowProps {
   onHoverEnd: () => void;
 }
 
-const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, onHover, onHoverEnd }) => {
+const SteamProductRow: React.FC<SteamProductRowProps> = memo(({ product, isActive, onHover, onHoverEnd }) => {
   const navigate = useNavigate();
   const platforms = (product.platforms ?? []).map((p) => PLATFORM_SHORT[p] ?? p);
   const tags = (product.tags ?? []).slice(0, 3);
@@ -50,6 +49,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
       <img
         src={product.image}
         alt={product.name}
+        loading="lazy"
         className={`w-[120px] h-[56px] rounded-lg object-cover flex-shrink-0 transition-all duration-200 ${
           isActive ? 'ring-1 ring-[#00F5FF]/40 shadow-[0_0_12px_rgba(0,245,255,0.15)]' : ''
         }`}
@@ -119,6 +119,8 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
       </button>
     </div>
   );
-};
+});
+
+SteamProductRow.displayName = 'SteamProductRow';
 
 export default SteamProductRow;
