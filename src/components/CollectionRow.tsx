@@ -11,11 +11,14 @@ interface CollectionRowProps {
 }
 
 const SCROLL_AMOUNT = 320;
+const MOBILE_MAX = 8;
 
 const CollectionRow: React.FC<CollectionRowProps> = ({ title, icon: Icon, products }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const mobileProducts = products.slice(0, MOBILE_MAX);
 
   const updateArrows = useCallback(() => {
     const el = scrollRef.current;
@@ -49,18 +52,17 @@ const CollectionRow: React.FC<CollectionRowProps> = ({ title, icon: Icon, produc
         <h2 className="text-xl font-display font-bold text-white">{title}</h2>
       </div>
 
-      <div className="group relative">
+      {/* Desktop: 2-row grid, no carousel */}
+      <div className="hidden md:grid grid-cols-4 gap-4">
+        {products.map((product) => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+      </div>
+
+      {/* Mobile: horizontal carousel, max 8 */}
+      <div className="md:hidden group relative">
         {canScrollLeft && (
-          <>
-            <div className="absolute left-0 top-0 bottom-2 w-12 bg-gradient-to-r from-[#0A0A0A] to-transparent pointer-events-none z-[1]" />
-            <button
-              onClick={() => scroll('left')}
-              className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-white/10 hover:bg-black/80 text-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-              aria-label="Scroll left"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-          </>
+          <div className="absolute left-0 top-0 bottom-2 w-12 bg-gradient-to-r from-[#0A0A0A] to-transparent pointer-events-none z-[1]" />
         )}
 
         <div
@@ -68,7 +70,7 @@ const CollectionRow: React.FC<CollectionRowProps> = ({ title, icon: Icon, produc
           onScroll={updateArrows}
           className="flex gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-2"
         >
-          {products.map((product) => (
+          {mobileProducts.map((product) => (
             <div key={product.id} className="snap-start flex-shrink-0 w-[260px] sm:w-[280px]">
               <ProductCard product={product} />
             </div>
@@ -78,7 +80,7 @@ const CollectionRow: React.FC<CollectionRowProps> = ({ title, icon: Icon, produc
         {canScrollRight && (
           <button
             onClick={() => scroll('right')}
-            className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-white/10 hover:bg-black/80 text-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-white/10 hover:bg-black/80 text-white/80"
             aria-label="Scroll right"
           >
             <ChevronRight className="w-5 h-5" />

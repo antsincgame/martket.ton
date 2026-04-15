@@ -22,8 +22,8 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   return (
-    <Link to={`/product/${product.id}`} className="group block">
-      <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/20">
+    <Link to={`/product/${product.id}`} className="group block h-full">
+      <div className="relative h-full flex flex-col bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl hover:shadow-purple-500/20">
         {/* Featured Badge */}
         {product.isFeatured && (
           <div className="absolute top-3 left-3 z-10 bg-mystical-gradient px-3 py-1 rounded-full text-xs font-medium text-white flex items-center space-x-1">
@@ -40,8 +40,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           </div>
         )}
 
-        {/* Product Image */}
-        <div className="aspect-video bg-gradient-to-br from-purple-500/20 to-blue-500/20 relative overflow-hidden">
+        {/* Product Image — fixed aspect ratio */}
+        <div className="aspect-video bg-gradient-to-br from-purple-500/20 to-blue-500/20 relative overflow-hidden flex-shrink-0">
           <img
             src={product.image}
             alt={product.name}
@@ -50,40 +50,40 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         </div>
 
-        {/* Product Info */}
-        <div className="p-5">
-          <div className="flex items-start justify-between mb-2">
-            <h3 className="font-semibold text-white text-lg group-hover:text-ton-400 transition-colors line-clamp-1">
+        {/* Product Info — flex-grow to equalize heights */}
+        <div className="p-4 flex flex-col flex-grow">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <h3 className="font-semibold text-white text-sm group-hover:text-ton-400 transition-colors line-clamp-1 flex-1">
               {product.name}
             </h3>
-            <div className="flex items-center space-x-1 text-ton-400 font-display font-bold">
-              <Zap className="w-4 h-4" />
+            <div className="flex items-center space-x-1 text-ton-400 font-display font-bold text-sm flex-shrink-0">
+              <Zap className="w-3.5 h-3.5" />
               <span>{product.price} TON</span>
             </div>
           </div>
 
-          <p className="text-gray-400 text-sm mb-3 line-clamp-2">
+          <p className="text-gray-400 text-xs mb-2 line-clamp-2 flex-grow">
             {product.description}
           </p>
 
           {/* Developer */}
-          <p className="text-purple-400 text-sm mb-3 font-medium">
+          <p className="text-purple-400 text-xs mb-2 font-medium truncate">
             by {product.developer}
           </p>
 
           {/* Stats */}
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center space-x-4">
+          <div className="flex items-center justify-between text-xs mt-auto">
+            <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-1 text-yellow-400">
-                <Star className="w-4 h-4 fill-current" />
+                <Star className="w-3.5 h-3.5 fill-current" />
                 <span>{product.rating}</span>
               </div>
               <div className="flex items-center space-x-1 text-gray-400">
-                <Download className="w-4 h-4" />
+                <Download className="w-3.5 h-3.5" />
                 <span>{product.downloads.toLocaleString()}</span>
               </div>
             </div>
-            <div className="text-gray-500 text-xs">
+            <div className="text-gray-500 text-[0.65rem]">
               {product.category}
             </div>
           </div>

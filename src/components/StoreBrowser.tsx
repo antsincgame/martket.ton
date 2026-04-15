@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import SteamProductRow, { ROW_GRID } from './SteamProductRow';
 import CategorySidebar from './CategorySidebar';
+import PlatformFilter from './PlatformFilter';
 import CategoryFilterChips from './CategoryFilterChips';
 import ProductPreview from './ProductPreview';
 import { filterProductsForCategorySlug } from '../domain/marketplace/catalog';
@@ -64,6 +65,7 @@ interface StoreBrowserProps {
 const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => {
   const [activeTab, setActiveTab] = useState<SortTab>('top-rated');
   const [activeCategory, setActiveCategory] = useState<HomeCategorySlug | 'all'>('all');
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
   const [hoveredProduct, setHoveredProduct] = useState<CatalogListingProduct | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [page, setPage] = useState(0);
@@ -79,11 +81,16 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
 
   const filtered = useMemo(() => {
     let list = activeCategory === 'all' ? products : filterProductsForCategorySlug(activeCategory, products);
+    if (selectedPlatforms.size > 0) {
+      list = list.filter((p) =>
+        p.platforms?.some((plat) => selectedPlatforms.has(plat))
+      );
+    }
     if (searchQuery.trim()) {
       list = list.filter((p) => matchesSearch(p, searchQuery.trim()));
     }
     return list;
-  }, [products, activeCategory, searchQuery]);
+  }, [products, activeCategory, selectedPlatforms, searchQuery]);
 
   const sorted = useMemo(() => sortByTab(filtered, activeTab), [filtered, activeTab]);
 
@@ -123,6 +130,12 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
 
   const handleCategoryChange = useCallback((slug: HomeCategorySlug | 'all') => {
     setActiveCategory(slug);
+    setPage(0);
+    setHoveredProduct(null);
+  }, []);
+
+  const handlePlatformChange = useCallback((platforms: Set<string>) => {
+    setSelectedPlatforms(platforms);
     setPage(0);
     setHoveredProduct(null);
   }, []);
@@ -267,12 +280,16 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
           )}
         </div>
 
-        {/* Right column: categories (desktop only) */}
-        <div className="hidden lg:block w-[280px] flex-shrink-0">
+        {/* Right column: categories + platforms (desktop only) */}
+        <div className="hidden lg:block w-[280px] flex-shrink-0 space-y-4">
           <CategorySidebar
             categories={categories}
             active={activeCategory}
             onChange={handleCategoryChange}
+          />
+          <PlatformFilter
+            selected={selectedPlatforms}
+            onChange={handlePlatformChange}
           />
         </div>
       </div>
