@@ -30,6 +30,7 @@ const HomePage = () => {
 
   const categorySummaries = inventory.categorySummaries;
   const spotlightProducts = inventory.spotlight;
+  const heroProducts = spotlightProducts.slice(0, 8);
 
   return (
     <div className="min-h-screen">
@@ -82,25 +83,20 @@ const HomePage = () => {
             </Link>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-              <div className="text-2xl font-bold text-ton-400 mb-1">3,150+</div>
-              <div className="text-gray-400 text-sm">Digital Products 💎</div>
+          {/* Featured Treasures */}
+          {heroProducts.length > 0 && (
+            <div className="mt-4">
+              <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center justify-center gap-3">
+                <Gem className="w-6 h-6 text-mystical-400 animate-sparkle" />
+                Featured Treasures
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-left">
+                {heroProducts.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
             </div>
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-              <div className="text-2xl font-bold text-purple-400 mb-1">125K+</div>
-              <div className="text-gray-400 text-sm">Happy Users 🌟</div>
-            </div>
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-              <div className="text-2xl font-bold text-green-400 mb-1">89K TON</div>
-              <div className="text-gray-400 text-sm">Total Donations ❤️</div>
-            </div>
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-              <div className="text-2xl font-bold text-yellow-400 mb-1">1,200+</div>
-              <div className="text-gray-400 text-sm">Blessed Devs 🪄</div>
-            </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -143,87 +139,6 @@ const HomePage = () => {
                 </Link>
               );
             })}
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Products */}
-      <section className="py-16 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-display font-bold text-white mb-4 flex items-center justify-center">
-              <Gem className="w-8 h-8 mr-3 text-mystical-400 animate-sparkle" />
-              Featured Treasures
-            </h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">
-              Handpicked digital gems blessed by our community through generous donations 🪷
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {spotlightProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-
-          <div className="text-center mt-12">
-            <Link
-              to="/category/featured"
-              className="bg-mystical-gradient hover:scale-105 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 shadow-lg hover:shadow-pink-500/50 inline-flex items-center space-x-2"
-            >
-              <Star className="w-5 h-5" />
-              <span>View All Featured</span>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Donation System Info */}
-      <section className="py-16 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-orange-500/10 rounded-3xl p-8 border border-white/10">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-mystical-gradient rounded-full flex items-center justify-center mx-auto mb-6">
-                <Heart className="w-8 h-8 text-white animate-pulse" />
-              </div>
-              
-              <h3 className="text-2xl font-display font-bold text-white mb-4">
-                Sacred Donation System 🪷
-              </h3>
-              
-              <p className="text-gray-300 mb-6 max-w-2xl mx-auto leading-relaxed">
-                Our unique ranking system elevates products based on community donations. 
-                When developers contribute TON coins with their app name in the comment, 
-                their digital treasures rise higher in our mystical marketplace. 
-                <strong className="text-ton-400"> The more generous the donation, the higher the blessing! </strong> ✨
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                <div className="bg-white/5 rounded-xl p-4">
-                  <div className="text-2xl mb-2">🥉</div>
-                  <div className="text-yellow-400 font-semibold">1-10 TON</div>
-                  <div className="text-gray-400 text-sm">Bronze Blessing</div>
-                </div>
-                <div className="bg-white/5 rounded-xl p-4">
-                  <div className="text-2xl mb-2">🥈</div>
-                  <div className="text-purple-400 font-semibold">11-25 TON</div>
-                  <div className="text-gray-400 text-sm">Silver Enlightenment</div>
-                </div>
-                <div className="bg-white/5 rounded-xl p-4">
-                  <div className="text-2xl mb-2">🥇</div>
-                  <div className="text-pink-400 font-semibold">25+ TON</div>
-                  <div className="text-gray-400 text-sm">Golden Nirvana</div>
-                </div>
-              </div>
-
-              <Link
-                to="/developer"
-                className="bg-sacred-gradient hover:scale-105 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 shadow-lg inline-flex items-center space-x-2"
-              >
-                <Sparkles className="w-5 h-5" />
-                <span>Bless Your Product</span>
-              </Link>
-            </div>
           </div>
         </div>
       </section>
