@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { TrendingUp, Star, Sparkles, Heart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { TrendingUp, Star, Sparkles, Heart, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Search } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import SteamProductRow from './SteamProductRow';
+import SteamProductRow, { ROW_GRID } from './SteamProductRow';
 import CategorySidebar from './CategorySidebar';
 import CategoryFilterChips from './CategoryFilterChips';
 import ProductPreview from './ProductPreview';
@@ -12,6 +12,12 @@ import type { CatalogListingProduct, HomeCategorySummary, HomeCategorySlug } fro
 const PAGE_SIZE = 10;
 
 type SortTab = 'trending' | 'top-rated' | 'newest' | 'most-blessed';
+type ColumnField = 'name' | 'developer' | 'downloads' | 'rating' | 'price';
+type SortDir = 'asc' | 'desc';
+
+type SortMode =
+  | { type: 'tab'; tab: SortTab }
+  | { type: 'column'; field: ColumnField; dir: SortDir };
 
 interface TabDef {
   id: SortTab;
@@ -26,7 +32,7 @@ const TABS: TabDef[] = [
   { id: 'most-blessed', label: 'Most Blessed', icon: Heart },
 ];
 
-function sortProducts(products: CatalogListingProduct[], tab: SortTab): CatalogListingProduct[] {
+function sortByTab(products: CatalogListingProduct[], tab: SortTab): CatalogListingProduct[] {
   const copy = [...products];
   switch (tab) {
     case 'trending':
@@ -44,23 +50,72 @@ function sortProducts(products: CatalogListingProduct[], tab: SortTab): CatalogL
   }
 }
 
+function sortByColumn(products: CatalogListingProduct[], field: ColumnField, dir: SortDir): CatalogListingProduct[] {
+  const copy = [...products];
+  const m = dir === 'asc' ? 1 : -1;
+  switch (field) {
+    case 'name':
+      return copy.sort((a, b) => m * a.name.localeCompare(b.name));
+    case 'developer':
+      return copy.sort((a, b) => m * a.developer.localeCompare(b.developer));
+    case 'downloads':
+      return copy.sort((a, b) => m * (a.downloads - b.downloads));
+    case 'rating':
+      return copy.sort((a, b) => m * (a.rating - b.rating));
+    case 'price':
+      return copy.sort((a, b) => m * (a.price - b.price));
+  }
+}
+
+function matchesSearch(product: CatalogListingProduct, q: string): boolean {
+  const lower = q.toLowerCase();
+  if (product.name.toLowerCase().includes(lower)) return true;
+  if (product.developer.toLowerCase().includes(lower)) return true;
+  if (product.tags?.some((t) => t.toLowerCase().includes(lower))) return true;
+  return false;
+}
+
 interface StoreBrowserProps {
   products: CatalogListingProduct[];
   categories: HomeCategorySummary[];
 }
 
+interface ColumnHeader {
+  label: string;
+  field: ColumnField | null;
+  align: 'left' | 'center' | 'right';
+}
+
+const COLUMNS: ColumnHeader[] = [
+  { label: '', field: null, align: 'left' },
+  { label: 'Name', field: 'name', align: 'left' },
+  { label: 'Developer', field: 'developer', align: 'left' },
+  { label: '', field: null, align: 'center' },
+  { label: '', field: null, align: 'left' },
+  { label: 'Downloads', field: 'downloads', align: 'right' },
+  { label: 'Rating', field: 'rating', align: 'center' },
+  { label: 'Price', field: 'price', align: 'right' },
+];
+
 const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => {
-  const [activeTab, setActiveTab] = useState<SortTab>('trending');
+  const [sortMode, setSortMode] = useState<SortMode>({ type: 'tab', tab: 'trending' });
   const [activeCategory, setActiveCategory] = useState<HomeCategorySlug | 'all'>('all');
   const [hoveredProduct, setHoveredProduct] = useState<CatalogListingProduct | null>(null);
   const [page, setPage] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const filtered = useMemo(() => {
-    if (activeCategory === 'all') return products;
-    return filterProductsForCategorySlug(activeCategory, products);
-  }, [products, activeCategory]);
+    let list = activeCategory === 'all' ? products : filterProductsForCategorySlug(activeCategory, products);
+    if (searchQuery.trim()) {
+      list = list.filter((p) => matchesSearch(p, searchQuery.trim()));
+    }
+    return list;
+  }, [products, activeCategory, searchQuery]);
 
-  const sorted = useMemo(() => sortProducts(filtered, activeTab), [filtered, activeTab]);
+  const sorted = useMemo(() => {
+    if (sortMode.type === 'tab') return sortByTab(filtered, sortMode.tab);
+    return sortByColumn(filtered, sortMode.field, sortMode.dir);
+  }, [filtered, sortMode]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -71,7 +126,19 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   const handleHover = useCallback((p: CatalogListingProduct) => setHoveredProduct(p), []);
 
   const handleTabChange = useCallback((tab: SortTab) => {
-    setActiveTab(tab);
+    setSortMode({ type: 'tab', tab });
+    setPage(0);
+    setHoveredProduct(null);
+  }, []);
+
+  const handleColumnSort = useCallback((field: ColumnField) => {
+    setSortMode((prev) => {
+      if (prev.type === 'column' && prev.field === field) {
+        return { type: 'column', field, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      }
+      const defaultDir: SortDir = field === 'name' || field === 'developer' ? 'asc' : 'desc';
+      return { type: 'column', field, dir: defaultDir };
+    });
     setPage(0);
     setHoveredProduct(null);
   }, []);
@@ -81,6 +148,8 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
     setPage(0);
     setHoveredProduct(null);
   }, []);
+
+  const activeTab = sortMode.type === 'tab' ? sortMode.tab : null;
 
   return (
     <section className="py-8">
@@ -95,7 +164,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1 min-w-0">
           {/* Tab bar */}
-          <div className="flex gap-1 mb-4 bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-xl p-1">
+          <div className="flex gap-1 mb-3 bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-xl p-1">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -116,22 +185,54 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             })}
           </div>
 
+          {/* Search bar */}
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+              placeholder="Search by name, developer, or tag..."
+              className="w-full pl-10 pr-4 py-2 bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#FFD700]/30 focus:shadow-[0_0_12px_rgba(255,215,0,0.08)] transition-all duration-200"
+            />
+          </div>
+
           {/* Product list */}
           <div className="bg-[#1A1A1A]/50 border border-white/10 rounded-xl p-2">
             {/* Column headers */}
-            <div className="hidden sm:grid grid-cols-[120px_1fr_80px_80px_60px_56px_80px] items-center gap-x-2 px-3 py-1.5 mb-1 border-b border-[#FFD700]/10">
-              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold">Image</span>
-              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold pl-1">Name</span>
-              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold text-center">Platform</span>
-              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold">Tags</span>
-              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold text-right">DL</span>
-              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold text-center">Rate</span>
-              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold text-right">Price</span>
+            <div className={`hidden sm:grid ${ROW_GRID} items-center gap-x-2 px-3 py-1.5 mb-1 border-b border-[#FFD700]/10`}>
+              {COLUMNS.map((col, i) => {
+                if (!col.label) return <span key={i} />;
+                const isSortable = col.field !== null;
+                const isActiveCol = sortMode.type === 'column' && sortMode.field === col.field;
+                const alignCls = col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : 'justify-start';
+
+                if (!isSortable) return <span key={i} />;
+
+                return (
+                  <button
+                    key={i}
+                    onClick={() => handleColumnSort(col.field!)}
+                    className={`flex items-center gap-0.5 ${alignCls} text-[9px] uppercase tracking-widest font-semibold transition-colors duration-150 ${
+                      isActiveCol
+                        ? 'text-[#FFD700]/80'
+                        : 'text-[#FFD700]/40 hover:text-[#FFD700]/60'
+                    }`}
+                  >
+                    <span>{col.label}</span>
+                    {isActiveCol && (
+                      sortMode.type === 'column' && sortMode.dir === 'asc'
+                        ? <ChevronUp className="w-3 h-3" />
+                        : <ChevronDown className="w-3 h-3" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             <AnimatePresence mode="wait">
               <motion.div
-                key={`${activeTab}-${activeCategory}-${safePage}`}
+                key={`${JSON.stringify(sortMode)}-${activeCategory}-${safePage}-${searchQuery}`}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
@@ -149,7 +250,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                   ))
                 ) : (
                   <p className="text-center text-gray-500 py-12 text-sm">
-                    No products in this category yet
+                    {searchQuery.trim() ? 'No products match your search' : 'No products in this category yet'}
                   </p>
                 )}
               </motion.div>

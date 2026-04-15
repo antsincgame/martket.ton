@@ -1,8 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Zap, Download, MessageSquare } from 'lucide-react';
-import { getPlatformEntries, formatDownloads, formatDate } from '../domain/marketplace/platformIcons';
+import { Star, Zap, Download } from 'lucide-react';
+import { getPlatformEntries, formatDownloads } from '../domain/marketplace/platformIcons';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
+
+export const ROW_GRID = 'grid-cols-[120px_1fr_90px_48px_80px_72px_56px_80px]';
 
 interface SteamProductRowProps {
   product: CatalogListingProduct;
@@ -11,13 +13,13 @@ interface SteamProductRowProps {
 }
 
 const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, onHover }) => {
-  const platforms = getPlatformEntries(product.platforms ?? []);
+  const platforms = getPlatformEntries(product.platforms ?? []).slice(0, 3);
   const tags = (product.tags ?? []).slice(0, 2);
 
   return (
     <Link
       to={`/product/${product.id}`}
-      className={`group grid grid-cols-[120px_1fr_80px_80px_60px_56px_80px] items-center gap-x-2 px-3 py-2 rounded-lg transition-all duration-200 border ${
+      className={`group grid ${ROW_GRID} items-center gap-x-2 px-3 py-2 rounded-lg transition-all duration-200 border ${
         isActive
           ? 'bg-[#FFD700]/[0.04] border-[#FFD700]/20 shadow-[0_0_20px_rgba(255,215,0,0.08)]'
           : 'bg-transparent border-transparent hover:bg-white/[0.03] hover:border-white/5'
@@ -33,24 +35,31 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
         }`}
       />
 
-      {/* COL 2: Name + Developer */}
+      {/* COL 2: Name */}
       <div className="min-w-0 pl-1">
         <h4 className={`text-sm font-medium truncate transition-colors duration-150 ${
           isActive ? 'text-[#FFD700]' : 'text-white group-hover:text-gray-100'
         }`}>
           {product.name}
         </h4>
-        <span className="text-[10px] text-gray-600 truncate block">{product.developer}</span>
       </div>
 
-      {/* COL 3: Platforms */}
-      <div className="flex items-center justify-center gap-0.5" title={platforms.map((p) => p.name).join(', ')}>
+      {/* COL 3: Developer */}
+      <span className="text-[10px] text-gray-500 truncate block group-hover:text-gray-400 transition-colors">
+        {product.developer}
+      </span>
+
+      {/* COL 4: Platforms (vertical, max 3) */}
+      <div
+        className="flex flex-col items-center justify-center gap-px"
+        title={getPlatformEntries(product.platforms ?? []).map((p) => p.name).join(', ')}
+      >
         {platforms.map(({ name, icon }) => (
           <img key={name} src={icon} alt={name} className="w-[14px] h-[14px] object-contain" title={name} />
         ))}
       </div>
 
-      {/* COL 4: Tags */}
+      {/* COL 5: Tags */}
       <div className="flex flex-col items-start gap-0.5">
         {tags.map((tag) => (
           <span
@@ -66,19 +75,19 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
         ))}
       </div>
 
-      {/* COL 5: Downloads */}
+      {/* COL 6: Downloads */}
       <div className="flex items-center justify-end gap-1 text-gray-500 tabular-nums">
         <Download className="w-3 h-3 flex-shrink-0" />
         <span className="text-[11px]">{formatDownloads(product.downloads)}</span>
       </div>
 
-      {/* COL 6: Rating */}
+      {/* COL 7: Rating */}
       <div className="flex items-center justify-center gap-0.5">
         <Star className="w-3 h-3 fill-[#FFD700] text-[#FFD700] flex-shrink-0" />
         <span className="text-[11px] text-[#FFD700]/80 tabular-nums">{product.rating}</span>
       </div>
 
-      {/* COL 7: Price */}
+      {/* COL 8: Price */}
       <div className={`flex items-center justify-end gap-1 font-semibold text-[13px] transition-colors duration-150 ${
         product.price > 0
           ? isActive ? 'text-[#00F5FF]' : 'text-blue-400'
