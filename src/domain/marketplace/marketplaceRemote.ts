@@ -1,8 +1,6 @@
 import { logger } from '../../lib/logger';
 import { isAppwriteConfigured } from '../../lib/appwriteClient';
 import {
-  fetchCategoryRowsForHome,
-  fetchHomeCategorySummaries,
   fetchListingProducts,
   fetchProductDetailById,
   fetchReviewsForProduct,
@@ -42,16 +40,17 @@ export function getMarketplaceInventoryOnce(): Promise<MarketplaceInventoryLoad>
 async function loadFromAppwrite(): Promise<MarketplaceInventoryLoad | null> {
   if (!isAppwriteConfigured) return null;
   try {
-    const products = await fetchListingProducts();
+    const remoteProducts = await fetchListingProducts();
+    const seedById = new Map(CATALOG_LISTING_PRODUCTS.map((p) => [p.id, p]));
+    for (const rp of remoteProducts) {
+      seedById.set(rp.id, rp);
+    }
+    const products = [...seedById.values()];
     if (products.length === 0) {
-      logger.warn('[marketplace] Appwrite вернул пустой каталог — используется сид.');
+      logger.warn('[marketplace] Каталог пуст — используется сид.');
       return null;
     }
-    const categoryRows = await fetchCategoryRowsForHome();
-    const categorySummaries =
-      categoryRows.length > 0
-        ? await fetchHomeCategorySummaries(products)
-        : getHomeCategorySummariesForProducts(products);
+    const categorySummaries = getHomeCategorySummariesForProducts(products);
     const spotlight = getHomeSpotlightProductsForProducts(products);
     return { products, categorySummaries, spotlight, source: 'appwrite' };
   } catch (error) {
