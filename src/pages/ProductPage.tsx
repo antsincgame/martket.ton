@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles, ThumbsUp } from 'lucide-react';
+import { slugify } from '../utils/slugify';
 import LoadingScreen from '../components/LoadingScreen';
 import ProductCryptoCheckout from '../components/ProductCryptoCheckout';
 import { resolveProductDetail, resolveProductReviews } from '../domain/marketplace/marketplaceRemote';
@@ -101,7 +102,7 @@ const ProductPage = () => {
                     )}
                   </h1>
                   <p className="text-purple-400 font-medium flex items-center">
-                    by {product.developer}
+                    by <Link to={`/developer/${slugify(product.developer)}`} className="ml-1 underline decoration-purple-700 underline-offset-2 hover:text-purple-300 transition-colors">{product.developer}</Link>
                     {(product.donationAmount ?? 0) > 0 && (
                       <span className="ml-4 bg-yellow-500/20 border border-yellow-500/30 px-2 py-1 rounded-full text-xs text-yellow-400 flex items-center">
                         <Heart className="w-3 h-3 mr-1" />

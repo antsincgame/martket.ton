@@ -22,6 +22,16 @@ export interface ProfileRow {
   about_long?: string | null;
 }
 
+function parseFeaturedIds(raw: string | null | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function profileRowToAuthenticatedUser(row: ProfileRow): AuthenticatedUser {
   const roleKey = row.role || 'demiurge';
   const primaryRole = ROLES[roleKey] ?? ROLES.demiurge;
@@ -54,7 +64,7 @@ export function profileRowToAuthenticatedUser(row: ProfileRow): AuthenticatedUse
       github: row.github ?? undefined,
       telegram: row.telegram ?? undefined,
       twitter: row.twitter ?? undefined,
-      featuredProductIds: row.featured_product_ids ? JSON.parse(row.featured_product_ids) : undefined,
+      featuredProductIds: parseFeaturedIds(row.featured_product_ids),
       aboutLong: row.about_long ?? undefined,
     },
     stats: {

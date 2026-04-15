@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Settings, User, Save, Loader2, Globe, ExternalLink,
   Wand2, Github, Send, Twitter,
@@ -17,7 +17,7 @@ export default function SettingsSection({ myProducts = [] }: SettingsSectionProp
   const { user, fetchProfile, getToken } = useAuth();
   const [displayName, setDisplayName] = useState(user?.profile?.displayName || user?.username || '');
   const [bio, setBio] = useState(user?.profile?.bio || '');
-  const [slug, setSlug] = useState(user?.profile?.slug || '');
+  const [slug, setSlug] = useState(() => user?.profile?.slug || (displayName ? slugify(displayName) : ''));
   const [avatarUrl, setAvatarUrl] = useState(user?.profile?.avatar || '');
   const [bannerUrl, setBannerUrl] = useState(user?.profile?.bannerUrl || '');
   const [website, setWebsite] = useState(user?.profile?.website || '');
@@ -26,14 +26,10 @@ export default function SettingsSection({ myProducts = [] }: SettingsSectionProp
   const [twitter, setTwitter] = useState(user?.profile?.twitter || '');
   const [aboutLong, setAboutLong] = useState(user?.profile?.aboutLong || '');
   const [featuredIds, setFeaturedIds] = useState<Set<string>>(
-    new Set(user?.profile?.featuredProductIds ?? [])
+    () => new Set(user?.profile?.featuredProductIds ?? [])
   );
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (!slug && displayName) setSlug(slugify(displayName));
-  }, []);
 
   const generateSlug = () => setSlug(slugify(displayName));
 

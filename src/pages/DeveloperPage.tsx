@@ -35,7 +35,12 @@ function useSeoMeta(profile: PublicDeveloperProfile | null) {
     else if (profile.avatar) setMeta('og:image', profile.avatar);
     setMeta('og:url', window.location.href);
 
-    return () => { document.title = prevTitle; };
+    return () => {
+      document.title = prevTitle;
+      ['og:title', 'og:description', 'og:image', 'og:url'].forEach((prop) => {
+        document.querySelector(`meta[property="${prop}"]`)?.remove();
+      });
+    };
   }, [profile]);
 }
 
@@ -50,19 +55,24 @@ const DeveloperPage = () => {
   useEffect(() => {
     if (!slug) return;
     setLoading(true);
-    resolvePublicDeveloperProfile(slug).then((p) => {
-      setProfile(p);
-      setLoading(false);
-    });
+    resolvePublicDeveloperProfile(slug)
+      .then(setProfile)
+      .catch(() => setProfile(null))
+      .finally(() => setLoading(false));
   }, [slug]);
 
   useSeoMeta(profile);
 
   const handleShare = useCallback(() => {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    const url = window.location.href;
+    (navigator.clipboard?.writeText(url) ?? Promise.reject())
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {
+        window.prompt('Copy link:', url);
+      });
   }, []);
 
   const featuredProducts = useMemo(() => {
@@ -95,10 +105,20 @@ const DeveloperPage = () => {
   if (!profile) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">Developer not found</h2>
-          <p className="text-gray-500 mb-6">The developer page you're looking for doesn't exist.</p>
-          <Link to="/" className="text-[#00F5FF] hover:underline">Back to Store</Link>
+        <div className="text-center max-w-sm">
+          <div className="w-20 h-20 rounded-full bg-[#FFD700]/10 border border-[#FFD700]/20 flex items-center justify-center mx-auto mb-5">
+            <Package className="w-8 h-8 text-[#FFD700]/40" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Developer not found</h2>
+          <p className="text-gray-500 text-sm mb-6">
+            No developer with slug <span className="text-gray-400 font-mono">/{slug}</span> exists yet.
+          </p>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#FFD700]/10 border border-[#FFD700]/25 text-[#FFD700] text-sm font-semibold hover:bg-[#FFD700]/20 transition-all"
+          >
+            Back to Store
+          </Link>
         </div>
       </div>
     );

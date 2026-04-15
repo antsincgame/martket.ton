@@ -159,7 +159,7 @@ export async function resolvePublicDeveloperProfile(
     totalDownloads,
     avgRating: Math.round(avgRating * 10) / 10,
     featuredProductIds: products.filter((p) => p.isFeatured).map((p) => p.id).slice(0, 4),
-    products: products.sort((a, b) => b.downloads - a.downloads),
+    products: [...products].sort((a, b) => b.downloads - a.downloads),
   };
 }
 
