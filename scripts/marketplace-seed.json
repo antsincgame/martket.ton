@@ -1,6 +1,6 @@
 {
   "categories": [
-    { "id": "apps", "slug": "apps", "title": "Apps", "description": "Productivity and lifestyle applications", "emoji": "🚀", "gradient": "from-blue-500 to-purple-600", "sortOrder": 10 },
+    { "id": "apps", "slug": "apps", "title": "Android", "description": "Native Android apps for productivity, lifestyle, and TON", "emoji": "📱", "gradient": "from-blue-500 to-purple-600", "sortOrder": 10 },
     { "id": "games", "slug": "games", "title": "Games", "description": "Immersive gaming experiences with NFT rewards", "emoji": "🎮", "gradient": "from-green-500 to-teal-600", "sortOrder": 20 },
     { "id": "ai", "slug": "ai", "title": "AI Services", "description": "AI tools powered by cutting-edge models", "emoji": "🤖", "gradient": "from-purple-500 to-pink-600", "sortOrder": 30 },
     { "id": "developer-tools", "slug": "developer-tools", "title": "Developer Tools", "description": "Essential tools for modern development", "emoji": "⚡", "gradient": "from-yellow-500 to-orange-600", "sortOrder": 40 },
@@ -14,9 +14,9 @@
     { "id": "utilities", "slug": "utilities", "title": "Utilities & System", "description": "Monitoring, backups, and admin tools", "emoji": "🔧", "gradient": "from-slate-500 to-zinc-600", "sortOrder": 120 }
   ],
   "products": [
-    { "id": "1", "name": "Karma Tracker", "category": "Apps", "price": 3.5, "rating": 4.4, "downloads": 7800, "isFeatured": true },
-    { "id": "2", "name": "Task Zen Planner", "category": "Apps", "price": 4.2, "rating": 4.6, "downloads": 9400, "isFeatured": false },
-    { "id": "3", "name": "Expense Monk", "category": "Apps", "price": 2.8, "rating": 4.3, "downloads": 5200, "isFeatured": false },
+    { "id": "1", "name": "Karma Tracker", "category": "Android", "price": 3.5, "rating": 4.4, "downloads": 7800, "isFeatured": true },
+    { "id": "2", "name": "Task Zen Planner", "category": "Android", "price": 4.2, "rating": 4.6, "downloads": 9400, "isFeatured": false },
+    { "id": "3", "name": "Expense Monk", "category": "Android", "price": 2.8, "rating": 4.3, "downloads": 5200, "isFeatured": false },
     { "id": "4", "name": "Neon Arena: Battle Royale", "category": "Games", "price": 12.0, "rating": 4.8, "downloads": 24300, "isFeatured": true },
     { "id": "5", "name": "Chakra Quest RPG", "category": "Games", "price": 8.5, "rating": 4.5, "downloads": 11200, "isFeatured": true },
     { "id": "6", "name": "Puzzle Galaxy", "category": "Games", "price": 5.0, "rating": 4.7, "downloads": 8900, "isFeatured": false },

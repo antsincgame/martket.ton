@@ -44,7 +44,7 @@ const Footer = () => {
             </h4>
             <div className="space-y-2">
               <Link to="/category/apps" className="block text-gray-400 hover:text-white transition-colors">
-                Apps 🚀
+                Android 📱
               </Link>
               <Link to="/category/games" className="block text-gray-400 hover:text-white transition-colors">
                 Games 🎮

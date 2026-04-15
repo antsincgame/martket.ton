@@ -10,7 +10,7 @@ import {
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
 const categoryInfo: Record<string, { title: string; description: string; emoji: string }> = {
-  apps: { title: 'Apps', description: 'Productivity and lifestyle applications for your digital life', emoji: '🚀' },
+  apps: { title: 'Android', description: 'Native Android apps for productivity, lifestyle, and TON ecosystem', emoji: '📱' },
   games: { title: 'Games', description: 'Immersive gaming experiences with NFT rewards', emoji: '🎮' },
   ai: { title: 'AI Services', description: 'Artificial intelligence tools powered by cutting-edge models', emoji: '🤖' },
   'developer-tools': { title: 'Developer Tools', description: 'Essential tools for modern software development', emoji: '⚡' },

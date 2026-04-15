@@ -4,7 +4,7 @@ import {
   TrendingUp,
   Gem,
   Zap,
-  Rocket,
+  Smartphone,
   Bot,
   Gamepad2,
   Palette,
@@ -26,7 +26,7 @@ import type { HomeCategorySlug } from '../domain/marketplace/types';
 import type { LucideIcon } from 'lucide-react';
 
 const CATEGORY_ICONS: Record<HomeCategorySlug, LucideIcon> = {
-  apps: Rocket,
+  apps: Smartphone,
   games: Gamepad2,
   ai: Bot,
   'developer-tools': Zap,

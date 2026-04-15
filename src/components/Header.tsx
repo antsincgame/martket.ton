@@ -58,7 +58,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-8">
           <Link to="/category/apps" className="text-gray-300 hover:text-white transition-colors">
-            Apps 🚀
+            Android 📱
           </Link>
           <Link to="/category/games" className="text-gray-300 hover:text-white transition-colors">
             Games 🎮
@@ -144,7 +144,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
         <div className="md:hidden py-4 border-t border-white/10">
           <nav className="flex flex-col space-y-3">
             <Link to="/category/apps" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              Apps 🚀
+              Android 📱
             </Link>
             <Link to="/category/games" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
               Games 🎮

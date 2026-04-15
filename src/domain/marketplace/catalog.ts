@@ -12,7 +12,7 @@ import type {
 const HOME_SPOTLIGHT_IDS = ['1', '4', '7', '10', '12', '15', '17', '5'];
 
 const SLUG_TO_CATEGORY_LABELS: Record<CategorySlug, string[]> = {
-  apps: ['Apps'],
+  apps: ['Android'],
   games: ['Games'],
   ai: ['AI Services'],
   'developer-tools': ['Developer Tools'],
@@ -30,9 +30,9 @@ const SLUG_TO_CATEGORY_LABELS: Record<CategorySlug, string[]> = {
 const CATEGORY_META_BASE: Record<CategorySlug, Omit<CategoryMeta, 'count'>> = {
   apps: {
     slug: 'apps',
-    title: 'Apps',
-    description: 'Productivity and lifestyle applications for your digital life',
-    emoji: '🚀',
+    title: 'Android',
+    description: 'Native Android apps for productivity, lifestyle, and TON ecosystem',
+    emoji: '📱',
   },
   games: {
     slug: 'games',
@@ -113,7 +113,7 @@ function isCategorySlug(value: string): value is CategorySlug {
 }
 
 const DISPLAY_NAME_BY_HOME_SLUG: Record<HomeCategorySlug, string> = {
-  apps: 'Apps',
+  apps: 'Android',
   games: 'Games',
   ai: 'AI Services',
   'developer-tools': 'Developer Tools',

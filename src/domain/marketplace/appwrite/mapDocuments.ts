@@ -86,12 +86,20 @@ function isCategorySlug(value: string): value is CategorySlug {
 
 function labelFromSlug(slug: string): string {
   const map: Record<string, string> = {
-    apps: 'Apps',
+    apps: 'Android',
     games: 'Games',
     ai: 'AI Services',
     'developer-tools': 'Developer Tools',
+    design: 'Design',
+    defi: 'DeFi',
+    education: 'Education',
+    security: 'Security',
+    media: 'Media',
+    social: 'Social',
+    health: 'Health',
+    utilities: 'Utilities',
   };
-  return map[slug] ?? 'Apps';
+  return map[slug] ?? 'Android';
 }
 
 export function mapProductDocument(
@@ -191,7 +199,10 @@ export function mapCategoryDocument(raw: Record<string, unknown>): CategoryTable
   const description = asNonEmptyString(data.description);
   const emoji = asNonEmptyString(data.emoji);
   if (!slug || !title || !description || !emoji) return null;
-  const validSlugs: CategorySlug[] = ['apps', 'games', 'ai', 'developer-tools', 'featured'];
+  const validSlugs: CategorySlug[] = [
+    'apps', 'games', 'ai', 'developer-tools', 'design', 'defi',
+    'education', 'security', 'media', 'social', 'health', 'utilities', 'featured',
+  ];
   if (!validSlugs.includes(slug as CategorySlug)) return null;
   const sortOrder = asNumber(data.sortOrder) ?? 0;
   const gradient = asNonEmptyString(data.gradient) ?? 'from-gray-500 to-gray-700';
@@ -199,10 +210,18 @@ export function mapCategoryDocument(raw: Record<string, unknown>): CategoryTable
 }
 
 const CATEGORY_LABEL_TO_HOME_SLUG: Record<string, HomeCategorySlug> = {
-  Apps: 'apps',
+  Android: 'apps',
   Games: 'games',
   'AI Services': 'ai',
   'Developer Tools': 'developer-tools',
+  Design: 'design',
+  DeFi: 'defi',
+  Education: 'education',
+  Security: 'security',
+  Media: 'media',
+  Social: 'social',
+  Health: 'health',
+  Utilities: 'utilities',
 };
 
 function homeSlugForListingProduct(product: CatalogListingProduct): HomeCategorySlug | null {
@@ -210,15 +229,26 @@ function homeSlugForListingProduct(product: CatalogListingProduct): HomeCategory
 }
 
 export function buildHomeSummaries(categories: CategoryTableRow[], products: CatalogListingProduct[]): HomeCategorySummary[] {
-  const homeSlugs: HomeCategorySlug[] = ['apps', 'games', 'ai', 'developer-tools'];
+  const homeSlugs: HomeCategorySlug[] = [
+    'apps', 'games', 'ai', 'developer-tools', 'design', 'defi',
+    'education', 'security', 'media', 'social', 'health', 'utilities',
+  ];
   const countFor = (slug: HomeCategorySlug) =>
     products.filter((p) => homeSlugForListingProduct(p) === slug).length;
 
   const nameForSlug: Record<HomeCategorySlug, string> = {
-    apps: 'Apps',
+    apps: 'Android',
     games: 'Games',
     ai: 'AI Services',
     'developer-tools': 'Developer Tools',
+    design: 'Design & Creative',
+    defi: 'Finance & DeFi',
+    education: 'Education',
+    security: 'Security & Privacy',
+    media: 'Media & Entertainment',
+    social: 'Social & Communication',
+    health: 'Health & Wellness',
+    utilities: 'Utilities & System',
   };
 
   const bySlug = new Map(categories.map((c) => [c.slug, c]));
