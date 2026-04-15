@@ -253,6 +253,39 @@ export const CATALOG_LISTING_PRODUCTS: CatalogListingProduct[] = [
     category: 'AI Services', developer: 'ArtifactAI', isFeatured: false, donationAmount: 19.0,
     platforms: ['Web', 'macOS', 'Windows'], tags: ['AI Art', 'Text-to-Image', 'Inpainting', 'API'], reviewCount: 1340, releaseDate: '2024-12-20',
   },
+  // ── God's Creations ──
+  {
+    id: '31', name: 'Genesis Engine',
+    description: 'Universal creation framework for building entire digital worlds — terrain gen, NPC AI, real-time multiplayer networking, and TON economy integration',
+    price: 29.0, rating: 5.0, downloads: 47200,
+    image: 'https://images.pexels.com/photos/1629236/pexels-photo-1629236.jpeg?auto=compress&cs=tinysrgb&w=800',
+    category: 'Developer Tools', developer: 'God', isFeatured: true, donationAmount: 88.0,
+    platforms: ['Windows', 'macOS', 'Linux', 'Web'], tags: ['Engine', 'Game Dev', 'Multiplayer', 'World Building'], reviewCount: 2340, releaseDate: '2024-01-01',
+  },
+  {
+    id: '32', name: 'Omniscient AI',
+    description: 'AGI-class reasoning engine with unlimited context, self-improving prompts, and divine-tier code generation across 120+ languages',
+    price: 42.0, rating: 4.9, downloads: 63100,
+    image: 'https://images.pexels.com/photos/2004161/pexels-photo-2004161.jpeg?auto=compress&cs=tinysrgb&w=800',
+    category: 'AI Services', developer: 'God', isFeatured: true, donationAmount: 120.0,
+    platforms: ['Web', 'iOS', 'Android', 'macOS', 'Windows'], tags: ['AGI', 'Reasoning', 'Code Gen', 'Self-improving'], reviewCount: 4210, releaseDate: '2024-03-15',
+  },
+  {
+    id: '33', name: 'Divine Shield',
+    description: 'Impenetrable security suite — quantum-resistant encryption, zero-day exploit prediction, and autonomous threat neutralization',
+    price: 19.0, rating: 4.8, downloads: 38500,
+    image: 'https://images.pexels.com/photos/5380642/pexels-photo-5380642.jpeg?auto=compress&cs=tinysrgb&w=800',
+    category: 'Security', developer: 'God', isFeatured: true, donationAmount: 66.0,
+    platforms: ['Windows', 'macOS', 'Linux', 'iOS', 'Android'], tags: ['Security', 'Quantum', 'Zero-day', 'Autonomous'], reviewCount: 1890, releaseDate: '2024-06-20',
+  },
+  {
+    id: '34', name: 'Celestial Canvas',
+    description: 'AI design suite that reads creative intent — sketch rough ideas and watch them transform into production-ready masterpieces instantly',
+    price: 25.0, rating: 4.9, downloads: 28900,
+    image: 'https://images.pexels.com/photos/3075993/pexels-photo-3075993.jpeg?auto=compress&cs=tinysrgb&w=800',
+    category: 'Design', developer: 'God', isFeatured: true, donationAmount: 55.0,
+    platforms: ['macOS', 'Windows', 'Web', 'iOS'], tags: ['Design', 'AI', 'Creative', 'Auto-design'], reviewCount: 1560, releaseDate: '2024-09-10',
+  },
 ];
 
 const PRODUCT_DETAIL_BY_ID: Record<string, ProductDetail> = {
@@ -526,26 +559,47 @@ export function getSeedDetailOrNull(productId: string): ProductDetail | null {
 }
 
 export const SEED_DEVELOPERS: DeveloperProfile[] = [
-  { id: 'dev-1', name: 'Dharma Tech', avatar: 'https://i.pravatar.cc/128?u=dharma-tech', bio: 'Mindful productivity tools for the TON ecosystem', website: 'https://dharmatech.ton', tonWallet: 'EQDa...x1R7', joinedDate: '2024-03-15', productCount: 1, totalDownloads: 7800 },
+  { id: 'dev-1', name: 'Dharma Tech', avatar: 'https://i.pravatar.cc/128?u=dharma-tech', bio: 'Mindful productivity tools for the TON ecosystem', website: 'https://dharmatech.ton', tonWallet: 'EQDa...x1R7', joinedDate: '2024-03-15', productCount: 1, totalDownloads: 7800, bannerUrl: 'https://images.pexels.com/photos/3225517/pexels-photo-3225517.jpeg?auto=compress&cs=tinysrgb&w=1200', telegram: 'dharmatech', aboutLong: 'We build tools that help you build better habits. Our philosophy: technology should serve your well-being, not drain it. Every feature in Karma Tracker is designed with mindfulness at its core.' },
   { id: 'dev-2', name: 'FlowState Labs', avatar: 'https://i.pravatar.cc/128?u=flowstate', bio: 'Minimalist productivity — less planning, more doing', joinedDate: '2024-01-10', productCount: 1, totalDownloads: 9400 },
   { id: 'dev-3', name: 'CoinWise Studio', avatar: 'https://i.pravatar.cc/128?u=coinwise', bio: 'Financial clarity for crypto-native users', joinedDate: '2024-06-22', productCount: 1, totalDownloads: 5200 },
-  { id: 'dev-4', name: 'Volt Games', avatar: 'https://i.pravatar.cc/128?u=volt-games', bio: 'AAA battle royale & competitive games on TON', website: 'https://voltgames.gg', tonWallet: 'EQBv...k8Qf', joinedDate: '2023-11-05', productCount: 1, totalDownloads: 24300 },
+  { id: 'dev-4', name: 'Volt Games', avatar: 'https://i.pravatar.cc/128?u=volt-games', bio: 'AAA battle royale & competitive games on TON', website: 'https://voltgames.gg', tonWallet: 'EQBv...k8Qf', joinedDate: '2023-11-05', productCount: 1, totalDownloads: 24300, bannerUrl: 'https://images.pexels.com/photos/3165335/pexels-photo-3165335.jpeg?auto=compress&cs=tinysrgb&w=1200', github: 'volt-games', twitter: 'VoltGamesGG', telegram: 'voltgames', aboutLong: 'Volt Games is a AAA game studio building the future of competitive gaming on TON blockchain. Our flagship title Neon Arena has attracted over 24,000 players in its first season. We believe in fair play, true ownership of in-game assets, and tournaments with real stakes.' },
   { id: 'dev-5', name: 'Enlightened Games', avatar: 'https://i.pravatar.cc/128?u=enlightened', bio: 'Story-driven RPGs where karma shapes destiny', joinedDate: '2024-02-18', productCount: 1, totalDownloads: 11200 },
   { id: 'dev-6', name: 'Stellar Minds', avatar: 'https://i.pravatar.cc/128?u=stellar-minds', bio: 'Brain-teasing puzzle experiences for all ages', joinedDate: '2024-05-30', productCount: 1, totalDownloads: 8900 },
-  { id: 'dev-7', name: 'Dharma AI', avatar: 'https://i.pravatar.cc/128?u=dharma-ai', bio: 'AI research tools with respect for truth and sources', website: 'https://dharma-ai.ton', tonWallet: 'EQCx...m4Tp', joinedDate: '2023-09-12', productCount: 1, totalDownloads: 15600 },
+  { id: 'dev-7', name: 'Dharma AI', avatar: 'https://i.pravatar.cc/128?u=dharma-ai', bio: 'AI research tools with respect for truth and sources', website: 'https://dharma-ai.ton', tonWallet: 'EQCx...m4Tp', joinedDate: '2023-09-12', productCount: 1, totalDownloads: 15600, bannerUrl: 'https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=1200', github: 'dharma-ai', twitter: 'DharmaAI_', aboutLong: 'At Dharma AI, we build AI systems that cite their sources and respect truth. AI Wisdom Oracle is used by 15,000+ researchers, lawyers, and engineers who demand verifiable knowledge. We are committed to transparent AI that augments human intelligence without replacing human judgment.' },
   { id: 'dev-8', name: 'SonicAI Labs', avatar: 'https://i.pravatar.cc/128?u=sonicai', bio: 'Voice AI — clone, narrate, create', joinedDate: '2024-04-01', productCount: 1, totalDownloads: 6700 },
   { id: 'dev-9', name: 'LinguaNet', avatar: 'https://i.pravatar.cc/128?u=linguanet', bio: 'Breaking language barriers with neural translation', joinedDate: '2024-01-20', productCount: 1, totalDownloads: 19800 },
-  { id: 'dev-10', name: 'Sacred Devs', avatar: 'https://i.pravatar.cc/128?u=sacred-devs', bio: 'Code editors built by developers, for developers', website: 'https://sacreddevs.io', tonWallet: 'EQAf...r2Wn', joinedDate: '2023-08-01', productCount: 1, totalDownloads: 12500 },
+  { id: 'dev-10', name: 'Sacred Devs', avatar: 'https://i.pravatar.cc/128?u=sacred-devs', bio: 'Code editors built by developers, for developers', website: 'https://sacreddevs.io', tonWallet: 'EQAf...r2Wn', joinedDate: '2023-08-01', productCount: 1, totalDownloads: 12500, bannerUrl: 'https://images.pexels.com/photos/270348/pexels-photo-270348.jpeg?auto=compress&cs=tinysrgb&w=1200', github: 'sacred-devs', twitter: 'SacredDevs', telegram: 'sacreddevs', aboutLong: 'We are a small team of passionate developers who believe that the tools you use shape the code you write. Cosmic Code Editor Pro is our love letter to every developer who has ever dreamed of a faster, smarter, more beautiful editor. Built with Rust core, GPU-rendered canvas, and AI that truly understands your codebase.' },
   { id: 'dev-11', name: 'Mindful Apps', avatar: 'https://i.pravatar.cc/128?u=mindful-apps', bio: 'GPU-accelerated dev tools with zen aesthetics', joinedDate: '2024-03-10', productCount: 1, totalDownloads: 15200 },
   { id: 'dev-12', name: 'CreativeForge Inc.', avatar: 'https://i.pravatar.cc/128?u=creativeforge', bio: 'Design tools that empower creative teams', website: 'https://creativeforge.design', joinedDate: '2023-12-15', productCount: 1, totalDownloads: 8400 },
   { id: 'dev-13', name: 'PixelMind Studio', avatar: 'https://i.pravatar.cc/128?u=pixelmind', bio: 'AI-powered photo enhancement and restoration', joinedDate: '2024-07-08', productCount: 1, totalDownloads: 11300 },
   { id: 'dev-14', name: 'VoxelWorks', avatar: 'https://i.pravatar.cc/128?u=voxelworks', bio: '3D modeling and sculpting for the modern artist', joinedDate: '2024-04-20', productCount: 1, totalDownloads: 4200 },
-  { id: 'dev-15', name: 'ShieldLabs', avatar: 'https://i.pravatar.cc/128?u=shieldlabs', bio: 'Multi-chain wallet security — because your keys matter', website: 'https://shieldlabs.ton', tonWallet: 'EQDk...a9Bw', joinedDate: '2023-10-28', productCount: 1, totalDownloads: 18700 },
+  { id: 'dev-15', name: 'ShieldLabs', avatar: 'https://i.pravatar.cc/128?u=shieldlabs', bio: 'Multi-chain wallet security — because your keys matter', website: 'https://shieldlabs.ton', tonWallet: 'EQDk...a9Bw', joinedDate: '2023-10-28', productCount: 1, totalDownloads: 18700, bannerUrl: 'https://images.pexels.com/photos/60504/security-protection-anti-virus-software-60504.jpeg?auto=compress&cs=tinysrgb&w=1200', github: 'shieldlabs', telegram: 'shieldlabs_ton', aboutLong: 'Your keys, your crypto, your rules. ShieldLabs builds the most secure multi-signature wallets in the TON ecosystem. Our transaction scanner has prevented over $2M in potential scam losses since launch. We sleep well at night knowing your assets are safe.' },
   { id: 'dev-16', name: 'YieldMaster', avatar: 'https://i.pravatar.cc/128?u=yieldmaster', bio: 'DeFi portfolio analytics across 12+ chains', joinedDate: '2024-06-15', productCount: 1, totalDownloads: 7300 },
   { id: 'dev-17', name: 'EduChain Academy', avatar: 'https://i.pravatar.cc/128?u=educhain', bio: 'Web3 education with verifiable on-chain certificates', website: 'https://educhain.ton', joinedDate: '2024-02-01', productCount: 1, totalDownloads: 13500 },
   { id: 'dev-18', name: 'LingoStar', avatar: 'https://i.pravatar.cc/128?u=lingostar', bio: 'Learn languages with AI tutoring and gamification', joinedDate: '2024-05-10', productCount: 1, totalDownloads: 22100 },
   { id: 'dev-19', name: 'PrivacyFirst', avatar: 'https://i.pravatar.cc/128?u=privacyfirst', bio: 'Decentralized VPN — zero-knowledge, zero compromise', website: 'https://privacyfirst.ton', joinedDate: '2023-07-14', productCount: 1, totalDownloads: 31200 },
   { id: 'dev-20', name: 'ChainShield', avatar: 'https://i.pravatar.cc/128?u=chainshield', bio: 'Smart contract security — simulate before you sign', joinedDate: '2024-01-06', productCount: 1, totalDownloads: 9800 },
+  {
+    id: 'dev-god', name: 'God',
+    avatar: 'https://i.pravatar.cc/128?u=god-creator',
+    bio: 'Architect of Digital Realms. Creator of impossible experiences.',
+    website: 'https://god.ton',
+    tonWallet: 'EQGo...d000',
+    joinedDate: '2024-01-01',
+    productCount: 4,
+    totalDownloads: 177700,
+    bannerUrl: 'https://images.pexels.com/photos/1629236/pexels-photo-1629236.jpeg?auto=compress&cs=tinysrgb&w=1200',
+    github: 'god-creator',
+    telegram: 'god_creator',
+    twitter: 'god_creates',
+    aboutLong: `I forge digital universes from pure mathematics. Each product is a world unto itself — a self-contained ecosystem of logic, beauty, and function.
+
+From the Genesis Engine that powers hundreds of indie games to Omniscient AI that pushes the boundaries of machine reasoning, every creation embodies a simple philosophy: technology should amplify human potential, not constrain it.
+
+My tools are built for creators, dreamers, and builders who refuse to accept "impossible" as an answer. Join 170,000+ developers and creators who have chosen to build with divine-grade tools.
+
+"The best code is indistinguishable from magic."`,
+  },
 ];
 
 export const SEED_USERS: UserProfile[] = [

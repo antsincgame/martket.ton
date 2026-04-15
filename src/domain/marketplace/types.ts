@@ -59,6 +59,11 @@ export interface DeveloperProfile {
   joinedDate: string;
   productCount: number;
   totalDownloads: number;
+  bannerUrl?: string;
+  github?: string;
+  telegram?: string;
+  twitter?: string;
+  aboutLong?: string;
 }
 
 export interface PublicDeveloperProfile {

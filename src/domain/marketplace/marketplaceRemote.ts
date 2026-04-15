@@ -13,7 +13,7 @@ import {
   getProductDetail,
   getProductReviews,
 } from './catalog';
-import { CATALOG_LISTING_PRODUCTS } from './seed';
+import { CATALOG_LISTING_PRODUCTS, SEED_DEVELOPERS } from './seed';
 import { slugify } from '../../utils/slugify';
 import type {
   CatalogListingProduct,
@@ -125,7 +125,12 @@ export async function resolveProductReviews(productId: string): Promise<ProductR
   return getProductReviews(productId);
 }
 
-/** Публичный профиль разработчика по slug. Seed-фоллбэк агрегирует из каталога. */
+/** Маппинг SEED_DEVELOPERS по slug для быстрого поиска. */
+const SEED_DEV_BY_SLUG = new Map(
+  SEED_DEVELOPERS.map((d) => [slugify(d.name), d])
+);
+
+/** Публичный профиль разработчика по slug. Мёрджит SEED_DEVELOPERS + каталог. */
 export async function resolvePublicDeveloperProfile(
   slug: string
 ): Promise<PublicDeveloperProfile | null> {
@@ -147,14 +152,20 @@ export async function resolvePublicDeveloperProfile(
   const totalDownloads = products.reduce((s, p) => s + p.downloads, 0);
   const avgRating = products.reduce((s, p) => s + p.rating, 0) / products.length;
 
+  const seedDev = SEED_DEV_BY_SLUG.get(slug);
+
   return {
     slug,
     displayName,
-    avatar: '',
-    bio: `Creator of ${products.length} product${products.length > 1 ? 's' : ''} on TON Web Store`,
-    aboutLong: '',
-    bannerUrl: '',
-    joinedDate: products[0].releaseDate ?? '2024-01-01',
+    avatar: seedDev?.avatar ?? '',
+    bio: seedDev?.bio ?? `Creator of ${products.length} product${products.length > 1 ? 's' : ''} on TON Web Store`,
+    aboutLong: seedDev?.aboutLong ?? '',
+    bannerUrl: seedDev?.bannerUrl ?? '',
+    website: seedDev?.website,
+    github: seedDev?.github,
+    telegram: seedDev?.telegram,
+    twitter: seedDev?.twitter,
+    joinedDate: seedDev?.joinedDate ?? products[0].releaseDate ?? '2024-01-01',
     productCount: products.length,
     totalDownloads,
     avgRating: Math.round(avgRating * 10) / 10,
