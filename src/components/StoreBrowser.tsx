@@ -118,6 +118,17 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
 
           {/* Product list */}
           <div className="bg-[#1A1A1A]/50 border border-white/10 rounded-xl p-2">
+            {/* Column headers */}
+            <div className="hidden sm:grid grid-cols-[120px_1fr_80px_80px_60px_56px_80px] items-center gap-x-2 px-3 py-1.5 mb-1 border-b border-[#FFD700]/10">
+              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold">Image</span>
+              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold pl-1">Name</span>
+              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold text-center">Platform</span>
+              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold">Tags</span>
+              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold text-right">DL</span>
+              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold text-center">Rate</span>
+              <span className="text-[9px] uppercase tracking-widest text-[#FFD700]/40 font-semibold text-right">Price</span>
+            </div>
+
             <AnimatePresence mode="wait">
               <motion.div
                 key={`${activeTab}-${activeCategory}-${safePage}`}

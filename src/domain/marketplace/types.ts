@@ -39,13 +39,34 @@ export interface ProductDetail extends CatalogListingProduct {
 }
 
 export interface ProductReview {
-  /** Идентификатор документа в Appwrite или стабильный строковый ключ в сиде */
   id: string;
   author: string;
+  authorAvatar?: string;
+  userId?: string;
   rating: number;
   date: string;
   comment: string;
   helpful: number;
+}
+
+export interface DeveloperProfile {
+  id: string;
+  name: string;
+  avatar: string;
+  bio: string;
+  website?: string;
+  tonWallet?: string;
+  joinedDate: string;
+  productCount: number;
+  totalDownloads: number;
+}
+
+export interface UserProfile {
+  id: string;
+  username: string;
+  avatar: string;
+  joinedDate: string;
+  reviewCount: number;
 }
 
 export type CategorySlug =

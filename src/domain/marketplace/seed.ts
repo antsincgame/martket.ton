@@ -1,4 +1,4 @@
-import type { CatalogListingProduct, ProductDetail, ProductReview } from './types';
+import type { CatalogListingProduct, ProductDetail, ProductReview, DeveloperProfile, UserProfile } from './types';
 
 export const CATALOG_LISTING_PRODUCTS: CatalogListingProduct[] = [
   // ── Apps ──
@@ -442,32 +442,133 @@ export const REVIEWS_PRODUCT_1: ProductReview[] = [
   {
     id: 'rev-product-10-a',
     author: 'ZenCoder',
+    authorAvatar: 'https://i.pravatar.cc/64?u=zencoder',
+    userId: 'user-1',
     rating: 5,
     date: '2025-01-10',
-    comment:
-      'The GPT-4 completions are the best I have used — they understand multi-file context. Cosmic theme is gorgeous at night.',
+    comment: 'The GPT-4 completions are the best I have used — they understand multi-file context. Cosmic theme is gorgeous at night.',
     helpful: 23,
   },
   {
     id: 'rev-product-10-b',
     author: 'MindfulDev',
+    authorAvatar: 'https://i.pravatar.cc/64?u=mindfuldev',
+    userId: 'user-2',
     rating: 5,
     date: '2025-01-08',
-    comment:
-      'Switched from VS Code for the git diff viewer alone. The plugin ecosystem is growing fast and the editor feels lighter.',
+    comment: 'Switched from VS Code for the git diff viewer alone. The plugin ecosystem is growing fast and the editor feels lighter.',
     helpful: 18,
   },
   {
     id: 'rev-product-10-c',
     author: 'EnlightenedProgrammer',
+    authorAvatar: 'https://i.pravatar.cc/64?u=enlightened',
+    userId: 'user-3',
     rating: 4,
     date: '2025-01-05',
-    comment:
-      'Solid editor with beautiful UI. AI assist is top-notch. Minor lag on 10k+ line files, but the team ships fixes fast.',
+    comment: 'Solid editor with beautiful UI. AI assist is top-notch. Minor lag on 10k+ line files, but the team ships fixes fast.',
     helpful: 12,
+  },
+  {
+    id: 'rev-product-10-d',
+    author: 'CryptoNomad',
+    authorAvatar: 'https://i.pravatar.cc/64?u=cryptonomad',
+    userId: 'user-4',
+    rating: 5,
+    date: '2025-01-02',
+    comment: 'Finally an editor that gets Web3 development. Built-in Solidity and FunC support saved me hours.',
+    helpful: 15,
+  },
+  {
+    id: 'rev-product-10-e',
+    author: 'NeonHunter',
+    authorAvatar: 'https://i.pravatar.cc/64?u=neonhunter',
+    userId: 'user-5',
+    rating: 4,
+    date: '2024-12-28',
+    comment: 'Beautiful themes and great terminal integration. Would love to see split-diff view improved.',
+    helpful: 9,
+  },
+  {
+    id: 'rev-product-10-f',
+    author: 'QuantumDrifter',
+    authorAvatar: 'https://i.pravatar.cc/64?u=qdrifter',
+    userId: 'user-6',
+    rating: 5,
+    date: '2024-12-20',
+    comment: 'This replaced three tools for me. The AI understands context across files better than anything I\'ve tried.',
+    helpful: 27,
+  },
+  {
+    id: 'rev-product-10-g',
+    author: 'VoidWalker_42',
+    authorAvatar: 'https://i.pravatar.cc/64?u=voidwalker',
+    userId: 'user-7',
+    rating: 5,
+    date: '2024-12-15',
+    comment: 'Rock solid on Linux. SSH remote development works flawlessly. The cosmic dark theme is pure art.',
+    helpful: 21,
+  },
+  {
+    id: 'rev-product-10-h',
+    author: 'TON_Maximalist',
+    authorAvatar: 'https://i.pravatar.cc/64?u=tonmax',
+    userId: 'user-9',
+    rating: 5,
+    date: '2024-12-10',
+    comment: 'Best investment I made this year. FunC autocomplete alone is worth the price. Sacred Devs ships fast.',
+    helpful: 33,
   },
 ];
 
 export function getSeedDetailOrNull(productId: string): ProductDetail | null {
   return PRODUCT_DETAIL_BY_ID[productId] ?? null;
+}
+
+export const SEED_DEVELOPERS: DeveloperProfile[] = [
+  { id: 'dev-1', name: 'Dharma Tech', avatar: 'https://i.pravatar.cc/128?u=dharma-tech', bio: 'Mindful productivity tools for the TON ecosystem', website: 'https://dharmatech.ton', tonWallet: 'EQDa...x1R7', joinedDate: '2024-03-15', productCount: 1, totalDownloads: 7800 },
+  { id: 'dev-2', name: 'FlowState Labs', avatar: 'https://i.pravatar.cc/128?u=flowstate', bio: 'Minimalist productivity — less planning, more doing', joinedDate: '2024-01-10', productCount: 1, totalDownloads: 9400 },
+  { id: 'dev-3', name: 'CoinWise Studio', avatar: 'https://i.pravatar.cc/128?u=coinwise', bio: 'Financial clarity for crypto-native users', joinedDate: '2024-06-22', productCount: 1, totalDownloads: 5200 },
+  { id: 'dev-4', name: 'Volt Games', avatar: 'https://i.pravatar.cc/128?u=volt-games', bio: 'AAA battle royale & competitive games on TON', website: 'https://voltgames.gg', tonWallet: 'EQBv...k8Qf', joinedDate: '2023-11-05', productCount: 1, totalDownloads: 24300 },
+  { id: 'dev-5', name: 'Enlightened Games', avatar: 'https://i.pravatar.cc/128?u=enlightened', bio: 'Story-driven RPGs where karma shapes destiny', joinedDate: '2024-02-18', productCount: 1, totalDownloads: 11200 },
+  { id: 'dev-6', name: 'Stellar Minds', avatar: 'https://i.pravatar.cc/128?u=stellar-minds', bio: 'Brain-teasing puzzle experiences for all ages', joinedDate: '2024-05-30', productCount: 1, totalDownloads: 8900 },
+  { id: 'dev-7', name: 'Dharma AI', avatar: 'https://i.pravatar.cc/128?u=dharma-ai', bio: 'AI research tools with respect for truth and sources', website: 'https://dharma-ai.ton', tonWallet: 'EQCx...m4Tp', joinedDate: '2023-09-12', productCount: 1, totalDownloads: 15600 },
+  { id: 'dev-8', name: 'SonicAI Labs', avatar: 'https://i.pravatar.cc/128?u=sonicai', bio: 'Voice AI — clone, narrate, create', joinedDate: '2024-04-01', productCount: 1, totalDownloads: 6700 },
+  { id: 'dev-9', name: 'LinguaNet', avatar: 'https://i.pravatar.cc/128?u=linguanet', bio: 'Breaking language barriers with neural translation', joinedDate: '2024-01-20', productCount: 1, totalDownloads: 19800 },
+  { id: 'dev-10', name: 'Sacred Devs', avatar: 'https://i.pravatar.cc/128?u=sacred-devs', bio: 'Code editors built by developers, for developers', website: 'https://sacreddevs.io', tonWallet: 'EQAf...r2Wn', joinedDate: '2023-08-01', productCount: 1, totalDownloads: 12500 },
+  { id: 'dev-11', name: 'Mindful Apps', avatar: 'https://i.pravatar.cc/128?u=mindful-apps', bio: 'GPU-accelerated dev tools with zen aesthetics', joinedDate: '2024-03-10', productCount: 1, totalDownloads: 15200 },
+  { id: 'dev-12', name: 'CreativeForge Inc.', avatar: 'https://i.pravatar.cc/128?u=creativeforge', bio: 'Design tools that empower creative teams', website: 'https://creativeforge.design', joinedDate: '2023-12-15', productCount: 1, totalDownloads: 8400 },
+  { id: 'dev-13', name: 'PixelMind Studio', avatar: 'https://i.pravatar.cc/128?u=pixelmind', bio: 'AI-powered photo enhancement and restoration', joinedDate: '2024-07-08', productCount: 1, totalDownloads: 11300 },
+  { id: 'dev-14', name: 'VoxelWorks', avatar: 'https://i.pravatar.cc/128?u=voxelworks', bio: '3D modeling and sculpting for the modern artist', joinedDate: '2024-04-20', productCount: 1, totalDownloads: 4200 },
+  { id: 'dev-15', name: 'ShieldLabs', avatar: 'https://i.pravatar.cc/128?u=shieldlabs', bio: 'Multi-chain wallet security — because your keys matter', website: 'https://shieldlabs.ton', tonWallet: 'EQDk...a9Bw', joinedDate: '2023-10-28', productCount: 1, totalDownloads: 18700 },
+  { id: 'dev-16', name: 'YieldMaster', avatar: 'https://i.pravatar.cc/128?u=yieldmaster', bio: 'DeFi portfolio analytics across 12+ chains', joinedDate: '2024-06-15', productCount: 1, totalDownloads: 7300 },
+  { id: 'dev-17', name: 'EduChain Academy', avatar: 'https://i.pravatar.cc/128?u=educhain', bio: 'Web3 education with verifiable on-chain certificates', website: 'https://educhain.ton', joinedDate: '2024-02-01', productCount: 1, totalDownloads: 13500 },
+  { id: 'dev-18', name: 'LingoStar', avatar: 'https://i.pravatar.cc/128?u=lingostar', bio: 'Learn languages with AI tutoring and gamification', joinedDate: '2024-05-10', productCount: 1, totalDownloads: 22100 },
+  { id: 'dev-19', name: 'PrivacyFirst', avatar: 'https://i.pravatar.cc/128?u=privacyfirst', bio: 'Decentralized VPN — zero-knowledge, zero compromise', website: 'https://privacyfirst.ton', joinedDate: '2023-07-14', productCount: 1, totalDownloads: 31200 },
+  { id: 'dev-20', name: 'ChainShield', avatar: 'https://i.pravatar.cc/128?u=chainshield', bio: 'Smart contract security — simulate before you sign', joinedDate: '2024-01-06', productCount: 1, totalDownloads: 9800 },
+];
+
+export const SEED_USERS: UserProfile[] = [
+  { id: 'user-1', username: 'ZenCoder', avatar: 'https://i.pravatar.cc/64?u=zencoder', joinedDate: '2024-06-15', reviewCount: 12 },
+  { id: 'user-2', username: 'MindfulDev', avatar: 'https://i.pravatar.cc/64?u=mindfuldev', joinedDate: '2024-03-22', reviewCount: 8 },
+  { id: 'user-3', username: 'EnlightenedProgrammer', avatar: 'https://i.pravatar.cc/64?u=enlightened', joinedDate: '2024-01-10', reviewCount: 15 },
+  { id: 'user-4', username: 'CryptoNomad', avatar: 'https://i.pravatar.cc/64?u=cryptonomad', joinedDate: '2023-11-05', reviewCount: 24 },
+  { id: 'user-5', username: 'NeonHunter', avatar: 'https://i.pravatar.cc/64?u=neonhunter', joinedDate: '2024-04-18', reviewCount: 6 },
+  { id: 'user-6', username: 'QuantumDrifter', avatar: 'https://i.pravatar.cc/64?u=qdrifter', joinedDate: '2024-07-01', reviewCount: 19 },
+  { id: 'user-7', username: 'VoidWalker_42', avatar: 'https://i.pravatar.cc/64?u=voidwalker', joinedDate: '2023-12-20', reviewCount: 31 },
+  { id: 'user-8', username: 'SakuraByte', avatar: 'https://i.pravatar.cc/64?u=sakurabyte', joinedDate: '2024-02-14', reviewCount: 9 },
+  { id: 'user-9', username: 'TON_Maximalist', avatar: 'https://i.pravatar.cc/64?u=tonmax', joinedDate: '2023-09-30', reviewCount: 42 },
+  { id: 'user-10', username: 'DarkMatterDev', avatar: 'https://i.pravatar.cc/64?u=darkmatter', joinedDate: '2024-05-25', reviewCount: 14 },
+  { id: 'user-11', username: 'PixelSamurai', avatar: 'https://i.pravatar.cc/64?u=pixelsamurai', joinedDate: '2024-08-03', reviewCount: 7 },
+  { id: 'user-12', username: 'AstralCoder', avatar: 'https://i.pravatar.cc/64?u=astralcoder', joinedDate: '2024-01-28', reviewCount: 22 },
+];
+
+const DEVELOPER_BY_NAME = new Map(SEED_DEVELOPERS.map((d) => [d.name, d]));
+
+export function getSeedDeveloper(name: string): DeveloperProfile | undefined {
+  return DEVELOPER_BY_NAME.get(name);
+}
+
+export function getSeedUser(userId: string): UserProfile | undefined {
+  return SEED_USERS.find((u) => u.id === userId);
 }
