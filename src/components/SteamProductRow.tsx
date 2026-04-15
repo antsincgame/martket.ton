@@ -5,15 +5,15 @@ import { Star, Zap, Download, Wand2 } from 'lucide-react';
 import { formatDownloads } from '../domain/marketplace/platformIcons';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
-export const ROW_GRID = 'grid-cols-[7.5rem_1fr_10rem_6.5rem_5rem_4.5rem_3.5rem_5rem]';
+export const ROW_GRID = 'grid-cols-[7.5rem_1fr_9rem_12rem_5rem_4.5rem_3.5rem_5rem]';
 
-const PLATFORM_SHORT: Record<string, { label: string; color: string }> = {
-  Windows: { label: 'WIN', color: '#00F5FF' },
-  macOS: { label: 'MAC', color: '#FF00FF' },
-  Linux: { label: 'LNX', color: '#00FF88' },
+const PLATFORM_CFG: Record<string, { label: string; color: string }> = {
+  Windows: { label: 'Windows', color: '#00F5FF' },
+  macOS: { label: 'macOS', color: '#FF00FF' },
+  Linux: { label: 'Linux', color: '#00FF88' },
   iOS: { label: 'iOS', color: '#8B5CF6' },
-  Android: { label: 'AND', color: '#00FF88' },
-  Web: { label: 'WEB', color: '#FFD700' },
+  Android: { label: 'Android', color: '#00FF88' },
+  Web: { label: 'Web', color: '#FFD700' },
 };
 
 interface SteamProductRowProps {
@@ -83,19 +83,20 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
       </div>
 
       {/* Platforms — neon text badges */}
-      <div className="flex items-center justify-center gap-1">
+      <div className="flex items-center justify-center gap-1 flex-wrap">
         {platforms.map((p) => {
-          const cfg = PLATFORM_SHORT[p];
+          const cfg = PLATFORM_CFG[p];
           if (!cfg) return null;
           return (
             <span
               key={p}
-              className="text-[0.6rem] font-bold uppercase tracking-wider px-1 py-px rounded border"
+              className="text-[0.6rem] font-bold tracking-wide px-1.5 py-0.5 rounded border"
               style={{
                 color: cfg.color,
-                borderColor: `${cfg.color}33`,
-                backgroundColor: `${cfg.color}0D`,
-                textShadow: `0 0 6px ${cfg.color}66`,
+                borderColor: `${cfg.color}40`,
+                backgroundColor: `${cfg.color}15`,
+                textShadow: `0 0 8px ${cfg.color}80`,
+                boxShadow: `inset 0 0 6px ${cfg.color}15, 0 0 4px ${cfg.color}20`,
               }}
             >
               {cfg.label}
