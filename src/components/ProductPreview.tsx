@@ -7,9 +7,10 @@ import type { CatalogListingProduct } from '../domain/marketplace/types';
 
 interface ProductPreviewProps {
   product: CatalogListingProduct | null;
+  floating?: boolean;
 }
 
-const ProductPreview: React.FC<ProductPreviewProps> = ({ product }) => {
+const ProductPreview: React.FC<ProductPreviewProps> = ({ product, floating }) => {
   if (!product) return null;
 
   const platforms = getPlatformEntries(product.platforms ?? []);
@@ -112,12 +113,14 @@ const ProductPreview: React.FC<ProductPreviewProps> = ({ product }) => {
             </div>
           </div>
 
-          <Link
-            to={`/product/${product.id}`}
-            className="block w-full text-center bg-gradient-to-r from-[#FFD700]/20 to-[#FFD700]/10 border border-[#FFD700]/30 hover:border-[#FFD700]/50 hover:from-[#FFD700]/30 hover:to-[#FFD700]/15 hover:shadow-[0_0_15px_rgba(255,215,0,0.15)] text-[#FFD700] text-sm font-semibold py-2.5 rounded-lg transition-all duration-200 uppercase tracking-wider"
-          >
-            View Details
-          </Link>
+          {!floating && (
+            <Link
+              to={`/product/${product.id}`}
+              className="block w-full text-center bg-gradient-to-r from-[#FFD700]/20 to-[#FFD700]/10 border border-[#FFD700]/30 hover:border-[#FFD700]/50 hover:from-[#FFD700]/30 hover:to-[#FFD700]/15 hover:shadow-[0_0_15px_rgba(255,215,0,0.15)] text-[#FFD700] text-sm font-semibold py-2.5 rounded-lg transition-all duration-200 uppercase tracking-wider"
+            >
+              View Details
+            </Link>
+          )}
         </div>
       </motion.div>
     </AnimatePresence>

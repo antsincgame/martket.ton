@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
-import { TrendingUp, Star, Sparkles, Heart, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Search } from 'lucide-react';
+import React, { useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
+import { TrendingUp, Star, Sparkles, Heart, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import SteamProductRow, { ROW_GRID } from './SteamProductRow';
@@ -11,16 +11,9 @@ import type { CatalogListingProduct, HomeCategorySummary, HomeCategorySlug } fro
 
 const PREVIEW_W = 320;
 const PREVIEW_GAP = 16;
-
 const PAGE_SIZE = 10;
 
 type SortTab = 'trending' | 'top-rated' | 'newest' | 'most-blessed';
-type ColumnField = 'name' | 'developer' | 'downloads' | 'rating' | 'price';
-type SortDir = 'asc' | 'desc';
-
-type SortMode =
-  | { type: 'tab'; tab: SortTab }
-  | { type: 'column'; field: ColumnField; dir: SortDir };
 
 interface TabDef {
   id: SortTab;
@@ -53,23 +46,6 @@ function sortByTab(products: CatalogListingProduct[], tab: SortTab): CatalogList
   }
 }
 
-function sortByColumn(products: CatalogListingProduct[], field: ColumnField, dir: SortDir): CatalogListingProduct[] {
-  const copy = [...products];
-  const m = dir === 'asc' ? 1 : -1;
-  switch (field) {
-    case 'name':
-      return copy.sort((a, b) => m * a.name.localeCompare(b.name));
-    case 'developer':
-      return copy.sort((a, b) => m * a.developer.localeCompare(b.developer));
-    case 'downloads':
-      return copy.sort((a, b) => m * (a.downloads - b.downloads));
-    case 'rating':
-      return copy.sort((a, b) => m * (a.rating - b.rating));
-    case 'price':
-      return copy.sort((a, b) => m * (a.price - b.price));
-  }
-}
-
 function matchesSearch(product: CatalogListingProduct, q: string): boolean {
   const lower = q.toLowerCase();
   if (product.name.toLowerCase().includes(lower)) return true;
@@ -78,30 +54,15 @@ function matchesSearch(product: CatalogListingProduct, q: string): boolean {
   return false;
 }
 
+const HEADER_LABELS = ['', 'Name', 'Developer', 'Platform', 'Tags', 'Downloads', 'Rating', 'Price'];
+
 interface StoreBrowserProps {
   products: CatalogListingProduct[];
   categories: HomeCategorySummary[];
 }
 
-interface ColumnHeader {
-  label: string;
-  field: ColumnField | null;
-  align: 'left' | 'center' | 'right';
-}
-
-const COLUMNS: ColumnHeader[] = [
-  { label: '', field: null, align: 'left' },
-  { label: 'Name', field: 'name', align: 'left' },
-  { label: 'Developer', field: 'developer', align: 'left' },
-  { label: '', field: null, align: 'center' },
-  { label: '', field: null, align: 'left' },
-  { label: 'Downloads', field: 'downloads', align: 'right' },
-  { label: 'Rating', field: 'rating', align: 'center' },
-  { label: 'Price', field: 'price', align: 'right' },
-];
-
 const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => {
-  const [sortMode, setSortMode] = useState<SortMode>({ type: 'tab', tab: 'trending' });
+  const [activeTab, setActiveTab] = useState<SortTab>('top-rated');
   const [activeCategory, setActiveCategory] = useState<HomeCategorySlug | 'all'>('all');
   const [hoveredProduct, setHoveredProduct] = useState<CatalogListingProduct | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
@@ -110,7 +71,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewH, setPreviewH] = useState(400);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (previewRef.current) {
       setPreviewH(previewRef.current.offsetHeight);
     }
@@ -124,10 +85,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
     return list;
   }, [products, activeCategory, searchQuery]);
 
-  const sorted = useMemo(() => {
-    if (sortMode.type === 'tab') return sortByTab(filtered, sortMode.tab);
-    return sortByColumn(filtered, sortMode.field, sortMode.dir);
-  }, [filtered, sortMode]);
+  const sorted = useMemo(() => sortByTab(filtered, activeTab), [filtered, activeTab]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -158,19 +116,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   }, [mousePos, previewH]);
 
   const handleTabChange = useCallback((tab: SortTab) => {
-    setSortMode({ type: 'tab', tab });
-    setPage(0);
-    setHoveredProduct(null);
-  }, []);
-
-  const handleColumnSort = useCallback((field: ColumnField) => {
-    setSortMode((prev) => {
-      if (prev.type === 'column' && prev.field === field) {
-        return { type: 'column', field, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
-      }
-      const defaultDir: SortDir = field === 'name' || field === 'developer' ? 'asc' : 'desc';
-      return { type: 'column', field, dir: defaultDir };
-    });
+    setActiveTab(tab);
     setPage(0);
     setHoveredProduct(null);
   }, []);
@@ -180,8 +126,6 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
     setPage(0);
     setHoveredProduct(null);
   }, []);
-
-  const activeTab = sortMode.type === 'tab' ? sortMode.tab : null;
 
   return (
     <section className="py-8">
@@ -217,13 +161,13 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             })}
           </div>
 
-          {/* Product list block (search fused into top) */}
+          {/* Product list block */}
           <div
             className="bg-[#1A1A1A]/50 border border-white/10 rounded-xl overflow-hidden"
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
           >
-            {/* Search — fused into the table block */}
+            {/* Search */}
             <div className="relative px-3 pt-2 pb-1">
               <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 w-4 h-4" />
               <input
@@ -237,38 +181,21 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
 
             {/* Column headers */}
             <div className={`hidden sm:grid ${ROW_GRID} items-center gap-x-2 px-3 py-1.5 border-b border-[#FFD700]/10`}>
-              {COLUMNS.map((col, i) => {
-                if (!col.label) return <span key={i} />;
-                const isSortable = col.field !== null;
-                const isActiveCol = sortMode.type === 'column' && sortMode.field === col.field;
-                const alignCls = col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : 'justify-start';
-
-                if (!isSortable) return <span key={i} />;
-
-                return (
-                  <button
-                    key={i}
-                    onClick={() => handleColumnSort(col.field!)}
-                    className={`flex items-center gap-0.5 ${alignCls} text-[9px] uppercase tracking-widest font-semibold transition-colors duration-150 ${
-                      isActiveCol
-                        ? 'text-[#FFD700]/80'
-                        : 'text-[#FFD700]/40 hover:text-[#FFD700]/60'
-                    }`}
-                  >
-                    <span>{col.label}</span>
-                    {isActiveCol && (
-                      sortMode.type === 'column' && sortMode.dir === 'asc'
-                        ? <ChevronUp className="w-3 h-3" />
-                        : <ChevronDown className="w-3 h-3" />
-                    )}
-                  </button>
-                );
-              })}
+              {HEADER_LABELS.map((label, i) => (
+                <span
+                  key={i}
+                  className={`text-[9px] uppercase tracking-widest font-semibold text-[#FFD700]/40 ${
+                    i === 5 || i === 7 ? 'text-right' : i === 3 || i === 6 ? 'text-center' : ''
+                  }`}
+                >
+                  {label}
+                </span>
+              ))}
             </div>
 
             <AnimatePresence mode="wait">
               <motion.div
-                key={`${JSON.stringify(sortMode)}-${activeCategory}-${safePage}-${searchQuery}`}
+                key={`${activeTab}-${activeCategory}-${safePage}-${searchQuery}`}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
@@ -296,7 +223,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
           {/* Floating preview tooltip */}
           {hoveredProduct && mousePos && (
             <div ref={previewRef} style={tooltipStyle}>
-              <ProductPreview product={hoveredProduct} />
+              <ProductPreview product={hoveredProduct} floating />
             </div>
           )}
 
