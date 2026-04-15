@@ -2,21 +2,30 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { Star, Zap, Download, Wand2 } from 'lucide-react';
-import { getPlatformEntries, formatDownloads } from '../domain/marketplace/platformIcons';
+import { formatDownloads } from '../domain/marketplace/platformIcons';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
 export const ROW_GRID = 'grid-cols-[7.5rem_1fr_10rem_6.5rem_5rem_4.5rem_3.5rem_5rem]';
+
+const PLATFORM_SHORT: Record<string, { label: string; color: string }> = {
+  Windows: { label: 'WIN', color: '#00F5FF' },
+  macOS: { label: 'MAC', color: '#FF00FF' },
+  Linux: { label: 'LNX', color: '#00FF88' },
+  iOS: { label: 'iOS', color: '#8B5CF6' },
+  Android: { label: 'AND', color: '#00FF88' },
+  Web: { label: 'WEB', color: '#FFD700' },
+};
 
 interface SteamProductRowProps {
   product: CatalogListingProduct;
   isActive: boolean;
   onHover: (product: CatalogListingProduct) => void;
+  onHoverEnd: () => void;
 }
 
-const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, onHover }) => {
+const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, onHover, onHoverEnd }) => {
   const navigate = useNavigate();
-  const platforms = getPlatformEntries(product.platforms ?? []).slice(0, 3);
-  const platformTitle = platforms.map((p) => p.name).join(', ');
+  const platforms = (product.platforms ?? []).slice(0, 3);
   const tags = (product.tags ?? []).slice(0, 2);
 
   const handleRowClick = (e: React.MouseEvent) => {
@@ -35,19 +44,24 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
       }`}
       onClick={handleRowClick}
       onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/product/${product.id}`); }}
-      onMouseEnter={() => onHover(product)}
     >
-      {/* Thumbnail */}
+      {/* Thumbnail — triggers preview */}
       <img
         src={product.image}
         alt={product.name}
         className={`w-full h-[2.8rem] rounded object-cover transition-all duration-200 ${
           isActive ? 'ring-1 ring-[#FFD700]/30' : ''
         }`}
+        onMouseEnter={() => onHover(product)}
+        onMouseLeave={onHoverEnd}
       />
 
-      {/* Name */}
-      <div className="min-w-0 pl-1">
+      {/* Name — triggers preview */}
+      <div
+        className="min-w-0 pl-1"
+        onMouseEnter={() => onHover(product)}
+        onMouseLeave={onHoverEnd}
+      >
         <h4 className={`text-sm font-medium truncate transition-colors duration-150 ${
           isActive ? 'text-[#FFD700]' : 'text-white group-hover:text-gray-100'
         }`}>
@@ -68,11 +82,26 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
         </Link>
       </div>
 
-      {/* Platforms — horizontal row, rem-sized icons */}
-      <div className="flex items-center justify-center gap-1" title={platformTitle}>
-        {platforms.map(({ name, icon }) => (
-          <img key={name} src={icon} alt={name} className="w-7 h-7 object-contain" title={name} />
-        ))}
+      {/* Platforms — neon text badges */}
+      <div className="flex items-center justify-center gap-1">
+        {platforms.map((p) => {
+          const cfg = PLATFORM_SHORT[p];
+          if (!cfg) return null;
+          return (
+            <span
+              key={p}
+              className="text-[0.6rem] font-bold uppercase tracking-wider px-1 py-px rounded border"
+              style={{
+                color: cfg.color,
+                borderColor: `${cfg.color}33`,
+                backgroundColor: `${cfg.color}0D`,
+                textShadow: `0 0 6px ${cfg.color}66`,
+              }}
+            >
+              {cfg.label}
+            </span>
+          );
+        })}
       </div>
 
       {/* Tags */}

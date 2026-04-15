@@ -165,7 +165,6 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
           <div
             className="bg-[#1A1A1A]/50 border border-white/10 rounded-xl overflow-hidden"
             onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
           >
             {/* Search */}
             <div className="relative px-3 pt-2 pb-1">
@@ -209,6 +208,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                       product={product}
                       isActive={hoveredProduct?.id === product.id}
                       onHover={handleHover}
+                      onHoverEnd={handleMouseLeave}
                     />
                   ))
                 ) : (
