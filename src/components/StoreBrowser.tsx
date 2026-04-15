@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback, useRef, useLayoutEffect } from '
 import { TrendingUp, Star, Sparkles, Heart, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import SteamProductRow, { ROW_GRID } from './SteamProductRow';
+import SteamProductRow from './SteamProductRow';
 import CategorySidebar from './CategorySidebar';
 import PlatformFilter from './PlatformFilter';
 import TagCloud from './TagCloud';
@@ -56,8 +56,6 @@ function matchesSearch(product: CatalogListingProduct, q: string): boolean {
   if (product.tags?.some((t) => t.toLowerCase().includes(lower))) return true;
   return false;
 }
-
-const HEADER_LABELS = ['', 'Developer', 'Platform', 'Downloads', 'Rating', 'Price'];
 
 interface StoreBrowserProps {
   products: CatalogListingProduct[];
@@ -193,20 +191,6 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             className="bg-[#1A1A1A]/50 border border-white/10 rounded-xl overflow-hidden"
             onMouseMove={handleMouseMove}
           >
-            {/* Column headers */}
-            <div className={`hidden sm:grid ${ROW_GRID} items-center gap-x-3 px-3 py-1.5 border-b border-[#FFD700]/10`}>
-              {HEADER_LABELS.map((label, i) => (
-                <span
-                  key={i}
-                  className={`text-[9px] uppercase tracking-widest font-semibold text-[#FFD700]/40 ${
-                    i === 3 || i === 5 ? 'text-right' : i === 2 || i === 4 ? 'text-center' : ''
-                  }`}
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-
             <AnimatePresence mode="wait">
               <motion.div
                 key={`${activeTab}-${activeCategory}-${safePage}-${searchQuery}`}
@@ -214,7 +198,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.18 }}
-                className="space-y-0.5 px-2 pb-2"
+                className="divide-y divide-white/[0.06]"
               >
                 {pageProducts.length > 0 ? (
                   pageProducts.map((product) => (

@@ -1,19 +1,17 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
-import { Star, Zap, Download } from 'lucide-react';
+import { Star, Download } from 'lucide-react';
 import { formatDownloads } from '../domain/marketplace/platformIcons';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
-export const ROW_GRID = 'grid-cols-[6rem_1fr_9rem_3.5rem_3rem_4rem]';
-
-const PLATFORM_CFG: Record<string, { label: string; color: string }> = {
-  Windows: { label: 'Windows', color: '#00F5FF' },
-  macOS: { label: 'macOS', color: '#FF00FF' },
-  Linux: { label: 'Linux', color: '#00FF88' },
-  iOS: { label: 'iOS', color: '#8B5CF6' },
-  Android: { label: 'Android', color: '#00FF88' },
-  Web: { label: 'Web', color: '#FFD700' },
+const PLATFORM_SHORT: Record<string, string> = {
+  Windows: 'Win',
+  macOS: 'Mac',
+  Linux: 'Linux',
+  iOS: 'iOS',
+  Android: 'Android',
+  Web: 'Web',
 };
 
 interface SteamProductRowProps {
@@ -25,13 +23,12 @@ interface SteamProductRowProps {
 
 const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, onHover, onHoverEnd }) => {
   const navigate = useNavigate();
-  const platforms = product.platforms ?? [];
-  const desc = product.description?.length > 300
-    ? product.description.slice(0, 297) + '...'
-    : product.description;
+  const platforms = (product.platforms ?? []).map((p) => PLATFORM_SHORT[p] ?? p);
+  const tags = (product.tags ?? []).slice(0, 3);
+  const isFree = product.price === 0;
 
   const handleRowClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('[data-dev-link]')) return;
+    if ((e.target as HTMLElement).closest('[data-stop]')) return;
     navigate(`/product/${product.id}`);
   };
 
@@ -39,96 +36,87 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
     <div
       role="link"
       tabIndex={0}
-      className={`group rounded-lg transition-all duration-200 border cursor-pointer px-3 py-3 ${
+      className={`group flex items-center gap-4 px-4 py-3 cursor-pointer transition-all duration-200 ${
         isActive
-          ? 'bg-[#FFD700]/[0.04] border-[#FFD700]/20 shadow-[0_0_20px_rgba(255,215,0,0.08)]'
-          : 'bg-transparent border-transparent hover:bg-white/[0.03] hover:border-white/5'
+          ? 'bg-white/[0.05]'
+          : 'bg-transparent hover:bg-white/[0.03]'
       }`}
       onClick={handleRowClick}
       onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/product/${product.id}`); }}
       onMouseEnter={() => onHover(product)}
       onMouseLeave={onHoverEnd}
     >
-      {/* App name — full width top */}
-      <h4 className={`text-sm font-semibold mb-2 leading-snug transition-colors duration-150 ${
-        isActive ? 'text-[#FFD700]' : 'text-white group-hover:text-gray-100'
-      }`}>
-        {product.name}
-      </h4>
+      {/* Capsule image */}
+      <img
+        src={product.image}
+        alt={product.name}
+        className={`w-[120px] h-[56px] rounded-lg object-cover flex-shrink-0 transition-all duration-200 ${
+          isActive ? 'ring-1 ring-[#00F5FF]/40 shadow-[0_0_12px_rgba(0,245,255,0.15)]' : ''
+        }`}
+      />
 
-      {/* Content row */}
-      <div className={`grid ${ROW_GRID} items-center gap-x-3`}>
-        {/* Thumbnail */}
-        <img
-          src={product.image}
-          alt={product.name}
-          className={`w-full h-[3.5rem] rounded-lg object-cover transition-all duration-200 ${
-            isActive ? 'ring-1 ring-[#FFD700]/30' : ''
-          }`}
-        />
-
-        {/* Developer */}
-        <div className="min-w-0" data-dev-link>
+      {/* Title + developer + tags */}
+      <div className="flex-1 min-w-0">
+        <h4 className={`text-sm font-semibold truncate transition-colors duration-150 ${
+          isActive ? 'text-white' : 'text-gray-200 group-hover:text-white'
+        }`}>
+          {product.name}
+        </h4>
+        <div className="flex items-center gap-1.5 mt-0.5 min-w-0 overflow-hidden">
           <Link
             to={`/developer/${encodeURIComponent(product.developer)}`}
-            className="text-xs truncate text-gray-400 underline decoration-gray-600 underline-offset-2 hover:text-white hover:decoration-gray-400 transition-colors duration-200 block"
+            data-stop
+            className="text-xs text-gray-500 hover:text-gray-300 underline decoration-gray-700 underline-offset-2 transition-colors truncate flex-shrink-0 max-w-[120px]"
           >
             {product.developer}
           </Link>
-        </div>
-
-        {/* Platforms — grid 2 cols */}
-        <div className="grid grid-cols-2 gap-1">
-          {platforms.map((p) => {
-            const cfg = PLATFORM_CFG[p];
-            if (!cfg) return null;
-            return (
-              <span
-                key={p}
-                className="text-[0.55rem] font-bold tracking-wide px-1 py-px rounded border leading-none text-center"
-                style={{
-                  color: cfg.color,
-                  borderColor: `${cfg.color}40`,
-                  backgroundColor: `${cfg.color}15`,
-                }}
-              >
-                {cfg.label}
-              </span>
-            );
-          })}
-        </div>
-
-        {/* Downloads */}
-        <div className="flex items-center justify-end gap-0.5 text-gray-500 tabular-nums">
-          <Download className="w-3 h-3 flex-shrink-0" />
-          <span className="text-[0.65rem]">{formatDownloads(product.downloads)}</span>
-        </div>
-
-        {/* Rating */}
-        <div className="flex items-center justify-center gap-0.5">
-          <Star className="w-3 h-3 fill-[#FFD700] text-[#FFD700] flex-shrink-0" />
-          <span className="text-[0.65rem] text-[#FFD700]/80 tabular-nums">{product.rating}</span>
-        </div>
-
-        {/* Price */}
-        <div className={`flex items-center justify-end gap-0.5 font-semibold text-[0.75rem] transition-colors duration-150 ${
-          product.price > 0
-            ? isActive ? 'text-[#00F5FF]' : 'text-blue-400'
-            : 'text-emerald-400'
-        }`}>
-          <Zap className="w-3 h-3 flex-shrink-0" />
-          <span className="tabular-nums">{product.price > 0 ? `${product.price}` : 'Free'}</span>
+          {tags.length > 0 && <span className="text-gray-700 text-xs flex-shrink-0">·</span>}
+          {tags.map((tag, i) => (
+            <React.Fragment key={tag}>
+              {i > 0 && <span className="text-gray-700 text-[10px] flex-shrink-0">·</span>}
+              <span className="text-[11px] text-[#00F5FF]/50 truncate flex-shrink min-w-0">{tag}</span>
+            </React.Fragment>
+          ))}
         </div>
       </div>
 
-      {/* Description — visible on hover */}
-      <div className={`overflow-hidden transition-all duration-300 ${
-        isActive ? 'max-h-20 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'
-      }`}>
-        <p className="text-[0.7rem] leading-relaxed text-gray-500 line-clamp-2">
-          {desc}
-        </p>
+      {/* Platforms */}
+      <div className="hidden md:flex items-center gap-0.5 text-[10px] text-gray-600 flex-shrink-0">
+        {platforms.map((p, i) => (
+          <React.Fragment key={p}>
+            {i > 0 && <span className="text-gray-700">·</span>}
+            <span>{p}</span>
+          </React.Fragment>
+        ))}
       </div>
+
+      {/* Rating + Downloads */}
+      <div className="hidden sm:flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-1">
+          <Download className="w-3 h-3 text-gray-600" />
+          <span className="text-[11px] text-gray-500 tabular-nums">{formatDownloads(product.downloads)}</span>
+        </div>
+        <div className="flex items-center gap-0.5">
+          <Star className="w-3 h-3 fill-[#FFD700] text-[#FFD700]" />
+          <span className="text-[11px] text-[#FFD700]/70 tabular-nums">{product.rating}</span>
+        </div>
+      </div>
+
+      {/* Buy button */}
+      <button
+        data-stop
+        onClick={(e) => {
+          e.stopPropagation();
+          navigate(`/product/${product.id}`);
+        }}
+        className={`flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-200 min-w-[76px] text-center ${
+          isFree
+            ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/40 hover:shadow-[0_0_12px_rgba(16,185,129,0.15)]'
+            : 'bg-[#00F5FF]/10 border-[#00F5FF]/25 text-[#00F5FF] hover:bg-[#00F5FF]/20 hover:border-[#00F5FF]/40 hover:shadow-[0_0_12px_rgba(0,245,255,0.15)]'
+        }`}
+      >
+        {isFree ? 'Free' : `${product.price} TON`}
+      </button>
     </div>
   );
 };
