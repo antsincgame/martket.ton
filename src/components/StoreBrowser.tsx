@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import SteamProductRow from './SteamProductRow';
 import CategorySidebar from './CategorySidebar';
+import CategoryFilterChips from './CategoryFilterChips';
 import ProductPreview from './ProductPreview';
 import { filterProductsForCategorySlug } from '../domain/marketplace/catalog';
 import type { CatalogListingProduct, HomeCategorySummary, HomeCategorySlug } from '../domain/marketplace/types';
@@ -79,6 +80,15 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
 
   return (
     <section className="py-8">
+      {/* Mobile: category chips */}
+      <div className="lg:hidden mb-4">
+        <CategoryFilterChips
+          categories={categories}
+          active={activeCategory}
+          onChange={handleCategoryChange}
+        />
+      </div>
+
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left column: tabs + list */}
         <div className="flex-1 min-w-0">
@@ -173,16 +183,14 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
           )}
         </div>
 
-        {/* Right column: categories + preview */}
-        <div className="w-full lg:w-[280px] flex-shrink-0 space-y-4">
+        {/* Right column: categories + preview (desktop only) */}
+        <div className="hidden lg:block w-[280px] flex-shrink-0 space-y-4">
           <CategorySidebar
             categories={categories}
             active={activeCategory}
             onChange={handleCategoryChange}
           />
-          <div className="hidden lg:block">
-            <ProductPreview product={previewProduct} />
-          </div>
+          <ProductPreview product={previewProduct} />
         </div>
       </div>
     </section>

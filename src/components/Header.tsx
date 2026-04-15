@@ -77,7 +77,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search digital treasures... 🔮"
+              placeholder="Search digital treasures..."
               className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-full text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ton-500 focus:border-transparent"
             />
           </div>
@@ -97,7 +97,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
           <SignedOut>
             <button
               onClick={handleSignIn}
-              className="flex items-center space-x-2 bg-[#FFD700] hover:shadow-[0_0_20px_rgba(255,215,0,0.4)] px-4 py-2 rounded-full transition-all duration-300 text-[#0A0A0A] font-semibold text-sm"
+              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] px-4 py-2 rounded-full transition-all duration-300 text-white font-semibold text-sm"
             >
               <LogIn className="w-4 h-4" />
               <span className="hidden sm:inline">Sign In</span>
@@ -132,7 +132,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search digital treasures... 🔮"
+              placeholder="Search digital treasures..."
               className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-full text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ton-500 focus:border-transparent"
             />
           </div>

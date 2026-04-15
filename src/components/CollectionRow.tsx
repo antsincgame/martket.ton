@@ -51,13 +51,16 @@ const CollectionRow: React.FC<CollectionRowProps> = ({ title, icon: Icon, produc
 
       <div className="group relative">
         {canScrollLeft && (
-          <button
-            onClick={() => scroll('left')}
-            className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-white/10 hover:bg-black/80 text-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-            aria-label="Scroll left"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
+          <>
+            <div className="absolute left-0 top-0 bottom-2 w-12 bg-gradient-to-r from-[#0A0A0A] to-transparent pointer-events-none z-[1]" />
+            <button
+              onClick={() => scroll('left')}
+              className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-white/10 hover:bg-black/80 text-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          </>
         )}
 
         <div

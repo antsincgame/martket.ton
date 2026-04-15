@@ -18,10 +18,10 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({ categories, active, o
 
       <button
         onClick={() => onChange('all')}
-        className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm transition-all duration-150 ${
+        className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-r-lg text-sm transition-all duration-150 ${
           active === 'all'
-            ? 'bg-blue-500/10 text-blue-300 shadow-[0_0_8px_rgba(59,130,246,0.25)]'
-            : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+            ? 'border-l-2 border-blue-500 bg-blue-500/10 text-blue-400'
+            : 'border-l-2 border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200'
         }`}
       >
         <LayoutGrid className="w-4 h-4 flex-shrink-0" />
@@ -38,10 +38,10 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({ categories, active, o
             <button
               key={cat.slug}
               onClick={() => onChange(cat.slug)}
-              className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm transition-all duration-150 ${
+              className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-r-lg text-sm transition-all duration-150 ${
                 isActive
-                  ? 'bg-blue-500/10 text-blue-300 shadow-[0_0_8px_rgba(59,130,246,0.25)]'
-                  : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                  ? 'border-l-2 border-blue-500 bg-blue-500/10 text-blue-400'
+                  : 'border-l-2 border-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200'
               }`}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
