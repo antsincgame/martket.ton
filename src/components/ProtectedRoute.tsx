@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Shield, Lock, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,6 +13,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
   const { isAuthenticated, clerkSignedIn, hasRole, isLoading, user, fetchProfile } = useAuth();
   const { openAuthModal } = useAuthModal();
   const location = useLocation();
+  const modalFired = useRef(false);
+
+  const needsRedirect = !isLoading && !isAuthenticated && !clerkSignedIn && CLERK_CONFIGURED;
+
+  useEffect(() => {
+    if (needsRedirect && !modalFired.current && window.innerWidth >= 768) {
+      modalFired.current = true;
+      openAuthModal('sign-in');
+    }
+  }, [needsRedirect, openAuthModal]);
 
   if (isLoading) {
     return (
@@ -42,11 +52,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
     }
 
     if (CLERK_CONFIGURED) {
-      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-        openAuthModal('sign-in');
-        return <Navigate to="/" replace />;
+      if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        return <Navigate to="/sign-in" state={{ from: location }} replace />;
       }
-      return <Navigate to="/sign-in" state={{ from: location }} replace />;
+      return <Navigate to="/" replace />;
     }
     return <Navigate to="/" replace />;
   }
