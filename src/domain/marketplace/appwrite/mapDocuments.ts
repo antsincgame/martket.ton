@@ -119,6 +119,11 @@ export function mapProductDocument(
   const category = asNonEmptyString(data.categoryLabel) ?? labelFromSlug(slug);
   const donation = asNumber(data.donationAmount);
 
+  const platformsRaw = asStringArray(data.platforms);
+  const tagsRaw = asStringArray(data.tags);
+  const reviewStatsCount = asNumber(data.reviewStatsCount);
+  const lastUpdated = asNonEmptyString(data.lastUpdated);
+
   return {
     id: documentId,
     name,
@@ -131,6 +136,10 @@ export function mapProductDocument(
     developer,
     isFeatured: asBoolean(data.isFeatured),
     donationAmount: donation === null ? undefined : donation,
+    platforms: platformsRaw.length > 0 ? platformsRaw : undefined,
+    tags: tagsRaw.length > 0 ? tagsRaw : undefined,
+    reviewCount: reviewStatsCount ?? undefined,
+    releaseDate: lastUpdated ?? undefined,
   };
 }
 

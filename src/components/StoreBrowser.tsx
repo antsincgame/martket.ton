@@ -34,7 +34,11 @@ function sortProducts(products: CatalogListingProduct[], tab: SortTab): CatalogL
     case 'top-rated':
       return copy.sort((a, b) => b.rating - a.rating || b.downloads - a.downloads);
     case 'newest':
-      return copy.sort((a, b) => Number(b.id) - Number(a.id));
+      return copy.sort((a, b) => {
+        const da = a.releaseDate ?? '';
+        const db = b.releaseDate ?? '';
+        return db.localeCompare(da) || Number(b.id) - Number(a.id);
+      });
     case 'most-blessed':
       return copy.sort((a, b) => (b.donationAmount ?? 0) - (a.donationAmount ?? 0));
   }
@@ -80,7 +84,6 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
 
   return (
     <section className="py-8">
-      {/* Mobile: category chips */}
       <div className="lg:hidden mb-4">
         <CategoryFilterChips
           categories={categories}
@@ -90,10 +93,9 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left column: tabs + list */}
         <div className="flex-1 min-w-0">
           {/* Tab bar */}
-          <div className="flex gap-1 mb-4 bg-white/[0.03] border border-white/10 rounded-xl p-1">
+          <div className="flex gap-1 mb-4 bg-[#1A1A1A]/80 border border-[#FFD700]/10 rounded-xl p-1">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -101,10 +103,10 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                 <button
                   key={tab.id}
                   onClick={() => handleTabChange(tab.id)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 ${
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                     isActive
-                      ? 'bg-blue-500/15 text-blue-300 shadow-[0_0_8px_rgba(59,130,246,0.2)]'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                      ? 'bg-[#FFD700]/10 text-[#FFD700] shadow-[0_0_12px_rgba(255,215,0,0.12)] border border-[#FFD700]/20'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -115,7 +117,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
           </div>
 
           {/* Product list */}
-          <div className="bg-white/[0.03] border border-white/10 rounded-xl p-2">
+          <div className="bg-[#1A1A1A]/50 border border-white/10 rounded-xl p-2">
             <AnimatePresence mode="wait">
               <motion.div
                 key={`${activeTab}-${activeCategory}-${safePage}`}
@@ -149,7 +151,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
               <button
                 disabled={safePage === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed bg-[#1A1A1A] border border-[#FFD700]/10 text-gray-300 hover:bg-[#FFD700]/5 hover:border-[#FFD700]/20 hover:text-[#FFD700]"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Prev
@@ -160,9 +162,9 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                   <button
                     key={i}
                     onClick={() => setPage(i)}
-                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-all duration-150 ${
+                    className={`w-8 h-8 rounded-lg text-sm font-medium transition-all duration-200 ${
                       i === safePage
-                        ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
+                        ? 'bg-[#FFD700]/10 text-[#FFD700] border border-[#FFD700]/25 shadow-[0_0_8px_rgba(255,215,0,0.1)]'
                         : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'
                     }`}
                   >
@@ -174,7 +176,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
               <button
                 disabled={safePage >= totalPages - 1}
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-30 disabled:cursor-not-allowed bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed bg-[#1A1A1A] border border-[#FFD700]/10 text-gray-300 hover:bg-[#FFD700]/5 hover:border-[#FFD700]/20 hover:text-[#FFD700]"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />

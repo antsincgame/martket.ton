@@ -11,6 +11,10 @@ export interface CatalogListingProduct {
   developer: string;
   isFeatured: boolean;
   donationAmount?: number;
+  platforms?: string[];
+  tags?: string[];
+  reviewCount?: number;
+  releaseDate?: string;
 }
 
 export interface CategoryMeta {
