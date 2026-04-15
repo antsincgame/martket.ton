@@ -5,14 +5,14 @@ import { Star, Zap, Download } from 'lucide-react';
 import { formatDownloads } from '../domain/marketplace/platformIcons';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
-export const ROW_GRID = 'grid-cols-[5rem_1fr_auto_3.5rem_3rem_4rem]';
+export const ROW_GRID = 'grid-cols-[5rem_1fr_9rem_3.5rem_3rem_4rem]';
 
 const PLATFORM_CFG: Record<string, { label: string; color: string }> = {
-  Windows: { label: 'Win', color: '#00F5FF' },
-  macOS: { label: 'Mac', color: '#FF00FF' },
+  Windows: { label: 'Windows', color: '#00F5FF' },
+  macOS: { label: 'macOS', color: '#FF00FF' },
   Linux: { label: 'Linux', color: '#00FF88' },
   iOS: { label: 'iOS', color: '#8B5CF6' },
-  Android: { label: 'And', color: '#00FF88' },
+  Android: { label: 'Android', color: '#00FF88' },
   Web: { label: 'Web', color: '#FFD700' },
 };
 
@@ -82,7 +82,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = ({ product, isActive, on
         </div>
 
         {/* Platforms */}
-        <div className="flex items-center gap-1 flex-wrap max-w-[10rem]">
+        <div className="grid grid-cols-2 gap-1">
           {platforms.map((p) => {
             const cfg = PLATFORM_CFG[p];
             if (!cfg) return null;
