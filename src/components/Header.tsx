@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Menu, X, Sparkles, Gem, LogIn, LogOut } from 'lucide-react';
+import { User, Sparkles, Gem, LogIn, LogOut, Search } from 'lucide-react';
 import { SignedIn, SignedOut, useAuthModal } from '../lib/clerkSafe';
 import * as ClerkReact from '@clerk/clerk-react';
+import { useSearch } from '../contexts/SearchContext';
 
 interface HeaderProps {
   onLogoClick?: () => void;
@@ -22,9 +23,9 @@ function SignOutButton() {
 }
 
 const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { openAuthModal } = useAuthModal();
   const navigate = useNavigate();
+  const { query, setQuery, listSearchVisible } = useSearch();
 
   const handleSignIn = () => {
     if (window.innerWidth < 768) {
@@ -35,9 +36,10 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
   };
 
   return (
-    <header className="py-4 px-6 bg-black/30 backdrop-blur-md sticky top-0 z-50 border-b border-white/10">
-      <div className="container mx-auto flex justify-between items-center">
-        <Link to="/" className="flex items-center space-x-2" onClick={onLogoClick}>
+    <header className="py-3 px-6 bg-black/40 backdrop-blur-xl sticky top-0 z-50 border-b border-white/10">
+      <div className="container mx-auto flex items-center gap-4">
+        {/* Logo */}
+        <Link to="/" className="flex items-center space-x-2 flex-shrink-0" onClick={onLogoClick}>
           <div className="relative">
             <div className="w-10 h-10 bg-ton-gradient rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
               <Gem className="w-6 h-6 text-white animate-sparkle" />
@@ -46,7 +48,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
               <Sparkles className="w-4 h-4" />
             </div>
           </div>
-          <div>
+          <div className="hidden sm:block">
             <h1 className="font-display font-bold text-xl bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
               TON Web Store
             </h1>
@@ -54,25 +56,28 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
           </div>
         </Link>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center space-x-8">
-          <Link to="/category/apps" className="text-gray-300 hover:text-white transition-colors">
-            Android
-          </Link>
-          <Link to="/category/games" className="text-gray-300 hover:text-white transition-colors">
-            Games
-          </Link>
-          <Link to="/category/ai" className="text-gray-300 hover:text-white transition-colors">
-            AI Services
-          </Link>
-          <Link to="/seller/commerce" className="text-gray-300 hover:text-white transition-colors">
-            Developer Store
-          </Link>
-        </nav>
+        {/* Search bar — скрывается когда поиск в списке виден */}
+        <div
+          className={`flex-1 max-w-2xl mx-auto transition-all duration-300 ${
+            listSearchVisible
+              ? 'opacity-0 pointer-events-none translate-y-2'
+              : 'opacity-100 pointer-events-auto translate-y-0'
+          }`}
+        >
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name, developer, or tag..."
+              className="w-full pl-10 pr-4 py-2 bg-white/[0.06] border border-white/10 rounded-full text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.08] focus:shadow-[0_0_20px_rgba(59,130,246,0.15)] transition-all duration-300"
+            />
+          </div>
+        </div>
 
-        {/* Right Side Actions */}
-        <div className="flex items-center space-x-4">
-          {/* Auth */}
+        {/* Auth */}
+        <div className="flex items-center space-x-3 flex-shrink-0">
           <SignedOut>
             <button
               onClick={handleSignIn}
@@ -93,41 +98,8 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             </Link>
             <SignOutButton />
           </SignedIn>
-
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="md:hidden p-2 text-gray-300 hover:text-white transition-colors"
-          >
-            {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
         </div>
       </div>
-
-      {/* Mobile Menu */}
-      {isMenuOpen && (
-        <div className="md:hidden py-4 border-t border-white/10">
-          <nav className="flex flex-col space-y-3">
-            <Link to="/category/apps" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              Android
-            </Link>
-            <Link to="/category/games" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              Games
-            </Link>
-            <Link to="/category/ai" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              AI Services
-            </Link>
-            <Link to="/seller/commerce" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              Developer Store
-            </Link>
-            <SignedIn>
-              <Link to="/profile" className="text-[#FFD700] hover:text-[#FFE066] transition-colors py-2 font-medium" onClick={() => setIsMenuOpen(false)}>
-                Profile
-              </Link>
-            </SignedIn>
-          </nav>
-        </div>
-      )}
     </header>
   );
 };

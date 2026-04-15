@@ -11,6 +11,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import TonConnectWrapper from './components/TonConnectWrapper';
 import { CLERK_CONFIGURED, ClerkSignIn, ClerkSignUp, AuthModalProvider } from './lib/clerkSafe';
 import { ToastProvider } from './components/ui/Toast';
+import { SearchProvider } from './contexts/SearchContext';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ProductPage = lazy(() => import('./pages/ProductPage'));
@@ -77,6 +78,7 @@ function App() {
       <MaybeClerk>
         <AuthProvider>
         <ToastProvider>
+        <SearchProvider>
         <AuthModalProvider>
           <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <div className="min-h-screen bg-gradient-to-br from-ton-900 to-cosmic-900 text-white">
@@ -101,6 +103,7 @@ function App() {
             </div>
           </Router>
         </AuthModalProvider>
+        </SearchProvider>
         </ToastProvider>
         </AuthProvider>
       </MaybeClerk>

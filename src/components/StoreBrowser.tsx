@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useRef, useLayoutEffect } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react';
 import { TrendingUp, Star, Sparkles, Heart, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -9,6 +9,7 @@ import TagCloud from './TagCloud';
 import CategoryFilterChips from './CategoryFilterChips';
 import ProductPreview from './ProductPreview';
 import { filterProductsForCategorySlug } from '../domain/marketplace/catalog';
+import { useSearch } from '../contexts/SearchContext';
 import type { CatalogListingProduct, HomeCategorySummary, HomeCategorySlug } from '../domain/marketplace/types';
 
 const PREVIEW_W = 320;
@@ -71,9 +72,21 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   const [hoveredProduct, setHoveredProduct] = useState<CatalogListingProduct | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [page, setPage] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { query: searchQuery, setQuery: setSearchQuery, setListSearchVisible } = useSearch();
   const previewRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
   const [previewH, setPreviewH] = useState(400);
+
+  useEffect(() => {
+    const el = searchRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setListSearchVisible(entry.isIntersecting),
+      { threshold: 0.5, rootMargin: '-60px 0px 0px 0px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [setListSearchVisible]);
 
   useLayoutEffect(() => {
     if (previewRef.current) {
@@ -201,16 +214,21 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             className="bg-[#1A1A1A]/50 border border-white/10 rounded-xl overflow-hidden"
             onMouseMove={handleMouseMove}
           >
-            {/* Search */}
-            <div className="relative px-3 pt-2 pb-1">
-              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-600 w-4 h-4" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
-                placeholder="Search by name, developer, or tag..."
-                className="w-full pl-8 pr-4 py-2 bg-white/[0.03] border border-white/5 rounded-lg text-sm text-gray-300 placeholder-gray-600 focus:outline-none focus:border-white/15 focus:bg-white/[0.05] transition-all duration-200"
-              />
+            {/* Search — sticky при скролле */}
+            <div
+              ref={searchRef}
+              className="sticky top-[60px] z-30 bg-[#1A1A1A]/95 backdrop-blur-md px-3 pt-2 pb-1"
+            >
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+                  placeholder="Search by name, developer, or tag..."
+                  className="w-full pl-10 pr-4 py-2 bg-white/[0.06] border border-white/10 rounded-full text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:bg-white/[0.08] focus:shadow-[0_0_20px_rgba(59,130,246,0.15)] transition-all duration-300"
+                />
+              </div>
             </div>
 
             {/* Column headers */}
