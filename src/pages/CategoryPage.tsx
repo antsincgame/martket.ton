@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Filter, SortDesc, Grid, List, Star, TrendingUp } from 'lucide-react';
+import { Filter, SortDesc, Grid, List, Star, TrendingUp, Heart } from 'lucide-react';
+import { CATEGORY_ICONS } from '../domain/marketplace/categoryIcons';
+import type { HomeCategorySlug } from '../domain/marketplace/types';
 import ProductCard from '../components/ProductCard';
 import LoadingScreen from '../components/LoadingScreen';
 import {
@@ -9,20 +11,20 @@ import {
 } from '../domain/marketplace/marketplaceRemote';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
-const categoryInfo: Record<string, { title: string; description: string; emoji: string }> = {
-  apps: { title: 'Android', description: 'Native Android apps for productivity, lifestyle, and TON ecosystem', emoji: '📱' },
-  games: { title: 'Games', description: 'Immersive gaming experiences with NFT rewards', emoji: '🎮' },
-  ai: { title: 'AI Services', description: 'Artificial intelligence tools powered by cutting-edge models', emoji: '🤖' },
-  'developer-tools': { title: 'Developer Tools', description: 'Essential tools for modern software development', emoji: '⚡' },
-  design: { title: 'Design & Creative', description: 'Creative tools for designers, artists, and content creators', emoji: '🎨' },
-  defi: { title: 'Finance & DeFi', description: 'Wallets, portfolio trackers, and decentralized finance tools', emoji: '💰' },
-  education: { title: 'Education', description: 'Courses, tutors, and learning platforms for Web3 and beyond', emoji: '📚' },
-  security: { title: 'Security & Privacy', description: 'VPN, firewalls, and security tools for the decentralized world', emoji: '🔒' },
-  media: { title: 'Media & Entertainment', description: 'Streaming, podcasts, and content creation tools', emoji: '🎬' },
-  social: { title: 'Social & Communication', description: 'Encrypted messaging, collaboration, and community tools', emoji: '💬' },
-  health: { title: 'Health & Wellness', description: 'Meditation, fitness, sleep tracking, and mental health', emoji: '🧘' },
-  utilities: { title: 'Utilities & System', description: 'Monitoring, backups, and system administration tools', emoji: '🔧' },
-  featured: { title: 'Featured Treasures', description: 'Handpicked digital gems blessed by the community', emoji: '💎' },
+const categoryInfo: Record<string, { title: string; description: string }> = {
+  apps: { title: 'Android', description: 'Native Android apps for productivity, lifestyle, and TON ecosystem' },
+  games: { title: 'Games', description: 'Immersive gaming experiences with NFT rewards' },
+  ai: { title: 'AI Services', description: 'Artificial intelligence tools powered by cutting-edge models' },
+  'developer-tools': { title: 'Developer Tools', description: 'Essential tools for modern software development' },
+  design: { title: 'Design & Creative', description: 'Creative tools for designers, artists, and content creators' },
+  defi: { title: 'Finance & DeFi', description: 'Wallets, portfolio trackers, and decentralized finance tools' },
+  education: { title: 'Education', description: 'Courses, tutors, and learning platforms for Web3 and beyond' },
+  security: { title: 'Security & Privacy', description: 'VPN, firewalls, and security tools for the decentralized world' },
+  media: { title: 'Media & Entertainment', description: 'Streaming, podcasts, and content creation tools' },
+  social: { title: 'Social & Communication', description: 'Encrypted messaging, collaboration, and community tools' },
+  health: { title: 'Health & Wellness', description: 'Meditation, fitness, sleep tracking, and mental health' },
+  utilities: { title: 'Utilities & System', description: 'Monitoring, backups, and system administration tools' },
+  featured: { title: 'Featured Treasures', description: 'Handpicked digital gems blessed by the community' },
 };
 
 const filters = [
@@ -60,7 +62,14 @@ const CategoryPage = () => {
       <div className="max-w-7xl mx-auto">
         {/* Category Header */}
         <div className="text-center mb-12">
-          <div className="text-6xl mb-4">{currentCategory.emoji}</div>
+          {(() => {
+            const CatIcon = CATEGORY_ICONS[category as HomeCategorySlug];
+            return CatIcon ? (
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                <CatIcon className="w-8 h-8 text-ton-400" />
+              </div>
+            ) : null;
+          })()}
           <h1 className="text-4xl font-display font-bold text-white mb-4">
             {currentCategory.title}
           </h1>
@@ -163,7 +172,7 @@ const CategoryPage = () => {
           <div className="mb-12">
             <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
               <TrendingUp className="w-6 h-6 mr-3 text-purple-400" />
-              Most Blessed Products ❤️
+              Most Blessed Products
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {sortedByDonation.map((product) => (
@@ -210,7 +219,7 @@ const CategoryPage = () => {
                     <div className="text-right">
                       <div className="text-2xl font-bold text-ton-400 mb-1">{product.price} TON</div>
                       {(product.donationAmount ?? 0) > 0 && (
-                        <div className="text-sm text-pink-400">❤️ {product.donationAmount} TON blessed</div>
+                        <div className="text-sm text-pink-400 flex items-center gap-1"><Heart className="w-3.5 h-3.5" /> {product.donationAmount} TON blessed</div>
                       )}
                     </div>
                   </div>
@@ -223,7 +232,7 @@ const CategoryPage = () => {
         {/* Load More */}
         <div className="text-center mt-12">
           <button className="bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 border border-white/20">
-            Load More Sacred Treasures ✨
+            Load More Sacred Treasures
           </button>
         </div>
       </div>

@@ -68,7 +68,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
           {/* Developer */}
           <p className="text-purple-400 text-sm mb-3 font-medium">
-            by {product.developer} 🪄
+            by {product.developer}
           </p>
 
           {/* Stats */}
@@ -84,7 +84,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
               </div>
             </div>
             <div className="text-gray-500 text-xs">
-              {product.category} 🚀
+              {product.category}
             </div>
           </div>
         </div>

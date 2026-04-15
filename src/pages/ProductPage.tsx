@@ -1,7 +1,7 @@
 // Страница продукта обновлена по терминологии TonForge, чтобы purchase card объясняла escrow/NFT/device flow вместо старых обещаний.
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles } from 'lucide-react';
+import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles, ThumbsUp } from 'lucide-react';
 import LoadingScreen from '../components/LoadingScreen';
 import ProductCryptoCheckout from '../components/ProductCryptoCheckout';
 import { resolveProductDetail, resolveProductReviews } from '../domain/marketplace/marketplaceRemote';
@@ -101,7 +101,7 @@ const ProductPage = () => {
                     )}
                   </h1>
                   <p className="text-purple-400 font-medium flex items-center">
-                    by {product.developer} 🪄
+                    by {product.developer}
                     {(product.donationAmount ?? 0) > 0 && (
                       <span className="ml-4 bg-yellow-500/20 border border-yellow-500/30 px-2 py-1 rounded-full text-xs text-yellow-400 flex items-center">
                         <Heart className="w-3 h-3 mr-1" />
@@ -220,7 +220,7 @@ const ProductPage = () => {
                     <p className="text-gray-300 mb-3">{review.comment}</p>
                     <div className="flex items-center space-x-4 text-sm text-gray-400">
                       <button className="hover:text-white transition-colors">
-                        👍 Helpful ({review.helpful})
+                        <ThumbsUp className="w-3.5 h-3.5 inline mr-1" /> Helpful ({review.helpful})
                       </button>
                       <button className="hover:text-white transition-colors">Reply</button>
                     </div>
@@ -243,13 +243,13 @@ const ProductPage = () => {
               </div>
 
               <button className="w-full bg-ton-gradient hover:scale-105 text-white font-semibold py-4 px-6 rounded-full transition-all duration-300 shadow-lg hover:shadow-ton-500/50 mb-4">
-                Purchase Now ⚡
+                Purchase Now
               </button>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-400">Category:</span>
-                  <span className="text-white">{product.category} 🚀</span>
+                  <span className="text-white">{product.category}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-400">Version:</span>

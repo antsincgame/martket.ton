@@ -51,23 +51,23 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <h1 className="font-display font-bold text-xl bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
               TON Web Store
             </h1>
-            <p className="text-xs text-gray-400 font-medium">☸️ Digital Enlightenment</p>
+            <p className="text-xs text-gray-400 font-medium">Digital Enlightenment</p>
           </div>
         </Link>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-8">
           <Link to="/category/apps" className="text-gray-300 hover:text-white transition-colors">
-            Android 📱
+            Android
           </Link>
           <Link to="/category/games" className="text-gray-300 hover:text-white transition-colors">
-            Games 🎮
+            Games
           </Link>
           <Link to="/category/ai" className="text-gray-300 hover:text-white transition-colors">
-            AI Services 🤖
+            AI Services
           </Link>
           <Link to="/seller/commerce" className="text-gray-300 hover:text-white transition-colors">
-            Developer Store 🛍️
+            Developer Store
           </Link>
         </nav>
 
@@ -144,20 +144,20 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
         <div className="md:hidden py-4 border-t border-white/10">
           <nav className="flex flex-col space-y-3">
             <Link to="/category/apps" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              Android 📱
+              Android
             </Link>
             <Link to="/category/games" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              Games 🎮
+              Games
             </Link>
             <Link to="/category/ai" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              AI Services 🤖
+              AI Services
             </Link>
             <Link to="/seller/commerce" className="text-gray-300 hover:text-white transition-colors py-2" onClick={() => setIsMenuOpen(false)}>
-              Developer Store 🛍️
+              Developer Store
             </Link>
             <SignedIn>
               <Link to="/profile" className="text-[#FFD700] hover:text-[#FFE066] transition-colors py-2 font-medium" onClick={() => setIsMenuOpen(false)}>
-                Profile 👤
+                Profile
               </Link>
             </SignedIn>
           </nav>

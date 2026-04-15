@@ -1,115 +1,105 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  TrendingUp,
-  Gem,
-  Zap,
-  Smartphone,
-  Bot,
-  Gamepad2,
-  Palette,
-  Coins,
-  GraduationCap,
-  ShieldCheck,
-  Film,
-  MessageCircle,
-  HeartPulse,
-  Wrench,
-} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Gem, TrendingUp, Sparkles } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import ProductCard from '../components/ProductCard';
+import CollectionRow from '../components/CollectionRow';
+import CategoryFilterChips from '../components/CategoryFilterChips';
 import LoadingScreen from '../components/LoadingScreen';
 import {
   getMarketplaceInventoryOnce,
   type MarketplaceInventoryLoad,
 } from '../domain/marketplace/marketplaceRemote';
+import { filterProductsForCategorySlug } from '../domain/marketplace/catalog';
 import type { HomeCategorySlug } from '../domain/marketplace/types';
-import type { LucideIcon } from 'lucide-react';
 
-const CATEGORY_ICONS: Record<HomeCategorySlug, LucideIcon> = {
-  apps: Smartphone,
-  games: Gamepad2,
-  ai: Bot,
-  'developer-tools': Zap,
-  design: Palette,
-  defi: Coins,
-  education: GraduationCap,
-  security: ShieldCheck,
-  media: Film,
-  social: MessageCircle,
-  health: HeartPulse,
-  utilities: Wrench,
+const fadeSlide = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+  transition: { duration: 0.25 },
 };
 
 const HomePage = () => {
   const [inventory, setInventory] = useState<MarketplaceInventoryLoad | null>(null);
+  const [activeCategory, setActiveCategory] = useState<HomeCategorySlug | 'all'>('all');
 
   useEffect(() => {
     getMarketplaceInventoryOnce().then(setInventory);
   }, []);
 
+  const trending = useMemo(() => {
+    if (!inventory) return [];
+    return [...inventory.products].sort((a, b) => b.downloads - a.downloads).slice(0, 10);
+  }, [inventory]);
+
+  const newest = useMemo(() => {
+    if (!inventory) return [];
+    return [...inventory.products].sort((a, b) => Number(b.id) - Number(a.id)).slice(0, 10);
+  }, [inventory]);
+
+  const filteredProducts = useMemo(() => {
+    if (!inventory) return [];
+    if (activeCategory === 'all') return inventory.products;
+    return filterProductsForCategorySlug(activeCategory, inventory.products);
+  }, [inventory, activeCategory]);
+
   if (!inventory) {
     return <LoadingScreen message="Загрузка витрины..." />;
   }
 
-  const categorySummaries = inventory.categorySummaries;
-  const spotlightProducts = inventory.spotlight;
-  const heroProducts = spotlightProducts.slice(0, 8);
+  const isAll = activeCategory === 'all';
 
   return (
     <div className="min-h-screen">
-      {/* Featured Treasures — 2 rows x 4 */}
-      <section className="pt-6 pb-12 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-display font-bold text-white flex items-center gap-3">
-              <Gem className="w-6 h-6 text-[#FFD700]" />
-              Featured Treasures
-            </h2>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {heroProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        </div>
-      </section>
+      <div className="max-w-7xl mx-auto px-4 pt-4">
+        <CategoryFilterChips
+          categories={inventory.categorySummaries}
+          active={activeCategory}
+          onChange={setActiveCategory}
+        />
+      </div>
 
-      {/* Categories — 3 rows x 4 */}
-      <section className="py-12 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-display font-bold text-white flex items-center gap-3">
-              <TrendingUp className="w-6 h-6 text-ton-400" />
-              Categories
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {categorySummaries.map((category) => {
-              const Icon = CATEGORY_ICONS[category.slug];
-              return (
-                <Link
-                  key={category.slug}
-                  to={`/category/${category.slug}`}
-                  className="group"
-                >
-                  <div className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-all duration-300 hover:scale-[1.03] hover:shadow-xl">
-                    <div className={`w-12 h-12 bg-gradient-to-r ${category.gradient} rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300`}>
-                      <Icon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-white mb-1 flex items-center">
-                      {category.name} <span className="ml-2">{category.emoji}</span>
-                    </h3>
-                    <p className="text-gray-400 text-sm">
-                      {category.count.toLocaleString()} products
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      <AnimatePresence mode="wait">
+        {isAll ? (
+          <motion.div key="discovery" {...fadeSlide}>
+            <div className="max-w-7xl mx-auto px-4">
+              <CollectionRow
+                title="Featured Treasures"
+                icon={Gem}
+                products={inventory.spotlight}
+              />
+              <CollectionRow
+                title="Trending in the Forge"
+                icon={TrendingUp}
+                products={trending}
+              />
+              <CollectionRow
+                title="Newly Forged"
+                icon={Sparkles}
+                products={newest}
+              />
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div key={activeCategory} {...fadeSlide}>
+            <section className="max-w-7xl mx-auto px-4 py-6">
+              <h2 className="text-xl font-display font-bold text-white mb-6">
+                Browse {inventory.categorySummaries.find((c) => c.slug === activeCategory)?.name ?? activeCategory}
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {filteredProducts.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+                {filteredProducts.length === 0 && (
+                  <p className="col-span-full text-center text-gray-500 py-12">
+                    No products in this category yet
+                  </p>
+                )}
+              </div>
+            </section>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

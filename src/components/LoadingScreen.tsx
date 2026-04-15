@@ -35,7 +35,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
         {/* Sacred Blessing */}
         <p className="text-purple-200 text-sm mt-6 animate-pulse">
-          🪷 Om Tare Tu Tarre Svaha 🪷
+          Om Tare Tu Tarre Svaha
         </p>
       </div>
     </div>
