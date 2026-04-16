@@ -213,6 +213,18 @@ export function getCategoryMetaForInventory(
   };
 }
 
+/**
+ * Обратное отображение: human-label категории (e.g. "Android", "AI Services")
+ * → slug маршрута (e.g. "apps", "ai"). Возвращает `null`, если совпадений нет.
+ */
+export function categoryLabelToSlug(label: string): CategorySlug | null {
+  const trimmed = label.trim();
+  for (const [slug, labels] of Object.entries(SLUG_TO_CATEGORY_LABELS) as [CategorySlug, string[]][]) {
+    if (labels.includes(trimmed)) return slug;
+  }
+  return null;
+}
+
 export function sortListingProducts(
   products: CatalogListingProduct[],
   sortBy: string
