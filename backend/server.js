@@ -85,6 +85,9 @@ app.use('/api/', globalLimiter);
 
 app.post('/api/webhooks/clerk', webhookLimiter, express.raw({ type: 'application/json' }), require('./webhooks/clerk'));
 
+// ── OG Meta for social crawlers (no auth needed) ────────────────
+app.use('/api/og', require('./og/handler'));
+
 // ── Health (before auth middleware — always reachable) ───────────
 app.get('/api/health', (_req, res) => {
   const { isR2Configured } = require('./r2/client');
