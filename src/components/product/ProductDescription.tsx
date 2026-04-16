@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 interface ProductDescriptionProps {
@@ -9,13 +9,15 @@ interface ProductDescriptionProps {
 const READ_MORE_THRESHOLD = 640;
 
 /**
- * Описание товара в стиле Steam/Epic/App Store:
- * h2 "About this app" → текст → Read More → tags без glow.
+ * Описание товара (Steam/Epic/App Store style):
+ * h2 "About this app" → rich text (bold, links) → Read More → tags.
  */
 const ProductDescription = memo(({ longDescription, tags }: ProductDescriptionProps) => {
   const [expanded, setExpanded] = useState(false);
   const hasOverflow = longDescription.length > READ_MORE_THRESHOLD;
   const showFullText = !hasOverflow || expanded;
+
+  const rendered = useMemo(() => renderRichText(longDescription), [longDescription]);
 
   return (
     <section aria-labelledby="about-heading" className="space-y-4">
@@ -29,12 +31,11 @@ const ProductDescription = memo(({ longDescription, tags }: ProductDescriptionPr
       <div className="relative">
         <div
           className={[
-            'text-gray-300 leading-relaxed text-[15px] whitespace-pre-line',
+            'prose-product text-gray-300 leading-relaxed text-[15px]',
             !showFullText ? 'max-h-[260px] overflow-hidden' : '',
           ].join(' ')}
-        >
-          {longDescription}
-        </div>
+          dangerouslySetInnerHTML={{ __html: rendered }}
+        />
 
         {!showFullText && (
           <div
@@ -81,3 +82,72 @@ const ProductDescription = memo(({ longDescription, tags }: ProductDescriptionPr
 ProductDescription.displayName = 'ProductDescription';
 
 export default ProductDescription;
+
+// ─── Lightweight rich-text renderer ───
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Renders a subset of Markdown into safe HTML:
+ * - **bold** → <strong>
+ * - [link text](url) → <a>
+ * - Lines starting with `- ` → <li> inside <ul>
+ * - Empty lines → paragraph breaks
+ */
+function renderRichText(raw: string): string {
+  const lines = raw.split('\n');
+  const parts: string[] = [];
+  let inList = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed === '') {
+      if (inList) {
+        parts.push('</ul>');
+        inList = false;
+      }
+      parts.push('<div class="h-3" aria-hidden="true"></div>');
+      continue;
+    }
+
+    if (trimmed.startsWith('- ')) {
+      if (!inList) {
+        parts.push('<ul class="space-y-1.5 pl-1">');
+        inList = true;
+      }
+      parts.push(
+        `<li class="flex gap-2 items-start"><span class="text-gray-600 mt-1.5 flex-shrink-0 w-1 h-1 rounded-full bg-gray-500 inline-block" aria-hidden="true"></span><span>${inlineFormat(escapeHtml(trimmed.slice(2)))}</span></li>`,
+      );
+      continue;
+    }
+
+    if (inList) {
+      parts.push('</ul>');
+      inList = false;
+    }
+
+    parts.push(`<p>${inlineFormat(escapeHtml(trimmed))}</p>`);
+  }
+
+  if (inList) parts.push('</ul>');
+
+  return parts.join('');
+}
+
+function inlineFormat(html: string): string {
+  // **bold**
+  let result = html.replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+  // [text](url)
+  result = result.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-[#4facfe] hover:underline underline-offset-2">$1</a>',
+  );
+  return result;
+}

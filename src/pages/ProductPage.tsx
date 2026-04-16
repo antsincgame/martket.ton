@@ -113,36 +113,46 @@ const ProductPage = () => {
           <ProductHeader product={product} />
         </div>
 
-        {/* ─── Above the fold: Gallery + Purchase Panel ─── */}
+        {/* ─── Main grid: Gallery + Description (left) | Purchase Panel (right) ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          <div className="lg:col-span-2 min-w-0">
+          <div className="lg:col-span-2 min-w-0 space-y-8">
             <ProductGallery
               images={product.images.length > 0 ? product.images : [product.image]}
               productName={product.name}
               selectedIndex={selectedImage}
               onSelect={setSelectedImage}
             />
+
+            {/* About this app — под галереей на desktop, под Purchase Panel на mobile */}
+            <div className="hidden lg:block">
+              <Suspense fallback={<SectionFallback />}>
+                <ProductDescription
+                  longDescription={product.longDescription}
+                  tags={product.tags}
+                />
+              </Suspense>
+            </div>
           </div>
 
           <aside className="lg:col-span-1">
             <div className="lg:sticky lg:top-24">
               <ProductPurchasePanel
                 product={product}
-                hideHeader={false /* mobile хедер уже отрендерен выше; на десктопе панель показывает свой */}
+                hideHeader={false}
                 checkoutSlot={<ProductCryptoCheckout catalogProductId={product.id} />}
               />
             </div>
           </aside>
-        </div>
 
-        {/* ─── About this app ─── */}
-        <div className="mt-10 lg:mt-14">
-          <Suspense fallback={<SectionFallback />}>
-            <ProductDescription
-              longDescription={product.longDescription}
-              tags={product.tags}
-            />
-          </Suspense>
+          {/* About this app — на мобилке под Purchase Panel */}
+          <div className="lg:hidden">
+            <Suspense fallback={<SectionFallback />}>
+              <ProductDescription
+                longDescription={product.longDescription}
+                tags={product.tags}
+              />
+            </Suspense>
+          </div>
         </div>
 
         {/* ─── Reviews ─── */}
