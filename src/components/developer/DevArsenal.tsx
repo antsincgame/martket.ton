@@ -1,97 +1,74 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Sparkles, Package } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Package } from 'lucide-react';
 import type {
   PublicDeveloperProfile,
   CatalogListingProduct,
 } from '../../domain/marketplace/types';
-import ProductCard from '../ProductCard';
 import SteamProductRow from '../SteamProductRow';
 import SacredDivider from './SacredDivider';
 import SacredFrame from './SacredFrame';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 12;
+/** Максимум номеров страниц, отображаемых между Prev/Next. */
+const MAX_PAGE_BUTTONS = 5;
 
 interface DevArsenalProps {
   profile: PublicDeveloperProfile;
 }
 
+/** Строит массив отображаемых номеров страниц с «…» (null = ellipsis). */
+function buildPageNumbers(current: number, total: number): (number | null)[] {
+  if (total <= MAX_PAGE_BUTTONS + 2) {
+    return Array.from({ length: total }, (_, i) => i);
+  }
+  const half = Math.floor(MAX_PAGE_BUTTONS / 2);
+  let start = Math.max(1, current - half);
+  const end = Math.min(total - 2, start + MAX_PAGE_BUTTONS - 1);
+  if (end - start < MAX_PAGE_BUTTONS - 1) start = Math.max(1, end - MAX_PAGE_BUTTONS + 1);
+
+  const pages: (number | null)[] = [0];
+  if (start > 1) pages.push(null);
+  for (let i = start; i <= end; i++) pages.push(i);
+  if (end < total - 2) pages.push(null);
+  pages.push(total - 1);
+  return pages;
+}
+
 const DevArsenal = memo(({ profile }: DevArsenalProps) => {
   const [page, setPage] = useState(0);
   const [hoveredProduct, setHoveredProduct] = useState<CatalogListingProduct | null>(null);
-
-  const featuredProducts = useMemo(() => {
-    if (profile.featuredProductIds.length === 0) return profile.products.slice(0, 4);
-    return profile.featuredProductIds
-      .map((id) => profile.products.find((p) => p.id === id))
-      .filter(Boolean) as CatalogListingProduct[];
-  }, [profile]);
+  const sectionRef = useRef<HTMLElement>(null);
 
   const totalPages = Math.max(1, Math.ceil(profile.products.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
   const pageProducts = profile.products.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
+  const goToPage = useCallback(
+    (next: number) => {
+      setPage(next);
+      sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+    [],
+  );
+
   const handleHover = useCallback((p: CatalogListingProduct) => setHoveredProduct(p), []);
   const handleHoverEnd = useCallback(() => setHoveredProduct(null), []);
 
+  const pageNumbers = buildPageNumbers(safePage, totalPages);
+
   return (
     <div className="space-y-14">
-      {/* ═══ Featured ═══ */}
-      {featuredProducts.length > 0 && (
-        <motion.section
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <SacredDivider label="Featured Relics" color="#FFD700" icon="✦" />
-
-          <div className="relative">
-            {/* Animated conic-gradient border aura */}
-            <div
-              aria-hidden
-              className="absolute -inset-[2px] rounded-3xl opacity-40 blur-sm"
-              style={{
-                background:
-                  'conic-gradient(from 0deg, #FFD70040, transparent 25%, #00F5FF30, transparent 50%, #FF00FF30, transparent 75%, #FFD70040)',
-              }}
-            />
-            <SacredFrame color="#FFD700" className="relative p-5 sm:p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {featuredProducts.map((product, i) => (
-                  <motion.div
-                    key={product.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.1 + i * 0.08, duration: 0.5 }}
-                    className="relative group"
-                  >
-                    {/* Featured glyph */}
-                    <div className="absolute -top-2 -right-2 z-20 flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-[#FFD700] to-[#F4A836] shadow-[0_0_12px_rgba(255,215,0,0.5)]">
-                      <Sparkles className="w-2.5 h-2.5 text-[#0A0A0F]" strokeWidth={3} />
-                      <span className="text-[9px] font-black uppercase tracking-wider text-[#0A0A0F]">
-                        Relic
-                      </span>
-                    </div>
-                    <ProductCard product={product} />
-                  </motion.div>
-                ))}
-              </div>
-            </SacredFrame>
-          </div>
-        </motion.section>
-      )}
-
-      {/* ═══ All Products (Arsenal) ═══ */}
+      {/* ═══ Arsenal (все продукты) ═══ */}
       <motion.section
+        ref={sectionRef}
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.1 }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
       >
         <SacredDivider
-          label={`Arsenal · ${profile.products.length} Artifacts`}
+          label={`Arsenal · ${profile.products.length} Artifact${profile.products.length !== 1 ? 's' : ''}`}
           color="#00F5FF"
           icon="◈"
         />
@@ -118,25 +95,50 @@ const DevArsenal = memo(({ profile }: DevArsenalProps) => {
         </SacredFrame>
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-3 mt-6">
+          <div className="flex items-center justify-center gap-1.5 sm:gap-2 mt-6 flex-wrap">
+            {/* Prev */}
             <button
               disabled={safePage === 0}
-              onClick={() => setPage((p) => p - 1)}
+              onClick={() => goToPage(safePage - 1)}
               aria-label="Previous page"
-              className="group p-2.5 rounded-xl bg-[#0D0D1A] border border-[#00F5FF]/20 text-[#00F5FF]/60 hover:text-[#00F5FF] hover:border-[#00F5FF]/60 hover:shadow-[0_0_16px_rgba(0,245,255,0.25)] disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-300"
+              className="p-2.5 rounded-xl bg-[#0D0D1A] border border-[#00F5FF]/20 text-[#00F5FF]/60 hover:text-[#00F5FF] hover:border-[#00F5FF]/60 hover:shadow-[0_0_16px_rgba(0,245,255,0.25)] disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-300"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0D0D1A] border border-white/5">
-              <span className="text-[#00F5FF] font-bold tabular-nums text-sm">{safePage + 1}</span>
-              <span className="text-gray-600 text-xs">/</span>
-              <span className="text-gray-400 tabular-nums text-sm">{totalPages}</span>
-            </div>
+
+            {/* Page numbers */}
+            {pageNumbers.map((n, idx) =>
+              n === null ? (
+                <span
+                  key={`ellipsis-${idx}`}
+                  className="px-1 text-gray-600 text-sm tabular-nums select-none"
+                >
+                  …
+                </span>
+              ) : (
+                <button
+                  key={n}
+                  onClick={() => goToPage(n)}
+                  aria-label={`Page ${n + 1}`}
+                  aria-current={n === safePage ? 'page' : undefined}
+                  className={[
+                    'min-w-[36px] h-9 px-2 rounded-xl text-sm font-bold tabular-nums transition-all duration-200',
+                    n === safePage
+                      ? 'bg-[#00F5FF]/15 border border-[#00F5FF]/60 text-[#00F5FF] shadow-[0_0_14px_rgba(0,245,255,0.3)]'
+                      : 'bg-[#0D0D1A] border border-white/5 text-gray-400 hover:text-[#00F5FF] hover:border-[#00F5FF]/30',
+                  ].join(' ')}
+                >
+                  {n + 1}
+                </button>
+              ),
+            )}
+
+            {/* Next */}
             <button
               disabled={safePage >= totalPages - 1}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => goToPage(safePage + 1)}
               aria-label="Next page"
-              className="group p-2.5 rounded-xl bg-[#0D0D1A] border border-[#00F5FF]/20 text-[#00F5FF]/60 hover:text-[#00F5FF] hover:border-[#00F5FF]/60 hover:shadow-[0_0_16px_rgba(0,245,255,0.25)] disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-300"
+              className="p-2.5 rounded-xl bg-[#0D0D1A] border border-[#00F5FF]/20 text-[#00F5FF]/60 hover:text-[#00F5FF] hover:border-[#00F5FF]/60 hover:shadow-[0_0_16px_rgba(0,245,255,0.25)] disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-300"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
