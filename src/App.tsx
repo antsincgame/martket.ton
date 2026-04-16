@@ -91,7 +91,7 @@ function App() {
                 <Suspense fallback={<LoadingScreen />}>
                   <Routes>
                     <Route path="/" element={<HomePage />} />
-                    <Route path="/product/:slug" element={<TonConnectWrapper><ProductPage /></TonConnectWrapper>} />
+                    <Route path="/product/:id" element={<TonConnectWrapper><ProductPage /></TonConnectWrapper>} />
                     <Route path="/category/:id" element={<CategoryPage />} />
                     <Route path="/developer/:slug" element={<DeveloperPage />} />
                     <Route path="/sign-in/*" element={<ClerkSignIn routing="path" path="/sign-in" afterSignInUrl="/profile" />} />

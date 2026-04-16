@@ -1,7 +1,6 @@
 import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { Star, Download, Heart, Zap, Gem } from 'lucide-react';
-import { slugify } from '../utils/slugify';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
 interface ProductCardProps {
@@ -10,7 +9,7 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = memo(({ product }) => {
   return (
-    <Link to={`/product/${slugify(product.name)}`} className="group block h-full">
+    <Link to={`/product/${product.id}`} className="group block h-full">
       <div className="relative h-full flex flex-col bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl hover:shadow-purple-500/20">
         {/* Featured Badge */}
         {product.isFeatured && (
@@ -57,14 +56,7 @@ const ProductCard: React.FC<ProductCardProps> = memo(({ product }) => {
 
           {/* Developer */}
           <p className="text-purple-400 text-xs mb-2 font-medium truncate">
-            by{' '}
-            <Link
-              to={`/developer/${slugify(product.developer)}`}
-              onClick={(e) => e.stopPropagation()}
-              className="hover:text-purple-300 hover:underline underline-offset-2 transition-colors"
-            >
-              {product.developer}
-            </Link>
+            by {product.developer}
           </p>
 
           {/* Stats */}
