@@ -109,28 +109,101 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
           }}
         />
 
-        {/* ═══ Badges overlay — top-left (desktop) симметрично manifesto справа ═══ */}
-        <div className="hidden lg:flex absolute top-8 left-8 z-20 flex-wrap items-center gap-2">
-          {isTopDev && (
+        {/* ═══ Hero overlay (lg+) — avatar + имя + слоган + соцсети + badges в один блок слева. ═══ */}
+        <div className="hidden lg:flex absolute top-8 left-8 z-20 flex-col gap-4 w-[min(52%,640px)]">
+          {/* Ряд 1: avatar + имя + слоган */}
+          <div className="flex items-start gap-5">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+              className="flex-shrink-0"
+            >
+              <HexRuneAvatar
+                avatar={profile.avatar}
+                initials={initials}
+                isTopDev={isTopDev}
+                size={116}
+              />
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+              className="min-w-0 flex-1 pt-1"
+            >
+              <h1 className="text-4xl xl:text-5xl font-black uppercase tracking-tight leading-[1.02] mb-2">
+                <GlitchText
+                  text={profile.displayName}
+                  tint={isTopDev ? 'gold' : 'cyan'}
+                  intensity={isTopDev ? 'aggressive' : 'calm'}
+                  as="span"
+                />
+              </h1>
+              {profile.bio && (
+                <p className="text-gray-200/90 text-sm leading-relaxed border-l-2 border-[#FFD700]/50 pl-3 italic line-clamp-2">
+                  {profile.bio}
+                </p>
+              )}
+            </motion.div>
+          </div>
+
+          {/* Ряд 2: socials (компактно) */}
+          {socialLinks.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {socialLinks.map((link, i) => (
+                <motion.a
+                  key={link.label}
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 + i * 0.06 }}
+                  aria-label={link.label}
+                  className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/45 backdrop-blur-md border border-white/[0.1] text-gray-200 text-[11px] font-semibold uppercase tracking-widest overflow-hidden transition-all duration-300 hover:border-white/25 hover:text-white"
+                >
+                  <span
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{
+                      background: `radial-gradient(circle at center, ${link.color}25, transparent 70%)`,
+                      boxShadow: `0 0 18px ${link.color}45`,
+                    }}
+                  />
+                  <link.icon
+                    className="relative w-3.5 h-3.5 transition-colors"
+                    style={{ color: link.color }}
+                  />
+                  <span className="relative">{link.label}</span>
+                </motion.a>
+              ))}
+            </div>
+          )}
+
+          {/* Ряд 3: badges (Top Demiurge / Verified Creator) */}
+          <div className="flex flex-wrap items-center gap-2">
+            {isTopDev && (
+              <motion.span
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.55 }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#FFD700]/50 bg-black/45 backdrop-blur-md text-[#FFD700] text-[10px] font-black uppercase tracking-[0.25em] shadow-[0_0_24px_rgba(255,215,0,0.35)] animate-aura-pulse"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#FFD700] shadow-[0_0_8px_#FFD700]" />
+                Top Demiurge
+              </motion.span>
+            )}
             <motion.span
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#FFD700]/50 bg-black/45 backdrop-blur-md text-[#FFD700] text-[10px] font-black uppercase tracking-[0.25em] shadow-[0_0_24px_rgba(255,215,0,0.35)] animate-aura-pulse"
+              transition={{ delay: 0.65 }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#00F5FF]/40 bg-black/45 backdrop-blur-md text-[#00F5FF] text-[10px] font-bold uppercase tracking-[0.2em] shadow-[0_0_18px_rgba(0,245,255,0.25)]"
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-[#FFD700] shadow-[0_0_8px_#FFD700]" />
-              Top Demiurge
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00F5FF] shadow-[0_0_8px_#00F5FF]" />
+              Verified Creator
             </motion.span>
-          )}
-          <motion.span
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5 }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#00F5FF]/40 bg-black/45 backdrop-blur-md text-[#00F5FF] text-[10px] font-bold uppercase tracking-[0.2em] shadow-[0_0_18px_rgba(0,245,255,0.25)]"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#00F5FF] shadow-[0_0_8px_#00F5FF]" />
-            Verified Creator
-          </motion.span>
+          </div>
         </div>
 
         {/* ═══ Manifesto overlay (только lg+, чтобы текст оставался читаемым) ═══ */}
@@ -163,8 +236,8 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
         </button>
       </div>
 
-      {/* ═══ Hero content — overlapping banner from below ═══ */}
-      <div className="relative -mt-24 sm:-mt-28 px-6 sm:px-10 z-10">
+      {/* ═══ Hero content (mobile/tablet only) — на lg+ всё в top-left overlay банера. ═══ */}
+      <div className="lg:hidden relative -mt-24 sm:-mt-28 px-6 sm:px-10 z-10">
         <div className="flex flex-col md:flex-row md:items-end gap-6 md:gap-10">
           {/* Avatar */}
           <motion.div
@@ -181,19 +254,14 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
             />
           </motion.div>
 
-          {/* Name + bio (на lg+ ограничено ~60%, чтобы не налезать на manifesto overlay справа) */}
+          {/* Name + bio */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className={`flex-1 min-w-0 pb-2 ${
-              profile.aboutLong && profile.aboutLong.trim().length > 0
-                ? 'lg:max-w-[calc(100%-460px)] xl:max-w-[calc(100%-520px)]'
-                : ''
-            }`}
+            className="flex-1 min-w-0 pb-2"
           >
-            {/* Badges inline — ТОЛЬКО на <lg; на lg+ они унесены в top-left overlay банера. */}
-            <div className="lg:hidden flex flex-wrap items-center gap-3 mb-3">
+            <div className="flex flex-wrap items-center gap-3 mb-3">
               {isTopDev && (
                 <motion.span
                   initial={{ opacity: 0, x: -10 }}
