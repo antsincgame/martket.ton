@@ -17,10 +17,10 @@ const CategoryFilterChips: React.FC<CategoryFilterChipsProps> = ({ categories, a
       <div className="flex gap-2 min-w-max px-1">
         <button
           onClick={() => onChange('all')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+          className={`flex items-center gap-2 px-4 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-full border text-sm font-medium whitespace-nowrap transition-all duration-200 ${
             isActive('all')
               ? 'bg-blue-500/10 border-blue-500/50 text-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.4)]'
-              : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+              : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-gray-200 active:bg-white/15'
           }`}
         >
           <LayoutGrid className="w-4 h-4" />
@@ -33,10 +33,10 @@ const CategoryFilterChips: React.FC<CategoryFilterChipsProps> = ({ categories, a
             <button
               key={cat.slug}
               onClick={() => onChange(cat.slug)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+              className={`flex items-center gap-2 px-4 py-2.5 sm:py-2 min-h-[44px] sm:min-h-0 rounded-full border text-sm font-medium whitespace-nowrap transition-all duration-200 ${
                 isActive(cat.slug)
                   ? 'bg-blue-500/10 border-blue-500/50 text-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.4)]'
-                  : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                  : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-gray-200 active:bg-white/15'
               }`}
             >
               <Icon className="w-4 h-4" />

@@ -16,6 +16,12 @@ const PREVIEW_W = 320;
 const PREVIEW_GAP = 16;
 const PAGE_SIZE = 20;
 
+/** true на сенсорных устройствах — там hover-превью только мешает. */
+function isCoarsePointer(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(pointer: coarse)').matches;
+}
+
 type SortTab = 'trending' | 'top-rated' | 'newest' | 'most-blessed';
 
 interface TabDef {
@@ -73,6 +79,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   const { query: searchQuery } = useSearch();
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewH, setPreviewH] = useState(400);
+  const [coarse] = useState<boolean>(isCoarsePointer);
 
   useLayoutEffect(() => {
     if (previewRef.current) {
@@ -104,11 +111,21 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
   const safePage = Math.min(page, totalPages - 1);
   const pageProducts = sorted.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
-  const handleHover = useCallback((p: CatalogListingProduct) => setHoveredProduct(p), []);
+  const handleHover = useCallback(
+    (p: CatalogListingProduct) => {
+      if (coarse) return;
+      setHoveredProduct(p);
+    },
+    [coarse],
+  );
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    setMousePos({ x: e.clientX, y: e.clientY });
-  }, []);
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (coarse) return;
+      setMousePos({ x: e.clientX, y: e.clientY });
+    },
+    [coarse],
+  );
 
   const handleMouseLeave = useCallback(() => {
     setHoveredProduct(null);
@@ -173,14 +190,14 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                 <button
                   key={tab.id}
                   onClick={() => handleTabChange(tab.id)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-4 py-2 rounded-lg text-[10px] sm:text-sm font-medium whitespace-nowrap transition-all duration-200 ${
                     isActive
                       ? 'bg-[#FFD700]/10 text-[#FFD700] shadow-[0_0_12px_rgba(255,215,0,0.12)] border border-[#FFD700]/20'
                       : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
+                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                  <span>{tab.label}</span>
                 </button>
               );
             })}
@@ -228,17 +245,25 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-3 px-1">
+            <div className="flex items-center justify-between mt-3 px-1 gap-2">
               <button
                 disabled={safePage === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed bg-[#1A1A1A] border border-[#FFD700]/10 text-gray-300 hover:bg-[#FFD700]/5 hover:border-[#FFD700]/20 hover:text-[#FFD700]"
+                className="flex items-center gap-1 px-3 min-h-[44px] sm:min-h-0 sm:py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed bg-[#1A1A1A] border border-[#FFD700]/10 text-gray-300 hover:bg-[#FFD700]/5 hover:border-[#FFD700]/20 hover:text-[#FFD700] active:bg-[#FFD700]/10"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Prev
               </button>
 
-              <div className="flex items-center gap-1">
+              {/* Mobile: компактный Page X / N */}
+              <div className="sm:hidden flex-1 text-center text-xs font-medium text-gray-400 tabular-nums">
+                Page <span className="text-[#FFD700]">{safePage + 1}</span>
+                <span className="text-gray-600"> / </span>
+                <span>{totalPages}</span>
+              </div>
+
+              {/* Desktop: цифровая полоска */}
+              <div className="hidden sm:flex items-center gap-1">
                 {Array.from({ length: totalPages }, (_, i) => (
                   <button
                     key={i}
@@ -257,7 +282,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
               <button
                 disabled={safePage >= totalPages - 1}
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed bg-[#1A1A1A] border border-[#FFD700]/10 text-gray-300 hover:bg-[#FFD700]/5 hover:border-[#FFD700]/20 hover:text-[#FFD700]"
+                className="flex items-center gap-1 px-3 min-h-[44px] sm:min-h-0 sm:py-1.5 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed bg-[#1A1A1A] border border-[#FFD700]/10 text-gray-300 hover:bg-[#FFD700]/5 hover:border-[#FFD700]/20 hover:text-[#FFD700] active:bg-[#FFD700]/10"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
