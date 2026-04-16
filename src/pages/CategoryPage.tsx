@@ -4,6 +4,7 @@ import { Filter, SortDesc, Grid, List, Star, TrendingUp, Heart } from 'lucide-re
 import { CATEGORY_ICONS } from '../domain/marketplace/categoryIcons';
 import type { HomeCategorySlug } from '../domain/marketplace/types';
 import ProductCard from '../components/ProductCard';
+import Breadcrumbs from '../components/Breadcrumbs';
 import LoadingScreen from '../components/LoadingScreen';
 import {
   getMarketplaceInventoryOnce,
@@ -60,6 +61,8 @@ const CategoryPage = () => {
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="max-w-7xl mx-auto">
+        <Breadcrumbs items={[{ label: currentCategory.title }]} />
+
         {/* Category Header */}
         <div className="text-center mb-12">
           {(() => {

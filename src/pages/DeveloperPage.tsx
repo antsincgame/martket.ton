@@ -5,6 +5,7 @@ import { Package } from 'lucide-react';
 import { resolvePublicDeveloperProfile } from '../domain/marketplace/marketplaceRemote';
 import { slugify } from '../utils/slugify';
 import LoadingScreen from '../components/LoadingScreen';
+import Breadcrumbs from '../components/Breadcrumbs';
 import DevSacredBackground from '../components/developer/DevSacredBackground';
 import DevCinematicHero from '../components/developer/DevCinematicHero';
 import DevStatsConstellation from '../components/developer/DevStatsConstellation';
@@ -123,6 +124,15 @@ const DeveloperPage = () => {
       <DevSacredBackground />
 
       <div className="relative space-y-10 sm:space-y-14">
+        <div className="px-6 sm:px-10">
+          <Breadcrumbs
+            items={[
+              { label: 'Developers' },
+              { label: profile.displayName },
+            ]}
+          />
+        </div>
+
         <DevCinematicHero profile={profile} isTopDev={isTopDev} />
 
         {/*

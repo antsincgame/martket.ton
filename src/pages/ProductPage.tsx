@@ -1,11 +1,13 @@
 // Страница продукта обновлена по терминологии TonForge, чтобы purchase card объясняла escrow/NFT/device flow вместо старых обещаний.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles, ThumbsUp } from 'lucide-react';
 import { slugify } from '../utils/slugify';
 import LoadingScreen from '../components/LoadingScreen';
+import Breadcrumbs from '../components/Breadcrumbs';
 import ProductCryptoCheckout from '../components/ProductCryptoCheckout';
 import { resolveProductDetail, resolveProductReviews } from '../domain/marketplace/marketplaceRemote';
+import { categoryLabelToSlug } from '../domain/marketplace/catalog';
 import type { ProductDetail, ProductReview } from '../domain/marketplace/types';
 
 const ProductPage = () => {
@@ -69,9 +71,24 @@ const ProductPage = () => {
     );
   }
 
+  const categorySlug = useMemo(
+    () => categoryLabelToSlug(product.category),
+    [product.category],
+  );
+
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="max-w-7xl mx-auto">
+        <Breadcrumbs
+          items={[
+            {
+              label: product.category,
+              to: `/category/${categorySlug ?? 'apps'}`,
+            },
+            { label: product.name },
+          ]}
+        />
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2">
