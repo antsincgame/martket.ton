@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import SteamProductRow from './SteamProductRow';
 import CategorySidebar from './CategorySidebar';
 import PlatformFilter from './PlatformFilter';
-import FacetTagFilter from './FacetTagFilter';
+import TagCloud from './TagCloud';
 import CategoryFilterChips from './CategoryFilterChips';
 import ProductPreview from './ProductPreview';
 import { filterProductsForCategorySlug } from '../domain/marketplace/catalog';
@@ -277,7 +277,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             active={activeCategory}
             onChange={handleCategoryChange}
           />
-          <FacetTagFilter
+          <TagCloud
             products={products}
             selected={selectedTags}
             onChange={handleTagChange}

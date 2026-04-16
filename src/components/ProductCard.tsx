@@ -1,8 +1,7 @@
 import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
-import { Star, Download, Heart, Zap, Gem, Sparkles } from 'lucide-react';
+import { Star, Download, Heart, Zap, Gem } from 'lucide-react';
 import { slugify } from '../utils/slugify';
-import { isNewRelease } from './home/homeConstants';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
 interface ProductCardProps {
@@ -10,35 +9,16 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = memo(({ product }) => {
-  const isNew = isNewRelease(product.releaseDate);
-  const isFree = product.price === 0;
-
   return (
     <Link to={`/product/${slugify(product.name)}`} className="group block h-full">
       <div className="relative h-full flex flex-col bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 transition-all duration-300 hover:scale-[1.03] hover:shadow-2xl hover:shadow-purple-500/20">
-        {/* Featured / New / Free stack — top-left */}
-        <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 items-start">
-          {product.isFeatured && (
-            <div className="bg-mystical-gradient px-3 py-1 rounded-full text-xs font-medium text-white flex items-center space-x-1">
-              <Gem className="w-3 h-3" />
-              <span>Featured</span>
-            </div>
-          )}
-          {isNew && (
-            <div
-              className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-[#00F5FF] border border-[#00F5FF]/40 bg-[#00F5FF]/10 flex items-center gap-1"
-              style={{ boxShadow: '0 0 10px rgba(0,245,255,0.25)' }}
-            >
-              <Sparkles className="w-3 h-3" />
-              <span>New</span>
-            </div>
-          )}
-          {isFree && (
-            <div className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-emerald-300 border border-emerald-400/40 bg-emerald-500/10">
-              Free
-            </div>
-          )}
-        </div>
+        {/* Featured Badge */}
+        {product.isFeatured && (
+          <div className="absolute top-3 left-3 z-10 bg-mystical-gradient px-3 py-1 rounded-full text-xs font-medium text-white flex items-center space-x-1">
+            <Gem className="w-3 h-3" />
+            <span>Featured</span>
+          </div>
+        )}
 
         {/* Donation Badge */}
         {product.donationAmount && product.donationAmount > 0 && (
@@ -65,9 +45,9 @@ const ProductCard: React.FC<ProductCardProps> = memo(({ product }) => {
             <h3 className="font-semibold text-white text-sm group-hover:text-ton-400 transition-colors line-clamp-1 flex-1">
               {product.name}
             </h3>
-            <div className={`flex items-center space-x-1 font-display font-bold text-sm flex-shrink-0 ${isFree ? 'text-emerald-400' : 'text-ton-400'}`}>
+            <div className="flex items-center space-x-1 text-ton-400 font-display font-bold text-sm flex-shrink-0">
               <Zap className="w-3.5 h-3.5" />
-              <span>{isFree ? 'Free' : `${product.price} TON`}</span>
+              <span>{product.price} TON</span>
             </div>
           </div>
 
