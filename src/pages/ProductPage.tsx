@@ -1,25 +1,24 @@
-// Страница продукта — Store-Style (Steam / Epic / Play Market / App Store).
-// Layout:
-//   Desktop: Breadcrumbs → [Gallery (col-span-2) | PurchasePanel (col-span-1)]
-//                       → About → Reviews → More Like This
-//   Mobile:  ProductHeader (имя/dev/rating) → Gallery → PurchasePanel
-//                       → About → Reviews → More Like This
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+// Страница продукта — Neon Sacred Redesign.
+// Hero → Gallery → TrustConstellation → Scripture → MetaArsenal → Oracle Reviews → Kindred Artifacts
+// Логика загрузки и canonical-slug redirect сохранены из прошлой версии.
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
 import { slugify } from '../utils/slugify';
 import LoadingScreen from '../components/LoadingScreen';
 import ProductCryptoCheckout from '../components/ProductCryptoCheckout';
-import ProductGallery from '../components/product/ProductGallery';
-import ProductPurchasePanel, { ProductHeader } from '../components/product/ProductPurchasePanel';
+import DevSacredBackground from '../components/developer/DevSacredBackground';
+import CinematicProductHero from '../components/product/CinematicProductHero';
+import SacredGallery from '../components/product/SacredGallery';
+import AuraPurchasePanel from '../components/product/AuraPurchasePanel';
+import MetaArsenal from '../components/product/MetaArsenal';
+import TrustConstellation from '../components/product/TrustConstellation';
 import { resolveProductDetail, resolveProductReviews } from '../domain/marketplace/marketplaceRemote';
-import { categoryLabelToSlug } from '../domain/marketplace/catalog';
 import type { ProductDetail, ProductReview } from '../domain/marketplace/types';
 
-// Тяжёлые секции — под скроллом.
-const ProductDescription = lazy(() => import('../components/product/ProductDescription'));
-const ProductReviews = lazy(() => import('../components/product/ProductReviews'));
-const MoreLikeThis = lazy(() => import('../components/product/MoreLikeThis'));
+// Тяжёлые секции — под скроллом. Разгружаем initial bundle.
+const ScriptureDescription = lazy(() => import('../components/product/ScriptureDescription'));
+const OracleReviews = lazy(() => import('../components/product/OracleReviews'));
+const KindredArtifacts = lazy(() => import('../components/product/KindredArtifacts'));
 
 const ProductPage = () => {
   const { slug } = useParams();
@@ -63,109 +62,101 @@ const ProductPage = () => {
     setSelectedImage(0);
   }, [product?.id]);
 
-  const categorySlug = useMemo(
-    () => (product ? categoryLabelToSlug(product.category) : null),
-    [product],
-  );
-
   if (product === undefined) {
-    return <LoadingScreen message="Загружаем артефакт..." />;
+    return <LoadingScreen message="Призываю артефакт..." />;
   }
 
   if (!product) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center bg-[#0A0A0F]">
-        <h1 className="text-3xl font-bold text-white mb-3">Product not found</h1>
-        <p className="text-gray-400 mb-6">Проверьте ссылку или вернитесь в каталог.</p>
-        <Link
-          to="/category/apps"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#4facfe] text-white text-sm font-medium hover:bg-[#3a9be8] transition-colors"
-        >
-          Browse Store
-        </Link>
+      <div className="relative min-h-screen flex flex-col items-center justify-center px-4 text-center overflow-hidden">
+        <DevSacredBackground />
+        <div className="relative z-10">
+          <h1 className="text-3xl font-display font-black uppercase tracking-widest text-white mb-3">
+            Артефакт не найден
+          </h1>
+          <p className="text-gray-400 mb-6">Проверьте ссылку или вернитесь в храм каталога.</p>
+          <Link
+            to="/category/apps"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-[#FFD700]/50 bg-[#FFD700]/10 text-[#FFD700] text-sm font-black uppercase tracking-[0.25em] hover:bg-[#FFD700]/20 transition-colors"
+          >
+            В каталог
+          </Link>
+        </div>
       </div>
     );
   }
 
+  const coverImage = product.images[selectedImage] ?? product.image;
+
   return (
-    <div className="min-h-screen bg-[#0A0A0F]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        {/* ─── Breadcrumbs ─── */}
-        <nav aria-label="Breadcrumb" className="mb-4 sm:mb-6 text-xs sm:text-sm text-gray-500 flex items-center gap-1.5 flex-wrap">
-          <Link to="/" className="hover:text-white transition-colors">
-            Store
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-gray-700" aria-hidden />
-          <Link
-            to={categorySlug ? `/category/${categorySlug}` : '/category/apps'}
-            className="hover:text-white transition-colors"
-          >
-            {product.category}
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-gray-700" aria-hidden />
-          <span className="text-gray-300 truncate" aria-current="page">
-            {product.name}
-          </span>
-        </nav>
+    <div className="relative min-h-screen overflow-x-hidden">
+      <DevSacredBackground />
 
-        {/* ─── Mobile ProductHeader (выше галереи) ─── */}
-        <div className="lg:hidden mb-4">
-          <ProductHeader product={product} />
-        </div>
-
-        {/* ─── Above the fold: Gallery + Purchase Panel ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-          <div className="lg:col-span-2 min-w-0">
-            <ProductGallery
-              images={product.images.length > 0 ? product.images : [product.image]}
-              productName={product.name}
-              selectedIndex={selectedImage}
-              onSelect={setSelectedImage}
-            />
+      <div className="relative z-10 py-6 sm:py-10 px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto">
+          {/* ═══ HERO ═══ */}
+          <div className="mb-10 md:mb-16">
+            <CinematicProductHero product={product} coverImage={coverImage} />
           </div>
 
-          <aside className="lg:col-span-1">
-            <div className="lg:sticky lg:top-24">
-              <ProductPurchasePanel
-                product={product}
-                hideHeader={false /* mobile хедер уже отрендерен выше; на десктопе панель показывает свой */}
-                checkoutSlot={<ProductCryptoCheckout catalogProductId={product.id} />}
+          {/* ═══ Main grid: content + aside ═══ */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
+            <div className="lg:col-span-2 space-y-12 min-w-0">
+              {/* Sacred gallery */}
+              <SacredGallery
+                images={product.images}
+                productName={product.name}
+                selectedIndex={selectedImage}
+                onSelect={setSelectedImage}
               />
+
+              {/* Trust Constellation — главный эмоциональный крючок */}
+              <TrustConstellation />
+
+              {/* Scripture */}
+              <Suspense fallback={<SectionFallback />}>
+                <ScriptureDescription
+                  longDescription={product.longDescription}
+                  tags={product.tags}
+                />
+              </Suspense>
+
+              {/* Meta arsenal */}
+              <MetaArsenal product={product} />
+
+              {/* Oracle reviews */}
+              <Suspense fallback={<SectionFallback />}>
+                <OracleReviews
+                  reviews={reviews}
+                  avgRating={product.rating}
+                  totalCount={product.reviewStatsCount}
+                />
+              </Suspense>
             </div>
-          </aside>
-        </div>
 
-        {/* ─── About this app ─── */}
-        <div className="mt-10 lg:mt-14">
-          <Suspense fallback={<SectionFallback />}>
-            <ProductDescription
-              longDescription={product.longDescription}
-              tags={product.tags}
-            />
-          </Suspense>
-        </div>
+            {/* ═══ Aside: sticky purchase panel ═══ */}
+            <aside className="lg:col-span-1">
+              <div className="lg:sticky lg:top-24">
+                <AuraPurchasePanel
+                  priceTon={product.price}
+                  productName={product.name}
+                  checkoutSlot={<ProductCryptoCheckout catalogProductId={product.id} />}
+                />
+              </div>
+            </aside>
+          </div>
 
-        {/* ─── Reviews ─── */}
-        <div className="mt-10 lg:mt-14">
-          <Suspense fallback={<SectionFallback />}>
-            <ProductReviews
-              reviews={reviews}
-              avgRating={product.rating}
-              totalCount={product.reviewStatsCount}
-            />
-          </Suspense>
-        </div>
-
-        {/* ─── More Like This ─── */}
-        <div className="mt-10 lg:mt-14 pb-10">
-          <Suspense fallback={<SectionFallback />}>
-            <MoreLikeThis
-              currentProductId={product.id}
-              category={product.category}
-              developer={product.developer}
-              tags={product.tags}
-            />
-          </Suspense>
+          {/* ═══ Kindred Artifacts — полноширинная секция внизу ═══ */}
+          <div className="mt-14 md:mt-20">
+            <Suspense fallback={<SectionFallback />}>
+              <KindredArtifacts
+                currentProductId={product.id}
+                category={product.category}
+                developer={product.developer}
+                tags={product.tags}
+              />
+            </Suspense>
+          </div>
         </div>
       </div>
     </div>
@@ -176,6 +167,8 @@ export default ProductPage;
 
 function SectionFallback() {
   return (
-    <div className="py-10 text-center text-xs text-gray-600">Loading...</div>
+    <div className="py-10 text-center text-[10px] uppercase tracking-[0.35em] text-gray-600">
+      Unveiling...
+    </div>
   );
 }
