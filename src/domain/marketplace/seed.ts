@@ -848,11 +848,11 @@ export const SEED_DEVELOPERS: DeveloperProfile[] = [
     joinedDate: '2024-01-01', productCount: 4, totalDownloads: 177700,
     bannerUrl: 'https://images.pexels.com/photos/1629236/pexels-photo-1629236.jpeg?auto=compress&cs=tinysrgb&w=1200',
     github: 'god-creator', telegram: 'god_creator', twitter: 'god_creates',
-    aboutLong: `I forge digital universes from pure mathematics. Each product is a world unto itself — a self-contained ecosystem of logic, beauty, and function.
+    aboutLong: `I forge digital universes from pure mathematics — each product a self-contained ecosystem of logic, beauty, and function.
 
-From the Genesis Engine that powers hundreds of indie games to Omniscient AI that pushes the boundaries of machine reasoning, every creation embodies a simple philosophy: technology should amplify human potential, not constrain it.
+From the Genesis Engine to Omniscient AI, every creation embodies one philosophy: technology should amplify human potential, not constrain it.
 
-My tools are built for creators, dreamers, and builders who refuse to accept "impossible" as an answer. Join 170,000+ developers and creators who have chosen to build with divine-grade tools.
+Built for dreamers who refuse "impossible" as an answer.
 
 "The best code is indistinguishable from magic."`,
   },

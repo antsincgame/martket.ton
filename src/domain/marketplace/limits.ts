@@ -15,8 +15,9 @@ export const DEVELOPER_SLUG_MAX = 40;
 export const BIO_MAX = 160;
 
 /**
- * Манифест (About detailed) — длинный текст на профиле.
- * 2000 символов ≈ 300-400 слов — достаточно для storytelling,
- * но коротко для overlay'я на баннере (best practice: GitHub ~160k, Steam ~1000, App Store ~4000).
+ * Манифест (About detailed) — короткое заявление на профиле.
+ * 500 символов ≈ 80-90 слов — помещается в overlay на баннере без скролла,
+ * работает как эффектный эпиграф, а не как блог-пост.
+ * (Twitter ≈ 280, LinkedIn tagline ≈ 120, наш «Манифест» — сжатое заявление).
  */
-export const ABOUT_LONG_MAX = 2000;
+export const ABOUT_LONG_MAX = 500;

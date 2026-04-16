@@ -7,7 +7,7 @@ export const DEVELOPER_DISPLAY_NAME_MIN = 2;
 export const DEVELOPER_DISPLAY_NAME_MAX = 40;
 export const DEVELOPER_SLUG_MAX = 40;
 export const BIO_MAX = 160;
-export const ABOUT_LONG_MAX = 2000;
+export const ABOUT_LONG_MAX = 500;
 
 const trimmed = () =>
   z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string());

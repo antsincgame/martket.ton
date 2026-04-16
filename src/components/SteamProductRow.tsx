@@ -49,7 +49,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = memo(
         onMouseEnter={() => onHover(product)}
         onMouseLeave={onHoverEnd}
       >
-        {/* ═══ Mobile layout (<sm): compact row ═══ */}
+        {/* ═══ Mobile layout (<sm): compact row + lead + category ═══ */}
         <div className="sm:hidden flex gap-3 p-3">
           <img
             src={product.image}
@@ -71,10 +71,16 @@ const SteamProductRow: React.FC<SteamProductRowProps> = memo(
               >
                 by {product.developer}
               </Link>
+              {/* Краткий лид: ~1 строка описания для быстрой сканируемости. */}
+              {product.description && (
+                <p className="text-[11px] text-gray-400/80 leading-snug line-clamp-1 mt-1">
+                  {product.description}
+                </p>
+              )}
             </div>
 
             <div className="flex items-end justify-between gap-2 mt-2">
-              <div className="flex items-center gap-3 text-[11px] text-gray-400 min-w-0">
+              <div className="flex items-center gap-2 text-[11px] text-gray-400 min-w-0 flex-wrap">
                 <span className="inline-flex items-center gap-1">
                   <Star className="w-3 h-3 fill-[#FFD700] text-[#FFD700]" />
                   <span className="tabular-nums text-[#FFD700]/80">{product.rating}</span>
@@ -83,6 +89,11 @@ const SteamProductRow: React.FC<SteamProductRowProps> = memo(
                   <Download className="w-3 h-3 text-gray-600" />
                   <span className="tabular-nums">{formatDownloads(product.downloads)}</span>
                 </span>
+                {product.category && (
+                  <span className="inline-flex items-center text-[10px] uppercase tracking-wider text-[#00F5FF]/70 border border-[#00F5FF]/20 rounded-full px-1.5 py-0.5 bg-[#00F5FF]/5">
+                    {product.category}
+                  </span>
+                )}
               </div>
               <button
                 data-stop

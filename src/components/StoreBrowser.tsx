@@ -289,6 +289,17 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
               </button>
             </div>
           )}
+
+          {/* ═══ Mobile/tablet inline TagCloud — только <lg, под списком/пагинацией ═══ */}
+          <div className="lg:hidden mt-4">
+            <TagCloud
+              products={products}
+              selected={selectedTags}
+              onChange={handleTagChange}
+              variant="inline"
+              limit={18}
+            />
+          </div>
         </div>
 
         {/* Right column: tags + platforms + categories (desktop only) */}

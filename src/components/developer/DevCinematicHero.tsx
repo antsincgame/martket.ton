@@ -109,6 +109,30 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
           }}
         />
 
+        {/* ═══ Badges overlay — top-left (desktop) симметрично manifesto справа ═══ */}
+        <div className="hidden lg:flex absolute top-8 left-8 z-20 flex-wrap items-center gap-2">
+          {isTopDev && (
+            <motion.span
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4 }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#FFD700]/50 bg-black/45 backdrop-blur-md text-[#FFD700] text-[10px] font-black uppercase tracking-[0.25em] shadow-[0_0_24px_rgba(255,215,0,0.35)] animate-aura-pulse"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FFD700] shadow-[0_0_8px_#FFD700]" />
+              Top Demiurge
+            </motion.span>
+          )}
+          <motion.span
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.5 }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#00F5FF]/40 bg-black/45 backdrop-blur-md text-[#00F5FF] text-[10px] font-bold uppercase tracking-[0.2em] shadow-[0_0_18px_rgba(0,245,255,0.25)]"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00F5FF] shadow-[0_0_8px_#00F5FF]" />
+            Verified Creator
+          </motion.span>
+        </div>
+
         {/* ═══ Manifesto overlay (только lg+, чтобы текст оставался читаемым) ═══ */}
         {profile.aboutLong && profile.aboutLong.trim().length > 0 && (
           <div
@@ -168,7 +192,8 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
                 : ''
             }`}
           >
-            <div className="flex flex-wrap items-center gap-3 mb-3">
+            {/* Badges inline — ТОЛЬКО на <lg; на lg+ они унесены в top-left overlay банера. */}
+            <div className="lg:hidden flex flex-wrap items-center gap-3 mb-3">
               {isTopDev && (
                 <motion.span
                   initial={{ opacity: 0, x: -10 }}
