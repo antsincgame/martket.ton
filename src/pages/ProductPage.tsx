@@ -1,6 +1,6 @@
 // Страница продукта обновлена по терминологии TonForge, чтобы purchase card объясняла escrow/NFT/device flow вместо старых обещаний.
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles, ThumbsUp } from 'lucide-react';
 import { slugify } from '../utils/slugify';
 import LoadingScreen from '../components/LoadingScreen';
@@ -10,6 +10,7 @@ import type { ProductDetail, ProductReview } from '../domain/marketplace/types';
 
 const ProductPage = () => {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const [selectedImage, setSelectedImage] = useState(0);
   const [product, setProduct] = useState<ProductDetail | null | undefined>(undefined);
   const [reviews, setReviews] = useState<ProductReview[]>([]);
@@ -35,6 +36,15 @@ const ProductPage = () => {
       cancelled = true;
     };
   }, [slug]);
+
+  // Canonical URL: если пришли по id или кривому slug — незаметно заменяем на ЧПУ.
+  useEffect(() => {
+    if (!product || !slug) return;
+    const canonical = slugify(product.name);
+    if (canonical && canonical !== slug) {
+      navigate(`/product/${canonical}`, { replace: true });
+    }
+  }, [product, slug, navigate]);
 
   useEffect(() => {
     setSelectedImage(0);

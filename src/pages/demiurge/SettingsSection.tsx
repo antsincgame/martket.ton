@@ -8,6 +8,11 @@ import { storeApiUrl } from '../../lib/storeApi';
 import { useToast } from '../../components/ui/Toast';
 import { slugify } from '../../utils/slugify';
 import type { CreatedProduct } from './types';
+import {
+  DEVELOPER_DISPLAY_NAME_MAX,
+  DEVELOPER_DISPLAY_NAME_MIN,
+  DEVELOPER_SLUG_MAX,
+} from '../../domain/marketplace/limits';
 
 interface SettingsSectionProps {
   myProducts?: CreatedProduct[];
@@ -31,7 +36,7 @@ export default function SettingsSection({ myProducts = [] }: SettingsSectionProp
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
-  const generateSlug = () => setSlug(slugify(displayName));
+  const generateSlug = () => setSlug(slugify(displayName).slice(0, DEVELOPER_SLUG_MAX));
 
   const toggleFeatured = (id: string) => {
     setFeaturedIds((prev) => {
@@ -43,6 +48,15 @@ export default function SettingsSection({ myProducts = [] }: SettingsSectionProp
   };
 
   const handleSave = async () => {
+    const dn = displayName.trim();
+    if (dn.length < DEVELOPER_DISPLAY_NAME_MIN) {
+      toast('error', `Display Name must be at least ${DEVELOPER_DISPLAY_NAME_MIN} characters`);
+      return;
+    }
+    if (dn.length > DEVELOPER_DISPLAY_NAME_MAX) {
+      toast('error', `Display Name must be at most ${DEVELOPER_DISPLAY_NAME_MAX} characters`);
+      return;
+    }
     setSaving(true);
     try {
       const token = await getToken();
@@ -50,7 +64,7 @@ export default function SettingsSection({ myProducts = [] }: SettingsSectionProp
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          display_name: displayName.trim(),
+          display_name: dn,
           bio: bio.trim(),
           slug: slug.trim(),
           avatar: avatarUrl.trim() || null,
@@ -121,23 +135,52 @@ export default function SettingsSection({ myProducts = [] }: SettingsSectionProp
         </div>
 
         <div>
-          <label className={labelClass}>
-            <User className="w-3.5 h-3.5 inline mr-1" />
-            Display Name
-          </label>
-          <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)}
-            disabled={saving} className={inputClass} placeholder="Your name..." />
+          <div className="flex items-center justify-between mb-2">
+            <label className={`${labelClass} mb-0`}>
+              <User className="w-3.5 h-3.5 inline mr-1" />
+              Display Name
+            </label>
+            <span className={`text-[10px] tabular-nums ${
+              displayName.trim().length > DEVELOPER_DISPLAY_NAME_MAX ? 'text-[#FF4444]'
+                : displayName.trim().length >= DEVELOPER_DISPLAY_NAME_MIN ? 'text-[#666]' : 'text-[#FFD700]/60'
+            }`}>
+              {displayName.trim().length}/{DEVELOPER_DISPLAY_NAME_MAX}
+            </span>
+          </div>
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value.slice(0, DEVELOPER_DISPLAY_NAME_MAX))}
+            maxLength={DEVELOPER_DISPLAY_NAME_MAX}
+            minLength={DEVELOPER_DISPLAY_NAME_MIN}
+            disabled={saving}
+            className={inputClass}
+            placeholder={`Your name (${DEVELOPER_DISPLAY_NAME_MIN}-${DEVELOPER_DISPLAY_NAME_MAX} chars)...`}
+          />
         </div>
 
         <div>
-          <label className={labelClass}>Profile Slug</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className={`${labelClass} mb-0`}>Profile Slug</label>
+            <span className="text-[10px] tabular-nums text-[#666]">
+              {slug.length}/{DEVELOPER_SLUG_MAX}
+            </span>
+          </div>
           <div className="flex gap-2">
             <div className="flex-1 relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#666] text-sm">/developer/</span>
               <input
                 type="text"
                 value={slug}
-                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                onChange={(e) =>
+                  setSlug(
+                    e.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9-]/g, '')
+                      .slice(0, DEVELOPER_SLUG_MAX)
+                  )
+                }
+                maxLength={DEVELOPER_SLUG_MAX}
                 disabled={saving}
                 className={`${inputClass} pl-[6.5rem]`}
                 placeholder="your-slug"

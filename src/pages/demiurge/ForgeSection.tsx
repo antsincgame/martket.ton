@@ -9,6 +9,7 @@ import { useToast } from '../../components/ui/Toast';
 import { storeApiUrl } from '../../lib/storeApi';
 import { formatFileSize } from './types';
 import type { CreatedProduct } from './types';
+import { PRODUCT_NAME_MAX, PRODUCT_NAME_MIN } from '../../domain/marketplace/limits';
 
 interface ForgeProps {
   myProducts: CreatedProduct[];
@@ -137,7 +138,17 @@ function CreateProduct({ getToken, onBack }: { getToken: () => Promise<string | 
   };
 
   const handleSubmit = async () => {
-    if (!name.trim()) { setErrorMsg('Product name is required'); setPhase('error'); return; }
+    const trimmed = name.trim();
+    if (trimmed.length < PRODUCT_NAME_MIN) {
+      setErrorMsg(`Name must be at least ${PRODUCT_NAME_MIN} characters`);
+      setPhase('error');
+      return;
+    }
+    if (trimmed.length > PRODUCT_NAME_MAX) {
+      setErrorMsg(`Name must be at most ${PRODUCT_NAME_MAX} characters`);
+      setPhase('error');
+      return;
+    }
     setSubmitting(true);
     setPhase('creating');
     setErrorMsg(null);
@@ -219,9 +230,26 @@ function CreateProduct({ getToken, onBack }: { getToken: () => Promise<string | 
 
       <div className="rounded-xl border border-white/[0.06] bg-[#111119] p-6 space-y-5">
         <div>
-          <label className="block text-[#999] text-xs uppercase tracking-wider font-medium mb-2">Name *</label>
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} disabled={submitting}
-            className={inputClass} placeholder="Product name..." />
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-[#999] text-xs uppercase tracking-wider font-medium">Name *</label>
+            <span className={`text-[10px] tabular-nums ${
+              name.trim().length > PRODUCT_NAME_MAX ? 'text-[#FF4444]'
+                : name.trim().length >= PRODUCT_NAME_MIN ? 'text-[#666]' : 'text-[#FFD700]/60'
+            }`}>
+              {name.trim().length}/{PRODUCT_NAME_MAX}
+            </span>
+          </div>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value.slice(0, PRODUCT_NAME_MAX))}
+            maxLength={PRODUCT_NAME_MAX}
+            minLength={PRODUCT_NAME_MIN}
+            disabled={submitting}
+            className={inputClass}
+            placeholder={`Product name (${PRODUCT_NAME_MIN}-${PRODUCT_NAME_MAX} chars)...`}
+          />
+          <p className="text-[10px] text-[#555] mt-1">Used in URL: /product/&lt;slug&gt;</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -328,7 +356,7 @@ function CreateProduct({ getToken, onBack }: { getToken: () => Promise<string | 
 
         <button
           onClick={handleSubmit}
-          disabled={submitting || !name.trim()}
+          disabled={submitting || name.trim().length < PRODUCT_NAME_MIN || name.trim().length > PRODUCT_NAME_MAX}
           className="w-full py-4 rounded-xl bg-[#FFD700] text-[#0A0A0A] font-bold uppercase tracking-widest text-sm transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,215,0,0.3)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {submitting ? (

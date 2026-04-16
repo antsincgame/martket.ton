@@ -148,7 +148,7 @@ const SEED_DEV_BY_SLUG = new Map(
 
 /** Публичный профиль разработчика по slug. Мёрджит SEED_DEVELOPERS + каталог. */
 export async function resolvePublicDeveloperProfile(
-  slug: string
+  slugOrId: string
 ): Promise<PublicDeveloperProfile | null> {
   const inventory = await getMarketplaceInventoryOnce();
   const allProducts = inventory.products;
@@ -161,7 +161,16 @@ export async function resolvePublicDeveloperProfile(
     developerNames.set(devSlug, arr);
   }
 
-  const products = developerNames.get(slug);
+  // Fallback: если пришли по product.id или кривому slug — вытащить developer через продукт.
+  let slug = slugOrId;
+  let products = developerNames.get(slug);
+  if (!products || products.length === 0) {
+    const productById = allProducts.find((p) => p.id === slugOrId);
+    if (productById) {
+      slug = slugify(productById.developer);
+      products = developerNames.get(slug);
+    }
+  }
   if (!products || products.length === 0) return null;
 
   const displayName = products[0].developer;

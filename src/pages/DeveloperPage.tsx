@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Package } from 'lucide-react';
 import { resolvePublicDeveloperProfile } from '../domain/marketplace/marketplaceRemote';
+import { slugify } from '../utils/slugify';
 import LoadingScreen from '../components/LoadingScreen';
 import DevSacredBackground from '../components/developer/DevSacredBackground';
 import DevCinematicHero from '../components/developer/DevCinematicHero';
@@ -51,6 +52,7 @@ function useSeoMeta(profile: PublicDeveloperProfile | null) {
 
 const DeveloperPage = () => {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<PublicDeveloperProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -62,6 +64,15 @@ const DeveloperPage = () => {
       .catch(() => setProfile(null))
       .finally(() => setLoading(false));
   }, [slug]);
+
+  // Canonical URL: если слаг в адресе отличается от канонического (например, id или старый slug) — незаметно заменяем.
+  useEffect(() => {
+    if (!profile || !slug) return;
+    const canonical = slugify(profile.displayName);
+    if (canonical && canonical !== slug) {
+      navigate(`/developer/${canonical}`, { replace: true });
+    }
+  }, [profile, slug, navigate]);
 
   useSeoMeta(profile);
 
