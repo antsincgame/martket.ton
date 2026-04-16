@@ -1,22 +1,14 @@
-import express, { type Request, type Response } from 'express';
+import express from 'express';
 import { resolveProfile, apiRequireAuth, requireAdmin } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { str } from '../utils/params.js';
 import { createAuditLogSchema } from './validation.js';
 import * as repo from '../core/repository.js';
 import { profileToSnakeCase } from '../core/repository.js';
 import { generateId } from '../core/generateId.js';
 
 const router = express.Router();
-
-function str(val: string | string[] | undefined): string {
-  if (Array.isArray(val)) return val[0] ?? '';
-  return val ?? '';
-}
-
-const asyncHandler = (fn: (req: Request, res: Response) => Promise<void>) =>
-  (req: Request, res: Response, next: (err?: unknown) => void) => {
-    Promise.resolve(fn(req, res)).catch(next);
-  };
 
 router.get(
   '/users',

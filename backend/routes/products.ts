@@ -1,7 +1,9 @@
-import express, { type Request, type Response } from 'express';
+import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { resolveProfile, apiRequireAuth, isAdminRole } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { str } from '../utils/params.js';
 import { createProductSchema, patchProductSchema } from './validation.js';
 import * as repo from '../core/repository.js';
 import { productToSnakeCase } from '../core/repository.js';
@@ -9,17 +11,7 @@ import { generateId } from '../core/generateId.js';
 
 const router = express.Router();
 
-function str(val: string | string[] | undefined): string {
-  if (Array.isArray(val)) return val[0] ?? '';
-  return val ?? '';
-}
-
 const strictLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
-
-const asyncHandler = (fn: (req: Request, res: Response) => Promise<void>) =>
-  (req: Request, res: Response, next: (err?: unknown) => void) => {
-    Promise.resolve(fn(req, res)).catch(next);
-  };
 
 router.get(
   '/',

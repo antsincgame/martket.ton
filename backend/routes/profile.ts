@@ -1,18 +1,15 @@
-import express, { type Request, type Response } from 'express';
+import express from 'express';
 import { getAuth } from '@clerk/express';
 import { logger } from '../logger.js';
 import { resolveProfile, apiRequireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { str } from '../utils/params.js';
 import { patchProfileSchema } from './validation.js';
 import * as repo from '../core/repository.js';
 import { profileToSnakeCase } from '../core/repository.js';
 
 const router = express.Router();
-
-function str(val: string | string[] | undefined): string {
-  if (Array.isArray(val)) return val[0] ?? '';
-  return val ?? '';
-}
 
 let TonAddress: { parse(addr: string): unknown } | null = null;
 try {
@@ -27,11 +24,6 @@ function isValidTonAddress(addr: string): boolean {
   }
   return /^(EQ|UQ|0:|kQ)[A-Za-z0-9_-]{46,48}$/.test(addr);
 }
-
-const asyncHandler = (fn: (req: Request, res: Response) => Promise<void>) =>
-  (req: Request, res: Response, next: (err?: unknown) => void) => {
-    Promise.resolve(fn(req, res)).catch(next);
-  };
 
 router.get(
   '/session/profile',
