@@ -52,6 +52,11 @@ const ProductPage = () => {
     setSelectedImage(0);
   }, [product?.id]);
 
+  const categorySlug = useMemo(
+    () => product ? categoryLabelToSlug(product.category) : null,
+    [product],
+  );
+
   if (product === undefined) {
     return <LoadingScreen message="Загрузка товара..." />;
   }
@@ -70,11 +75,6 @@ const ProductPage = () => {
       </div>
     );
   }
-
-  const categorySlug = useMemo(
-    () => categoryLabelToSlug(product.category),
-    [product.category],
-  );
 
   return (
     <div className="min-h-screen py-8 px-4">
