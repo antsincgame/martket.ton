@@ -21,6 +21,3 @@ export const BIO_MAX = 160;
  * (Twitter ≈ 280, LinkedIn tagline ≈ 120, наш «Манифест» — сжатое заявление).
  */
 export const ABOUT_LONG_MAX = 500;
-
-/** Полное описание продукта. 2000 символов ≈ 300-350 слов — достаточно для структуры Steam/Epic. */
-export const PRODUCT_LONG_DESC_MAX = 2000;

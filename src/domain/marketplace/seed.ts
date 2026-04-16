@@ -469,38 +469,6 @@ const PRODUCT_DETAIL_BY_ID: Record<string, ProductDetail> = {
     lastUpdated: '2025-02-28',
     tags: ['Education', 'Blockchain', 'Web3', 'Certificates'],
   },
-  '31': {
-    ...CATALOG_LISTING_PRODUCTS.find((p) => p.id === '31')!,
-    longDescription: `Genesis Engine is a universal creation framework designed for developers who build entire digital worlds from scratch. It covers the full production pipeline: procedural terrain generation, NPC artificial intelligence, real-time multiplayer networking, and native TON economy integration — all in a single SDK.
-
-**Why Genesis Engine?**
-
-Traditional game engines force you to stitch together dozens of third-party plugins. Genesis Engine ships a unified architecture where every subsystem — physics, rendering, AI, netcode, and blockchain — is built to work together out of the box. Zero plugin conflicts, deterministic builds, one dependency tree.
-
-**Core capabilities:**
-
-- **Procedural World Builder** — generate infinite landscapes (voxel, heightmap, or marching-cubes) with biome blending, erosion simulation, and LOD streaming. Supports worlds up to 64 km² with sub-meter detail.
-- **NPC Intelligence** — behavior trees + utility AI + LLM dialogue. NPCs learn from player actions and adapt difficulty in real time.
-- **Multiplayer Netcode** — client-authoritative or server-authoritative modes, rollback, delta compression. Tested with 200+ concurrent players at <50 ms latency.
-- **TON Economy SDK** — mint in-game assets as NFTs, manage Jetton currencies, run decentralized auctions — all from engine API calls. Smart contracts deploy with one CLI command.
-- **Hot-reload Pipeline** — edit code, shaders, or assets and see changes in under 2 seconds without restarting the session.
-
-**Built for scale.** Genesis Engine powers 12 published titles on TonForge with a combined 200K+ downloads. The engine is battle-tested in production, from solo-dev prototypes to 50-person studio pipelines.
-
-Read the [documentation](https://tonforge.org/docs/genesis) or join the [developer community on Telegram](https://t.me/genesis_engine_dev).`,
-    reviewStatsCount: 2340,
-    images: [
-      'https://images.pexels.com/photos/1629236/pexels-photo-1629236.jpeg?auto=compress&cs=tinysrgb&w=1200',
-      'https://images.pexels.com/photos/2582937/pexels-photo-2582937.jpeg?auto=compress&cs=tinysrgb&w=1200',
-      'https://images.pexels.com/photos/546819/pexels-photo-546819.jpeg?auto=compress&cs=tinysrgb&w=1200',
-    ],
-    version: '4.2.0',
-    size: '380 MB',
-    platforms: ['Windows', 'macOS', 'Linux', 'Web'],
-    requirements: '8 GB RAM, GPU with Vulkan 1.2+, 2 GB VRAM',
-    lastUpdated: '2026-04-10',
-    tags: ['Engine', 'Game Dev', 'Multiplayer', 'World Building', 'TON SDK', 'Procedural'],
-  },
 };
 
 export const REVIEWS_PRODUCT_1: ProductReview[] = [
