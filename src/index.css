@@ -56,3 +56,58 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* ═══ Sacred / Cyberpunk extensions ═══ */
+
+@keyframes glitch-clip {
+  0%, 88%, 100% { clip-path: inset(0 0 0 0); transform: translate(0, 0); }
+  89% { clip-path: inset(40% 0 50% 0); transform: translate(-2px, 0); }
+  91% { clip-path: inset(10% 0 80% 0); transform: translate(2px, 0); }
+  93% { clip-path: inset(70% 0 5% 0); transform: translate(-1px, 0); }
+  95% { clip-path: inset(25% 0 60% 0); transform: translate(1px, 0); }
+  97% { clip-path: inset(55% 0 20% 0); transform: translate(0, 0); }
+}
+
+@keyframes sacred-rotate-slow {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes sacred-rotate-reverse {
+  to { transform: rotate(-360deg); }
+}
+
+@keyframes gold-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes aura-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.08); }
+}
+
+.animate-aura-pulse {
+  animation: aura-pulse 3s ease-in-out infinite;
+}
+
+.gold-shimmer-text {
+  background: linear-gradient(90deg, #FFD700 0%, #FFE066 25%, #F4A836 50%, #FFE066 75%, #FFD700 100%);
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gold-shimmer 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float,
+  .animate-pulse-slow,
+  .animate-sparkle,
+  .animate-aura-pulse,
+  .gold-shimmer-text {
+    animation: none !important;
+  }
+  .gold-shimmer-text {
+    background-position: 0% 50%;
+  }
+}

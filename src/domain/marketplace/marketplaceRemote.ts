@@ -98,31 +98,47 @@ export async function loadMarketplaceInventory(): Promise<MarketplaceInventoryLo
   return loadFromSeed();
 }
 
-/** Карточка товара: Appwrite → сид. */
-export async function resolveProductDetail(productId: string | undefined): Promise<ProductDetail | null> {
-  if (!productId) return null;
+/** Slug → product id. Ищет в инвентаре продукт, чей slugified name совпадает. */
+async function resolveIdFromSlug(slugOrId: string): Promise<string> {
+  const inventory = await getMarketplaceInventoryOnce();
+  const match = inventory.products.find(
+    (p) => slugify(p.name) === slugOrId,
+  );
+  return match ? match.id : slugOrId;
+}
+
+/** Генерирует slug для продукта (для ссылок). */
+export function productSlug(product: CatalogListingProduct): string {
+  return slugify(product.name);
+}
+
+/** Карточка товара: принимает slug или id, Appwrite → сид. */
+export async function resolveProductDetail(slugOrId: string | undefined): Promise<ProductDetail | null> {
+  if (!slugOrId) return null;
+  const id = await resolveIdFromSlug(slugOrId);
   if (isAppwriteConfigured) {
     try {
-      const fromDb = await fetchProductDetailById(productId);
+      const fromDb = await fetchProductDetailById(id);
       if (fromDb) return fromDb;
     } catch (error) {
       logger.warn('[marketplace] Не удалось загрузить товар из Appwrite.', error);
     }
   }
-  return getProductDetail(productId);
+  return getProductDetail(id);
 }
 
-/** Отзывы: Appwrite → сид. */
-export async function resolveProductReviews(productId: string): Promise<ProductReview[]> {
+/** Отзывы: принимает slug или id. */
+export async function resolveProductReviews(slugOrId: string): Promise<ProductReview[]> {
+  const id = await resolveIdFromSlug(slugOrId);
   if (isAppwriteConfigured) {
     try {
-      const fromDb = await fetchReviewsForProduct(productId);
+      const fromDb = await fetchReviewsForProduct(id);
       if (fromDb.length > 0) return fromDb;
     } catch (error) {
       logger.warn('[marketplace] Не удалось загрузить отзывы из Appwrite.', error);
     }
   }
-  return getProductReviews(productId);
+  return getProductReviews(id);
 }
 
 /** Маппинг SEED_DEVELOPERS по slug для быстрого поиска. */

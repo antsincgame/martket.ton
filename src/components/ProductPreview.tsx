@@ -3,6 +3,7 @@ import { Star, Download, Heart, Zap, MessageSquare, Calendar } from 'lucide-reac
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { getPlatformEntries, formatDate } from '../domain/marketplace/platformIcons';
+import { slugify } from '../utils/slugify';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
 interface ProductPreviewProps {
@@ -115,7 +116,7 @@ const ProductPreview: React.FC<ProductPreviewProps> = ({ product, floating }) =>
 
           {!floating && (
             <Link
-              to={`/product/${product.id}`}
+              to={`/product/${slugify(product.name)}`}
               className="block w-full text-center bg-gradient-to-r from-[#FFD700]/20 to-[#FFD700]/10 border border-[#FFD700]/30 hover:border-[#FFD700]/50 hover:from-[#FFD700]/30 hover:to-[#FFD700]/15 hover:shadow-[0_0_15px_rgba(255,215,0,0.15)] text-[#FFD700] text-sm font-semibold py-2.5 rounded-lg transition-all duration-200 uppercase tracking-wider"
             >
               View Details

@@ -153,8 +153,10 @@ router.get('/', (req, res) => {
     desc = d ? `${d[1]} — explore products by ${name} on ${SITE}.` : `Developer profile on ${SITE}`;
     img = d && d[2] ? d[2] : ICON;
   } else if (prodMatch) {
-    const id = prodMatch[1];
-    const p = PRODUCTS[id];
+    const slug = prodMatch[1];
+    const p = PRODUCTS[slug] || Object.values(PRODUCTS).find((val) =>
+      val[0].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') === slug
+    );
     if (p) {
       title = `${p[0]} — ${SITE}`;
       desc = p[1];

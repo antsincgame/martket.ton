@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTonAddress } from '@tonconnect/ui-react';
+import { slugify } from '../utils/slugify';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -319,7 +320,7 @@ const SellerCommercePage = () => {
                     <div className="flex items-center gap-4 text-sm">
                       <span className="text-cyan-300">{app.artifact.malwareStatus}</span>
                       <span className="text-gray-500">{app.license.contractStatus}</span>
-                      <Link to={`/product/${app.catalogProductId}`} className="text-purple-300 hover:text-purple-200">
+                      <Link to={`/product/${slugify(app.name)}`} className="text-purple-300 hover:text-purple-200">
                         Открыть страницу →
                       </Link>
                     </div>
