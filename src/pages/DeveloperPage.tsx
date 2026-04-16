@@ -125,7 +125,11 @@ const DeveloperPage = () => {
       <div className="relative space-y-10 sm:space-y-14">
         <DevCinematicHero profile={profile} isTopDev={isTopDev} />
 
-        <div className="px-6 sm:px-10">
+        {/*
+          Stats и Sacred Timeline на desktop (lg+) уже встроены компактно в hero overlay
+          (DevCinematicHero → Ряд 4/5). На mobile/tablet места достаточно — показываем полные секции.
+        */}
+        <div className="lg:hidden px-6 sm:px-10">
           <DevStatsConstellation profile={profile} />
         </div>
 
@@ -134,7 +138,7 @@ const DeveloperPage = () => {
         </div>
 
         <Suspense fallback={<div className="px-6 py-10 text-center text-gray-600 text-xs uppercase tracking-widest">Unveiling sacred path…</div>}>
-          <div className="px-6 sm:px-10">
+          <div className="lg:hidden px-6 sm:px-10">
             <DevSacredTimeline profile={profile} />
           </div>
         </Suspense>

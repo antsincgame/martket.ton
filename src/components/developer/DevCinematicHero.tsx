@@ -1,7 +1,12 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { motion, useScroll, useTransform, useReducedMotion } from 'framer-motion';
-import { Globe, Github, Send, Twitter, Share2, Check, ExternalLink } from 'lucide-react';
+import {
+  Globe, Github, Send, Twitter, Share2, Check, ExternalLink,
+  Package, Download, Star, Calendar,
+} from 'lucide-react';
 import type { PublicDeveloperProfile } from '../../domain/marketplace/types';
+import { formatDownloads, formatDate } from '../../domain/marketplace/platformIcons';
+import { buildAchievements } from './achievements';
 import GlitchText from './GlitchText';
 import HexRuneAvatar from './HexRuneAvatar';
 import HeroManifesto from './HeroManifesto';
@@ -64,6 +69,19 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
   }, []);
 
   const initials = profile.displayName.charAt(0).toUpperCase();
+
+  /** Компактные метрики для hero overlay (desktop). */
+  const heroStats = useMemo(
+    () => [
+      { icon: Package, label: 'Artifacts', value: String(profile.productCount), color: '#00F5FF' },
+      { icon: Download, label: 'Summoned', value: formatDownloads(profile.totalDownloads), color: '#8B5CF6' },
+      { icon: Star, label: 'Resonance', value: profile.avgRating.toFixed(1), color: '#FFD700' },
+      { icon: Calendar, label: 'Awakened', value: formatDate(profile.joinedDate), color: '#00FF88' },
+    ],
+    [profile.productCount, profile.totalDownloads, profile.avgRating, profile.joinedDate],
+  );
+
+  const achievements = useMemo(() => buildAchievements(profile), [profile]);
 
   return (
     <div ref={ref} className="relative">
@@ -204,6 +222,75 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
               Verified Creator
             </motion.span>
           </div>
+
+          {/* Ряд 4: компактные метрики — inline-версия DevStatsConstellation. */}
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.75, duration: 0.5 }}
+            className="grid grid-cols-4 gap-2"
+            role="list"
+            aria-label="Developer stats"
+          >
+            {heroStats.map((s) => (
+              <div
+                key={s.label}
+                role="listitem"
+                className="relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/45 backdrop-blur-md border overflow-hidden"
+                style={{
+                  borderColor: `${s.color}33`,
+                  boxShadow: `inset 0 0 18px ${s.color}10`,
+                }}
+                title={s.label}
+              >
+                <s.icon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: s.color }} />
+                <div className="min-w-0 leading-tight">
+                  <div
+                    className="text-[13px] font-black tabular-nums truncate"
+                    style={{ color: '#FFFFFF', textShadow: `0 0 8px ${s.color}55` }}
+                  >
+                    {s.value}
+                  </div>
+                  <div
+                    className="text-[8px] font-bold uppercase tracking-[0.2em] truncate"
+                    style={{ color: `${s.color}CC` }}
+                  >
+                    {s.label}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </motion.div>
+
+          {/* Ряд 5: achievement chips — inline-версия DevSacredTimeline. */}
+          {achievements.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.85, duration: 0.5 }}
+              className="flex flex-wrap gap-1.5"
+              role="list"
+              aria-label="Achievements"
+            >
+              {achievements.map((ach) => (
+                <span
+                  key={ach.id}
+                  role="listitem"
+                  title={ach.description}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/50 backdrop-blur-md border text-[9.5px] font-bold uppercase tracking-[0.18em]"
+                  style={{
+                    borderColor: `${ach.color}40`,
+                    color: ach.color,
+                    textShadow: `0 0 6px ${ach.color}55`,
+                    boxShadow: `inset 0 0 12px ${ach.color}10`,
+                  }}
+                >
+                  <ach.icon className="w-3 h-3" style={{ color: ach.color }} />
+                  {ach.title}
+                </span>
+              ))}
+            </motion.div>
+          )}
         </div>
 
         {/* ═══ Manifesto overlay (только lg+, чтобы текст оставался читаемым) ═══ */}
