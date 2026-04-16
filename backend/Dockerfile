@@ -1,10 +1,9 @@
-# Образ API: Node 20 slim — без нативной сборки SQLite; данные в Appwrite.
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm install -g npm@11 && npm ci --omit=dev
 
 COPY . .
 
@@ -17,4 +16,4 @@ ENV PORT=8081
 
 EXPOSE 8081
 
-CMD ["node", "server.js"]
+CMD ["node", "--import", "tsx", "server.ts"]

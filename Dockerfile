@@ -1,10 +1,9 @@
-# Статический фронт (Vite build) + nginx; переменные VITE_* нужны на этапе сборки.
-FROM node:20-bookworm-slim AS builder
+FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install -g npm@11 && npm ci
 
 COPY . .
 
