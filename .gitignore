@@ -21,7 +21,6 @@ dist/
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
@@ -30,3 +29,11 @@ dist/
 
 coverage/
 backend/data/
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Build artifacts
+*.tsbuildinfo
+.eslintcache

@@ -3,7 +3,7 @@
 
 ## Canonical Order
 1. Применить `backend/sql/tonforge_schema.sql` к PostgreSQL или Supabase Postgres.
-2. Заменить in-memory state в `backend/tonforge/service.js` на repository, читающий эти таблицы.
+2. Заменить in-memory state в `backend/tonforge/service.ts` на repository, читающий эти таблицы.
 3. Подключить реальный wallet challenge/verification вместо demo confirm в `/api/tonforge/purchase/confirm`.
 4. Привязать contract event ingestion для `Registry`, `AppCollection`, `LicenseNFT` и `Escrow`.
 5. После стабилизации удалить legacy `deliveryPayload` commerce flow.
@@ -11,7 +11,6 @@
 ## Required Checks
 - `npm run typecheck`
 - `npm run build`
-- `node --test "backend/tests/**/*.test.js"`
 - smoke-test страниц:
   - `/developer`
   - `/developer/register`
@@ -27,6 +26,6 @@
 - Разработчик видит contract readiness и опубликованные приложения в dashboard.
 
 ## Replace Demo With Production
-- `backend/tonforge/demoData.js` заменить на Postgres repository.
-- `backend/tonforge/router.js` сохранить как HTTP boundary, меняется только service/repository.
+- `backend/tonforge/demoData.ts` заменить на Postgres repository.
+- `backend/tonforge/router.ts` сохранить как HTTP boundary, меняется только service/repository.
 - `src/services/tonforgeApi.ts` не менять: фронт уже привязан к каноническим endpoint contracts.

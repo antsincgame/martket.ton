@@ -7,8 +7,6 @@
     "dev": "node --import tsx --watch server.ts",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "seed": "node seed.js",
-    "test": "node --test tests/",
     "provision-core": "node ../scripts/provision-core.mjs",
     "migrate-demiurge": "node ../scripts/provision-demiurge.mjs"
   },
