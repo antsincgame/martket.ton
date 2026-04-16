@@ -6,6 +6,8 @@ export const PRODUCT_NAME_MAX = 60;
 export const DEVELOPER_DISPLAY_NAME_MIN = 2;
 export const DEVELOPER_DISPLAY_NAME_MAX = 40;
 export const DEVELOPER_SLUG_MAX = 40;
+export const BIO_MAX = 160;
+export const ABOUT_LONG_MAX = 2000;
 
 const trimmed = () =>
   z.preprocess((v) => (typeof v === 'string' ? v.trim() : v), z.string());
@@ -55,8 +57,16 @@ export const createPurchaseSchema = z.object({
 export const patchProfileSchema = z.object({
   ton_address: z.string().max(100).nullable().optional(),
   display_name: displayName().optional(),
-  bio: z.string().max(2000).nullable().optional(),
+  bio: z.string().max(BIO_MAX).nullable().optional(),
+  slug: z.string().min(1).max(DEVELOPER_SLUG_MAX).regex(/^[a-z0-9-]+$/, 'slug must be lowercase alphanumeric with hyphens').optional(),
   avatar: z.string().max(2000).nullable().optional(),
+  banner_url: z.string().max(2000).nullable().optional(),
+  website: z.string().max(500).nullable().optional(),
+  github: z.string().max(100).nullable().optional(),
+  telegram: z.string().max(100).nullable().optional(),
+  twitter: z.string().max(100).nullable().optional(),
+  about_long: z.string().max(ABOUT_LONG_MAX).nullable().optional(),
+  featured_product_ids: z.string().max(500).nullable().optional(),
 });
 
 export const createAuditLogSchema = z.object({

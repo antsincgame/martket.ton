@@ -11,10 +11,6 @@ interface DevCinematicHeroProps {
   isTopDev: boolean;
 }
 
-/** Манифест слишком длинный для overlay'я на баннер → безопасно не рендерим overlay,
- *  уходим на mobile-flow (inline под bio). Порог выбран по читаемой высоте glass-card ~440px. */
-const MANIFESTO_OVERLAY_SOFT_LIMIT = 900;
-
 const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
@@ -116,24 +112,16 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
         {/* ═══ Manifesto overlay (только lg+, чтобы текст оставался читаемым) ═══ */}
         {profile.aboutLong && profile.aboutLong.trim().length > 0 && (
           <div
-            className="hidden lg:block absolute top-8 right-8 z-20 w-[380px] xl:w-[440px]"
-            style={{
-              maxHeight:
-                profile.aboutLong.trim().length > MANIFESTO_OVERLAY_SOFT_LIMIT
-                  ? 'calc(100% - 64px)'
-                  : undefined,
-            }}
+            className="hidden lg:block absolute top-8 right-8 z-20 w-[380px] xl:w-[440px] overflow-hidden"
+            style={{ maxHeight: 'calc(100% - 64px)' }}
           >
-            <div className="relative">
-              <HeroManifesto text={profile.aboutLong} compact />
-              {/* scrollable для очень длинных — редкий edge-case, но безопасен */}
-              {profile.aboutLong.trim().length > MANIFESTO_OVERLAY_SOFT_LIMIT && (
-                <div
-                  aria-hidden
-                  className="absolute inset-x-0 bottom-0 h-16 rounded-b-2xl bg-gradient-to-t from-[#0A0A0F] to-transparent pointer-events-none"
-                />
-              )}
+            <div className="relative h-full overflow-y-auto scrollbar-hide">
+              <HeroManifesto text={profile.aboutLong} />
             </div>
+            <div
+              aria-hidden
+              className="absolute inset-x-0 bottom-0 h-12 rounded-b-2xl bg-gradient-to-t from-black/80 to-transparent pointer-events-none"
+            />
           </div>
         )}
 
@@ -249,7 +237,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
         {/* ═══ Mobile/tablet manifesto — inline в потоке (НЕ поверх банера, чтобы текст был читаем) ═══ */}
         {profile.aboutLong && profile.aboutLong.trim().length > 0 && (
           <div className="lg:hidden mt-6">
-            <HeroManifesto text={profile.aboutLong} compact />
+            <HeroManifesto text={profile.aboutLong} />
           </div>
         )}
       </div>

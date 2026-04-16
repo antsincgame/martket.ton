@@ -12,6 +12,8 @@ import {
   DEVELOPER_DISPLAY_NAME_MAX,
   DEVELOPER_DISPLAY_NAME_MIN,
   DEVELOPER_SLUG_MAX,
+  BIO_MAX,
+  ABOUT_LONG_MAX,
 } from '../../domain/marketplace/limits';
 
 interface SettingsSectionProps {
@@ -193,8 +195,14 @@ export default function SettingsSection({ myProducts = [] }: SettingsSectionProp
         </div>
 
         <div>
-          <label className={labelClass}>Bio (short)</label>
-          <textarea rows={2} value={bio} onChange={(e) => setBio(e.target.value)}
+          <div className="flex items-center justify-between mb-2">
+            <label className={`${labelClass} mb-0`}>Bio (short)</label>
+            <span className={`text-[10px] tabular-nums ${bio.length > BIO_MAX ? 'text-[#FF4444]' : 'text-[#666]'}`}>
+              {bio.length}/{BIO_MAX}
+            </span>
+          </div>
+          <textarea rows={2} value={bio} onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX))}
+            maxLength={BIO_MAX}
             disabled={saving} className={`${inputClass} resize-none`} placeholder="One-liner about yourself..." />
         </div>
 
@@ -243,19 +251,22 @@ export default function SettingsSection({ myProducts = [] }: SettingsSectionProp
         </div>
       </div>
 
-      {/* About Long */}
+      {/* About Long (Manifesto) */}
       <div className="rounded-xl border border-white/[0.06] bg-[#111119] p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[#FFD700]/50">About (detailed)</h2>
-          <span className="text-[10px] text-gray-600 tabular-nums">{aboutLong.length}/2000</span>
+          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[#FFD700]/50">Manifesto</h2>
+          <span className={`text-[10px] tabular-nums ${aboutLong.length > ABOUT_LONG_MAX ? 'text-[#FF4444]' : 'text-[#666]'}`}>
+            {aboutLong.length}/{ABOUT_LONG_MAX}
+          </span>
         </div>
         <textarea
           rows={6}
           value={aboutLong}
-          onChange={(e) => { if (e.target.value.length <= 2000) setAboutLong(e.target.value); }}
+          onChange={(e) => setAboutLong(e.target.value.slice(0, ABOUT_LONG_MAX))}
+          maxLength={ABOUT_LONG_MAX}
           disabled={saving}
           className={`${inputClass} resize-none`}
-          placeholder="Tell your story — this appears on your public profile page..."
+          placeholder="Tell your story — this appears on your public profile page as the Manifesto overlay..."
         />
       </div>
 

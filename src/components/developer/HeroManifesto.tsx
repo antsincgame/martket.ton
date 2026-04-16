@@ -4,30 +4,21 @@ import { Quote } from 'lucide-react';
 
 interface HeroManifestoProps {
   text: string;
-  /** На desktop рендерится внутри hero-grid справа → компактнее, без больших nebula blobs. */
-  compact?: boolean;
 }
 
-/**
- * Внутренняя версия Manifesto: используется внутри DevCinematicHero.
- * Сохраняет эстетику (quote glyph, dropcap, SEALED IN THE FORGE footer),
- * но с меньшими паддингами и без тяжёлых декораций.
- */
-const HeroManifesto = memo(({ text, compact = true }: HeroManifestoProps) => {
+const HeroManifesto = memo(({ text }: HeroManifestoProps) => {
   if (!text || text.trim().length === 0) return null;
 
   const trimmed = text.trim();
   const first = trimmed.charAt(0);
   const rest = trimmed.slice(1);
 
-  const paddingClass = compact ? 'p-5 sm:p-6' : 'p-7 sm:p-9';
-
   return (
     <motion.aside
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.7, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-      className={`relative rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-md overflow-hidden ${paddingClass}`}
+      className="relative rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-md overflow-hidden p-5 sm:p-6"
       style={{
         boxShadow:
           'inset 0 1px 0 rgba(255,255,255,0.04), 0 20px 40px -20px rgba(0,0,0,0.6)',

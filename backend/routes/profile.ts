@@ -63,25 +63,32 @@ router.patch(
       res.status(404).json({ success: false, message: 'Profile not found' });
       return;
     }
-    const { ton_address, display_name, bio, avatar } = req.body as Record<string, string | undefined>;
+    const body = req.body as Record<string, string | undefined>;
     const updates: Record<string, unknown> = {};
-    if (ton_address !== undefined) {
-      if (ton_address) {
-        if (!isValidTonAddress(ton_address)) {
+
+    if (body.ton_address !== undefined) {
+      if (body.ton_address) {
+        if (!isValidTonAddress(body.ton_address)) {
           res.status(400).json({ success: false, message: 'Invalid TON address format' });
           return;
         }
-        const existing = await repo.findUserByTonAddress(ton_address);
+        const existing = await repo.findUserByTonAddress(body.ton_address);
         if (existing && existing.id !== profile.id) {
           res.status(409).json({ success: false, message: 'This TON wallet is already linked to another account' });
           return;
         }
       }
-      updates.ton_address = ton_address || null;
+      updates.ton_address = body.ton_address || null;
     }
-    if (display_name !== undefined) updates.display_name = display_name;
-    if (bio !== undefined) updates.bio = bio;
-    if (avatar !== undefined) updates.avatar = avatar;
+
+    const passthrough: readonly string[] = [
+      'display_name', 'bio', 'slug', 'avatar', 'banner_url',
+      'website', 'github', 'telegram', 'twitter',
+      'about_long', 'featured_product_ids',
+    ] as const;
+    for (const key of passthrough) {
+      if (body[key] !== undefined) updates[key] = body[key];
+    }
     if (Object.keys(updates).length > 0) {
       await repo.updateProfile(profile.id, updates);
     }
