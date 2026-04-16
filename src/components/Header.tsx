@@ -74,7 +74,16 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search..."
               aria-label="Search products"
-              className="w-full pl-10 pr-4 py-2 bg-white/[0.06] border border-white/10 rounded-full text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#FFD700]/30 focus:bg-white/[0.08] focus:shadow-[0_0_20px_rgba(255,215,0,0.15)] transition-all duration-300"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              /**
+               * iOS Safari зумит страницу при фокусе input если font-size < 16px.
+               * Решение: на мобильных (<sm) принудительно 16px, на sm+ возвращаем text-sm (14px).
+               * Визуально на мобилке поле чуть крупнее — но это плюс для тача и UX.
+               */
+              className="w-full pl-10 pr-4 py-2 bg-white/[0.06] border border-white/10 rounded-full text-[16px] sm:text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#FFD700]/30 focus:bg-white/[0.08] focus:shadow-[0_0_20px_rgba(255,215,0,0.15)] transition-all duration-300"
             />
           </div>
         </div>

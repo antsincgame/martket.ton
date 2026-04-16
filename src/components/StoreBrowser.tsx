@@ -297,7 +297,8 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
               selected={selectedTags}
               onChange={handleTagChange}
               variant="inline"
-              limit={18}
+              limit={24}
+              collapsedLimit={10}
             />
           </div>
         </div>

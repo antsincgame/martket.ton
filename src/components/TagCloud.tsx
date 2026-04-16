@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Sparkles, X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Sparkles, X, ChevronDown, ChevronUp } from 'lucide-react';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
 interface TagCloudProps {
@@ -8,8 +8,10 @@ interface TagCloudProps {
   onChange: (tags: Set<string>) => void;
   /** "sidebar" — десктопная панель справа; "inline" — горизонтальная лента под списком (mobile). */
   variant?: 'sidebar' | 'inline';
-  /** Сколько тэгов показывать. По умолчанию 28 для sidebar, 18 для inline. */
+  /** Полный лимит тэгов. По умолчанию 28 для sidebar, 24 для inline. */
   limit?: number;
+  /** Кол-во тэгов в свёрнутом виде (только для inline). По умолчанию 10. */
+  collapsedLimit?: number;
 }
 
 const NEON_PALETTE: Array<{ text: string; bg: string; border: string; glow: string; shadow: string }> = [
@@ -34,8 +36,10 @@ const TagCloud: React.FC<TagCloudProps> = ({
   onChange,
   variant = 'sidebar',
   limit,
+  collapsedLimit = 10,
 }) => {
-  const effectiveLimit = limit ?? (variant === 'sidebar' ? 28 : 18);
+  const effectiveLimit = limit ?? (variant === 'sidebar' ? 28 : 24);
+  const [expanded, setExpanded] = useState(false);
 
   const tagCounts = useMemo(() => {
     const map = new Map<string, number>();
@@ -56,6 +60,26 @@ const TagCloud: React.FC<TagCloudProps> = ({
     }
     return [...active, ...rest];
   }, [tagCounts, selected]);
+
+  /**
+   * На inline (mobile) показываем первые `collapsedLimit` тэгов + все активные,
+   * чтобы пользователь никогда не «терял» свой выбор под катом.
+   * На sidebar — показываем всё (места достаточно).
+   */
+  const visible = useMemo(() => {
+    if (variant !== 'inline' || expanded || ordered.length <= collapsedLimit) {
+      return ordered;
+    }
+    const head = ordered.slice(0, collapsedLimit);
+    const activeOverflow = ordered
+      .slice(collapsedLimit)
+      .filter(([tag]) => selected.has(tag));
+    return [...head, ...activeOverflow];
+  }, [ordered, variant, expanded, collapsedLimit, selected]);
+
+  const hiddenCount = variant === 'inline' && !expanded
+    ? Math.max(0, ordered.length - visible.length)
+    : 0;
 
   const toggle = (tag: string) => {
     const next = new Set(selected);
@@ -147,11 +171,33 @@ const TagCloud: React.FC<TagCloudProps> = ({
         <div className="relative">
           {header}
           <div className="flex flex-wrap gap-1.5">
-            {ordered.map(([tag, count]) => {
+            {visible.map(([tag, count]) => {
               const originalRank = tagCounts.findIndex(([t]) => t === tag);
               return renderChip(tag, count, originalRank);
             })}
           </div>
+
+          {/* Show more / less toggle — только если есть что разворачивать. */}
+          {(hiddenCount > 0 || expanded) && ordered.length > collapsedLimit && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+              className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#00F5FF]/25 bg-[#00F5FF]/5 text-[#00F5FF] text-[11px] font-semibold uppercase tracking-widest hover:bg-[#00F5FF]/10 hover:border-[#00F5FF]/40 active:bg-[#00F5FF]/15 transition-all duration-200"
+            >
+              {expanded ? (
+                <>
+                  <ChevronUp className="w-3 h-3" />
+                  <span>Show less</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-3 h-3" />
+                  <span>Show {hiddenCount} more</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     );

@@ -21,6 +21,22 @@ interface SteamProductRowProps {
   onHoverEnd: () => void;
 }
 
+/**
+ * Гарантированный краткий «лид» под заголовком на мобильной карточке.
+ * Приоритет:
+ *   1) непустой product.description (как правило, 1 предложение из seed/CMS)
+ *   2) top-2 тэга через `·` — «Productivity · Zen»
+ *   3) категория как последний fallback
+ *   4) пустая строка → lead не рендерится
+ */
+function computeLead(product: CatalogListingProduct): string {
+  const desc = product.description?.trim();
+  if (desc) return desc;
+  const tags = (product.tags ?? []).filter((t) => t && t.trim().length > 0).slice(0, 2);
+  if (tags.length > 0) return tags.join(' · ');
+  return product.category?.trim() ?? '';
+}
+
 const SteamProductRow: React.FC<SteamProductRowProps> = memo(
   ({ product, isActive, onHover, onHoverEnd }) => {
     const navigate = useNavigate();
@@ -29,6 +45,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = memo(
     const isFree = product.price === 0;
     const productPath = `/product/${slugify(product.name)}`;
     const developerPath = `/developer/${slugify(product.developer)}`;
+    const lead = computeLead(product);
 
     const handleRowClick = (e: React.MouseEvent) => {
       if ((e.target as HTMLElement).closest('[data-stop]')) return;
@@ -71,10 +88,10 @@ const SteamProductRow: React.FC<SteamProductRowProps> = memo(
               >
                 by {product.developer}
               </Link>
-              {/* Краткий лид: ~1 строка описания для быстрой сканируемости. */}
-              {product.description && (
+              {/* Краткий лид: ~1 строка для быстрой сканируемости (description → tags → category). */}
+              {lead && (
                 <p className="text-[11px] text-gray-400/80 leading-snug line-clamp-1 mt-1">
-                  {product.description}
+                  {lead}
                 </p>
               )}
             </div>
