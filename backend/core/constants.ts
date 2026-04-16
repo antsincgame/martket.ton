@@ -1,0 +1,7 @@
+export const CORE_DATABASE_ID = 'core';
+export const COL_PROFILES = 'profiles';
+export const COL_LEGACY_PRODUCTS = 'legacy_products';
+export const COL_PURCHASES = 'purchases';
+export const COL_AUDIT_LOGS = 'api_audit_logs';
+export const BUCKET_TONFORGE_STATE = 'tonforge_state';
+export const TONFORGE_STATE_FILE_ID = 'tonforge_state_json';

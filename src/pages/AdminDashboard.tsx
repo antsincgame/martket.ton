@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock, Coins, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import SecurityMonitor from '../components/SecurityMonitor';
-import UserManagement from '../components/UserManagement';
+import RealUserManagement from '../components/RealUserManagement';
 import AuditLogs from '../components/AuditLogs';
 import CommerceAdminPanel from '../components/admin/CommerceAdminPanel';
 import ResendSettings from '../components/admin/ResendSettings';
@@ -66,7 +66,7 @@ const AdminDashboard = () => {
       id: 'users',
       label: 'User Management',
       icon: Users,
-      component: UserManagement,
+      component: RealUserManagement,
       requiredPermission: { resource: 'users', action: 'read' }
     },
     {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Users, Shield, Eye, Search, Database, RefreshCw } from 'lucide-react';
+import { Shield, Eye, Search, Database, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { storeApiUrl } from '../lib/storeApi';
 

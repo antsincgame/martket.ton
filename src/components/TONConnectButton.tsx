@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react';
 import { Wallet, Zap, Shield, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTonBalance } from '../hooks/useTonBalance';
 
 interface TONConnectButtonProps {
   onConnect?: (address: string) => void;
@@ -11,34 +12,19 @@ const TONConnectButton: React.FC<TONConnectButtonProps> = ({ onConnect }) => {
   const [tonConnectUI] = useTonConnectUI();
   const tonAddress = useTonAddress();
   const { user, isAuthenticated, reportSecurityEvent } = useAuth();
-  
-  const [balance, setBalance] = useState('0.00');
+  const { data: balance = '0' } = useTonBalance(tonAddress || undefined);
+
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
 
-  const fetchBalance = useCallback(async () => {
-    try {
-      // Mock balance fetch - in real app would query TON API
-      const mockBalance = (Math.random() * 100).toFixed(2);
-      setBalance(mockBalance);
-    } catch (error) {
-      console.error('Failed to fetch balance:', error);
-      setBalance('0.00');
-      reportSecurityEvent({
-        type: 'balance_fetch_error',
-        severity: 'warning',
-        details: { error: error instanceof Error ? error.message : 'Unknown error' }
-      });
-    }
-  }, [reportSecurityEvent]);
-
-  // Define reportConnectionEvent before using it
   const reportConnectionEvent = useCallback(() => {
     reportSecurityEvent({
       type: 'login_attempt',
       severity: 'info',
+      ipAddress: '',
+      userAgent: navigator.userAgent,
       details: { 
         method: 'ton_wallet_connect',
         address: tonAddress,
@@ -49,13 +35,10 @@ const TONConnectButton: React.FC<TONConnectButtonProps> = ({ onConnect }) => {
 
   useEffect(() => {
     if (tonAddress) {
-      fetchBalance();
       reportConnectionEvent();
       onConnect?.(tonAddress);
-    } else {
-      setBalance('0.00');
     }
-  }, [tonAddress, reportConnectionEvent, fetchBalance, onConnect]);
+  }, [tonAddress, reportConnectionEvent, onConnect]);
 
   const handleRetry = async () => {
     setIsRetrying(true);
@@ -70,6 +53,8 @@ const TONConnectButton: React.FC<TONConnectButtonProps> = ({ onConnect }) => {
       reportSecurityEvent({
         type: 'ton_connect_retry_failed',
         severity: 'error',
+        ipAddress: '',
+        userAgent: navigator.userAgent,
         details: { 
           error: error instanceof Error ? error.message : 'Unknown error',
           retryCount
@@ -87,6 +72,8 @@ const TONConnectButton: React.FC<TONConnectButtonProps> = ({ onConnect }) => {
         reportSecurityEvent({
           type: 'login_attempt',
           severity: 'info',
+          ipAddress: '',
+          userAgent: navigator.userAgent,
           details: { 
             method: 'ton_wallet_disconnect',
             address: tonAddress
@@ -97,6 +84,8 @@ const TONConnectButton: React.FC<TONConnectButtonProps> = ({ onConnect }) => {
         reportSecurityEvent({
           type: 'ton_connect_disconnect_error',
           severity: 'error',
+          ipAddress: '',
+          userAgent: navigator.userAgent,
           details: { 
             error: error instanceof Error ? error.message : 'Unknown error'
           }
@@ -110,6 +99,8 @@ const TONConnectButton: React.FC<TONConnectButtonProps> = ({ onConnect }) => {
       reportSecurityEvent({
         type: 'ton_connect_max_retries',
         severity: 'warning',
+        ipAddress: '',
+        userAgent: navigator.userAgent,
         details: { retryCount }
       });
       return;
@@ -126,6 +117,8 @@ const TONConnectButton: React.FC<TONConnectButtonProps> = ({ onConnect }) => {
       reportSecurityEvent({
         type: 'login_attempt',
         severity: 'error',
+        ipAddress: '',
+        userAgent: navigator.userAgent,
         details: { 
           method: 'ton_wallet_connect_failed',
           error: error instanceof Error ? error.message : 'Unknown error',

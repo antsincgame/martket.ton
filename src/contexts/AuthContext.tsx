@@ -33,7 +33,7 @@ function createSession(user: AuthenticatedUser): AuthSession {
     createdAt: now,
     expiresAt: new Date(now.getTime() + duration * 60 * 1000),
     lastActivity: now,
-    ipAddress: 'localhost',
+    ipAddress: '',
     userAgent: navigator.userAgent,
     mfaVerified: false,
     securityFlags: [],

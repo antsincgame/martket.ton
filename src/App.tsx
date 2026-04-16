@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -12,6 +13,7 @@ import TonConnectWrapper from './components/TonConnectWrapper';
 import { CLERK_CONFIGURED, ClerkSignIn, ClerkSignUp, AuthModalProvider } from './lib/clerkSafe';
 import { ToastProvider } from './components/ui/Toast';
 import { SearchProvider } from './contexts/SearchContext';
+import { queryClient } from './lib/queryClient';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ProductPage = lazy(() => import('./pages/ProductPage'));
@@ -76,6 +78,7 @@ const SacredGem: React.FC = () => {
 function App() {
   return (
     <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
       <MaybeClerk>
         <AuthProvider>
         <ToastProvider>
@@ -109,6 +112,7 @@ function App() {
         </ToastProvider>
         </AuthProvider>
       </MaybeClerk>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }

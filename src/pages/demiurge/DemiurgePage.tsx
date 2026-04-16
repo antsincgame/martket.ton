@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { storeApiUrl } from '../../lib/storeApi';
+import { logger } from '../../lib/logger';
 import TonConnectWrapper from '../../components/TonConnectWrapper';
 import DemiurgeLayout from '../../layouts/DemiurgeLayout';
 import OverviewSection from './OverviewSection';
@@ -27,7 +28,7 @@ export default function DemiurgePage() {
         const body = await res.json();
         setLibrary(body.data || []);
       }
-    } catch { /* network error — will show empty */ }
+    } catch (err) { logger.warn('[DemiurgePage] fetchLibrary failed:', err); }
   }, [getToken]);
 
   const fetchMyProducts = useCallback(async () => {
@@ -40,7 +41,7 @@ export default function DemiurgePage() {
         const body = await res.json();
         setMyProducts(body.data || []);
       }
-    } catch { /* network error */ }
+    } catch (err) { logger.warn('[DemiurgePage] fetchMyProducts failed:', err); }
   }, [getToken]);
 
   useEffect(() => {

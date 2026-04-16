@@ -52,7 +52,7 @@ function SidebarProfile({ collapsed }: { collapsed: boolean }) {
 }
 
 function SidebarWallet({ collapsed }: { collapsed: boolean }) {
-  const tonAddress = useTonAddress();
+  useTonAddress();
   const { user } = useAuth();
   const linked = user?.tonAddress;
 

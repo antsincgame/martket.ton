@@ -1,50 +1,24 @@
 import React from 'react';
-import { Clock, User } from 'lucide-react';
+import { Clock, User, Loader2 } from 'lucide-react';
+import { useAuditLogs } from '../hooks/useAdminData';
 
-export interface SecurityEventRow {
-  id: string;
-  type: string;
-  userId: string;
-  timestamp: string;
-  severity: 'info' | 'warning' | 'error' | 'critical';
-  details: string;
-}
-
-const mockEvents: SecurityEventRow[] = [
-  {
-    id: 'e1',
-    type: 'login_attempt',
-    userId: 'admin-1',
-    timestamp: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
-    severity: 'info',
-    details: 'Successful login from known device'
-  },
-  {
-    id: 'e2',
-    type: 'permission_denied',
-    userId: 'user-123',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-    severity: 'warning',
-    details: 'Attempted access to admin panel'
-  },
-  {
-    id: 'e3',
-    type: 'suspicious_activity',
-    userId: 'mantra-admin',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    severity: 'error',
-    details: 'Unusual login location detected'
-  }
-];
-
-const colorBySeverity = {
-  info: 'text-blue-400',
-  warning: 'text-yellow-400',
-  error: 'text-red-400',
-  critical: 'text-red-600 animate-pulse'
+const colorByResult: Record<string, string> = {
+  success: 'text-green-400',
+  failure: 'text-red-400',
 };
 
 const SecurityEventsTable: React.FC = () => {
+  const { data: logs = [], isLoading } = useAuditLogs(30);
+
+  if (isLoading) {
+    return (
+      <div className="mb-6 flex items-center gap-2 text-gray-400">
+        <Loader2 className="w-5 h-5 animate-spin" />
+        Loading security events...
+      </div>
+    );
+  }
+
   return (
     <div className="mb-6">
       <h3 className="text-lg font-bold text-white mb-2 flex items-center">
@@ -54,23 +28,43 @@ const SecurityEventsTable: React.FC = () => {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-gray-400">
-              <th className="p-3 text-left">Type</th>
+              <th className="p-3 text-left">Action</th>
               <th className="p-3 text-left">User</th>
               <th className="p-3 text-left">Time</th>
-              <th className="p-3 text-left">Severity</th>
-              <th className="p-3 text-left">Details</th>
+              <th className="p-3 text-left">Result</th>
+              <th className="p-3 text-left">Resource</th>
             </tr>
           </thead>
           <tbody>
-            {mockEvents.map(event => (
-              <tr key={event.id} className="border-b border-white/10 last:border-b-0 hover:bg-white/10 transition-colors">
-                <td className="p-3 font-mono">{event.type}</td>
-                <td className="p-3 flex items-center space-x-2"><User className="w-4 h-4" /> <span>{event.userId}</span></td>
-                <td className="p-3"><span className="flex items-center"><Clock className="w-4 h-4 mr-1" />{new Date(event.timestamp).toLocaleString()}</span></td>
-                <td className={`p-3 font-bold ${colorBySeverity[event.severity]}`}>{event.severity.toUpperCase()}</td>
-                <td className="p-3">{event.details}</td>
+            {logs.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="p-6 text-center text-gray-400">
+                  No events recorded
+                </td>
               </tr>
-            ))}
+            ) : (
+              logs.map((log) => (
+                <tr key={log.id} className="border-b border-white/10 last:border-b-0 hover:bg-white/10 transition-colors">
+                  <td className="p-3 font-mono">{log.action}</td>
+                  <td className="p-3">
+                    <span className="flex items-center gap-1">
+                      <User className="w-4 h-4" />
+                      {log.user_id}
+                    </span>
+                  </td>
+                  <td className="p-3">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {new Date(log.created_at).toLocaleString()}
+                    </span>
+                  </td>
+                  <td className={`p-3 font-bold ${colorByResult[log.result] ?? 'text-yellow-400'}`}>
+                    {log.result.toUpperCase()}
+                  </td>
+                  <td className="p-3">{log.resource}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -78,4 +72,4 @@ const SecurityEventsTable: React.FC = () => {
   );
 };
 
-export default SecurityEventsTable; 
+export default SecurityEventsTable;

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import ProductCard from './ProductCard';
 import type { CatalogListingProduct } from '../domain/marketplace/types';

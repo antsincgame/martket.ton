@@ -51,18 +51,6 @@ const AuthModalContext = createContext<AuthModalContextValue>({
 
 export const useAuthModal = () => useContext(AuthModalContext);
 
-function useIsMobile(breakpoint = 768) {
-  const [mobile, setMobile] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
-  );
-  useEffect(() => {
-    const onResize = () => setMobile(window.innerWidth < breakpoint);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, [breakpoint]);
-  return mobile;
-}
-
 export const AuthModalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<AuthModalMode>('sign-in');

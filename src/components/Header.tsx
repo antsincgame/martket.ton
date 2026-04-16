@@ -13,7 +13,7 @@ function SignOutButton() {
   const { signOut } = ClerkReact.useClerk();
   return (
     <button
-      onClick={() => { signOut().catch(() => {}); }}
+      onClick={() => { signOut().catch((err: unknown) => { console.error('Sign out failed:', err); }); }}
       className="p-2 text-[#999] hover:text-[#FF4444] transition-colors"
       title="Sign Out"
     >
