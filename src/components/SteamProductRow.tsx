@@ -29,7 +29,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = memo(({ product, isActiv
 
   const handleRowClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('[data-stop]')) return;
-    navigate(`/product/${product.id}`);
+    navigate(`/product/${slugify(product.name)}`);
   };
 
   return (
@@ -42,7 +42,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = memo(({ product, isActiv
           : 'bg-transparent hover:bg-white/[0.03]'
       }`}
       onClick={handleRowClick}
-      onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/product/${product.id}`); }}
+      onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/product/${slugify(product.name)}`); }}
       onMouseEnter={() => onHover(product)}
       onMouseLeave={onHoverEnd}
     >
@@ -108,7 +108,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = memo(({ product, isActiv
         data-stop
         onClick={(e) => {
           e.stopPropagation();
-          navigate(`/product/${product.id}`);
+          navigate(`/product/${slugify(product.name)}`);
         }}
         className={`flex-shrink-0 px-4 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-200 min-w-[76px] text-center ${
           isFree

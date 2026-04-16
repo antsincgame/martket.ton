@@ -9,13 +9,13 @@ import { resolveProductDetail, resolveProductReviews } from '../domain/marketpla
 import type { ProductDetail, ProductReview } from '../domain/marketplace/types';
 
 const ProductPage = () => {
-  const { id } = useParams();
+  const { slug } = useParams();
   const [selectedImage, setSelectedImage] = useState(0);
   const [product, setProduct] = useState<ProductDetail | null | undefined>(undefined);
   const [reviews, setReviews] = useState<ProductReview[]>([]);
 
   useEffect(() => {
-    if (!id) {
+    if (!slug) {
       setProduct(null);
       setReviews([]);
       return;
@@ -23,8 +23,8 @@ const ProductPage = () => {
     let cancelled = false;
     (async () => {
       const [nextProduct, nextReviews] = await Promise.all([
-        resolveProductDetail(id),
-        resolveProductReviews(id),
+        resolveProductDetail(slug),
+        resolveProductReviews(slug),
       ]);
       if (!cancelled) {
         setProduct(nextProduct);
@@ -34,7 +34,7 @@ const ProductPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [slug]);
 
   useEffect(() => {
     setSelectedImage(0);
