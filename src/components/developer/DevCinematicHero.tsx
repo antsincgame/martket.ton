@@ -4,11 +4,16 @@ import { Globe, Github, Send, Twitter, Share2, Check, ExternalLink } from 'lucid
 import type { PublicDeveloperProfile } from '../../domain/marketplace/types';
 import GlitchText from './GlitchText';
 import HexRuneAvatar from './HexRuneAvatar';
+import HeroManifesto from './HeroManifesto';
 
 interface DevCinematicHeroProps {
   profile: PublicDeveloperProfile;
   isTopDev: boolean;
 }
+
+/** Манифест слишком длинный для overlay'я на баннер → безопасно не рендерим overlay,
+ *  уходим на mobile-flow (inline под bio). Порог выбран по читаемой высоте glass-card ~440px. */
+const MANIFESTO_OVERLAY_SOFT_LIMIT = 900;
 
 const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => {
   const reduce = useReducedMotion();
@@ -70,7 +75,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
       <div className="relative rounded-3xl overflow-hidden border border-white/5">
         <motion.div
           style={reduce ? undefined : { y: bannerY, scale: bannerScale }}
-          className="w-full h-[260px] sm:h-[340px] lg:h-[420px]"
+          className="w-full h-[220px] sm:h-[320px] lg:h-[480px]"
         >
           {profile.bannerUrl ? (
             <img src={profile.bannerUrl} alt="" className="w-full h-full object-cover" />
@@ -108,6 +113,30 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
           }}
         />
 
+        {/* ═══ Manifesto overlay (только lg+, чтобы текст оставался читаемым) ═══ */}
+        {profile.aboutLong && profile.aboutLong.trim().length > 0 && (
+          <div
+            className="hidden lg:block absolute top-8 right-8 z-20 w-[380px] xl:w-[440px]"
+            style={{
+              maxHeight:
+                profile.aboutLong.trim().length > MANIFESTO_OVERLAY_SOFT_LIMIT
+                  ? 'calc(100% - 64px)'
+                  : undefined,
+            }}
+          >
+            <div className="relative">
+              <HeroManifesto text={profile.aboutLong} compact />
+              {/* scrollable для очень длинных — редкий edge-case, но безопасен */}
+              {profile.aboutLong.trim().length > MANIFESTO_OVERLAY_SOFT_LIMIT && (
+                <div
+                  aria-hidden
+                  className="absolute inset-x-0 bottom-0 h-16 rounded-b-2xl bg-gradient-to-t from-[#0A0A0F] to-transparent pointer-events-none"
+                />
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Share — bottom right glass capsule */}
         <button
           onClick={handleShare}
@@ -140,12 +169,16 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
             />
           </motion.div>
 
-          {/* Name + bio */}
+          {/* Name + bio (на lg+ ограничено ~60%, чтобы не налезать на manifesto overlay справа) */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="flex-1 min-w-0 pb-2"
+            className={`flex-1 min-w-0 pb-2 ${
+              profile.aboutLong && profile.aboutLong.trim().length > 0
+                ? 'lg:max-w-[calc(100%-460px)] xl:max-w-[calc(100%-520px)]'
+                : ''
+            }`}
           >
             <div className="flex flex-wrap items-center gap-3 mb-3">
               {isTopDev && (
@@ -212,6 +245,13 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
             )}
           </motion.div>
         </div>
+
+        {/* ═══ Mobile/tablet manifesto — inline в потоке (НЕ поверх банера, чтобы текст был читаем) ═══ */}
+        {profile.aboutLong && profile.aboutLong.trim().length > 0 && (
+          <div className="lg:hidden mt-6">
+            <HeroManifesto text={profile.aboutLong} compact />
+          </div>
+        )}
       </div>
     </div>
   );

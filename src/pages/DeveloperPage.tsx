@@ -13,7 +13,6 @@ import GlitchText from '../components/developer/GlitchText';
 import type { PublicDeveloperProfile } from '../domain/marketplace/types';
 
 const DevSacredTimeline = lazy(() => import('../components/developer/DevSacredTimeline'));
-const DevManifesto = lazy(() => import('../components/developer/DevManifesto'));
 
 function useSeoMeta(profile: PublicDeveloperProfile | null) {
   useEffect(() => {
@@ -120,10 +119,10 @@ const DeveloperPage = () => {
   const isTopDev = profile.avgRating >= 4.7 && profile.totalDownloads >= 10000;
 
   return (
-    <div className="relative max-w-7xl mx-auto pb-20">
+    <div className="relative max-w-7xl mx-auto pb-16">
       <DevSacredBackground />
 
-      <div className="relative space-y-14 sm:space-y-20">
+      <div className="relative space-y-10 sm:space-y-14">
         <DevCinematicHero profile={profile} isTopDev={isTopDev} />
 
         <div className="px-6 sm:px-10">
@@ -139,14 +138,6 @@ const DeveloperPage = () => {
             <DevSacredTimeline profile={profile} />
           </div>
         </Suspense>
-
-        {profile.aboutLong && (
-          <Suspense fallback={<div className="px-6 py-10 text-center text-gray-600 text-xs uppercase tracking-widest">Inscribing manifesto…</div>}>
-            <div className="px-6 sm:px-10">
-              <DevManifesto text={profile.aboutLong} />
-            </div>
-          </Suspense>
-        )}
       </div>
     </div>
   );
