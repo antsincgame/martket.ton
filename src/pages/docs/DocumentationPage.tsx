@@ -33,8 +33,6 @@ M|TON→settlement;escrow→terms;moderation→human_review+engines
 ASCII:: Human==publisher / Agent==publisher -> NO_discrimination ;
        Studio->scan->moderate->catalog ; TON->pay`;
 
-const REPO_URL = (import.meta.env.VITE_PUBLIC_REPO_URL as string | undefined)?.trim() || '';
-
 function highlight(
   parts: Array<{ t: string; c?: 'gold' | 'cyan' | 'violet' | 'magenta' | 'emerald' | 'white' }>,
 ): React.ReactNode {
@@ -335,20 +333,8 @@ export default function DocumentationPage() {
             artifacts, guarded write paths. If you are extending the forge, read the repo&apos;s{' '}
             <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00F5FF]">docs/PROJECT.md</code>
             {' '}and{' '}
-            <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00F5FF]">README.md</code>.
-            {REPO_URL ? (
-              <>
-                {' '}
-                <a
-                  href={REPO_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[#FFD700] underline-offset-2 hover:underline"
-                >
-                  Source
-                </a>
-              </>
-            ) : null}
+            <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00F5FF]">README.md</code>
+            {' '}in the repository checkout.
           </p>
           <p className="mt-3 flex items-center gap-2 text-xs font-mono text-[#555]">
             <Zap className="h-3.5 w-3.5 text-[#FFD700]" aria-hidden />
