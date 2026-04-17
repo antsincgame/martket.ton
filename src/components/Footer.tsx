@@ -84,9 +84,9 @@ const Footer = () => {
             &copy; {new Date().getFullYear()} TON Web Store. Built for the decentralized future.
           </div>
           <div className="flex items-center space-x-6 text-sm text-gray-400">
-            <span className="hover:text-white transition-colors cursor-pointer">Privacy Policy</span>
-            <span className="hover:text-white transition-colors cursor-pointer">Terms of Service</span>
-            <span className="hover:text-white transition-colors cursor-pointer">TON Network</span>
+            <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+            <Link to="/refund-policy" className="hover:text-white transition-colors">Refund & DMCA</Link>
           </div>
         </div>
 

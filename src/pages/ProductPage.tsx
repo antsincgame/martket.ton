@@ -5,7 +5,7 @@ import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkl
 import { slugify } from '../utils/slugify';
 import LoadingScreen from '../components/LoadingScreen';
 import Breadcrumbs from '../components/Breadcrumbs';
-import ProductCryptoCheckout from '../components/ProductCryptoCheckout';
+import CommerceCheckout from '../components/checkout/CommerceCheckout';
 import { resolveProductDetail, resolveProductReviews } from '../domain/marketplace/marketplaceRemote';
 import { categoryLabelToSlug } from '../domain/marketplace/catalog';
 import type { ProductDetail, ProductReview } from '../domain/marketplace/types';
@@ -179,7 +179,9 @@ const ProductPage = () => {
                 ))}
               </div>
 
-              <ProductCryptoCheckout catalogProductId={product.id} />
+              <div id="checkout-section">
+                <CommerceCheckout catalogProductId={product.id} />
+              </div>
 
               {/* Actions */}
               <div className="flex flex-col sm:flex-row gap-4 mt-6">
@@ -270,7 +272,11 @@ const ProductPage = () => {
                 <p className="text-gray-400 text-sm">≈ ${(product.price * 2.3).toFixed(2)} USD</p>
               </div>
 
-              <button className="w-full bg-ton-gradient hover:scale-105 text-white font-semibold py-4 px-6 rounded-full transition-all duration-300 shadow-lg hover:shadow-ton-500/50 mb-4">
+              <button
+                type="button"
+                onClick={() => document.getElementById('checkout-section')?.scrollIntoView({ behavior: 'smooth' })}
+                className="w-full bg-ton-gradient hover:scale-105 text-white font-semibold py-4 px-6 rounded-full transition-all duration-300 shadow-lg hover:shadow-ton-500/50 mb-4"
+              >
                 Purchase Now
               </button>
 

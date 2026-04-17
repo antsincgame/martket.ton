@@ -3,9 +3,12 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import LoadingScreen from './components/LoadingScreen.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
+import { initSentry } from './lib/sentry';
 import '@fontsource-variable/inter';
 import '@fontsource/orbitron';
 import './index.css';
+
+void initSentry();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

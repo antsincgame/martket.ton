@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Filter, SortDesc, Grid, List, Star, TrendingUp, Heart } from 'lucide-react';
+import { Filter, SortDesc, Grid, List, Star } from 'lucide-react';
 import { CATEGORY_ICONS } from '../domain/marketplace/categoryIcons';
 import type { HomeCategorySlug } from '../domain/marketplace/types';
 import ProductCard from '../components/ProductCard';
@@ -11,59 +11,83 @@ import {
   type MarketplaceInventoryLoad,
 } from '../domain/marketplace/marketplaceRemote';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
+import { categoryLabelToSlug } from '../domain/marketplace/catalog';
 
-const categoryInfo: Record<string, { title: string; description: string }> = {
-  apps: { title: 'Android', description: 'Native Android apps for productivity, lifestyle, and TON ecosystem' },
-  games: { title: 'Games', description: 'Immersive gaming experiences with NFT rewards' },
-  ai: { title: 'AI Services', description: 'Artificial intelligence tools powered by cutting-edge models' },
-  'developer-tools': { title: 'Developer Tools', description: 'Essential tools for modern software development' },
-  design: { title: 'Design & Creative', description: 'Creative tools for designers, artists, and content creators' },
-  defi: { title: 'Finance & DeFi', description: 'Wallets, portfolio trackers, and decentralized finance tools' },
-  education: { title: 'Education', description: 'Courses, tutors, and learning platforms for Web3 and beyond' },
-  security: { title: 'Security & Privacy', description: 'VPN, firewalls, and security tools for the decentralized world' },
-  media: { title: 'Media & Entertainment', description: 'Streaming, podcasts, and content creation tools' },
-  social: { title: 'Social & Communication', description: 'Encrypted messaging, collaboration, and community tools' },
-  health: { title: 'Health & Wellness', description: 'Meditation, fitness, sleep tracking, and mental health' },
-  utilities: { title: 'Utilities & System', description: 'Monitoring, backups, and system administration tools' },
-  featured: { title: 'Featured Treasures', description: 'Handpicked digital gems blessed by the community' },
+const categoryInfo: Record<string, { title: string; labels: string[]; description: string }> = {
+  apps: { title: 'Android', labels: ['Android'], description: 'Native Android apps for productivity, lifestyle, and TON ecosystem' },
+  games: { title: 'Games', labels: ['Games'], description: 'Immersive gaming experiences with NFT rewards' },
+  ai: { title: 'AI Services', labels: ['AI Services'], description: 'Artificial intelligence tools powered by cutting-edge models' },
+  'developer-tools': { title: 'Developer Tools', labels: ['Developer Tools'], description: 'Essential tools for modern software development' },
+  design: { title: 'Design & Creative', labels: ['Design'], description: 'Creative tools for designers, artists, and content creators' },
+  defi: { title: 'Finance & DeFi', labels: ['DeFi'], description: 'Wallets, portfolio trackers, and decentralized finance tools' },
+  education: { title: 'Education', labels: ['Education'], description: 'Courses, tutors, and learning platforms for Web3 and beyond' },
+  security: { title: 'Security & Privacy', labels: ['Security'], description: 'VPN, firewalls, and security tools for the decentralized world' },
+  media: { title: 'Media & Entertainment', labels: ['Media'], description: 'Streaming, podcasts, and content creation tools' },
+  social: { title: 'Social & Communication', labels: ['Social'], description: 'Encrypted messaging, collaboration, and community tools' },
+  health: { title: 'Health & Wellness', labels: ['Health'], description: 'Meditation, fitness, sleep tracking, and mental health' },
+  utilities: { title: 'Utilities & System', labels: ['Utilities'], description: 'Monitoring, backups, and system administration tools' },
+  featured: { title: 'Featured Treasures', labels: [], description: 'Handpicked digital gems blessed by the community' },
 };
 
-const filters = [
-  { label: 'Price Range', options: ['Free', '0-5 TON', '5-15 TON', '15+ TON'] },
-  { label: 'Rating', options: ['4.5+ Stars', '4.0+ Stars', '3.5+ Stars', 'All Ratings'] },
-  { label: 'Platform', options: ['macOS', 'Windows', 'Linux', 'Cross-platform'] },
-  { label: 'Features', options: ['AI Powered', 'Open Source', 'Offline Mode', 'Cloud Sync'] },
-];
+type SortKey = 'popularity' | 'rating' | 'price-low' | 'price-high' | 'newest';
+
+const ITEMS_PER_PAGE = 24;
+
+function sortProducts(items: CatalogListingProduct[], key: SortKey): CatalogListingProduct[] {
+  const sorted = [...items];
+  switch (key) {
+    case 'rating': return sorted.sort((a, b) => b.rating - a.rating);
+    case 'price-low': return sorted.sort((a, b) => a.price - b.price);
+    case 'price-high': return sorted.sort((a, b) => b.price - a.price);
+    case 'newest': return sorted.sort((a, b) => (b.id > a.id ? 1 : -1));
+    default: return sorted.sort((a, b) => b.downloads - a.downloads);
+  }
+}
 
 const CategoryPage = () => {
   const { id } = useParams();
   const category = id ?? 'apps';
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [sortBy, setSortBy] = useState('popularity');
+  const [sortBy, setSortBy] = useState<SortKey>('popularity');
   const [showFilters, setShowFilters] = useState(false);
   const [inventory, setInventory] = useState<MarketplaceInventoryLoad | null>(null);
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
 
   useEffect(() => {
     getMarketplaceInventoryOnce().then(setInventory);
   }, []);
 
+  useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE);
+  }, [category, sortBy]);
+
+  const currentCategory = categoryInfo[category] ?? categoryInfo['apps'];
+
+  const filteredProducts = useMemo(() => {
+    if (!inventory) return [];
+    const all = inventory.products;
+    if (category === 'featured') return all.filter((p) => p.isFeatured);
+    const labels = new Set(currentCategory.labels);
+    if (labels.size === 0) return all;
+    return all.filter((p) => {
+      const slug = categoryLabelToSlug(p.category);
+      return slug === category || labels.has(p.category);
+    });
+  }, [inventory, category, currentCategory.labels]);
+
+  const sorted = useMemo(() => sortProducts(filteredProducts, sortBy), [filteredProducts, sortBy]);
+  const visible = sorted.slice(0, visibleCount);
+  const hasMore = visibleCount < sorted.length;
+
   if (!inventory) {
     return <LoadingScreen message="Загрузка категории..." />;
   }
-
-  const currentCategory = categoryInfo[category] ?? categoryInfo['apps'];
-  const products: CatalogListingProduct[] = inventory.products;
-  const featuredProducts = products.filter((p) => p.isFeatured);
-  const sortedByDonation = [...products]
-    .sort((a, b) => (b.donationAmount ?? 0) - (a.donationAmount ?? 0))
-    .slice(0, 4);
 
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="max-w-7xl mx-auto">
         <Breadcrumbs items={[{ label: currentCategory.title }]} />
 
-        {/* Category Header */}
         <div className="text-center mb-12">
           {(() => {
             const CatIcon = CATEGORY_ICONS[category as HomeCategorySlug];
@@ -73,18 +97,13 @@ const CategoryPage = () => {
               </div>
             ) : null;
           })()}
-          <h1 className="text-4xl font-display font-bold text-white mb-4">
-            {currentCategory.title}
-          </h1>
-          <p className="text-gray-400 text-lg mb-6 max-w-2xl mx-auto">
-            {currentCategory.description}
-          </p>
+          <h1 className="text-4xl font-display font-bold text-white mb-4">{currentCategory.title}</h1>
+          <p className="text-gray-400 text-lg mb-6 max-w-2xl mx-auto">{currentCategory.description}</p>
           <div className="text-ton-400 font-semibold">
-            {products.length.toLocaleString()} sacred treasures available
+            {filteredProducts.length.toLocaleString()} product{filteredProducts.length !== 1 ? 's' : ''} available
           </div>
         </div>
 
-        {/* Filters and Sort Bar */}
         <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 mb-8">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
             <div className="flex flex-wrap items-center gap-4">
@@ -100,7 +119,7 @@ const CategoryPage = () => {
                 <SortDesc className="w-5 h-5 text-gray-400" />
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => setSortBy(e.target.value as SortKey)}
                   className="bg-white/10 border border-white/20 text-white px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-ton-500"
                 >
                   <option value="popularity">Most Popular</option>
@@ -108,7 +127,6 @@ const CategoryPage = () => {
                   <option value="price-low">Price: Low to High</option>
                   <option value="price-high">Price: High to Low</option>
                   <option value="newest">Newest First</option>
-                  <option value="donations">Most Blessed</option>
                 </select>
               </div>
             </div>
@@ -116,128 +134,76 @@ const CategoryPage = () => {
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === 'grid' ? 'bg-ton-500 text-white' : 'bg-white/10 text-gray-400 hover:text-white'
-                }`}
+                className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-ton-500 text-white' : 'bg-white/10 text-gray-400 hover:text-white'}`}
               >
                 <Grid className="w-5 h-5" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === 'list' ? 'bg-ton-500 text-white' : 'bg-white/10 text-gray-400 hover:text-white'
-                }`}
+                className={`p-2 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-ton-500 text-white' : 'bg-white/10 text-gray-400 hover:text-white'}`}
               >
                 <List className="w-5 h-5" />
               </button>
             </div>
           </div>
 
-          {/* Expanded Filters */}
           {showFilters && (
-            <div className="mt-6 pt-6 border-t border-white/10">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {filters.map((filter) => (
-                  <div key={filter.label}>
-                    <h3 className="font-semibold text-white mb-3">{filter.label}</h3>
-                    <div className="space-y-2">
-                      {filter.options.map((option) => (
-                        <label key={option} className="flex items-center space-x-2 text-gray-400 hover:text-white cursor-pointer">
-                          <input type="checkbox" className="rounded border-gray-600 bg-white/10" />
-                          <span className="text-sm">{option}</span>
-                        </label>
-                      ))}
+            <p className="mt-4 pt-4 border-t border-white/10 text-sm text-gray-500">
+              Advanced filters coming soon. Use sorting above to narrow results.
+            </p>
+          )}
+        </div>
+
+        {filteredProducts.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-gray-400 text-lg">No products in this category yet.</p>
+          </div>
+        ) : (
+          <>
+            {viewMode === 'grid' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {visible.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {visible.map((product) => (
+                  <div key={product.id} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all">
+                    <div className="flex items-center space-x-6">
+                      <img src={product.image} alt={product.name} className="w-20 h-20 rounded-xl object-cover" />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-xl font-semibold text-white mb-1 truncate">{product.name}</h3>
+                        <p className="text-gray-400 mb-2 text-sm line-clamp-1">{product.description}</p>
+                        <div className="flex items-center space-x-4 text-sm">
+                          <span className="flex items-center space-x-1 text-yellow-400">
+                            <Star className="w-4 h-4 fill-current" />
+                            <span>{product.rating}</span>
+                          </span>
+                          <span className="text-gray-400">{product.downloads.toLocaleString()} downloads</span>
+                          <span className="text-purple-400">by {product.developer}</span>
+                        </div>
+                      </div>
+                      <div className="text-2xl font-bold text-ton-400 flex-shrink-0">{product.price} TON</div>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-        </div>
+            )}
 
-        {/* Featured Section */}
-        {featuredProducts.length > 0 && (
-          <div className="mb-12">
-            <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
-              <Star className="w-6 h-6 mr-3 text-yellow-400" />
-              Featured in {currentCategory.title}
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {featuredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          </div>
+            {hasMore && (
+              <div className="text-center mt-12">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((prev) => prev + ITEMS_PER_PAGE)}
+                  className="bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 border border-white/20"
+                >
+                  Show more ({sorted.length - visibleCount} remaining)
+                </button>
+              </div>
+            )}
+          </>
         )}
-
-        {/* Most Blessed Section */}
-        {sortedByDonation.length > 0 && (
-          <div className="mb-12">
-            <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
-              <TrendingUp className="w-6 h-6 mr-3 text-purple-400" />
-              Most Blessed Products
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {sortedByDonation.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* All Products */}
-        <div>
-          <h2 className="text-2xl font-display font-bold text-white mb-6">
-            All {currentCategory.title}
-          </h2>
-          
-          {viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {products.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {products.map((product) => (
-                <div key={product.id} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all">
-                  <div className="flex items-center space-x-6">
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="w-20 h-20 rounded-xl object-cover"
-                    />
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold text-white mb-2">{product.name}</h3>
-                      <p className="text-gray-400 mb-2">{product.description}</p>
-                      <div className="flex items-center space-x-4 text-sm">
-                        <div className="flex items-center space-x-1 text-yellow-400">
-                          <Star className="w-4 h-4 fill-current" />
-                          <span>{product.rating}</span>
-                        </div>
-                        <span className="text-gray-400">{product.downloads.toLocaleString()} downloads</span>
-                        <span className="text-purple-400">by {product.developer}</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-ton-400 mb-1">{product.price} TON</div>
-                      {(product.donationAmount ?? 0) > 0 && (
-                        <div className="text-sm text-pink-400 flex items-center gap-1"><Heart className="w-3.5 h-3.5" /> {product.donationAmount} TON blessed</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Load More */}
-        <div className="text-center mt-12">
-          <button className="bg-white/10 hover:bg-white/20 text-white font-semibold px-8 py-4 rounded-full transition-all duration-300 border border-white/20">
-            Load More Sacred Treasures
-          </button>
-        </div>
       </div>
     </div>
   );

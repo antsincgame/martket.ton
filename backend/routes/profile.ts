@@ -12,11 +12,9 @@ import { profileToSnakeCase } from '../core/repository.js';
 const router = express.Router();
 
 let TonAddress: { parse(addr: string): unknown } | null = null;
-try {
-  TonAddress = require('@ton/core').Address;
-} catch {
-  logger.warn('@ton/core not available — TON address validation will use regex fallback');
-}
+import('@ton/core')
+  .then((mod) => { TonAddress = mod.Address; })
+  .catch(() => { logger.warn('@ton/core not available — TON address validation will use regex fallback'); });
 
 function isValidTonAddress(addr: string): boolean {
   if (TonAddress) {
@@ -71,6 +69,14 @@ router.patch(
         }
       }
       updates.ton_address = body.ton_address || null;
+    }
+
+    if (body.slug !== undefined && body.slug && body.slug !== profile.slug) {
+      const existing = await repo.findProfileBySlug(body.slug);
+      if (existing && existing.id !== profile.id) {
+        res.status(409).json({ success: false, message: 'This slug is already taken' });
+        return;
+      }
     }
 
     const passthrough: readonly string[] = [

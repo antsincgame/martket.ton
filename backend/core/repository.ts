@@ -9,6 +9,7 @@ export {
   findUserByAppwriteId,
   findUserByEmail,
   findUserByClerkId,
+  findProfileBySlug,
   listUsers,
   countUsers,
   updateProfile,
@@ -22,6 +23,7 @@ export {
   listAllProducts,
   listProductsByCreator,
   findProductById,
+  searchProducts,
   insertProduct,
   updateProduct,
 } from './productRepository.js';

@@ -23,6 +23,14 @@ export interface CommerceConfigResponse {
   jettonMasterConfigured: boolean;
 }
 
+export interface EscrowInfo {
+  address: string;
+  stateInit: string;
+  payload: string;
+  totalAmountRaw: string;
+  disputeWindowSec: number;
+}
+
 export interface CreateOrderResponse {
   orderId: string;
   memo: string;
@@ -33,6 +41,7 @@ export interface CreateOrderResponse {
   jettonMaster: string;
   treasuryAddress: string;
   state: string;
+  escrow: EscrowInfo | null;
 }
 
 export interface OrderStatusResponse {

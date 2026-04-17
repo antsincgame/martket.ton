@@ -16,6 +16,14 @@ export function commerceUrl(path: string): string {
   return `${commerceBaseUrl()}/api/v1/commerce${p}`;
 }
 
+function networkHeader(): Record<string, string> {
+  try {
+    const stored = localStorage.getItem('ton_network');
+    if (stored === 'testnet') return { 'X-Ton-Network': 'testnet' };
+  } catch { /* noop */ }
+  return {};
+}
+
 async function parseJson<T>(
   response: Response
 ): Promise<{ ok: true; data: T } | { ok: false; error: string; code?: string }> {
@@ -65,7 +73,8 @@ export async function createCommerceOrder(
 ): Promise<CreateOrderResponse> {
   const res = await fetch(commerceUrl('/orders'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...networkHeader() },
+    credentials: 'include',
     body: JSON.stringify({ listingId, buyerWallet }),
   });
   const parsed = await parseJson<{ data: CreateOrderResponse }>(res);
@@ -80,7 +89,8 @@ export async function confirmCommerceOrder(
 ): Promise<{ state: string; entitlement?: { deliveryPayload: string } }> {
   const res = await fetch(commerceUrl(`/orders/${encodeURIComponent(orderId)}/confirm`), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...networkHeader() },
+    credentials: 'include',
     body: JSON.stringify({ buyerWallet, txHash }),
   });
   const parsed = await parseJson<{

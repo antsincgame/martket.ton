@@ -1,6 +1,6 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import { resolveProfile, apiRequireAuth, isAdminRole } from '../middleware/auth.js';
+import { resolveProfile, apiRequireAuth, isAdminRole, isModeratorRole } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { str } from '../utils/params.js';
@@ -8,6 +8,8 @@ import { createProductSchema, patchProductSchema } from './validation.js';
 import * as repo from '../core/repository.js';
 import { productToSnakeCase } from '../core/repository.js';
 import { generateId } from '../core/generateId.js';
+import { logger } from '../logger.js';
+import type { Product, Profile } from '../domain/types.js';
 
 const router = express.Router();
 
@@ -22,12 +24,35 @@ router.get(
 );
 
 router.get(
+  '/search',
+  asyncHandler(async (req, res) => {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (!q || q.length < 2) {
+      res.json({ success: true, data: [] });
+      return;
+    }
+    const limit = Math.min(parseInt(String(req.query.limit ?? '50'), 10) || 50, 200);
+    const products = await repo.searchProducts(q, limit);
+    res.json({ success: true, data: products.map(productToSnakeCase) });
+  }),
+);
+
+router.get(
   '/:id',
   asyncHandler(async (req, res) => {
     const product = await repo.findProductById(str(req.params.id));
     if (!product) {
       res.status(404).json({ success: false, message: 'Product not found' });
       return;
+    }
+    if (product.status !== 'published') {
+      const profile = await resolveProfile(req);
+      const isOwner = profile && product.creatorId === profile.id;
+      const isStaff = profile && isAdminRole(profile.role);
+      if (!isOwner && !isStaff) {
+        res.status(404).json({ success: false, message: 'Product not found' });
+        return;
+      }
     }
     res.json({ success: true, data: productToSnakeCase(product) });
   }),
@@ -108,9 +133,10 @@ router.patch(
       return;
     }
     const isAdmin = isAdminRole(profile.role);
+    const isMod = isModeratorRole(profile.role);
     const isOwner = product.creatorId === profile.id;
-    if (!isOwner && !isAdmin) {
-      res.status(403).json({ success: false, message: 'Only the creator or admin can edit this product' });
+    if (!isOwner && !isAdmin && !isMod) {
+      res.status(403).json({ success: false, message: 'Only the creator, moderator, or admin can edit this product' });
       return;
     }
     const allowedFields = ['name', 'description', 'short_description', 'price_ton', 'category', 'image', 'version'];
@@ -120,24 +146,25 @@ router.patch(
       if (body[field] !== undefined) updates[field] = body[field];
     }
 
-    // Status workflow: owners may move draft↔pending_review and published→draft (unpublish).
-    // Only admins can publish or suspend.
     if (body.status !== undefined) {
       const target = String(body.status);
       const current = product.status;
+      const isMod = isModeratorRole(profile.role);
       const ownerAllowed: Record<string, string[]> = {
         draft: ['pending_review'],
         pending_review: ['draft'],
         published: ['draft'],
         suspended: [],
+        rejected: ['draft'],
       };
-      const adminAllowed: Record<string, string[]> = {
+      const modAllowed: Record<string, string[]> = {
         draft: ['pending_review', 'published', 'suspended'],
-        pending_review: ['published', 'suspended', 'draft'],
+        pending_review: ['published', 'rejected', 'suspended', 'draft'],
         published: ['draft', 'suspended'],
         suspended: ['draft', 'published'],
+        rejected: ['draft', 'published'],
       };
-      const allowed = isAdmin ? adminAllowed[current] : ownerAllowed[current];
+      const allowed = (isAdmin || isMod) ? modAllowed[current] : ownerAllowed[current];
       if (!allowed || !allowed.includes(target)) {
         res.status(403).json({
           success: false,
@@ -171,10 +198,52 @@ router.patch(
         ip_address: req.ip,
         user_agent: req.get('user-agent') || '',
       });
+
+      if (updates.status === 'published' && profile.tonAddress) {
+        autoCreateListing(updated ?? product, profile).catch((err) =>
+          logger.warn('[products] auto-listing:', err instanceof Error ? err.message : err),
+        );
+      }
     }
 
     res.json({ success: true, data: updated ? productToSnakeCase(updated) : null });
   }),
 );
+
+async function autoCreateListing(product: Product, profile: Profile): Promise<void> {
+  if (!profile.tonAddress) return;
+  const priceNano = String(Math.round((product.priceTon ?? 0) * 1e9));
+  if (priceNano === '0') return;
+
+  try {
+    const { databases: getDb, ID, Query } = await import('../commerce/appwrite.js');
+    const { DATABASE_ID, COL_LISTINGS, LISTING_STATUS, CURRENCY } = await import('../commerce/constants.js');
+    const db = getDb();
+    const { documents } = await db.listDocuments(DATABASE_ID, COL_LISTINGS, [
+      Query.equal('catalogProductId', product.id),
+      Query.equal('sellerWallet', profile.tonAddress),
+      Query.limit(1),
+    ]);
+    if (documents.length > 0) return;
+
+    await db.createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), {
+      sellerWallet: profile.tonAddress,
+      catalogProductId: product.id,
+      title: product.name,
+      description: product.shortDescription || product.description || '',
+      currency: CURRENCY.TON,
+      jettonMaster: '',
+      priceAmountRaw: priceNano,
+      decimals: 9,
+      platformFeeBps: 500,
+      status: LISTING_STATUS.ACTIVE,
+      deliveryType: 'digital',
+      assetFileId: '',
+    });
+    logger.info(`Auto-listing created for product ${product.id} by ${profile.tonAddress}`);
+  } catch (err) {
+    logger.warn('[auto-listing] commerce DB not available:', err instanceof Error ? err.message : err);
+  }
+}
 
 export default router;

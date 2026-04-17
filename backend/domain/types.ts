@@ -33,6 +33,7 @@ export const ProductStatus = {
   PENDING_REVIEW: 'pending_review',
   PUBLISHED: 'published',
   SUSPENDED: 'suspended',
+  REJECTED: 'rejected',
 } as const;
 export type ProductStatus = (typeof ProductStatus)[keyof typeof ProductStatus];
 

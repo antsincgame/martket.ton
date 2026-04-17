@@ -4,11 +4,9 @@ import { logger } from '../logger.js';
 import * as repo from '../core/repository.js';
 import type { Profile } from '../domain/types.js';
 
-declare global {
-  namespace Express {
-    interface Request {
-      profile?: Profile;
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    profile?: Profile;
   }
 }
 
@@ -36,6 +34,42 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
 
 export function isAdminRole(role: string): boolean {
   return role === 'admin' || role === 'super_admin';
+}
+
+export function isModeratorRole(role: string): boolean {
+  return role === 'moderator' || role === 'admin' || role === 'super_admin';
+}
+
+export function requireModerator(req: Request, res: Response, next: NextFunction): void {
+  resolveProfile(req)
+    .then((profile) => {
+      if (!profile || !isModeratorRole(profile.role)) {
+        res.status(403).json({ success: false, message: 'Moderator access required' });
+        return;
+      }
+      req.profile = profile;
+      next();
+    })
+    .catch((err: Error) => {
+      logger.error('requireModerator error:', err.message);
+      res.status(500).json({ success: false, message: 'Internal error' });
+    });
+}
+
+export function requireSuperAdmin(req: Request, res: Response, next: NextFunction): void {
+  resolveProfile(req)
+    .then((profile) => {
+      if (!profile || profile.role !== 'super_admin') {
+        res.status(403).json({ success: false, message: 'Super admin access required' });
+        return;
+      }
+      req.profile = profile;
+      next();
+    })
+    .catch((err: Error) => {
+      logger.error('requireSuperAdmin error:', err.message);
+      res.status(500).json({ success: false, message: 'Internal error' });
+    });
 }
 
 export function apiRequireAuth() {

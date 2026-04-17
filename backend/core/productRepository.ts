@@ -116,6 +116,15 @@ export async function insertProduct(row: Record<string, unknown>): Promise<Produ
   return findProductById(id);
 }
 
+export async function searchProducts(query: string, limit = 50): Promise<Product[]> {
+  const res = await databases().listDocuments(CORE_DATABASE_ID, COL_LEGACY_PRODUCTS, [
+    Query.equal('status', 'published'),
+    Query.search('name', query),
+    Query.limit(Math.min(limit, 200)),
+  ]);
+  return res.documents.map((d) => mapProduct(asDoc(d)));
+}
+
 export async function updateProduct(
   productId: string,
   data: Record<string, unknown>,

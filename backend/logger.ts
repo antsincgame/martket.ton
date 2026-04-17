@@ -4,17 +4,39 @@ export interface Logger {
   error(...args: unknown[]): void;
 }
 
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+function formatStructured(level: string, args: unknown[]): string {
+  const entry: Record<string, unknown> = {
+    ts: new Date().toISOString(),
+    level,
+    msg: args.map((a) => (a instanceof Error ? a.message : typeof a === 'string' ? a : JSON.stringify(a))).join(' '),
+  };
+  const firstErr = args.find((a): a is Error => a instanceof Error);
+  if (firstErr?.stack) entry.stack = firstErr.stack;
+  return JSON.stringify(entry);
+}
+
 export const logger: Logger = {
   info: (...args: unknown[]) => {
-    const timestamp = new Date().toISOString();
-    console.info(`[${timestamp}] [INFO]`, ...args);
+    if (IS_PROD) {
+      process.stdout.write(formatStructured('info', args) + '\n');
+    } else {
+      console.info(`[${new Date().toISOString()}] [INFO]`, ...args);
+    }
   },
   warn: (...args: unknown[]) => {
-    const timestamp = new Date().toISOString();
-    console.warn(`[${timestamp}] [WARN]`, ...args);
+    if (IS_PROD) {
+      process.stdout.write(formatStructured('warn', args) + '\n');
+    } else {
+      console.warn(`[${new Date().toISOString()}] [WARN]`, ...args);
+    }
   },
   error: (...args: unknown[]) => {
-    const timestamp = new Date().toISOString();
-    console.error(`[${timestamp}] [ERROR]`, ...args);
+    if (IS_PROD) {
+      process.stderr.write(formatStructured('error', args) + '\n');
+    } else {
+      console.error(`[${new Date().toISOString()}] [ERROR]`, ...args);
+    }
   },
 };

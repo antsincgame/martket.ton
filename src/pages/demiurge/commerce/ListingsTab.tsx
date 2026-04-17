@@ -7,7 +7,6 @@ import type { TonForgeDeveloperWorkspace } from '../../../domain/tonforge/types'
 import { slugify } from '../../../utils/slugify';
 
 interface ListingsTabProps {
-  wallet: string;
   workspace: TonForgeDeveloperWorkspace | null;
   workspaceLoading: boolean;
 }

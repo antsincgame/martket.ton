@@ -11,6 +11,7 @@ import { createTonForgeService, setTonForgeService } from './tonforge/service.js
 import { createDemoState } from './tonforge/demoData.js';
 import { loadTonForgeStateJson, saveTonForgeStateJson } from './tonforge/persistAppwrite.js';
 
+import { initSentry } from './sentry.js';
 import profileRoutes from './routes/profile.js';
 import productRoutes from './routes/products.js';
 import purchaseRoutes from './routes/purchases.js';
@@ -33,7 +34,20 @@ if (!isCoreConfigured()) {
 
 // ─── Security middleware ────────────────────────────────────────────
 
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(helmet({
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      connectSrc: ["'self'", 'https://tonapi.io', 'https://testnet.tonapi.io', 'https://*.clerk.dev', 'https://*.clerk.accounts.dev', 'https://*.appwrite.io', process.env.CORS_ORIGIN || ''].filter(Boolean),
+      fontSrc: ["'self'", 'data:'],
+      frameSrc: ["'self'", 'https://*.clerk.dev'],
+    },
+  } : false,
+  crossOriginEmbedderPolicy: false,
+}));
 app.use(mahakalaHeaders);
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:8080',
@@ -50,12 +64,9 @@ app.use('/api/purchases', authLimiter);
 
 // ─── Pre-auth routes ────────────────────────────────────────────────
 
-app.post('/api/webhooks/clerk', webhookLimiter, express.raw({ type: 'application/json' }), require('./webhooks/clerk'));
-app.use('/api/og', require('./og/handler'));
-
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', async (_req, res) => {
   let isR2 = false;
-  try { isR2 = require('./r2/client').isR2Configured(); } catch { /* R2 not loaded */ }
+  try { const r2 = await import('./r2/client.js'); isR2 = r2.isR2Configured(); } catch { /* R2 not loaded */ }
   res.json({
     status: 'OK',
     message: 'TON Web Store API is running',
@@ -106,30 +117,30 @@ app.use('/api', statsRoutes);
 app.use('/api', payoutRoutes);
 app.use('/api/tonforge', tonForgeRouter);
 
-// ─── Optional sub-routers (JS — migrated later) ────────────────────
+// ─── Optional sub-routers (JS — loaded dynamically) ─────────────────
 
-try {
-  const commerceRoutes = require('./commerce/routes').default || require('./commerce/routes');
-  app.use('/api/v1/commerce', commerceRoutes);
-} catch (err: unknown) {
-  const msg = err instanceof Error ? err.message : 'unknown';
-  logger.warn('Commerce routes not loaded:', msg);
-}
-
-try {
-  const resendRoutes = require('./resend/routes');
-  app.use('/api/admin/resend', resendRoutes);
-} catch (err: unknown) {
-  const msg = err instanceof Error ? err.message : 'unknown';
-  logger.warn('Resend routes not loaded:', msg);
-}
-
-try {
-  const r2Routes = require('./r2/routes');
-  app.use('/api/r2', r2Routes);
-} catch (err: unknown) {
-  const msg = err instanceof Error ? err.message : 'unknown';
-  logger.warn('R2 routes not loaded:', msg);
+async function mountOptionalRouters(): Promise<void> {
+  const optional: Array<[string, string]> = [
+    ['/api/webhooks/clerk', './webhooks/clerk.js'],
+    ['/api/og', './og/handler.js'],
+    ['/api/v1/commerce', './commerce/routes.js'],
+    ['/api/admin/resend', './resend/routes.js'],
+    ['/api/r2', './r2/routes.js'],
+  ];
+  for (const [mount, mod] of optional) {
+    try {
+      const m = await import(mod);
+      const router = m.default ?? m;
+      if (mount === '/api/webhooks/clerk') {
+        app.post(mount, webhookLimiter, express.raw({ type: 'application/json' }), router);
+      } else {
+        app.use(mount, router);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'unknown';
+      logger.warn(`Optional router ${mount} not loaded: ${msg}`);
+    }
+  }
 }
 
 // ─── Error handler ──────────────────────────────────────────────────
@@ -156,8 +167,23 @@ async function bootstrapTonForge(): Promise<void> {
   }
 }
 
+function startOrderTtlCron(): void {
+  const INTERVAL = 10 * 60 * 1000; // 10 min
+  const run = async () => {
+    try {
+      const { expireStalePendingOrders } = await import('./commerce/ttlOrders.js');
+      await expireStalePendingOrders();
+    } catch { /* commerce DB may be unavailable */ }
+  };
+  setInterval(() => void run(), INTERVAL);
+  setTimeout(() => void run(), 30_000);
+}
+
 async function start(): Promise<void> {
+  await initSentry();
+  await mountOptionalRouters();
   await bootstrapTonForge();
+  startOrderTtlCron();
   app.listen(PORT, () => {
     logger.info(`TON Web Store API running on port ${PORT}`);
     logger.info(`Health: http://localhost:${PORT}/api/health`);

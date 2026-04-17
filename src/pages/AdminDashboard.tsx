@@ -5,6 +5,7 @@ import SecurityMonitor from '../components/SecurityMonitor';
 import RealUserManagement from '../components/RealUserManagement';
 import AuditLogs from '../components/AuditLogs';
 import CommerceAdminPanel from '../components/admin/CommerceAdminPanel';
+import ProductModerationQueue from '../components/admin/ProductModerationQueue';
 import ResendSettings from '../components/admin/ResendSettings';
 
 const AdminDashboard = () => {
@@ -85,9 +86,9 @@ const AdminDashboard = () => {
     },
     {
       id: 'products',
-      label: 'Product Management',
+      label: 'Moderation Queue',
       icon: Database,
-      component: () => <div className="p-8 text-white">Product Management Coming Soon 🛍️</div>,
+      component: ProductModerationQueue,
       requiredPermission: { resource: 'products', action: 'read' }
     },
     {

@@ -1,11 +1,11 @@
 import express from 'express';
-import { resolveProfile, apiRequireAuth, requireAdmin } from '../middleware/auth.js';
+import { resolveProfile, apiRequireAuth, requireAdmin, requireSuperAdmin } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { str } from '../utils/params.js';
 import { createAuditLogSchema } from './validation.js';
 import * as repo from '../core/repository.js';
-import { profileToSnakeCase } from '../core/repository.js';
+import { profileToSnakeCase, updateProfile } from '../core/repository.js';
 import { generateId } from '../core/generateId.js';
 
 const router = express.Router();
@@ -129,6 +129,85 @@ router.get(
         recentActivity: recentLogs.length,
       },
     });
+  }),
+);
+
+const VALID_ROLES = ['viewer', 'demiurge', 'seller', 'moderator', 'admin', 'super_admin'] as const;
+
+router.patch(
+  '/users/:id/role',
+  apiRequireAuth(),
+  requireSuperAdmin,
+  asyncHandler(async (req, res) => {
+    const targetId = str(req.params.id);
+    const { role } = req.body as { role?: string };
+    if (!role || !VALID_ROLES.includes(role as typeof VALID_ROLES[number])) {
+      res.status(400).json({ success: false, message: `Invalid role. Must be one of: ${VALID_ROLES.join(', ')}` });
+      return;
+    }
+    const target = await repo.findUserById(targetId);
+    if (!target) {
+      res.status(404).json({ success: false, message: 'User not found' });
+      return;
+    }
+    const oldRole = target.role;
+    await updateProfile(targetId, { role });
+    await repo.insertAuditLog({
+      id: generateId(),
+      user_id: req.profile?.id || 'unknown',
+      action: 'role_change',
+      resource: 'user',
+      resource_id: targetId,
+      result: 'success',
+      metadata: JSON.stringify({ from: oldRole, to: role }),
+      ip_address: req.ip,
+      user_agent: req.get('user-agent') || '',
+    });
+    const updated = await repo.findUserById(targetId);
+    res.json({ success: true, data: updated ? profileToSnakeCase(updated) : null });
+  }),
+);
+
+router.patch(
+  '/users/:id/active',
+  apiRequireAuth(),
+  requireSuperAdmin,
+  asyncHandler(async (req, res) => {
+    const targetId = str(req.params.id);
+    const { is_active } = req.body as { is_active?: boolean };
+    if (typeof is_active !== 'boolean') {
+      res.status(400).json({ success: false, message: 'is_active must be a boolean' });
+      return;
+    }
+    const target = await repo.findUserById(targetId);
+    if (!target) {
+      res.status(404).json({ success: false, message: 'User not found' });
+      return;
+    }
+    await updateProfile(targetId, { is_active });
+    await repo.insertAuditLog({
+      id: generateId(),
+      user_id: req.profile?.id || 'unknown',
+      action: is_active ? 'user_activate' : 'user_deactivate',
+      resource: 'user',
+      resource_id: targetId,
+      result: 'success',
+      metadata: null,
+      ip_address: req.ip,
+      user_agent: req.get('user-agent') || '',
+    });
+    const updated = await repo.findUserById(targetId);
+    res.json({ success: true, data: updated ? profileToSnakeCase(updated) : null });
+  }),
+);
+
+router.get(
+  '/products/pending',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (_req, res) => {
+    const products = await repo.listProductsByStatus('pending_review');
+    res.json({ success: true, data: products.map(repo.productToSnakeCase) });
   }),
 );
 

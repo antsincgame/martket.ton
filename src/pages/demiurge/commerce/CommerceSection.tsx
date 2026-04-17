@@ -110,7 +110,6 @@ export default function CommerceSection() {
           path="listings"
           element={
             <ListingsTab
-              wallet={wallet}
               workspace={workspace}
               workspaceLoading={workspaceLoading}
             />

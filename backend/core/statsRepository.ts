@@ -46,11 +46,22 @@ export async function fetchSessionStats(profileId: string): Promise<SessionStats
   const productIds = products.map((p) => p.$id);
   const productSales = productIds.length > 0 ? await listPurchasesForProducts(productIds) : [];
 
+  const salesAgg = aggregateSales(productSales);
+  const productAgg = aggregateProducts(products);
+
+  return {
+    ...salesAgg,
+    ...productAgg,
+    librarySize: ownedPurchases.length,
+  };
+}
+
+function aggregateSales(sales: AppwriteDoc[]) {
   const cutoff = Date.now() - 30 * MS_PER_DAY;
   let revenue30d = 0;
   let sales30d = 0;
   let revenueTotal = 0;
-  for (const sale of productSales) {
+  for (const sale of sales) {
     const price = (sale['price_ton'] as number) ?? 0;
     revenueTotal += price;
     const created = Date.parse(sale.$createdAt);
@@ -59,44 +70,41 @@ export async function fetchSessionStats(profileId: string): Promise<SessionStats
       sales30d += 1;
     }
   }
+  return { revenueTotal: round2(revenueTotal), revenue30d: round2(revenue30d), sales30d };
+}
 
+function aggregateProducts(products: AppwriteDoc[]) {
   let downloadsTotal = 0;
-  let publishedCount = 0;
-  let pendingCount = 0;
-  let draftCount = 0;
-  let suspendedCount = 0;
+  let productsPublished = 0;
+  let pendingReview = 0;
+  let drafts = 0;
+  let suspended = 0;
   let ratingSum = 0;
   let ratingDenominator = 0;
   let reviewsTotal = 0;
+
   for (const p of products) {
     downloadsTotal += (p['downloads'] as number) ?? 0;
     const status = (p['status'] as string) ?? 'draft';
-    if (status === 'published') publishedCount++;
-    else if (status === 'pending_review') pendingCount++;
-    else if (status === 'draft') draftCount++;
-    else if (status === 'suspended') suspendedCount++;
+    if (status === 'published') productsPublished++;
+    else if (status === 'pending_review') pendingReview++;
+    else if (status === 'draft') drafts++;
+    else if (status === 'suspended') suspended++;
     if (status === 'published') {
       const rating = (p['rating'] as number) ?? 0;
-      if (rating > 0) {
-        ratingSum += rating;
-        ratingDenominator += 1;
-      }
+      if (rating > 0) { ratingSum += rating; ratingDenominator += 1; }
       reviewsTotal += (p['reviews_count'] as number) ?? 0;
     }
   }
 
   return {
     downloadsTotal,
-    revenueTotal: round2(revenueTotal),
-    revenue30d: round2(revenue30d),
-    sales30d,
-    productsPublished: publishedCount,
-    pendingReview: pendingCount,
-    drafts: draftCount,
-    suspended: suspendedCount,
+    productsPublished,
+    pendingReview,
+    drafts,
+    suspended,
     avgRating: ratingDenominator > 0 ? round2(ratingSum / ratingDenominator) : 0,
     reviewsTotal,
-    librarySize: ownedPurchases.length,
   };
 }
 

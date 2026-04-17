@@ -4,6 +4,8 @@ import { User, Sparkles, Gem, LogIn, LogOut, Search } from 'lucide-react';
 import { SignedIn, SignedOut, useAuthModal } from '../lib/clerkSafe';
 import * as ClerkReact from '@clerk/clerk-react';
 import { useSearch } from '../contexts/SearchContext';
+import { useNetwork } from '../contexts/NetworkContext';
+import { logger } from '../lib/logger';
 
 interface HeaderProps {
   onLogoClick?: () => void;
@@ -13,7 +15,7 @@ function SignOutButton() {
   const { signOut } = ClerkReact.useClerk();
   return (
     <button
-      onClick={() => { signOut().catch((err: unknown) => { console.error('Sign out failed:', err); }); }}
+      onClick={() => { signOut().catch((err: unknown) => { logger.error('Sign out failed:', err); }); }}
       className="p-2 text-[#999] hover:text-[#FF4444] transition-colors"
       title="Sign Out"
     >
@@ -26,6 +28,7 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
   const { openAuthModal } = useAuthModal();
   const navigate = useNavigate();
   const { query, setQuery } = useSearch();
+  const { isTestnet, toggleNetwork } = useNetwork();
 
   const handleSignIn = () => {
     if (window.innerWidth < 768) {
@@ -87,6 +90,20 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             />
           </div>
         </div>
+
+        {/* Network toggle */}
+        <button
+          type="button"
+          onClick={toggleNetwork}
+          className={`flex-shrink-0 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-colors ${
+            isTestnet
+              ? 'bg-orange-500/20 border-orange-500/40 text-orange-400 hover:bg-orange-500/30'
+              : 'bg-white/5 border-white/10 text-gray-500 hover:text-gray-300'
+          }`}
+          title={`Switch to ${isTestnet ? 'mainnet' : 'testnet'}`}
+        >
+          {isTestnet ? 'TESTNET' : 'MAINNET'}
+        </button>
 
         {/* Auth */}
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">

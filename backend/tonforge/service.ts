@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'crypto';
 import { createDemoState } from './demoData.js';
 import { contractMetadata, onChainFields } from './contractMetadata.js';
+import { logger } from '../logger.js';
 import type {
   TonForgeState,
   TonForgeApp,
@@ -67,7 +68,6 @@ export function createTonForgeService(
       Promise.resolve()
         .then(() => persistOpts.save(state))
         .catch((err: unknown) => {
-          const { logger } = require('../logger.js') as { logger: { error: (...args: unknown[]) => void } };
           logger.error('TonForge persist:', err);
         });
     }, delay);

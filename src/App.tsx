@@ -13,7 +13,9 @@ import TonConnectWrapper from './components/TonConnectWrapper';
 import { CLERK_CONFIGURED, ClerkSignIn, ClerkSignUp, AuthModalProvider } from './lib/clerkSafe';
 import { ToastProvider } from './components/ui/Toast';
 import { SearchProvider } from './contexts/SearchContext';
+import { NetworkProvider } from './contexts/NetworkContext';
 import { queryClient } from './lib/queryClient';
+import CookieConsent from './components/CookieConsent';
 
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ProductPage = lazy(() => import('./pages/ProductPage'));
@@ -21,6 +23,11 @@ const DemiurgePage = lazy(() => import('./pages/demiurge/DemiurgePage'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const DeveloperPage = lazy(() => import('./pages/DeveloperPage'));
+const OrdersPage = lazy(() => import('./pages/OrdersPage'));
+const ReceiptPage = lazy(() => import('./pages/ReceiptPage'));
+const TermsOfService = lazy(() => import('./pages/legal/TermsOfService'));
+const PrivacyPolicy = lazy(() => import('./pages/legal/PrivacyPolicy'));
+const RefundPolicy = lazy(() => import('./pages/legal/RefundPolicy'));
 
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
 
@@ -80,6 +87,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
       <MaybeClerk>
         <AuthProvider>
+        <NetworkProvider>
         <ToastProvider>
         <SearchProvider>
         <AuthModalProvider>
@@ -98,18 +106,25 @@ function App() {
                     <Route path="/profile/*" element={<ProtectedRoute><DemiurgePage /></ProtectedRoute>} />
                     <Route path="/seller/commerce" element={<Navigate to="/profile/commerce" replace />} />
                     <Route path="/seller/commerce/*" element={<Navigate to="/profile/commerce" replace />} />
+                    <Route path="/orders" element={<ProtectedRoute><TonConnectWrapper><OrdersPage /></TonConnectWrapper></ProtectedRoute>} />
+                    <Route path="/orders/:orderId/receipt" element={<ProtectedRoute><TonConnectWrapper><ReceiptPage /></TonConnectWrapper></ProtectedRoute>} />
+                    <Route path="/terms" element={<TermsOfService />} />
+                    <Route path="/privacy" element={<PrivacyPolicy />} />
+                    <Route path="/refund-policy" element={<RefundPolicy />} />
                     <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
                     <Route path="/admin-dashboard" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
                   </Routes>
                 </Suspense>
               </main>
               <Footer />
+              <CookieConsent />
               <SacredGem />
             </div>
           </Router>
         </AuthModalProvider>
         </SearchProvider>
         </ToastProvider>
+        </NetworkProvider>
         </AuthProvider>
       </MaybeClerk>
       </QueryClientProvider>

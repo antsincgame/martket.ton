@@ -106,6 +106,15 @@ export async function findUserByClerkId(clerkUserId: string): Promise<Profile | 
   return doc ? mapProfile(asDoc(doc)) : null;
 }
 
+export async function findProfileBySlug(slug: string): Promise<Profile | null> {
+  const res = await databases().listDocuments(CORE_DATABASE_ID, COL_PROFILES, [
+    Query.equal('slug', slug),
+    Query.limit(1),
+  ]);
+  const doc = res.documents[0];
+  return doc ? mapProfile(asDoc(doc)) : null;
+}
+
 export async function listUsers(): Promise<Profile[]> {
   const res = await databases().listDocuments(CORE_DATABASE_ID, COL_PROFILES, [Query.limit(5000)]);
   return res.documents.map((d) => mapProfile(asDoc(d)));
