@@ -4,6 +4,39 @@ import { CORE_DATABASE_ID, COL_PROFILES } from './constants.js';
 import { generateId } from './generateId.js';
 import type { Profile, ProfileId, TonAddress } from '../domain/types.js';
 import { type AppwriteDoc, asDoc } from '../domain/appwrite-helpers.js';
+import { logger } from '../logger.js';
+
+const ADMIN_EMAILS: ReadonlySet<string> = new Set(
+  (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+const MODERATOR_EMAILS: ReadonlySet<string> = new Set(
+  (process.env.MODERATOR_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+function resolveRole(email: string | null | undefined, fallback: string): string {
+  if (!email) return normalizeLegacyRole(fallback);
+  const lower = email.toLowerCase();
+  if (ADMIN_EMAILS.has(lower)) {
+    logger.info(`[auto-promote] ${email} → super_admin (ADMIN_EMAILS match)`);
+    return 'super_admin';
+  }
+  if (MODERATOR_EMAILS.has(lower)) {
+    logger.info(`[auto-promote] ${email} → moderator (MODERATOR_EMAILS match)`);
+    return 'moderator';
+  }
+  return normalizeLegacyRole(fallback);
+}
+
+function normalizeLegacyRole(role: string): string {
+  return role === 'seller' ? 'demiurge' : role;
+}
 
 function mapProfile(doc: AppwriteDoc): Profile {
   return {
@@ -157,9 +190,15 @@ export async function upsertProfileForClerkUser(
     }
   }
 
+  const effectiveEmail = payload.email ?? existing?.email ?? null;
+  const effectiveRole = resolveRole(
+    effectiveEmail,
+    payload.role ?? existing?.role ?? 'demiurge',
+  );
+
   const data: Record<string, unknown> = {
     clerk_user_id: clerkUserId,
-    email: payload.email ?? existing?.email ?? null,
+    email: effectiveEmail,
     ton_address: payload.ton_address ?? existing?.tonAddress ?? null,
     name: payload.name ?? existing?.name ?? 'Demiurge',
     display_name:
@@ -168,7 +207,7 @@ export async function upsertProfileForClerkUser(
       payload.name ??
       existing?.name ??
       'Demiurge',
-    role: payload.role ?? existing?.role ?? 'demiurge',
+    role: effectiveRole,
     avatar: payload.avatar ?? existing?.avatar ?? null,
     bio: payload.bio ?? existing?.bio ?? null,
     security_level: payload.security_level ?? existing?.securityLevel ?? 'low',

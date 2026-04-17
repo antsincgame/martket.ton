@@ -18,6 +18,7 @@ import purchaseRoutes from './routes/purchases.js';
 import adminRoutes from './routes/admin.js';
 import statsRoutes from './routes/stats.js';
 import payoutRoutes from './routes/payouts.js';
+import supportRoutes from './routes/support.js';
 import tonForgeRouter from './tonforge/router.js';
 
 const app = express();
@@ -115,6 +116,7 @@ app.use('/api', purchaseRoutes);
 app.use('/api', adminRoutes);
 app.use('/api', statsRoutes);
 app.use('/api', payoutRoutes);
+app.use('/api', supportRoutes);
 app.use('/api/tonforge', tonForgeRouter);
 
 // ─── Optional sub-routers (JS — loaded dynamically) ─────────────────

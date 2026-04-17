@@ -1,5 +1,5 @@
 import express from 'express';
-import { resolveProfile, apiRequireAuth, requireAdmin, requireSuperAdmin } from '../middleware/auth.js';
+import { resolveProfile, apiRequireAuth, requireAdmin, requireSuperAdmin, requireModerator } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { str } from '../utils/params.js';
@@ -132,7 +132,7 @@ router.get(
   }),
 );
 
-const VALID_ROLES = ['viewer', 'demiurge', 'seller', 'moderator', 'admin', 'super_admin'] as const;
+const VALID_ROLES = ['viewer', 'demiurge', 'moderator', 'admin', 'super_admin'] as const;
 
 router.patch(
   '/users/:id/role',
@@ -204,7 +204,7 @@ router.patch(
 router.get(
   '/products/pending',
   apiRequireAuth(),
-  requireAdmin,
+  requireModerator,
   asyncHandler(async (_req, res) => {
     const products = await repo.listProductsByStatus('pending_review');
     res.json({ success: true, data: products.map(repo.productToSnakeCase) });

@@ -146,9 +146,14 @@ function useAuthCore(
   }, [profile]);
   const hasRole = useCallback((roleName: string): boolean => {
     if (!profile) return false;
-    const names = profile.roles.map(r => typeof r === 'string' ? r : r.name);
+    const ROLE_HIERARCHY: Record<string, number> = {
+      super_admin: 100, admin: 80, moderator: 60, demiurge: 40, viewer: 10,
+    };
+    const rawNames: string[] = profile.roles.map(r => typeof r === 'string' ? r : r.name);
+    const names = rawNames.map(n => (n === 'seller' ? 'demiurge' : n));
     if (names.includes('super_admin')) return true;
-    return (names as string[]).includes(roleName);
+    const requiredLevel = ROLE_HIERARCHY[roleName === 'seller' ? 'demiurge' : roleName] ?? 0;
+    return names.some(n => (ROLE_HIERARCHY[n] ?? 0) >= requiredLevel);
   }, [profile]);
   const getSecurityLevel = useCallback(() => profile?.securityLevel || 'low', [profile]);
   const getSecurityAlerts = useCallback(() => securityAlerts, [securityAlerts]);

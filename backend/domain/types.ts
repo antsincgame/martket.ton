@@ -21,7 +21,6 @@ export type TonAddress = string & { readonly __brand: 'TonAddress' };
 export const UserRole = {
   VIEWER: 'viewer',
   DEMIURGE: 'demiurge',
-  SELLER: 'seller',
   MODERATOR: 'moderator',
   ADMIN: 'admin',
   SUPER_ADMIN: 'super_admin',

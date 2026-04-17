@@ -9,6 +9,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import SecretTrigger from './components/SecretTrigger';
 import ErrorBoundary from './components/ErrorBoundary';
+import { useAuth } from './contexts/AuthContext';
 import TonConnectWrapper from './components/TonConnectWrapper';
 import { CLERK_CONFIGURED, ClerkSignIn, ClerkSignUp, AuthModalProvider } from './lib/clerkSafe';
 import { ToastProvider } from './components/ui/Toast';
@@ -34,6 +35,7 @@ const ProductPage = lazyRetry(() => import('./pages/ProductPage'));
 const DemiurgePage = lazyRetry(() => import('./pages/demiurge/DemiurgePage'));
 const CategoryPage = lazyRetry(() => import('./pages/CategoryPage'));
 const AdminDashboard = lazyRetry(() => import('./pages/AdminDashboard'));
+const ModeratorPanel = lazyRetry(() => import('./pages/ModeratorPanel'));
 const DeveloperPage = lazyRetry(() => import('./pages/DeveloperPage'));
 const OrdersPage = lazyRetry(() => import('./pages/OrdersPage'));
 const ReceiptPage = lazyRetry(() => import('./pages/ReceiptPage'));
@@ -90,7 +92,14 @@ const MaybeClerk: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const SacredGem: React.FC = () => {
   const navigate = useNavigate();
-  return <SecretTrigger onActivate={() => navigate('/admin')} />;
+  const { isAuthenticated, hasRole } = useAuth();
+
+  const isAdmin = hasRole('admin');
+  const isMod = hasRole('moderator');
+  if (!isAuthenticated || (!isAdmin && !isMod)) return null;
+
+  const target = isAdmin ? '/admin' : '/moderator';
+  return <SecretTrigger onActivate={() => navigate(target)} />;
 };
 
 /** Сбрасывает ErrorBoundary при смене маршрута — пользователь может уйти со сломанной страницы навигацией. */
@@ -151,6 +160,7 @@ function App() {
                   <Route path="/refund-policy" element={<RouteSuspense><RefundPolicy /></RouteSuspense>} />
                   <Route path="/admin" element={<RouteSuspense><ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
                   <Route path="/admin-dashboard" element={<RouteSuspense><ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
+                  <Route path="/moderator" element={<RouteSuspense><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></RouteSuspense>} />
                 </Routes>
               </main>
               <Footer />
