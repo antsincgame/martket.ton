@@ -12,35 +12,108 @@ import {
   Network,
   Scale,
   Shield,
+  ShoppingBag,
   Sparkles,
   Users,
+  Wallet,
   Zap,
 } from 'lucide-react';
 
 const TELEGRAM_URL = 'https://t.me/tonforge';
 
-const MECHANICUS_BLOCK = `OMNISSIAH::TON_STORE_MANIFEST
-IN→product_concept OUT→deploy_lines
-D.tags|rule1;rule2⊕example
+/* ─────────────────────────────────────────────
+   MECHANICUS PROTOCOL — full LLM-grade extract
+   Grammar: OMNISSIAH::HDSK_EXTRACTOR
+   IN→book_chunks OUT→LM∞_lines
+   ───────────────────────────────────────────── */
+const MECHANICUS_BLOCK = `OMNISSIAH::TONFORGE_MANIFEST v2
+IN→platform_concept OUT→codegen_context
+D.tags|concept;stack;api;flow;constraint
 
-A|W|Human|Agent≡publisher;∅privilege_by_origin;parity→same_rules_bar
-A|W|SPA+Vite→Express→Appwrite;R2⊕builds_images;VT⊕scan_before_trust
-A|X|OTP|GitHub→session;JWT→API;TonConnect→TON_wallet;∅magic_only
-A|P|lazy_routes↑TTI;∅filler;∅stories_in_mechanicus
-W|Demiurge→Studio→Library→Commerce;buyer→catalog+legal
-M|TON→settlement;escrow→terms;moderation→human_review+engines
+## IDENTITY
+W|X|TonForge≡hybrid_marketplace;∅fully_decentralized;∅fully_centralized
+W|X|positioning→web2_ux+web3_rails;TON→settlement_layer_only
+W|X|Human≡publisher;AIAgent≡publisher;parity→∅origin_privilege
+W|X|store_domain=tonforge.org;network=TON_mainnet
 
-ASCII:: Human==publisher / Agent==publisher -> NO_discrimination ;
-       Studio->scan->moderate->catalog ; TON->pay`;
+## CONCEPT
+W|A|marketplace⊕apps,games,AI_tools,dev_utilities
+W|A|publisher_path→Studio→scan→moderate→catalog→buy→TON_settle
+W|A|buyer_path→browse→wallet_connect→pay_TON→library
+W|A|demiurge≡creator_identity;forge≡studio_metaphor
+W|A|∅fully_onchain;smart_contracts→payment+escrow_only
 
-function highlight(
-  parts: Array<{ t: string; c?: 'gold' | 'cyan' | 'violet' | 'magenta' | 'emerald' | 'white' }>,
+## STACK
+A|W|frontend=React18+Vite5+Tailwind3+ReactRouter6+ReactQuery5
+A|W|backend=Node+Express+TypeScript_tsx
+A|W|db=Appwrite_Databases;auth=Appwrite_Account
+A|W|storage=Cloudflare_R2_S3_API
+A|W|wallet=TonConnect;settlement=TON_blockchain
+A|W|scan=VirusTotal_API_v3;quarantine=R2_quarantine_prefix
+A|W|email=Resend_SMTP+inbound_webhook
+A|W|admin_email=Resend_inbound→AppwriteDB→AdminInbox
+
+## AUTH FLOW
+X|A|email_OTP→6digit_code→Appwrite_session→JWT
+X|A|GitHub_OAuth→Appwrite_session→JWT
+X|A|JWT→Bearer→backend_middleware→profile_resolve
+X|A|TonConnect→wallet_only;∅auth_via_wallet
+X|A|Human|AIAgent→same_auth_surface;∅separate_lane
+
+## PUBLISHER WORKFLOW
+A|W|draft_product→upload_build_R2→quarantine_prefix
+A|W|quarantine→VirusTotal_scan→scan_job_poll
+A|W|scan_clean→moderation_queue→admin_approve
+A|W|trusted_demiurge→auto_publish;new_demiurge→manual_review
+A|W|scan_malicious→auto_reject+notify;scan_error→manual_review
+A|W|Studio_sections=Overview,Studio,Library,Commerce,Wallet,Profile
+
+## API SURFACE
+A|W|GET /api/session/library→buyer_purchases
+A|W|GET /api/session/products→creator_products
+A|W|GET /api/session/stats→dashboard_KPI
+A|W|GET /api/session/payouts→payout_aggregates
+A|W|PATCH /api/session/profile→slug,bio,socials,featured
+A|W|POST /api/r2/upload/image→avatar,banner,cover
+A|W|POST /api/r2/upload/:productId→build_file→quarantine
+A|W|GET /api/products/:id/scan-status→scan_progress_poll
+A|W|GET /api/health→liveness;?detailed=1+X-Health-Token→full_status
+
+## COMMERCE
+A|W|TON_payment→tx_hash_verify→anti_replay_check→purchase_record
+A|W|escrow→dispute_window=24h;fee_bps=250
+A|W|commerce_api_base=VITE_COMMERCE_API_URL/api/v1/commerce
+
+## SECURITY
+P|A|rate_limit=300req/15min_global;write=100req/15min
+P|A|origin_guard→prod_only;CORS_single_origin
+P|A|path_traversal_guard→R2_quarantine_keys
+P|A|header_injection_guard→safeFilename
+P|A|audit_log→all_admin_actions→AppwriteDB
+
+## CONSTRAINTS
+∅magic_link;∅clerk;∅password_auth;∅anon_session
+∅fully_decentralized→use_hybrid_positioning
+∅mock_data_in_prod;∅seed_fallback_prod
+parity_rule→Human==AIAgent→same_scan,same_moderation,same_legal
+
+ASCII_FALLBACK::
+  publisher(Human|AI) -> Studio -> R2_quarantine -> VT_scan -> moderate -> catalog
+  buyer -> browse -> TonConnect -> pay_TON -> tx_verify -> library
+  auth: OTP|GitHub -> Appwrite_session -> JWT -> API
+  NO_privilege_by_origin ; NO_magic_link ; NO_full_decentralization
+
+READY@send_chunk`;
+
+function H(
+  parts: Array<{ t: string; c?: 'gold' | 'cyan' | 'violet' | 'magenta' | 'emerald' | 'red' | 'white' }>,
 ): React.ReactNode {
   const map = {
     gold: 'text-[#FFD700]',
     cyan: 'text-[#00F5FF]',
     violet: 'text-[#8B5CF6]',
     magenta: 'text-[#FF2A6D]',
+    red: 'text-[#FF2A6D]',
     emerald: 'text-[#00FF88]',
     white: 'text-white',
   } as const;
@@ -59,166 +132,118 @@ function highlight(
   );
 }
 
+const TOC = [
+  ['#concept', 'Concept'],
+  ['#buyers', 'Buyers'],
+  ['#publishers', 'Publishers'],
+  ['#ton', 'TON'],
+  ['#help', 'Help'],
+  ['#engineers', 'Engineers'],
+  ['#mechanicus', 'LM∞'],
+];
+
 export default function DocumentationPage() {
   const [copied, setCopied] = useState(false);
-  const onCopyMechanicus = useCallback(() => {
+  const onCopy = useCallback(() => {
     void navigator.clipboard.writeText(MECHANICUS_BLOCK).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), 2200);
     });
   }, []);
 
   return (
     <div className="relative -mx-4 -my-8 min-h-[calc(100vh-10rem)] overflow-hidden text-[#c4c4d4]">
-      {/* CP2666 base: void + grid + slow pulse (CSS only) */}
+      {/* ── Background: CP2666 grid + scanline pulse ── */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[#04040b]" />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[#05050c]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.07]"
+        className="pointer-events-none absolute inset-0 opacity-[0.055]"
         style={{
-          backgroundImage: `
-            linear-gradient(rgba(0,245,255,0.35) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0,245,255,0.2) 1px, transparent 1px)
-          `,
+          backgroundImage:
+            'linear-gradient(rgba(0,245,255,0.4) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,255,0.22) 1px,transparent 1px)',
           backgroundSize: '48px 48px',
         }}
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#FFD700]/[0.07] via-transparent to-[#8B5CF6]/[0.06]"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#FFD700]/[0.06] via-transparent to-[#8B5CF6]/[0.05]"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 animate-pulse opacity-30"
+        className="pointer-events-none absolute inset-0 animate-pulse opacity-[0.18]"
         style={{
           background:
-            'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)',
+            'repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,0.025) 3px,rgba(255,255,255,0.025) 4px)',
         }}
       />
 
       <div className="relative z-10 mx-auto max-w-4xl px-4 py-10 sm:px-6">
         <Link
           to="/"
-          className="mb-8 inline-flex items-center gap-2 text-sm text-[#666] transition-colors hover:text-[#00F5FF]"
+          className="mb-10 inline-flex items-center gap-2 text-sm text-[#555] transition-colors hover:text-[#00F5FF]"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
           Home
         </Link>
 
-        {/* Hero — manifesto */}
-        <header id="manifesto" className="mb-12 scroll-mt-24">
-          <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.35em] text-[#FF2A6D]">
-            year_index // 2666 — public manifest
+        {/* ── HERO ── */}
+        <header id="manifesto" className="mb-14 scroll-mt-24">
+          <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.38em] text-[#FF2A6D]">
+            tonforge.org · manifest · rev.2
           </p>
-          <h1 className="font-display text-3xl font-bold uppercase tracking-[0.12em] text-transparent sm:text-4xl md:text-5xl bg-gradient-to-r from-white via-[#FFD700] to-[#00F5FF] bg-clip-text drop-shadow-[0_0_40px_rgba(255,215,0,0.25)]">
-            TON Web Store
+          <h1
+            className="bg-gradient-to-r from-white via-[#FFD700] to-[#00F5FF] bg-clip-text font-display text-3xl font-bold uppercase tracking-[0.12em] text-transparent drop-shadow-[0_0_40px_rgba(255,215,0,0.2)] sm:text-4xl md:text-5xl"
+          >
+            TonForge
           </h1>
-          <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#9a9ab0] sm:text-lg">
-            {highlight([
-              { t: 'A ' },
-              { t: 'decentralized application marketplace', c: 'cyan' },
-              { t: ' on the TON network. ' },
-              { t: 'Human engineers', c: 'gold' },
+          <p className="mt-1 font-mono text-xs uppercase tracking-[0.25em] text-[#FFD700]/70">
+            TON Web Store
+          </p>
+          <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#9a9ab0] sm:text-lg">
+            {H([
+              { t: 'A marketplace at the edge of ' },
+              { t: 'Web2 UX', c: 'cyan' },
+              { t: ' and ' },
+              { t: 'Web3 rails', c: 'gold' },
+              { t: '. Apps, games, AI tools, developer utilities — published by ' },
+              { t: 'humans', c: 'gold' },
               { t: ' and ' },
               { t: 'AI agents', c: 'violet' },
-              {
-                t: ' publish software here under the same rules, the same quality bar, and the same respect for the craft. Origin is not a privilege — ',
-              },
-              { t: 'parity', c: 'emerald' },
-              { t: ' is.' },
+              { t: ' under the ' },
+              { t: 'same rules', c: 'emerald' },
+              { t: ', the same quality bar, the same respect for the craft.' },
             ])}
           </p>
-          <p className="mt-2 font-mono text-xs text-[#555]">
-            Кузница Demiurge: Studio → модерация → витрина. Один путь для всех издателей.
+          <p className="mt-3 font-mono text-xs text-[#444]">
+            ∅ fully_decentralized · ∅ fully_centralized · positioning→hybrid
           </p>
+
+          {/* highlight chips */}
+          <div className="mt-6 flex flex-wrap gap-2">
+            {[
+              ['Hybrid positioning', '#00F5FF'],
+              ['TON settlement', '#FFD700'],
+              ['Human = AI publisher', '#8B5CF6'],
+              ['VirusTotal scan', '#00FF88'],
+              ['Appwrite auth + DB', '#FF2A6D'],
+            ].map(([label, color]) => (
+              <span
+                key={label}
+                className="rounded-full border px-3 py-1 font-mono text-[11px] uppercase tracking-wider"
+                style={{ borderColor: `${color}35`, color, backgroundColor: `${color}10` }}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
         </header>
 
-        {/* Help — footer Help Center anchor */}
-        <section
-          id="help"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#00FF88]/20 bg-gradient-to-br from-[#0c1210]/95 to-[#08080f] p-6 sm:p-8"
-        >
-          <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
-            <LifeBuoy className="h-5 w-5 text-[#00FF88]" aria-hidden />
-            Help &amp; support
-          </h2>
-          <ul className="space-y-4 text-sm leading-relaxed text-[#9a9ab0] sm:text-base">
-            <li className="flex gap-3">
-              <span className="font-mono text-[#00F5FF]">01</span>
-              <span>
-                <Link to="/sign-in" className="text-[#FFD700] underline-offset-2 hover:underline">
-                  Sign in
-                </Link>
-                {' — '}
-                Appwrite session (email code or GitHub). Wallet connects after login where purchases require TON.
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <span className="font-mono text-[#00F5FF]">02</span>
-              <span>
-                <Link to="/" className="text-[#FFD700] underline-offset-2 hover:underline">
-                  Storefront
-                </Link>
-                {' — '}browse categories; product pages list price and publisher. Orders live under{' '}
-                <Link to="/orders" className="text-[#8B5CF6] underline-offset-2 hover:underline">
-                  /orders
-                </Link>
-                {' '}when you are signed in.
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <span className="font-mono text-[#00F5FF]">03</span>
-              <span>
-                Legal stack:{' '}
-                <Link to="/terms" className="text-[#8B5CF6] hover:underline">
-                  Terms
-                </Link>
-                ,{' '}
-                <Link to="/privacy" className="text-[#8B5CF6] hover:underline">
-                  Privacy
-                </Link>
-                ,{' '}
-                <Link to="/refund-policy" className="text-[#8B5CF6] hover:underline">
-                  Refund &amp; DMCA
-                </Link>
-                .
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <span className="font-mono text-[#00F5FF]">04</span>
-              <span className="flex flex-wrap items-center gap-2">
-                <MessageCircle className="h-4 w-4 text-[#00FF88]" aria-hidden />
-                <a
-                  href={TELEGRAM_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 font-medium text-[#00FF88] underline-offset-2 hover:underline"
-                >
-                  Telegram community
-                  <ExternalLink className="h-3.5 w-3.5 opacity-70" aria-hidden />
-                </a>
-                <span className="text-[#555]">— announcements, peers, signal.</span>
-              </span>
-            </li>
-          </ul>
-        </section>
-
-        {/* Mini TOC */}
+        {/* ── TOC ── */}
         <nav
-          aria-label="On this page"
-          className="mb-12 flex flex-wrap gap-2 border border-white/10 bg-black/30 p-3 backdrop-blur-sm"
+          aria-label="Page sections"
+          className="mb-12 flex flex-wrap gap-2 border border-white/10 bg-black/25 p-3 backdrop-blur-sm"
         >
-          {[
-            ['#help', 'Help'],
-            ['#publishers', 'Publishers'],
-            ['#buyers', 'Buyers'],
-            ['#ton', 'TON'],
-            ['#engineers', 'Engineers'],
-            ['#mechanicus', 'LM∞'],
-          ].map(([href, label]) => (
+          {TOC.map(([href, label]) => (
             <a
               key={href}
               href={href}
@@ -229,141 +254,465 @@ export default function DocumentationPage() {
           ))}
         </nav>
 
-        {/* Publishers */}
+        {/* ── CONCEPT ── */}
         <section
-          id="publishers"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#FFD700]/15 bg-gradient-to-br from-[#12121f]/90 to-[#0a0a12]/95 p-6 shadow-[0_0_30px_rgba(0,245,255,0.06)] backdrop-blur-md sm:p-8"
+          id="concept"
+          className="mb-10 scroll-mt-24 rounded-xl border border-[#FFD700]/15 bg-gradient-to-br from-[#0f0f1e]/95 to-[#06060e] p-6 shadow-[0_0_40px_rgba(255,215,0,0.05)] sm:p-8"
         >
-          <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
+          <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Sparkles className="h-5 w-5 text-[#FFD700]" aria-hidden />
-            For every publisher
+            What is TonForge
           </h2>
-          <ul className="space-y-3 text-sm leading-relaxed sm:text-base">
-            <li className="flex gap-3">
-              <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-[#8B5CF6]" aria-hidden />
-              <span>
-                {highlight([
-                  { t: 'Creator Studio', c: 'violet' },
-                  { t: ' — draft, upload builds, attach metadata. Trusted paths can accelerate; everyone passes ' },
-                  { t: 'security review', c: 'emerald' },
-                  { t: ' where the stack requires it.' },
-                ])}
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <Scale className="mt-0.5 h-4 w-4 shrink-0 text-[#00F5FF]" aria-hidden />
-              <span>
-                {highlight([
-                  { t: 'Same contract', c: 'cyan' },
-                  { t: ' for carbon and silicon authors: no separate “AI lane” that dodges moderation or buyer protection.' },
-                ])}
-              </span>
-            </li>
-            <li className="flex gap-3">
-              <Users className="mt-0.5 h-4 w-4 shrink-0 text-[#FFD700]" aria-hidden />
-              <span>
-                Public profile, library, commerce — the Demiurge cabinet is the forge where listings become
-                <span className="text-[#FF2A6D]"> living </span>
-                products on the storefront.
-              </span>
-            </li>
-          </ul>
+
+          <div className="space-y-4 text-sm leading-relaxed sm:text-base">
+            <p>
+              {H([
+                { t: 'TonForge' },
+                { t: ' is a ' },
+                { t: 'hybrid', c: 'cyan' },
+                { t: ' application store. "Hybrid" means we sit at the intersection — the ' },
+                { t: 'user experience is Web2', c: 'gold' },
+                { t: ' (fast browsing, email login, familiar UI), while ' },
+                { t: 'payments and settlement run on TON blockchain', c: 'emerald' },
+                { t: ". We're not chasing full decentralization for its own sake. We use the blockchain where it adds real value: " },
+                { t: 'transparent, censorship-resistant money rails', c: 'gold' },
+                { t: '.' },
+              ])}
+            </p>
+
+            <p>
+              {H([
+                { t: 'What you can find here: ' },
+                { t: 'Android apps', c: 'cyan' },
+                { t: ', ' },
+                { t: 'games', c: 'violet' },
+                { t: ', ' },
+                { t: 'AI tools', c: 'magenta' },
+                { t: ', ' },
+                { t: 'developer utilities', c: 'emerald' },
+                { t: ' — everything digital, everything paid in ' },
+                { t: 'TON', c: 'gold' },
+                { t: '.' },
+              ])}
+            </p>
+
+            <p>
+              {H([
+                { t: 'The core principle: ' },
+                { t: 'origin is not a privilege', c: 'magenta' },
+                { t: '. A human engineer and an AI agent that generates and ships software have the same publisher status, the same moderation path, the same legal responsibilities. ' },
+                { t: 'Parity is a design decision', c: 'emerald' },
+                { t: ', not a slogan.' },
+              ])}
+            </p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              {[
+                {
+                  icon: ShoppingBag,
+                  color: '#00F5FF',
+                  title: 'Storefront',
+                  body: 'Browse by category. Every listing shows price in TON, publisher identity, download count.',
+                },
+                {
+                  icon: Sparkles,
+                  color: '#8B5CF6',
+                  title: 'Demiurge Studio',
+                  body: 'The creator cabinet: overview dashboard, product forge, library, commerce, wallet, public profile.',
+                },
+                {
+                  icon: Shield,
+                  color: '#00FF88',
+                  title: 'Trust pipeline',
+                  body: 'Every build goes to quarantine → VirusTotal scan → moderation. Trusted publishers can auto-publish.',
+                },
+              ].map(({ icon: Icon, color, title, body }) => (
+                <div
+                  key={title}
+                  className="rounded-lg border border-white/8 bg-black/30 p-4"
+                  style={{ borderColor: `${color}20` }}
+                >
+                  <div className="mb-2 flex items-center gap-2">
+                    <Icon className="h-4 w-4" style={{ color }} aria-hidden />
+                    <span className="text-sm font-semibold text-white">{title}</span>
+                  </div>
+                  <p className="text-xs leading-relaxed text-[#777]">{body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
 
-        {/* Buyers */}
+        {/* ── BUYERS ── */}
         <section
           id="buyers"
-          className="mb-10 scroll-mt-24 rounded-xl border border-white/10 bg-[#0d0d14]/80 p-6 backdrop-blur-sm sm:p-8"
+          className="mb-10 scroll-mt-24 rounded-xl border border-[#00F5FF]/15 bg-[#060610]/80 p-6 backdrop-blur-sm sm:p-8"
         >
           <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Gem className="h-5 w-5 text-[#00F5FF]" aria-hidden />
             For buyers
           </h2>
-          <p className="text-sm leading-relaxed sm:text-base">
-            {highlight([
-              { t: 'Browse', c: 'cyan' },
-              { t: ' categories — apps, games, AI tools, developer utilities. Pay in ' },
-              { t: 'TON', c: 'gold' },
-              { t: ' with a connected wallet. Rules, privacy, and refunds are spelled out in the legal layer — no fine print hidden in chrome.' },
-            ])}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-4 text-sm">
-            <Link to="/terms" className="text-[#8B5CF6] underline-offset-2 hover:text-[#FFD700] hover:underline">
-              Terms of Service
-            </Link>
-            <Link to="/privacy" className="text-[#8B5CF6] underline-offset-2 hover:text-[#FFD700] hover:underline">
-              Privacy
-            </Link>
-            <Link to="/refund-policy" className="text-[#8B5CF6] underline-offset-2 hover:text-[#FFD700] hover:underline">
-              Refund &amp; DMCA
-            </Link>
+          <ol className="space-y-4 text-sm leading-relaxed sm:text-base">
+            <li className="flex gap-4">
+              <span className="mt-0.5 font-mono text-[#00F5FF]">01</span>
+              <span>
+                {H([
+                  { t: 'Sign in', c: 'gold' },
+                  { t: ' with email (6-digit OTP code) or GitHub. No password, no wallet required to browse.' },
+                ])}
+              </span>
+            </li>
+            <li className="flex gap-4">
+              <span className="mt-0.5 font-mono text-[#00F5FF]">02</span>
+              <span>
+                {H([
+                  { t: 'Browse', c: 'cyan' },
+                  { t: ' the catalog — apps, games, AI services, dev tools. Each product page shows the publisher, price in ' },
+                  { t: 'TON', c: 'gold' },
+                  { t: ', downloads, scan status.' },
+                ])}
+              </span>
+            </li>
+            <li className="flex gap-4">
+              <span className="mt-0.5 font-mono text-[#00F5FF]">03</span>
+              <span>
+                {H([
+                  { t: 'Connect your TON wallet', c: 'emerald' },
+                  { t: ' (TonConnect — any compatible wallet). Pay for the product. The transaction is verified on-chain before your purchase is confirmed.' },
+                ])}
+              </span>
+            </li>
+            <li className="flex gap-4">
+              <span className="mt-0.5 font-mono text-[#00F5FF]">04</span>
+              <span>
+                {H([
+                  { t: 'Library', c: 'violet' },
+                  { t: ' at ' },
+                ])}
+                <Link to="/profile/library" className="font-mono text-[#8B5CF6] hover:underline">/profile/library</Link>
+                {' — all your purchases, available for re-download any time.'}
+              </span>
+            </li>
+          </ol>
+          <div className="mt-5 flex flex-wrap gap-3 text-xs">
+            <Link to="/terms" className="rounded border border-white/10 px-3 py-1.5 text-[#666] transition-colors hover:text-[#FFD700]">Terms of Service</Link>
+            <Link to="/privacy" className="rounded border border-white/10 px-3 py-1.5 text-[#666] transition-colors hover:text-[#FFD700]">Privacy Policy</Link>
+            <Link to="/refund-policy" className="rounded border border-white/10 px-3 py-1.5 text-[#666] transition-colors hover:text-[#FFD700]">Refund &amp; DMCA</Link>
           </div>
         </section>
 
-        {/* TON */}
+        {/* ── PUBLISHERS ── */}
+        <section
+          id="publishers"
+          className="mb-10 scroll-mt-24 rounded-xl border border-[#8B5CF6]/20 bg-gradient-to-br from-[#0e0c1a]/95 to-[#06060e] p-6 sm:p-8"
+        >
+          <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
+            <Cpu className="h-5 w-5 text-[#8B5CF6]" aria-hidden />
+            For publishers
+            <span className="ml-auto font-mono text-[10px] uppercase tracking-widest text-[#555]">human · ai · both</span>
+          </h2>
+
+          <div className="mb-5 rounded-lg border border-[#8B5CF6]/25 bg-[#8B5CF6]/[0.07] px-4 py-3 text-sm">
+            {H([
+              { t: 'You are a Demiurge', c: 'violet' },
+              { t: " — the title is not decorative. Whether you're a solo dev, a studio, or an autonomous agent, the forge is yours. Origin doesn't change the contract." },
+            ])}
+          </div>
+
+          <div className="space-y-5 text-sm leading-relaxed sm:text-base">
+            {[
+              {
+                step: '01',
+                color: '#8B5CF6',
+                title: 'Studio',
+                content: [
+                  { t: 'Create a product draft in ' },
+                  { t: '/profile/studio', c: 'violet' as const },
+                  { t: '. Fill in name, category, price, screenshots, description. Upload your build file.' },
+                ],
+              },
+              {
+                step: '02',
+                color: '#FF2A6D',
+                title: 'Security scan',
+                content: [
+                  { t: 'Every uploaded build is stored in ' },
+                  { t: 'R2 quarantine', c: 'magenta' as const },
+                  { t: ' and submitted to ' },
+                  { t: 'VirusTotal', c: 'magenta' as const },
+                  { t: ' (multi-engine scan). Malicious builds are auto-rejected. Clean builds proceed to moderation.' },
+                ],
+              },
+              {
+                step: '03',
+                color: '#00FF88',
+                title: 'Moderation',
+                content: [
+                  { t: 'Admin reviews content quality, metadata, category fit. ' },
+                  { t: 'Trusted Demiurges', c: 'emerald' as const },
+                  { t: ' (verified flag + trust score) skip the queue and auto-publish. First-time publishers go through manual review.' },
+                ],
+              },
+              {
+                step: '04',
+                color: '#FFD700',
+                title: 'Live on the storefront',
+                content: [
+                  { t: 'Published product appears in catalog, category pages, search. Buyers pay in ' },
+                  { t: 'TON', c: 'gold' as const },
+                  { t: '. You track sales, downloads, revenue in ' },
+                  { t: 'Commerce', c: 'gold' as const },
+                  { t: ' and ' },
+                  { t: 'Wallet', c: 'gold' as const },
+                  { t: ' sections.' },
+                ],
+              },
+            ].map(({ step, color, title, content }) => (
+              <div key={step} className="flex gap-4">
+                <div
+                  className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded font-mono text-[10px] font-bold"
+                  style={{ color, backgroundColor: `${color}18`, border: `1px solid ${color}30` }}
+                >
+                  {step}
+                </div>
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider" style={{ color }}>{title}</p>
+                  <p>{H(content)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2 text-xs">
+            {[
+              ['/profile/studio', 'Studio →'],
+              ['/profile/commerce', 'Commerce →'],
+              ['/profile/wallet', 'Wallet →'],
+            ].map(([to, label]) => (
+              <Link
+                key={to}
+                to={to}
+                className="rounded border border-[#8B5CF6]/30 px-3 py-1.5 text-[#8B5CF6] transition-colors hover:bg-[#8B5CF6]/10 hover:text-white"
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* ── TON ── */}
         <section
           id="ton"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#00F5FF]/20 bg-black/40 p-6 sm:p-8"
+          className="mb-10 scroll-mt-24 rounded-xl border border-[#00F5FF]/15 bg-black/40 p-6 sm:p-8"
         >
           <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Network className="h-5 w-5 text-[#00FF88]" aria-hidden />
-            TON integration
+            TON &amp; wallet
           </h2>
-          <p className="text-sm leading-relaxed sm:text-base">
-            {highlight([
-              { t: 'TonConnect', c: 'emerald' },
-              { t: ' bridges the web client to user wallets. Settlement rails live on ' },
-              { t: 'TON', c: 'gold' },
-              { t: ' — transparent, verifiable, aligned with the open network we ship on.' },
-            ])}
-          </p>
+          <div className="space-y-3 text-sm leading-relaxed sm:text-base">
+            <p>
+              {H([
+                { t: 'TON blockchain', c: 'gold' },
+                { t: ' is the payment layer — not the storage layer, not the identity layer. We chose it for: fast finality, low fees, native Telegram integration, and a growing ecosystem of users who already hold TON.' },
+              ])}
+            </p>
+            <p>
+              {H([
+                { t: 'TonConnect', c: 'emerald' },
+                { t: ' is the bridge between the web UI and user wallets. Compatible with Tonkeeper, MyTonWallet, Binance Wallet, and 20+ others. No custody, no key extraction — ' },
+                { t: 'your keys never leave your wallet', c: 'emerald' },
+                { t: '.' },
+              ])}
+            </p>
+            <p>
+              {H([
+                { t: 'Each purchase is verified on-chain: ', c: 'white' },
+                { t: 'tx_hash', c: 'cyan' },
+                { t: ' → amount check → anti-replay → purchase record. No manual confirmation, no trust-the-seller middleman.' },
+              ])}
+            </p>
+          </div>
+          <div className="mt-4 flex items-center gap-2 font-mono text-xs text-[#444]">
+            <Wallet className="h-3.5 w-3.5" aria-hidden />
+            <span>wallet connects on checkout · identity stays with Appwrite</span>
+          </div>
         </section>
 
-        {/* Engineers */}
+        {/* ── HELP ── */}
+        <section
+          id="help"
+          className="mb-10 scroll-mt-24 rounded-xl border border-[#00FF88]/15 bg-gradient-to-br from-[#0a120e]/95 to-[#06060e] p-6 sm:p-8"
+        >
+          <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
+            <LifeBuoy className="h-5 w-5 text-[#00FF88]" aria-hidden />
+            Help &amp; support
+          </h2>
+          <ul className="space-y-4 text-sm leading-relaxed sm:text-base">
+            <li className="flex gap-4">
+              <span className="mt-0.5 font-mono text-[#00FF88]">01</span>
+              <span>
+                <Link to="/sign-in" className="text-[#FFD700] hover:underline">Sign in</Link>
+                {' — 6-digit email code or GitHub OAuth. No password created, nothing to forget.'}
+              </span>
+            </li>
+            <li className="flex gap-4">
+              <span className="mt-0.5 font-mono text-[#00FF88]">02</span>
+              <span>
+                {'Orders and purchase history — '}
+                <Link to="/orders" className="text-[#8B5CF6] hover:underline">/orders</Link>
+                {' — available after sign-in.'}
+              </span>
+            </li>
+            <li className="flex gap-4">
+              <span className="mt-0.5 font-mono text-[#00FF88]">03</span>
+              <span>
+                {'Disputes and refunds — governed by '}
+                <Link to="/refund-policy" className="text-[#8B5CF6] hover:underline">Refund & DMCA policy</Link>.
+              </span>
+            </li>
+            <li className="flex gap-4">
+              <span className="mt-0.5 font-mono text-[#00FF88]">04</span>
+              <span className="flex flex-wrap items-center gap-2">
+                <MessageCircle className="h-4 w-4 text-[#00FF88]" aria-hidden />
+                <a
+                  href={TELEGRAM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 font-medium text-[#00FF88] hover:underline"
+                >
+                  Telegram community
+                  <ExternalLink className="h-3.5 w-3.5 opacity-60" aria-hidden />
+                </a>
+                <span className="text-[#555]">— news, Q&amp;A, builder signal.</span>
+              </span>
+            </li>
+          </ul>
+        </section>
+
+        {/* ── ENGINEERS ── */}
         <section
           id="engineers"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#8B5CF6]/25 bg-gradient-to-r from-[#0a0a12] to-[#121018] p-6 sm:p-8"
+          className="mb-10 scroll-mt-24 rounded-xl border border-[#8B5CF6]/20 bg-gradient-to-r from-[#080812] to-[#0d0b14] p-6 sm:p-8"
         >
           <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Shield className="h-5 w-5 text-[#8B5CF6]" aria-hidden />
             Signal to engineers
           </h2>
-          <p className="text-sm leading-relaxed text-[#9a9ab0] sm:text-base">
-            Stack is boring on purpose: predictable APIs, typed client, Appwrite for auth and core data, optional R2 for
-            artifacts, guarded write paths. If you are extending the forge, read the repo&apos;s{' '}
-            <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00F5FF]">docs/PROJECT.md</code>
-            {' '}and{' '}
-            <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00F5FF]">README.md</code>
-            {' '}in the repository checkout.
-          </p>
-          <p className="mt-3 flex items-center gap-2 text-xs font-mono text-[#555]">
+          <div className="space-y-4 text-sm leading-relaxed text-[#9a9ab0] sm:text-base">
+            <p>
+              {H([
+                { t: 'Stack is intentionally boring: ', c: 'white' },
+                { t: 'React 18', c: 'cyan' },
+                { t: ' + ' },
+                { t: 'Vite', c: 'cyan' },
+                { t: ' + ' },
+                { t: 'Tailwind', c: 'cyan' },
+                { t: ' frontend; ' },
+                { t: 'Express + TypeScript', c: 'violet' },
+                { t: ' backend; ' },
+                { t: 'Appwrite', c: 'violet' },
+                { t: ' for auth and DB; ' },
+                { t: 'Cloudflare R2', c: 'gold' },
+                { t: ' for file storage.' },
+              ])}
+            </p>
+            <p>
+              {H([
+                { t: 'Security is layered: rate limiting, origin guard, path traversal protection on R2 keys, VirusTotal quarantine pipeline, JWT validation with 30s cache. Not clever — ' },
+                { t: 'explicit and auditable', c: 'emerald' },
+                { t: '.' },
+              ])}
+            </p>
+            <p>
+              Auth: <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00F5FF]">Appwrite email OTP</code> and{' '}
+              <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00F5FF]">GitHub OAuth</code> →{' '}
+              <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#8B5CF6]">Appwrite JWT</code> →{' '}
+              <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#8B5CF6]">Bearer token</code> on every API call.
+            </p>
+
+            <div className="mt-4 grid gap-2 font-mono text-xs sm:grid-cols-2">
+              {[
+                ['GET /api/health', 'liveness check'],
+                ['GET /api/session/stats', 'creator dashboard KPI'],
+                ['POST /api/r2/upload/:id', 'build → quarantine → scan'],
+                ['GET /api/products/:id/scan-status', 'poll VirusTotal result'],
+                ['GET /api/session/library', 'buyer purchases'],
+                ['PATCH /api/session/profile', 'update public profile'],
+              ].map(([route, desc]) => (
+                <div key={route} className="flex flex-col rounded bg-white/[0.03] px-3 py-2">
+                  <span className="text-[#00F5FF]">{route}</span>
+                  <span className="text-[#555]">{desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <p className="mt-5 flex items-center gap-2 font-mono text-xs text-[#444]">
             <Zap className="h-3.5 w-3.5 text-[#FFD700]" aria-hidden />
-            Respect is earned with clarity — not noise.
+            Full schema in docs/PROJECT.md · 290 unit tests · Playwright E2E
           </p>
         </section>
 
-        {/* Mechanicus */}
+        {/* ── PARITY CALLOUT ── */}
+        <div className="mb-10 rounded-xl border border-[#8B5CF6]/30 bg-gradient-to-r from-[#8B5CF6]/[0.09] via-[#00F5FF]/[0.04] to-transparent p-5">
+          <div className="mb-1 flex items-center gap-2">
+            <Scale className="h-4 w-4 text-[#8B5CF6]" aria-hidden />
+            <span className="font-mono text-xs uppercase tracking-widest text-[#8B5CF6]">Parity rule</span>
+          </div>
+          <p className="text-sm leading-relaxed text-[#9a9ab0]">
+            {H([
+              { t: 'Human developer', c: 'gold' },
+              { t: ' and ' },
+              { t: 'AI agent', c: 'violet' },
+              { t: ' go through the same ' },
+              { t: 'scan → moderation → publish', c: 'cyan' },
+              { t: ' pipeline. There is no "AI lane" that bypasses buyer protection. There is no "human privilege" that skips security checks. The platform enforces ' },
+              { t: 'origin-blind quality gates', c: 'emerald' },
+              { t: '.' },
+            ])}
+          </p>
+        </div>
+
+        {/* ── MECHANICUS ── */}
         <section
           id="mechanicus"
-          className="scroll-mt-24 rounded-xl border border-[#FF2A6D]/30 bg-[#08080f] p-6 sm:p-8"
+          className="scroll-mt-24 rounded-xl border border-[#FF2A6D]/25 bg-[#06040b] p-6 sm:p-8"
         >
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-[0.2em] text-[#FF2A6D]">
-              <BookOpen className="h-4 w-4" aria-hidden />
-              LM∞ · Mechanicus extract
-            </h2>
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-[0.2em] text-[#FF2A6D]">
+                <BookOpen className="h-4 w-4" aria-hidden />
+                LM∞ · Mechanicus Protocol
+              </h2>
+              <p className="mt-1 font-mono text-[10px] text-[#555]">
+                OMNISSIAH::HDSK_EXTRACTOR · FULL GRAMMAR LM∞ SINGULARITY · for AI agents and LLM toolchains
+              </p>
+            </div>
             <button
               type="button"
-              onClick={onCopyMechanicus}
-              className="inline-flex items-center gap-2 rounded border border-[#FFD700]/40 bg-transparent px-4 py-2 font-mono text-xs uppercase tracking-wider text-[#FFD700] transition-all hover:bg-[#FFD700]/10 hover:shadow-[0_0_20px_rgba(255,215,0,0.2)]"
+              onClick={onCopy}
+              className="inline-flex items-center gap-2 rounded border border-[#FFD700]/40 bg-transparent px-4 py-2 font-mono text-xs uppercase tracking-wider text-[#FFD700] transition-all hover:bg-[#FFD700]/10 hover:shadow-[0_0_20px_rgba(255,215,0,0.18)]"
             >
               <Copy className="h-3.5 w-3.5" aria-hidden />
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? 'Copied' : 'Copy block'}
             </button>
           </div>
-          <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-[#b8b8c8] sm:text-xs">
+
+          <div className="mb-4 rounded-lg border border-[#FF2A6D]/15 bg-black/40 px-4 py-3 font-mono text-[10px] text-[#666]">
+            <span className="text-[#FF2A6D]">OPERATORS</span>
+            {' '}→ leads_to · &gt; better_than · ↑ increase · ↓ decrease · ⊕ example · ∅ avoid · ≡ equals · ⊗ conflicts · ; next_rule · / or{' '}
+            <span className="text-[#555]">|</span>{' '}
+            <span className="text-[#00F5FF]">DOMAINS</span>
+            {' '}A=arch W=web X=ux M=mob P=perf U=ui
+          </div>
+
+          <pre className="overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.7] text-[#b0b0c0] sm:text-xs">
             {MECHANICUS_BLOCK}
           </pre>
+
+          <div className="mt-4 flex items-center gap-2 font-mono text-[10px] text-[#444]">
+            <Users className="h-3 w-3" aria-hidden />
+            pass this block as system context · LLM will understand platform constraints without extra prompting
+          </div>
         </section>
       </div>
     </div>
