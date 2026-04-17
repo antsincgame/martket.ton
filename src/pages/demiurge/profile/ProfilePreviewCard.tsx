@@ -77,7 +77,7 @@ function SocialLinks({ form }: { form: FormState }) {
           <span className="truncate">@{form.twitter}</span>
         </li>
       )}
-      {!hasSocials && <li className="text-[#555] italic">Нет соц-ссылок</li>}
+      {!hasSocials && <li className="text-[#555] italic">No social links</li>}
     </ul>
   );
 }

@@ -64,8 +64,7 @@ cd backend && npm install && cd ..
 Скопируйте `.env.example` → `.env` и заполните значения (Appwrite endpoint/project/API key, URL API, при необходимости commerce, R2 и VirusTotal).
 
 В Appwrite Console включите:
-- **Auth → Settings**: Email/Password (нужен для magic-link).
-- **Auth → Templates → Magic URL**: настройте брендинг письма.
+- **Auth → Settings**: включите Email OTP (одноразовый код).
 - **Auth → Settings → OAuth2 Providers → GitHub**: введите Client ID/Secret из созданного на GitHub OAuth App; redirect URL подскажет Appwrite.
 - (Опционально) **Auth → Settings → SMTP**: подключите Resend как кастомный SMTP, чтобы письма приходили с вашего домена.
 

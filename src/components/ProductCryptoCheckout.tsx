@@ -1,4 +1,4 @@
-// Компонент переведён на TonForge purchase flow, чтобы покупка заканчивалась license/session/device activation вместо legacy deliveryPayload.
+// Switched to TonForge purchase flow so that purchases end with license/session/device activation instead of the legacy deliveryPayload.
 import { useEffect, useMemo, useState, type FC } from 'react';
 import { useTonAddress } from '@tonconnect/ui-react';
 import { Copy, Loader2, ShieldCheck, Wallet, BadgeCheck, Fingerprint, ScrollText } from 'lucide-react';
@@ -14,7 +14,7 @@ import {
 } from '../services/tonforgeApi';
 
 interface ProductCryptoCheckoutProps {
-  /** Идентификатор карточки витрины (как в URL /product/:id) */
+  /** Storefront card identifier (as in URL /product/:id) */
   catalogProductId: string;
 }
 
@@ -23,7 +23,7 @@ function copyText(text: string): void {
 }
 
 function formatIso(iso: string): string {
-  return new Date(iso).toLocaleString('ru-RU');
+  return new Date(iso).toLocaleString('en-US');
 }
 
 const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductId }) => {
@@ -50,7 +50,7 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        setLoadError(error instanceof Error ? error.message : 'TonForge API недоступен');
+        setLoadError(error instanceof Error ? error.message : 'TonForge API unavailable');
         setApp(null);
       });
 
@@ -98,7 +98,7 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
       setSession(created.session);
       setLicense(null);
     } catch (error: unknown) {
-      setLoadError(error instanceof Error ? error.message : 'Не удалось создать purchase session');
+      setLoadError(error instanceof Error ? error.message : 'Failed to create purchase session');
     } finally {
       setBusy(false);
     }
@@ -117,9 +117,9 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
       });
       setSession(confirmed.session);
       setLicense(confirmed.license);
-      setSuccessMessage('NFT-лицензия выпущена. Теперь закрепите устройство для runtime verification.');
+      setSuccessMessage('NFT license issued. Now bind a device for runtime verification.');
     } catch (error: unknown) {
-      setLoadError(error instanceof Error ? error.message : 'Не удалось подтвердить purchase session');
+      setLoadError(error instanceof Error ? error.message : 'Failed to confirm purchase session');
     } finally {
       setBusy(false);
     }
@@ -137,9 +137,9 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
       });
       setLicense(activated.license);
       setDeviceId('');
-      setSuccessMessage('Устройство привязано. Runtime verification теперь может сверять device_id.');
+      setSuccessMessage('Device bound. Runtime verification can now validate device_id.');
     } catch (error: unknown) {
-      setLoadError(error instanceof Error ? error.message : 'Не удалось привязать устройство');
+      setLoadError(error instanceof Error ? error.message : 'Failed to bind device');
     } finally {
       setBusy(false);
     }
@@ -156,9 +156,9 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
         reason: disputeReason.trim(),
       });
       setDisputeReason('');
-      setSuccessMessage('Dispute открыт и ждёт разбора escrow/trial цепочки.');
+      setSuccessMessage('Dispute opened and awaiting escrow/trial chain review.');
     } catch (error: unknown) {
-      setLoadError(error instanceof Error ? error.message : 'Не удалось открыть dispute');
+      setLoadError(error instanceof Error ? error.message : 'Failed to open dispute');
     } finally {
       setBusy(false);
     }
@@ -167,10 +167,10 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
   if (loadError && !app) {
     return (
       <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-200">
-        <p className="font-medium">TonForge checkout недоступен</p>
+        <p className="font-medium">TonForge checkout unavailable</p>
         <p className="mt-1 text-yellow-200/80">{loadError}</p>
         <p className="mt-2 text-xs text-yellow-200/60">
-          Поднимите backend route <code className="font-mono">/api/tonforge</code> и задайте
+          Start the backend route <code className="font-mono">/api/tonforge</code> and set
           <code className="font-mono"> TREASURY_WALLET_ADDRESS</code>.
         </p>
       </div>
@@ -180,7 +180,7 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
   if (!app) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-400">
-        Для этого продукта ещё нет TonForge-конфигурации лицензии.
+        No TonForge license configuration exists for this product yet.
       </div>
     );
   }
@@ -192,12 +192,12 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
         <span>TonForge NFT License Checkout</span>
       </div>
       <p className="text-sm text-gray-400">
-        Покупка создаёт `purchase session`, затем escrow удерживает trial, а NFT-лицензия становится единственным источником правды для device activation.
+        Purchase creates a `purchase session`, then escrow holds the trial, and the NFT license becomes the single source of truth for device activation.
       </p>
 
       <div className="space-y-3 text-white">
         <div>
-          <span className="text-sm text-gray-400">Приложение:</span> <span className="font-medium">{app.name}</span>
+          <span className="text-sm text-gray-400">App:</span> <span className="font-medium">{app.name}</span>
           <div className="mt-1 text-lg">{app.priceTon} TON</div>
         </div>
         <div className="grid gap-2 text-sm text-gray-300">
@@ -217,7 +217,7 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
       {!buyerAddress && (
         <div className="flex items-center gap-2 text-sm text-amber-300">
           <Wallet className="h-4 w-4" />
-          Подключите TON-кошелёк в шапке, чтобы создать purchase session.
+          Connect a TON wallet in the header to create a purchase session.
         </div>
       )}
 
@@ -239,7 +239,7 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-ton-gradient py-3 font-semibold disabled:opacity-50"
         >
           {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
-          Создать purchase session
+          Create purchase session
         </button>
       )}
 
@@ -276,21 +276,21 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
             </div>
           </div>
           <div>
-            <div className="mb-1 text-gray-400">Сумма</div>
+            <div className="mb-1 text-gray-400">Amount</div>
             <code className="rounded bg-black/30 px-2 py-1 text-xs">{session.amountNano} nanoTON</code>
             <span className="ml-2 text-ton-400">≈ {session.amountTon} TON</span>
           </div>
           <div>
-            <label className="mb-1 block text-gray-400">Хэш транзакции после оплаты</label>
+            <label className="mb-1 block text-gray-400">Transaction hash after payment</label>
             <input
               value={txHash}
               onChange={(event) => setTxHash(event.target.value)}
-              placeholder="0x... или пусто для demo confirmation"
+              placeholder="0x... or leave empty for demo confirmation"
               className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 font-mono text-sm text-white"
             />
           </div>
           <div className="text-xs text-gray-500">
-            Trial завершится: <span className="text-gray-300">{formatIso(session.trialEndsAt)}</span>
+            Trial ends: <span className="text-gray-300">{formatIso(session.trialEndsAt)}</span>
           </div>
           <button
             type="button"
@@ -298,18 +298,18 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
             disabled={busy}
             className="w-full rounded-xl bg-purple-600 py-3 font-semibold disabled:opacity-50 hover:bg-purple-500"
           >
-            {busy ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : 'Подтвердить выпуск лицензии'}
+            {busy ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : 'Confirm license issuance'}
           </button>
         </div>
       )}
 
       <div className="border-t border-white/10 pt-4 text-sm text-gray-300">
-        Текущее состояние: <span className="font-mono text-white">{checkoutState}</span>
+        Current state: <span className="font-mono text-white">{checkoutState}</span>
       </div>
 
       {license && (
         <div className="space-y-3 rounded-xl border border-green-500/30 bg-green-500/10 p-4">
-          <div className="font-medium text-green-300">NFT-лицензия активна</div>
+          <div className="font-medium text-green-300">NFT license active</div>
           <div className="space-y-1 break-all text-sm text-gray-200">
             <p>NFT: {license.nftAddress}</p>
             <p>Collection: {license.collectionAddress}</p>
@@ -325,7 +325,7 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
             <input
               value={deviceId}
               onChange={(event) => setDeviceId(event.target.value)}
-              placeholder="например astra-macbook-pro"
+              placeholder="e.g. astra-macbook-pro"
               className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white"
             />
             <button
@@ -334,7 +334,7 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
               disabled={busy || !deviceId.trim()}
               className="mt-3 w-full rounded-xl bg-cyan-600 py-3 font-semibold disabled:opacity-50 hover:bg-cyan-500"
             >
-              {busy ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : 'Привязать device_id'}
+              {busy ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : 'Bind device_id'}
             </button>
             {license.activatedDevices.length > 0 && (
               <div className="mt-3 space-y-1 text-xs text-gray-300">
@@ -352,12 +352,12 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
       {license && buyerAddress && (
         <div className="space-y-2 border-t border-white/10 pt-4">
           <p className="text-sm text-gray-400">
-            Если лицензия, артефакт или trial ведут себя неверно, откройте dispute до завершения escrow.
+            If the license, artifact, or trial is not working correctly, open a dispute before the escrow expires.
           </p>
           <textarea
             value={disputeReason}
             onChange={(event) => setDisputeReason(event.target.value)}
-            placeholder="Опишите проблему с escrow, artifact или activation"
+            placeholder="Describe the issue with escrow, artifact, or activation"
             rows={3}
             className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white"
           />
@@ -367,7 +367,7 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
             disabled={busy || !disputeReason.trim()}
             className="rounded-lg bg-amber-600/80 px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-amber-600"
           >
-            Открыть dispute
+            Open dispute
           </button>
         </div>
       )}

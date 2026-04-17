@@ -2,13 +2,13 @@ import { memo, useMemo } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 
 /**
- * Фон храма: Flower of Life + Metatron's Cube + плавающие частицы + gradient-вуаль.
- * pointer-events: none, прибит к ближайшему relative-родителю (секция страницы).
+ * Temple background: Flower of Life + Metatron's Cube + floating particles + gradient veil.
+ * pointer-events: none, pinned to the nearest relative parent (page section).
  */
 
 const FLOWER_RADIUS = 40;
 const FLOWER_CENTERS: Array<{ cx: number; cy: number }> = (() => {
-  // 19-круговой узор Flower of Life: центр + 6 соседей + 12 внешних.
+  // 19-circle Flower of Life pattern: center + 6 neighbors + 12 outer.
   const c = { cx: 150, cy: 150 };
   const r = FLOWER_RADIUS;
   const ring = (count: number, radius: number, offset = 0) =>
@@ -57,7 +57,7 @@ const DevSacredBackground = memo(() => {
       aria-hidden
       className="pointer-events-none absolute inset-0 overflow-hidden -z-10"
     >
-      {/* Gradient veil: magenta/violet внизу, deep space наверху */}
+      {/* Gradient veil: magenta/violet at the bottom, deep space at the top */}
       <div
         className="absolute inset-0"
         style={{

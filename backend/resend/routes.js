@@ -80,7 +80,7 @@ router.post(
 
     try {
       const result = await resend.emails.send({
-        from: process.env.RESEND_FROM || 'TON Web Store <noreply@tonwebstore.com>',
+        from: process.env.RESEND_FROM || 'TonForge <noreply@tonforge.org>',
         to,
         subject: 'Test Email from TON Web Store Admin',
         html: '<h1>Test Email</h1><p>This is a test email from your TON Web Store admin panel. If you received this, Resend is configured correctly!</p>',
@@ -186,7 +186,7 @@ router.post(
       campaign.recipientCount = recipients.length;
       campaign.status = 'sending';
 
-      const from = process.env.RESEND_FROM || 'TON Web Store <noreply@tonwebstore.com>';
+      const from = process.env.RESEND_FROM || 'TonForge <noreply@tonforge.org>';
       let sentCount = 0;
 
       const BATCH_SIZE = 50;
@@ -362,6 +362,124 @@ router.get(
       res.json({ success: true, data: { meta: local, body } });
     } catch (err) {
       logger.error('[resend/inbox/:id] failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
+/**
+ * Admin: reply to an inbound email — sends via Resend from the address
+ * the original email was sent TO, keeping the thread natural.
+ */
+router.post(
+  '/inbox/:id/reply',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    const resend = getResendClient();
+    if (!resend) {
+      return res.status(503).json({ success: false, message: 'Resend not configured' });
+    }
+    const { body: replyBody, html: replyHtml } = req.body;
+    if (!replyBody && !replyHtml) {
+      return res.status(400).json({ success: false, message: 'body or html is required' });
+    }
+    try {
+      const inbound = await getInboundRepo();
+      const email = await inbound.findById(req.params.id);
+      if (!email) return res.status(404).json({ success: false, message: 'Email not found' });
+
+      const senderFrom = process.env.RESEND_FROM || 'TonForge <noreply@tonforge.org>';
+      const replyTo = email.to[0] || senderFrom;
+      const fromDisplay = replyTo.includes('<') ? replyTo : `TonForge <${replyTo}>`;
+
+      const recipientAddr = email.from.match(/<([^>]+)>/)?.[1] || email.from;
+
+      const result = await resend.emails.send({
+        from: fromDisplay,
+        to: recipientAddr,
+        subject: email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`,
+        ...(replyHtml ? { html: replyHtml } : { text: replyBody }),
+        headers: email.messageId ? { 'In-Reply-To': email.messageId, References: email.messageId } : {},
+      });
+
+      await inbound.markReplied(email.id);
+      res.json({ success: true, data: result });
+    } catch (err) {
+      logger.error('[resend/inbox] reply failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
+/**
+ * Admin: compose a brand-new email from any verified domain address.
+ */
+router.post(
+  '/compose',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    const resend = getResendClient();
+    if (!resend) {
+      return res.status(503).json({ success: false, message: 'Resend not configured' });
+    }
+    const { from, to, subject, body, html } = req.body;
+    if (!to || !subject) {
+      return res.status(400).json({ success: false, message: 'to and subject are required' });
+    }
+    if (!body && !html) {
+      return res.status(400).json({ success: false, message: 'body or html is required' });
+    }
+    try {
+      const senderFrom = from || process.env.RESEND_FROM || 'TonForge <noreply@tonforge.org>';
+      const result = await resend.emails.send({
+        from: senderFrom,
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        ...(html ? { html } : { text: body }),
+      });
+      res.json({ success: true, data: result });
+    } catch (err) {
+      logger.error('[resend/compose] failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
+/**
+ * Admin: list verified domain addresses (aliases). Resend catches ALL
+ * mail to a verified domain, so any address is valid — but we surface
+ * what the Resend API reports for domain verification status.
+ */
+router.get(
+  '/addresses',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (_req, res) => {
+    const resend = getResendClient();
+    if (!resend) {
+      return res.status(503).json({ success: false, message: 'Resend not configured' });
+    }
+    try {
+      const { data: domains } = await resend.domains.list();
+      const addresses = (domains || []).map((d) => ({
+        domain: d.name,
+        status: d.status,
+        region: d.region,
+        id: d.id,
+        catchAll: true,
+        suggestedAddresses: [
+          `support@${d.name}`,
+          `hello@${d.name}`,
+          `admin@${d.name}`,
+          `noreply@${d.name}`,
+          `info@${d.name}`,
+        ],
+      }));
+      res.json({ success: true, data: { domains: addresses, senderFrom: process.env.RESEND_FROM || null } });
+    } catch (err) {
+      logger.error('[resend/addresses] failed:', err.message);
       res.status(500).json({ success: false, message: err.message });
     }
   },

@@ -70,7 +70,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
 
   const initials = profile.displayName.charAt(0).toUpperCase();
 
-  /** Компактные метрики для hero overlay (desktop). */
+  /** Compact metrics for the hero overlay (desktop). */
   const heroStats = useMemo(
     () => [
       { icon: Package, label: 'Artifacts', value: String(profile.productCount), color: '#00F5FF' },
@@ -127,9 +127,9 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
           }}
         />
 
-        {/* ═══ Hero overlay (lg+) — avatar + имя + слоган + соцсети + badges в один блок слева. ═══ */}
+        {/* ═══ Hero overlay (lg+) — avatar + name + tagline + socials + badges in one left-aligned block. ═══ */}
         <div className="hidden lg:flex absolute top-8 left-8 z-20 flex-col gap-4 w-[min(52%,640px)]">
-          {/* Ряд 1: avatar + имя + слоган */}
+          {/* Row 1: avatar + name + tagline */}
           <div className="flex items-start gap-5">
             <motion.div
               initial={{ opacity: 0, scale: 0.85 }}
@@ -167,7 +167,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
             </motion.div>
           </div>
 
-          {/* Ряд 2: socials (компактно) */}
+          {/* Row 2: socials (compact) */}
           {socialLinks.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {socialLinks.map((link, i) => (
@@ -199,7 +199,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
             </div>
           )}
 
-          {/* Ряд 3: badges (Top Demiurge / Verified Creator) */}
+          {/* Row 3: badges (Top Demiurge / Verified Creator) */}
           <div className="flex flex-wrap items-center gap-2">
             {isTopDev && (
               <motion.span
@@ -223,7 +223,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
             </motion.span>
           </div>
 
-          {/* Ряд 4: компактные метрики — inline-версия DevStatsConstellation. */}
+          {/* Row 4: compact metrics — inline version of DevStatsConstellation. */}
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -262,7 +262,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
             ))}
           </motion.div>
 
-          {/* Ряд 5: achievement chips — inline-версия DevSacredTimeline. */}
+          {/* Row 5: achievement chips — inline version of DevSacredTimeline. */}
           {achievements.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
@@ -293,7 +293,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
           )}
         </div>
 
-        {/* ═══ Manifesto overlay (только lg+, чтобы текст оставался читаемым) ═══ */}
+        {/* ═══ Manifesto overlay (lg+ only, so text remains readable) ═══ */}
         {profile.aboutLong && profile.aboutLong.trim().length > 0 && (
           <div
             className="hidden lg:block absolute top-8 right-8 z-20 w-[380px] xl:w-[440px] overflow-hidden"
@@ -323,7 +323,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
         </button>
       </div>
 
-      {/* ═══ Hero content (mobile/tablet only) — на lg+ всё в top-left overlay банера. ═══ */}
+      {/* ═══ Hero content (mobile/tablet only) — on lg+ everything is in the banner's top-left overlay. ═══ */}
       <div className="lg:hidden relative -mt-24 sm:-mt-28 px-6 sm:px-10 z-10">
         <div className="flex flex-col md:flex-row md:items-end gap-6 md:gap-10">
           {/* Avatar */}
@@ -414,7 +414,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
           </motion.div>
         </div>
 
-        {/* ═══ Mobile/tablet manifesto — inline в потоке (НЕ поверх банера, чтобы текст был читаем) ═══ */}
+        {/* ═══ Mobile/tablet manifesto — inline in the flow (NOT over the banner, so text stays readable) ═══ */}
         {profile.aboutLong && profile.aboutLong.trim().length > 0 && (
           <div className="lg:hidden mt-6">
             <HeroManifesto text={profile.aboutLong} />

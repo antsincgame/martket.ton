@@ -1,6 +1,6 @@
-// DisputesTab — открытые споры по заказам продавца. Покупатели могут
-// открывать спор только по оплаченному заказу; разрешать споры может только
-// admin (commerce admin secret). Тут продавец видит ситуацию и контекст.
+// DisputesTab — open disputes on the seller's orders. Buyers can only
+// open a dispute on a paid order; only the admin (commerce admin secret)
+// can resolve disputes. Here the seller views the situation and context.
 import { useEffect, useState } from 'react';
 import { Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -11,10 +11,10 @@ interface DisputesTabProps {
 }
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
-  open: { label: 'Открыт', color: '#FF6B6B' },
-  under_review: { label: 'На разборе', color: '#FFD700' },
-  resolved_refund: { label: 'Возврат покупателю', color: '#FF6B6B' },
-  resolved_release: { label: 'В пользу продавца', color: '#00FF88' },
+  open: { label: 'Open', color: '#FF6B6B' },
+  under_review: { label: 'Under review', color: '#FFD700' },
+  resolved_refund: { label: 'Refunded to buyer', color: '#FF6B6B' },
+  resolved_release: { label: 'Released to seller', color: '#00FF88' },
 };
 
 export default function DisputesTab({ wallet }: DisputesTabProps) {
@@ -31,7 +31,7 @@ export default function DisputesTab({ wallet }: DisputesTabProps) {
       const rows = await fetchSellerDisputes(wallet, token ? `Bearer ${token}` : undefined);
       setDisputes(rows);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось загрузить споры');
+      setError(e instanceof Error ? e.message : 'Failed to load disputes');
     } finally {
       setLoading(false);
     }
@@ -45,7 +45,7 @@ export default function DisputesTab({ wallet }: DisputesTabProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm uppercase tracking-wider text-[#FFD700]/60">Споры</h2>
+        <h2 className="text-sm uppercase tracking-wider text-[#FFD700]/60">Disputes</h2>
         <button
           type="button"
           onClick={() => void load()}
@@ -53,7 +53,7 @@ export default function DisputesTab({ wallet }: DisputesTabProps) {
           className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs text-white hover:bg-white/[0.08] disabled:opacity-50"
         >
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          Обновить
+          Refresh
         </button>
       </div>
 
@@ -99,11 +99,11 @@ export default function DisputesTab({ wallet }: DisputesTabProps) {
                   {d.order?.listingTitle ?? `Order ${d.orderId.slice(0, 8)}…`}
                 </h3>
                 <p className="text-sm text-[#aaa] whitespace-pre-wrap break-words">
-                  {d.reason || '(без причины)'}
+                  {d.reason || '(no reason provided)'}
                 </p>
                 {d.resolutionNote && (
                   <p className="mt-2 text-xs text-[#888] border-l-2 border-white/[0.1] pl-3">
-                    Резолюция: {d.resolutionNote}
+                    Resolution: {d.resolutionNote}
                   </p>
                 )}
               </li>
@@ -128,7 +128,7 @@ function SkeletonRows() {
 function EmptyState() {
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-8 text-center">
-      <p className="text-sm text-[#888]">Споров нет — продавайте дальше с чистой совестью.</p>
+      <p className="text-sm text-[#888]">No disputes — keep selling with a clear conscience.</p>
     </div>
   );
 }

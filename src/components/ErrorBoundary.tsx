@@ -3,7 +3,7 @@ import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
-  /** При смене этого ключа ErrorBoundary сбрасывает ошибку (полезно для route transitions). */
+  /** When this key changes, ErrorBoundary resets the error (useful for route transitions). */
   resetKey?: string;
 }
 

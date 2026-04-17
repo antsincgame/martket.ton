@@ -22,12 +22,12 @@ interface SteamProductRowProps {
 }
 
 /**
- * Гарантированный краткий «лид» под заголовком на мобильной карточке.
- * Приоритет:
- *   1) непустой product.description (как правило, 1 предложение из seed/CMS)
- *   2) top-2 тэга через `·` — «Productivity · Zen»
- *   3) категория как последний fallback
- *   4) пустая строка → lead не рендерится
+ * Guaranteed short "lead" below the heading on the mobile card.
+ * Priority:
+ *   1) non-empty product.description (usually 1 sentence from seed/CMS)
+ *   2) top-2 tags via `·` — "Productivity · Zen"
+ *   3) category as a last fallback
+ *   4) empty string → lead is not rendered
  */
 function computeLead(product: CatalogListingProduct): string {
   const desc = product.description?.trim();
@@ -88,7 +88,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = memo(
               >
                 by {product.developer}
               </Link>
-              {/* Краткий лид: ~1 строка для быстрой сканируемости (description → tags → category). */}
+              {/* Short lead: ~1 line for quick scannability (description → tags → category). */}
               {lead && (
                 <p className="text-[11px] text-gray-400/80 leading-snug line-clamp-1 mt-1">
                   {lead}
@@ -130,7 +130,7 @@ const SteamProductRow: React.FC<SteamProductRowProps> = memo(
           </div>
         </div>
 
-        {/* ═══ Desktop layout (≥sm): как раньше — капсула 120×56 с inline данными ═══ */}
+        {/* ═══ Desktop layout (≥sm): same as before — 120×56 capsule with inline data ═══ */}
         <div className="hidden sm:flex items-center gap-4 px-4 py-3">
           <img
             src={product.image}

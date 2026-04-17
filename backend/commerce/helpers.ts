@@ -8,7 +8,7 @@ export function commerceAdmin(req: Request, res: Response, next: () => void): vo
   const got = str(req.headers['x-commerce-admin-secret']);
   const need = process.env.COMMERCE_ADMIN_SECRET || '';
   if (!need || got !== need) {
-    res.status(403).json({ error: 'Недостаточно прав', code: 'COMMERCE_ADMIN_FORBIDDEN' });
+    res.status(403).json({ error: 'Insufficient privileges', code: 'COMMERCE_ADMIN_FORBIDDEN' });
     return;
   }
   next();

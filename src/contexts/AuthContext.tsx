@@ -71,7 +71,17 @@ function useAuthInternal(): AuthContextValue {
     setIsLoadingProfile(true);
     setError(null);
 
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    // After OTP / OAuth the session already exists but isSignedIn may still
+    // be false (it was set during the initial mount check). Eagerly verify
+    // the Appwrite session so downstream `isAuthenticated` is correct even
+    // if the caller (SignInPage / AuthCallbackPage) invokes fetchProfile()
+    // right after creating the session.
+    const currentUser = await getCurrentUser();
+    if (currentUser && !controller.signal.aborted) {
+      setIsSignedIn(true);
+    }
+
+    const timeout = setTimeout(() => controller.abort(), 8000);
 
     const tryFetch = async (): Promise<ProfileRow | null> => {
       if (controller.signal.aborted) return null;

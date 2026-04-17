@@ -32,11 +32,11 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
     const { listingId, buyerWallet } = req.body as { listingId: string; buyerWallet: string };
     const netCfg = resolveNetworkConfig(req);
     const treasury = netCfg.treasuryAddress;
-    if (!treasury) { res.status(503).json({ error: 'TREASURY_WALLET_ADDRESS не настроен', code: 'CONFIG' }); return; }
+    if (!treasury) { res.status(503).json({ error: 'TREASURY_WALLET_ADDRESS not configured', code: 'CONFIG' }); return; }
     const db = databases();
     const listing = await db.getDocument(DATABASE_ID, COL_LISTINGS, listingId);
     if (listing['status'] !== LISTING_STATUS.ACTIVE) {
-      res.status(400).json({ error: 'Листинг не активен', code: 'LISTING_INACTIVE' }); return;
+      res.status(400).json({ error: 'Listing is not active', code: 'LISTING_INACTIVE' }); return;
     }
     const memo = `cm_${crypto.randomBytes(12).toString('hex')}`;
     const amountRaw = listing['priceAmountRaw'] as string;
@@ -87,9 +87,9 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
     });
   } catch (e: unknown) {
     const code = appwriteCodeOrZero(e);
-    if (code === 404) { res.status(404).json({ error: 'Листинг не найден', code: 'NOT_FOUND' }); return; }
+    if (code === 404) { res.status(404).json({ error: 'Listing not found', code: 'NOT_FOUND' }); return; }
     logger.error('[commerce] order create:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Заказ не создан', code: 'ORDER_CREATE' });
+    res.status(500).json({ error: 'Order creation failed', code: 'ORDER_CREATE' });
   }
 });
 
@@ -99,14 +99,14 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
     const { buyerWallet } = req.body as { txHash: string; buyerWallet: string };
     const netCfg = resolveNetworkConfig(req);
     const treasury = netCfg.treasuryAddress;
-    if (!treasury) { res.status(503).json({ error: 'TREASURY не настроен', code: 'CONFIG' }); return; }
+    if (!treasury) { res.status(503).json({ error: 'Treasury not configured', code: 'CONFIG' }); return; }
     const db = databases();
     const order = await db.getDocument(DATABASE_ID, COL_ORDERS, orderId);
     if (!addressesEqual(order['buyerWallet'] as string, buyerWallet)) {
-      res.status(403).json({ error: 'Кошелёк не совпадает с заказом', code: 'WALLET_MISMATCH' }); return;
+      res.status(403).json({ error: 'Wallet does not match the order', code: 'WALLET_MISMATCH' }); return;
     }
     if (order['state'] !== ORDER_STATE.PENDING_PAYMENT) {
-      res.json({ data: { state: order['state'], message: 'Заказ уже обработан' } }); return;
+      res.json({ data: { state: order['state'], message: 'Order already processed' } }); return;
     }
 
     const check = await verifyPaymentByMemo(treasury, {
@@ -115,7 +115,7 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
       memo: order['memo'] as string,
     }, { base: netCfg.tonapiBase, key: netCfg.tonapiKey });
     if (!check.ok) {
-      res.status(400).json({ error: 'Платёж не подтверждён', code: 'PAYMENT_VERIFY_FAILED', reason: check.reason || 'UNKNOWN', details: check });
+      res.status(400).json({ error: 'Payment not verified', code: 'PAYMENT_VERIFY_FAILED', reason: check.reason || 'UNKNOWN', details: check });
       return;
     }
     const realTxHash = check.txHash || '';
@@ -132,9 +132,9 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
     const { documents: secrets } = await db.listDocuments(DATABASE_ID, COL_LISTING_SECRETS, [
       Query.equal('listingId', order['listingId'] as string), Query.limit(1),
     ]);
-    let payload = (secrets[0]?.['deliveryPayload'] as string) || 'Спасибо за покупку. Контакт продавца уточняйте в листинге.';
+    let payload = (secrets[0]?.['deliveryPayload'] as string) || 'Thank you for your purchase. Contact the seller via the listing page.';
     if (listingRow['assetFileId']) {
-      payload += `\n\n[Файл в Appwrite Storage: bucket ${BUCKET_ASSETS}, fileId ${listingRow['assetFileId']}]`;
+      payload += `\n\n[File in Appwrite Storage: bucket ${BUCKET_ASSETS}, fileId ${listingRow['assetFileId']}]`;
     }
     await db.createDocument(DATABASE_ID, COL_ENTITLEMENTS, ID.unique(), {
       orderId: order.$id, buyerWallet: order['buyerWallet'],
@@ -150,9 +150,9 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
     res.json({ data: { state: updated['state'], orderId: updated.$id, entitlement: { deliveryPayload: payload } } });
   } catch (e: unknown) {
     const code = appwriteCodeOrZero(e);
-    if (code === 404) { res.status(404).json({ error: 'Заказ не найден', code: 'NOT_FOUND' }); return; }
+    if (code === 404) { res.status(404).json({ error: 'Order not found', code: 'NOT_FOUND' }); return; }
     logger.error('[commerce] order confirm:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Подтверждение не удалось', code: 'ORDER_CONFIRM' });
+    res.status(500).json({ error: 'Order confirmation failed', code: 'ORDER_CONFIRM' });
   }
 });
 
@@ -198,7 +198,7 @@ router.get('/sellers/:wallet/orders', apiRequireAuth(), async (req: Request, res
     });
   } catch (e: unknown) {
     logger.error('[commerce] seller orders:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Не удалось получить заказы продавца', code: 'SELLER_ORDERS' });
+    res.status(500).json({ error: 'Failed to fetch seller orders', code: 'SELLER_ORDERS' });
   }
 });
 
@@ -211,7 +211,7 @@ router.get('/orders/:id', apiRequireAuth(), async (req: Request, res: Response) 
     const profile = await resolveProfile(req);
     const isOwner = profile && addressesEqual(profile.tonAddress ?? '', order['buyerWallet'] as string);
     if (!isOwner) {
-      res.status(403).json({ error: 'Нет доступа', code: 'FORBIDDEN' }); return;
+      res.status(403).json({ error: 'Access denied', code: 'FORBIDDEN' }); return;
     }
     let delivery: string | null = null;
     if (order['state'] === ORDER_STATE.PAID || order['state'] === ORDER_STATE.FULFILLED) {
@@ -232,9 +232,9 @@ router.get('/orders/:id', apiRequireAuth(), async (req: Request, res: Response) 
     });
   } catch (e: unknown) {
     const code = appwriteCodeOrZero(e);
-    if (code === 404) { res.status(404).json({ error: 'Не найдено', code: 'NOT_FOUND' }); return; }
+    if (code === 404) { res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' }); return; }
     logger.error('[commerce] order get:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Ошибка заказа', code: 'ORDER_GET' });
+    res.status(500).json({ error: 'Order retrieval failed', code: 'ORDER_GET' });
   }
 });
 

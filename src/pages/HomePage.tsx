@@ -21,7 +21,7 @@ const HomePage = () => {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : 'Не удалось загрузить витрину';
+        const msg = err instanceof Error ? err.message : 'Failed to load storefront';
         logger.warn('[HomePage] inventory load failed', err);
         setLoadError(msg);
       });
@@ -33,21 +33,21 @@ const HomePage = () => {
   if (loadError && !inventory) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
-        <h1 className="text-2xl font-bold text-white mb-3">Витрина временно недоступна</h1>
+        <h1 className="text-2xl font-bold text-white mb-3">Storefront temporarily unavailable</h1>
         <p className="text-gray-400 mb-6">{loadError}</p>
         <button
           type="button"
           onClick={() => window.location.reload()}
           className="bg-ton-gradient text-white font-semibold px-6 py-3 rounded-full"
         >
-          Перезагрузить
+          Reload
         </button>
       </div>
     );
   }
 
   if (!inventory) {
-    return <LoadingScreen message="Загрузка витрины..." />;
+    return <LoadingScreen message="Loading storefront..." />;
   }
 
   return (

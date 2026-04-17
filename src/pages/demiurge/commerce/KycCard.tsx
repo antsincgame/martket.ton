@@ -1,5 +1,5 @@
-// KycCard — выделено из SellerCommercePage. Отправляет developer KYC и
-// сообщает родителю об успехе через onSubmitted (для перезагрузки workspace).
+// KycCard — extracted from SellerCommercePage. Submits developer KYC and
+// notifies the parent on success via onSubmitted (to reload the workspace).
 import { useEffect } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -9,11 +9,11 @@ import type { TonForgeDeveloperWorkspace } from '../../../domain/tonforge/types'
 import { submitDeveloperKyc } from '../../../services/tonforgeApi';
 
 const kycSchema = z.object({
-  displayName: z.string().min(2, 'Минимум 2 символа'),
-  legalName: z.string().min(2, 'Минимум 2 символа'),
-  contactEmail: z.string().email('Некорректный email'),
-  country: z.string().min(2).max(2, 'ISO-код страны: 2 буквы'),
-  bio: z.string().min(10, 'Минимум 10 символов'),
+  displayName: z.string().min(2, 'Minimum 2 characters'),
+  legalName: z.string().min(2, 'Minimum 2 characters'),
+  contactEmail: z.string().email('Invalid email'),
+  country: z.string().min(2).max(2, 'ISO country code: 2 letters'),
+  bio: z.string().min(10, 'Minimum 10 characters'),
 });
 
 type KycFormValues = z.infer<typeof kycSchema>;
@@ -53,10 +53,10 @@ export default function KycCard({ wallet, workspace, onSubmitted, setFlash }: Ky
     setFlash({ error: null, success: null });
     try {
       await submitDeveloperKyc({ wallet, ...values });
-      setFlash({ success: 'KYC-анкета отправлена на проверку модерации.', error: null });
+      setFlash({ success: 'KYC application submitted for moderation review.', error: null });
       await onSubmitted();
     } catch (e) {
-      setFlash({ error: e instanceof Error ? e.message : 'KYC не отправлен', success: null });
+      setFlash({ error: e instanceof Error ? e.message : 'KYC submission failed', success: null });
     }
   };
 
@@ -75,7 +75,7 @@ export default function KycCard({ wallet, workspace, onSubmitted, setFlash }: Ky
           <input
             {...form.register('displayName')}
             className={inputClass}
-            placeholder="Мастерская Гермеса"
+            placeholder="Hermes Workshop"
           />
         </Field>
         <Field label="Legal entity" error={form.formState.errors.legalName?.message}>
@@ -97,12 +97,12 @@ export default function KycCard({ wallet, workspace, onSubmitted, setFlash }: Ky
             maxLength={2}
           />
         </Field>
-        <Field label="Чем вы занимаетесь" error={form.formState.errors.bio?.message}>
+        <Field label="What you do" error={form.formState.errors.bio?.message}>
           <textarea
             {...form.register('bio')}
             rows={3}
             className={inputClass}
-            placeholder="Кратко: какие приложения публикуете, кто пользователи."
+            placeholder="Briefly: what apps you publish, who your users are."
           />
         </Field>
 
@@ -111,14 +111,14 @@ export default function KycCard({ wallet, workspace, onSubmitted, setFlash }: Ky
           disabled={form.formState.isSubmitting}
           className="rounded-lg bg-gradient-to-r from-[#FFD700] to-[#FFA500] text-[#0A0A0A] font-semibold uppercase tracking-wider px-4 py-2 text-sm disabled:opacity-50"
         >
-          {form.formState.isSubmitting ? 'Отправка…' : 'Отправить KYC'}
+          {form.formState.isSubmitting ? 'Submitting…' : 'Submit KYC'}
         </button>
       </form>
 
       {workspace && (
         <p className="mt-3 text-xs text-[#888]">
-          Статус: <span className="text-white">{status}</span>
-          {badge ? <> · бейдж <span className="text-white">{badge}</span></> : null}
+          Status: <span className="text-white">{status}</span>
+          {badge ? <> · badge <span className="text-white">{badge}</span></> : null}
         </p>
       )}
     </section>

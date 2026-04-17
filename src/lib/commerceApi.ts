@@ -34,7 +34,7 @@ async function parseJson<T>(
     body = {};
   }
   if (!response.ok) {
-    const err = typeof body.error === 'string' ? body.error : 'Запрос не выполнен';
+    const err = typeof body.error === 'string' ? body.error : 'Request failed';
     const code = typeof body.code === 'string' ? body.code : undefined;
     return { ok: false, error: err, code };
   }

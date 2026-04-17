@@ -220,7 +220,7 @@ export default function CreateProductWizard({ getToken, onBack }: CreateProductW
           <Upload className="w-7 h-7 text-[#8B5CF6]" aria-hidden />
           Create product
         </h1>
-        <p className="text-[#666] text-sm mt-1">Создайте черновик. Опубликовать сможете после ревью.</p>
+        <p className="text-[#666] text-sm mt-1">Create a draft. You can publish after review.</p>
       </header>
 
       <div className="rounded-2xl border border-white/[0.06] bg-[#111119] p-6 space-y-5">
@@ -243,7 +243,7 @@ export default function CreateProductWizard({ getToken, onBack }: CreateProductW
             className={inputClass}
             placeholder={`Product name (${PRODUCT_NAME_MIN}-${PRODUCT_NAME_MAX} chars)…`}
           />
-          <p className="text-[10px] text-[#555] mt-1">Используется в URL: /product/&lt;slug&gt;</p>
+          <p className="text-[10px] text-[#555] mt-1">Used in URL: /product/&lt;slug&gt;</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

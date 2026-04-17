@@ -8,7 +8,7 @@ interface DevStatsConstellationProps {
   profile: PublicDeveloperProfile;
 }
 
-/** count-up по числу, только когда карточка в viewport. */
+/** Animated count-up for a number, only when the card is in the viewport. */
 function useCountUp(target: number, inView: boolean, duration = 1200, precision = 0) {
   const [val, setVal] = useState(0);
   const startedRef = useRef(false);

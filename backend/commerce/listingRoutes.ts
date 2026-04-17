@@ -43,7 +43,7 @@ router.get('/listings/catalog/:catalogProductId', async (req: Request, res: Resp
     res.json({ data: { listings: list, primary: list[0] || null } });
   } catch (e: unknown) {
     logger.error('[commerce] listings fetch:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Не удалось загрузить листинги', code: 'LISTINGS_FETCH' });
+    res.status(500).json({ error: 'Failed to fetch listings', code: 'LISTINGS_FETCH' });
   }
 });
 
@@ -72,7 +72,7 @@ router.post('/sellers/register', apiRequireAuth(), validateBody(sellerRegisterSc
     res.json({ data: { profile: doc, created: true } });
   } catch (e: unknown) {
     logger.error('[commerce] seller register:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Регистрация продавца не удалась', code: 'SELLER_REGISTER' });
+    res.status(500).json({ error: 'Seller registration failed', code: 'SELLER_REGISTER' });
   }
 });
 
@@ -87,7 +87,7 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
     } = req.body as Record<string, string | number | undefined>;
 
     if (!sellerWallet || !catalogProductId || !title || !deliveryType || !deliveryPayload) {
-      res.status(400).json({ error: 'Не все поля заполнены', code: 'VALIDATION' });
+      res.status(400).json({ error: 'Missing required fields', code: 'VALIDATION' });
       return;
     }
     const decimals =
@@ -95,14 +95,14 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
 
     let priceAmountRaw: string;
     if (currency === CURRENCY.TON) {
-      if (priceTon === undefined) { res.status(400).json({ error: 'Нужна цена priceTon', code: 'VALIDATION' }); return; }
+      if (priceTon === undefined) { res.status(400).json({ error: 'priceTon is required', code: 'VALIDATION' }); return; }
       priceAmountRaw = tonHumanToNanoRaw(priceTon);
     } else if (currency === CURRENCY.JETTON) {
-      if (!jettonMaster) { res.status(400).json({ error: 'Для JETTON нужен jettonMaster', code: 'VALIDATION' }); return; }
-      if (priceHuman === undefined) { res.status(400).json({ error: 'Нужна цена priceHuman для jetton', code: 'VALIDATION' }); return; }
+      if (!jettonMaster) { res.status(400).json({ error: 'jettonMaster is required for JETTON currency', code: 'VALIDATION' }); return; }
+      if (priceHuman === undefined) { res.status(400).json({ error: 'priceHuman is required for jetton', code: 'VALIDATION' }); return; }
       priceAmountRaw = jettonHumanToRaw(priceHuman, decimals);
     } else {
-      res.status(400).json({ error: 'Неизвестная валюта', code: 'VALIDATION' }); return;
+      res.status(400).json({ error: 'Unknown currency', code: 'VALIDATION' }); return;
     }
 
     const db = databases();
@@ -119,7 +119,7 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
     res.json({ data: { listing: mapListingPublic(listing) } });
   } catch (e: unknown) {
     logger.error('[commerce] listing create:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Листинг не создан', code: 'LISTING_CREATE' });
+    res.status(500).json({ error: 'Listing creation failed', code: 'LISTING_CREATE' });
   }
 });
 
@@ -128,12 +128,12 @@ router.patch('/listings/:id', apiRequireAuth(), validateBody(patchListingSchema)
     const listingId = str(req.params.id);
     const rawHeader = req.headers['x-seller-wallet'];
     const sellerWallet = (req.body as Record<string, string>).sellerWallet || str(rawHeader);
-    if (!sellerWallet) { res.status(400).json({ error: 'Нужен sellerWallet', code: 'VALIDATION' }); return; }
+    if (!sellerWallet) { res.status(400).json({ error: 'sellerWallet is required', code: 'VALIDATION' }); return; }
     const db = databases();
     const existingRaw = await db.getDocument(DATABASE_ID, COL_LISTINGS, listingId);
     const existing = asDoc(existingRaw);
     if (!addressesEqual(existing['sellerWallet'] as string, sellerWallet)) {
-      res.status(403).json({ error: 'Не ваш листинг', code: 'FORBIDDEN' }); return;
+      res.status(403).json({ error: 'Not your listing', code: 'FORBIDDEN' }); return;
     }
     const body = req.body as Record<string, unknown>;
     const patch: Record<string, unknown> = {};
@@ -158,9 +158,9 @@ router.patch('/listings/:id', apiRequireAuth(), validateBody(patchListingSchema)
     res.json({ data: { listing: mapListingPublic(updated) } });
   } catch (e: unknown) {
     const code = appwriteCodeOrZero(e);
-    if (code === 404) { res.status(404).json({ error: 'Не найдено', code: 'NOT_FOUND' }); return; }
+    if (code === 404) { res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' }); return; }
     logger.error('[commerce] listing update:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Обновление не удалось', code: 'LISTING_UPDATE' });
+    res.status(500).json({ error: 'Listing update failed', code: 'LISTING_UPDATE' });
   }
 });
 
@@ -173,7 +173,7 @@ router.post('/listings/:id/asset', apiRequireAuth(), upload.single('file'), asyn
   try {
     const listingId = str(req.params.id);
     const sellerWallet = (req.body as Record<string, string>).sellerWallet;
-    if (!sellerWallet || !req.file) { res.status(400).json({ error: 'Нужны sellerWallet и файл', code: 'VALIDATION' }); return; }
+    if (!sellerWallet || !req.file) { res.status(400).json({ error: 'sellerWallet and file are required', code: 'VALIDATION' }); return; }
     const origName = (req.file.originalname || '').toLowerCase();
     const dotIdx = origName.lastIndexOf('.');
     const ext = dotIdx >= 0 ? origName.slice(dotIdx) : '';
@@ -181,7 +181,7 @@ router.post('/listings/:id/asset', apiRequireAuth(), upload.single('file'), asyn
     const db = databases();
     const existing = await db.getDocument(DATABASE_ID, COL_LISTINGS, listingId);
     if (!addressesEqual(existing['sellerWallet'] as string, sellerWallet)) {
-      res.status(403).json({ error: 'Не ваш листинг', code: 'FORBIDDEN' }); return;
+      res.status(403).json({ error: 'Not your listing', code: 'FORBIDDEN' }); return;
     }
     const storage = storageClient();
     const fileId = ID.unique();
@@ -192,7 +192,7 @@ router.post('/listings/:id/asset', apiRequireAuth(), upload.single('file'), asyn
     res.json({ data: { fileId, bucketId: BUCKET_ASSETS } });
   } catch (e: unknown) {
     logger.error('[commerce] asset upload:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Загрузка файла не удалась', code: 'ASSET_UPLOAD' });
+    res.status(500).json({ error: 'Asset upload failed', code: 'ASSET_UPLOAD' });
   }
 });
 
@@ -206,7 +206,7 @@ router.get('/sellers/:wallet/listings', async (req: Request, res: Response) => {
     res.json({ data: { listings: documents.map((d) => mapListingPublic(asDoc(d))) } });
   } catch (e: unknown) {
     logger.error('[commerce] seller listings:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Список листингов недоступен', code: 'SELLER_LISTINGS' });
+    res.status(500).json({ error: 'Failed to fetch seller listings', code: 'SELLER_LISTINGS' });
   }
 });
 

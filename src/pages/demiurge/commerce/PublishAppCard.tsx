@@ -1,6 +1,6 @@
-// PublishAppCard — выделено из SellerCommercePage. Использует последний
-// успешный artifact scan (передаётся из CommerceSection) и публикует
-// приложение через TonForge canonical API.
+// PublishAppCard — extracted from SellerCommercePage. Uses the last
+// successful artifact scan (passed from CommerceSection) and publishes
+// the app via the TonForge canonical API.
 import { Loader2, Rocket } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -9,17 +9,17 @@ import type { TonForgeArtifactScan } from '../../../domain/tonforge/types';
 import { publishTonForgeApp } from '../../../services/tonforgeApi';
 
 const publishSchema = z.object({
-  catalogProductId: z.string().min(1, 'ID товара из каталога'),
-  slug: z.string().min(3, 'Минимум 3 символа'),
-  name: z.string().min(3, 'Минимум 3 символа'),
-  category: z.string().min(3, 'Минимум 3 символа'),
-  summary: z.string().min(10, 'Минимум 10 символов').max(280, 'Максимум 280 символов'),
-  description: z.string().min(20, 'Минимум 20 символов'),
-  priceTon: z.coerce.number().positive('Должно быть > 0'),
+  catalogProductId: z.string().min(1, 'Catalog product ID required'),
+  slug: z.string().min(3, 'Minimum 3 characters'),
+  name: z.string().min(3, 'Minimum 3 characters'),
+  category: z.string().min(3, 'Minimum 3 characters'),
+  summary: z.string().min(10, 'Minimum 10 characters').max(280, 'Maximum 280 characters'),
+  description: z.string().min(20, 'Minimum 20 characters'),
+  priceTon: z.coerce.number().positive('Must be > 0'),
   version: z.string().min(1),
   sizeLabel: z.string().min(2),
-  developerSignature: z.string().min(10, 'Подпись слишком короткая'),
-  platforms: z.string().min(2, 'Перечислите через запятую'),
+  developerSignature: z.string().min(10, 'Signature too short'),
+  platforms: z.string().min(2, 'List comma-separated'),
   licenseType: z.enum(['SBT', 'Transferable']),
   transferLimit: z.coerce.number().min(0).max(10),
   activationPolicy: z.string().min(3),
@@ -66,7 +66,7 @@ export default function PublishAppCard({ wallet, lastScan, onPublished, setFlash
 
   const onSubmit = async (values: PublishFormValues) => {
     if (!lastScan) {
-      setFlash({ error: 'Сначала выполните Artifact Scan и дождитесь успешного статуса.', success: null });
+      setFlash({ error: 'Run an Artifact Scan first and wait for a successful status.', success: null });
       return;
     }
     setFlash({ error: null, success: null });
@@ -93,10 +93,10 @@ export default function PublishAppCard({ wallet, lastScan, onPublished, setFlash
         activationPolicy: values.activationPolicy,
       });
       form.reset();
-      setFlash({ success: 'Приложение опубликовано в canonical TonForge API.', error: null });
+      setFlash({ success: 'App published to canonical TonForge API.', error: null });
       await onPublished();
     } catch (e) {
-      setFlash({ error: e instanceof Error ? e.message : 'Публикация не удалась', success: null });
+      setFlash({ error: e instanceof Error ? e.message : 'Publishing failed', success: null });
     }
   };
 
@@ -107,7 +107,7 @@ export default function PublishAppCard({ wallet, lastScan, onPublished, setFlash
         <h2 className="text-base font-semibold text-white">Publish App</h2>
         {!scanReady && (
           <span className="ml-auto text-[10px] uppercase tracking-wider text-[#FFD700]/70">
-            Требуется успешный artifact scan
+            Successful artifact scan required
           </span>
         )}
       </header>
@@ -125,7 +125,7 @@ export default function PublishAppCard({ wallet, lastScan, onPublished, setFlash
         <Field label="Category" error={form.formState.errors.category?.message}>
           <input {...form.register('category')} className={inputClass} placeholder="developer-tools" />
         </Field>
-        <Field label="Цена (TON)" error={form.formState.errors.priceTon?.message}>
+        <Field label="Price (TON)" error={form.formState.errors.priceTon?.message}>
           <input type="number" step="0.1" min="0.1" {...form.register('priceTon')} className={inputClass} />
         </Field>
         <Field label="Version" error={form.formState.errors.version?.message}>
@@ -153,13 +153,13 @@ export default function PublishAppCard({ wallet, lastScan, onPublished, setFlash
           <input type="number" min="0" max="10" {...form.register('transferLimit')} className={inputClass} />
         </Field>
         <Field
-          label="Краткое описание (summary)"
+          label="Summary"
           error={form.formState.errors.summary?.message}
           colSpan
         >
           <textarea {...form.register('summary')} rows={2} className={inputClass} maxLength={280} />
         </Field>
-        <Field label="Описание" error={form.formState.errors.description?.message} colSpan>
+        <Field label="Description" error={form.formState.errors.description?.message} colSpan>
           <textarea {...form.register('description')} rows={4} className={inputClass} />
         </Field>
 
@@ -171,13 +171,13 @@ export default function PublishAppCard({ wallet, lastScan, onPublished, setFlash
           {form.formState.isSubmitting ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            'Опубликовать приложение'
+            'Publish app'
           )}
         </button>
       </form>
 
       <p className="mt-3 text-xs text-[#666]">
-        Публикация использует последний успешный scan и создаёт app metadata с NFT license policy.
+        Publishing uses the latest successful scan and creates app metadata with NFT license policy.
       </p>
     </section>
   );

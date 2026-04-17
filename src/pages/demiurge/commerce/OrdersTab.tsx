@@ -1,7 +1,7 @@
-// OrdersTab — список заказов покупателей по листингам продавца.
-// Берём из commerce backend (`/sellers/:wallet/orders`), который мы добавили
-// одновременно с этим компонентом. JWT не требуется по текущему контракту,
-// но если в будущем эндпоинт станет защищённым — у нас уже есть getToken().
+// OrdersTab — list of buyer orders for the seller's listings.
+// Fetched from the commerce backend (`/sellers/:wallet/orders`), added
+// alongside this component. JWT is not required by the current contract,
+// but if the endpoint becomes protected in the future we already have getToken().
 import { useEffect, useState } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -26,7 +26,7 @@ export default function OrdersTab({ wallet }: OrdersTabProps) {
       const rows = await fetchSellerOrders(wallet, token ? `Bearer ${token}` : undefined);
       setOrders(rows);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось загрузить заказы');
+      setError(e instanceof Error ? e.message : 'Failed to load orders');
     } finally {
       setLoading(false);
     }
@@ -40,7 +40,7 @@ export default function OrdersTab({ wallet }: OrdersTabProps) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm uppercase tracking-wider text-[#FFD700]/60">Заказы покупателей</h2>
+        <h2 className="text-sm uppercase tracking-wider text-[#FFD700]/60">Customer Orders</h2>
         <button
           type="button"
           onClick={() => void load()}
@@ -48,7 +48,7 @@ export default function OrdersTab({ wallet }: OrdersTabProps) {
           className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs text-white hover:bg-white/[0.08] disabled:opacity-50"
         >
           {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          Обновить
+          Refresh
         </button>
       </div>
 
@@ -75,11 +75,11 @@ function OrdersTable({ orders }: { orders: SellerOrderRow[] }) {
       <table className="min-w-full text-sm">
         <thead className="bg-white/[0.03] text-[10px] uppercase tracking-wider text-[#666]">
           <tr>
-            <th className="px-3 py-2 text-left">Дата</th>
-            <th className="px-3 py-2 text-left">Листинг</th>
-            <th className="px-3 py-2 text-left">Покупатель</th>
-            <th className="px-3 py-2 text-right">Сумма</th>
-            <th className="px-3 py-2 text-left">Статус</th>
+            <th className="px-3 py-2 text-left">Date</th>
+            <th className="px-3 py-2 text-left">Listing</th>
+            <th className="px-3 py-2 text-left">Buyer</th>
+            <th className="px-3 py-2 text-right">Amount</th>
+            <th className="px-3 py-2 text-left">Status</th>
             <th className="px-3 py-2 text-left">Tx</th>
           </tr>
         </thead>
@@ -111,11 +111,11 @@ function OrdersTable({ orders }: { orders: SellerOrderRow[] }) {
 }
 
 const STATE_META: Record<string, { label: string; color: string }> = {
-  pending_payment: { label: 'Ожидает оплаты', color: '#FFD700' },
-  paid: { label: 'Оплачен', color: '#00F5FF' },
-  fulfilled: { label: 'Доставлен', color: '#00FF88' },
-  refunded: { label: 'Возврат', color: '#FF6B6B' },
-  cancelled: { label: 'Отменён', color: '#666666' },
+  pending_payment: { label: 'Pending payment', color: '#FFD700' },
+  paid: { label: 'Paid', color: '#00F5FF' },
+  fulfilled: { label: 'Fulfilled', color: '#00FF88' },
+  refunded: { label: 'Refunded', color: '#FF6B6B' },
+  cancelled: { label: 'Cancelled', color: '#666666' },
 };
 
 function StatusPill({ state }: { state: string }) {
@@ -148,7 +148,7 @@ function EmptyState() {
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-8 text-center">
       <p className="text-sm text-[#888]">
-        Заказов пока нет. Когда покупатели приобретут ваши приложения, они появятся здесь.
+        No orders yet. When buyers purchase your apps, they will appear here.
       </p>
     </div>
   );

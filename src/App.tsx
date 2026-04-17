@@ -16,7 +16,7 @@ import { NetworkProvider } from './contexts/NetworkContext';
 import { queryClient } from './lib/queryClient';
 import CookieConsent from './components/CookieConsent';
 
-/** lazy с автоматическим retry — при сетевой ошибке (мобильный, offline) повторяет загрузку чанка. */
+/** Lazy with automatic retry — retries chunk loading on network errors (mobile, offline). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function lazyRetry(factory: () => Promise<{ default: React.ComponentType<any> }>, retries = 2, delayMs = 1500) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,13 +56,13 @@ const SacredGem: React.FC = () => {
   return <SecretTrigger onActivate={() => navigate(target)} />;
 };
 
-/** Сбрасывает ErrorBoundary при смене маршрута — пользователь может уйти со сломанной страницы навигацией. */
+/** Resets ErrorBoundary on route change — the user can navigate away from a broken page. */
 const RouteErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { pathname } = useLocation();
   return <ErrorBoundary resetKey={pathname}>{children}</ErrorBoundary>;
 };
 
-/** Per-route Suspense + ErrorBoundary — изолирует отказ одного сегмента от остальных. */
+/** Per-route Suspense + ErrorBoundary — isolates a segment failure from the rest. */
 const RouteSuspense: React.FC<{ children: React.ReactNode; message?: string }> = ({ children, message }) => (
   <RouteErrorBoundary>
     <Suspense fallback={<LoadingScreen message={message} />}>
@@ -84,9 +84,9 @@ function App() {
               <Header />
               <main className="container mx-auto px-4 py-8">
                 <Routes>
-                  <Route path="/" element={<RouteSuspense message="Загрузка витрины..."><HomePage /></RouteSuspense>} />
+                  <Route path="/" element={<RouteSuspense message="Loading storefront..."><HomePage /></RouteSuspense>} />
                   <Route path="/product/:slug" element={
-                    <RouteSuspense message="Загрузка товара...">
+                    <RouteSuspense message="Loading product...">
                       <TonConnectWrapper><ProductPage /></TonConnectWrapper>
                     </RouteSuspense>
                   } />

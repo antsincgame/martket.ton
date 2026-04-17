@@ -30,7 +30,7 @@ router.get('/admin/orders', commerceAdmin, async (_req: Request, res: Response) 
     res.json({ data: { orders: documents } });
   } catch (e: unknown) {
     logger.error('[commerce] admin orders:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Список заказов', code: 'ADMIN_ORDERS' });
+    res.status(500).json({ error: 'Failed to fetch orders', code: 'ADMIN_ORDERS' });
   }
 });
 
@@ -43,7 +43,7 @@ router.get('/admin/audit', commerceAdmin, async (_req: Request, res: Response) =
     res.json({ data: { logs: documents } });
   } catch (e: unknown) {
     logger.error('[commerce] admin audit:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Аудит', code: 'ADMIN_AUDIT' });
+    res.status(500).json({ error: 'Failed to fetch audit log', code: 'ADMIN_AUDIT' });
   }
 });
 

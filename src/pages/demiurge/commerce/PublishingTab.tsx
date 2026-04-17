@@ -1,7 +1,7 @@
-// PublishingTab — собирает воркфлоу выпуска приложения: KYC, Artifact Scan,
-// Publish App. Каждая карточка — самостоятельный компонент; общий error/success
-// и lastScan живут в CommerceSection, чтобы шаги могли передавать друг другу
-// данные между навигациями.
+// PublishingTab — assembles the app release workflow: KYC, Artifact Scan,
+// Publish App. Each card is a self-contained component; shared error/success
+// and lastScan live in CommerceSection so steps can pass data to each other
+// across navigations.
 import type { TonForgeArtifactScan, TonForgeDeveloperWorkspace } from '../../../domain/tonforge/types';
 import KycCard from './KycCard';
 import ArtifactScanCard from './ArtifactScanCard';

@@ -68,7 +68,7 @@ export default function DemiurgePage() {
             }
           />
 
-          {/* Library (был Arsenal) */}
+          {/* Library (formerly Arsenal) */}
           <Route
             path="library"
             element={
@@ -81,7 +81,7 @@ export default function DemiurgePage() {
           />
           <Route path="arsenal" element={<Navigate to="/profile/library" replace />} />
 
-          {/* Studio (был Forge) */}
+          {/* Studio (formerly Forge) */}
           <Route
             path="studio"
             element={<StudioSection myProducts={myProducts} isLoading={isLoadingData} getToken={getToken} />}
@@ -99,7 +99,7 @@ export default function DemiurgePage() {
           {/* Wallet */}
           <Route path="wallet" element={<WalletSection />} />
 
-          {/* Identity (был Settings) */}
+          {/* Identity (formerly Settings) */}
           <Route path="profile" element={<ProfileSection myProducts={myProducts} />} />
           <Route path="settings" element={<Navigate to="/profile/profile" replace />} />
         </Routes>

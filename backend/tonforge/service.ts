@@ -94,7 +94,7 @@ export function createTonForgeService(
       wallet: wallet as TonAddress,
       displayName: 'New TonForge Developer',
       legalName: 'Unverified legal entity',
-      contactEmail: 'pending@tonforge.app',
+      contactEmail: 'pending@tonforge.org',
       country: 'UNSPECIFIED',
       bio: 'Профиль создан через canonical TonForge API.',
       kycStatus: 'draft',

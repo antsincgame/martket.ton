@@ -43,7 +43,7 @@ export default function SignInPage() {
     if (busy) return;
     const trimmed = email.trim();
     if (!EMAIL_RE.test(trimmed)) {
-      setError('Введите корректный email');
+      setError('Please enter a valid email');
       return;
     }
     setBusy(true);
@@ -55,7 +55,7 @@ export default function SignInPage() {
       setOtp('');
       setView('otp');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Не удалось отправить код';
+      const msg = err instanceof Error ? err.message : 'Failed to send code';
       logger.warn('[sign-in] OTP send failed:', msg);
       setError(msg);
     } finally {
@@ -68,17 +68,19 @@ export default function SignInPage() {
     if (busy) return;
     const trimmed = otp.trim();
     if (trimmed.length < 6) {
-      setError('Введите 6-значный код из письма');
+      setError('Enter the 6-digit code from the email');
       return;
     }
     setBusy(true);
     setError(null);
     try {
       await verifyEmailOtp(otpUserId, trimmed);
+      // Small delay to let the Appwrite session propagate before JWT minting.
+      await new Promise(r => setTimeout(r, 500));
       await fetchProfile();
       navigate('/profile', { replace: true });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Неверный код';
+      const msg = err instanceof Error ? err.message : 'Invalid code';
       logger.warn('[sign-in] OTP verify failed:', msg);
       setError(msg);
     } finally {
@@ -95,7 +97,7 @@ export default function SignInPage() {
       setOtpUserId(userId);
       setOtp('');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Не удалось переотправить код';
+      const msg = err instanceof Error ? err.message : 'Failed to resend code';
       setError(msg);
     } finally {
       setBusy(false);

@@ -28,8 +28,11 @@ export default function AuthCallbackPage() {
       try {
         await completeOAuthCallback(userId, secret);
         if (cancelled) return;
+        // Let the Appwrite session propagate before JWT minting.
+        await new Promise(r => setTimeout(r, 500));
+        if (cancelled) return;
         await fetchProfile();
-        if (!cancelled) navigate('/profile', { replace: true });
+        if (!cancelled) navigate('/', { replace: true });
       } catch (err: unknown) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : 'Sign-in failed';

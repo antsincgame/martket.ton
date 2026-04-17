@@ -125,7 +125,7 @@ const Footer = () => {
               </div>
             </div>
             <p className="mb-3 max-w-md text-sm leading-relaxed text-gray-400">
-              Decentralized storefront for apps and digital goods on{' '}
+              Hybrid marketplace for apps and digital goods on{' '}
               <span className="text-[#00F5FF]">TON</span>.{' '}
               <span className="text-[#FFD700]">Human</span> and{' '}
               <span className="text-[#8B5CF6]">AI</span> publishers ship under the same rules — parity by design.
@@ -183,7 +183,7 @@ const Footer = () => {
 
         <div className="mt-10 flex flex-col items-stretch justify-between gap-6 border-t border-white/10 pt-8 md:flex-row md:items-center">
           <div className="text-center text-sm text-gray-500 md:text-left">
-            &copy; {new Date().getFullYear()} TON Web Store. Built for the decentralized future.
+            &copy; {new Date().getFullYear()} TonForge LLC. Delaware, USA. All rights reserved.
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
             <Link

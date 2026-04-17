@@ -7,8 +7,8 @@ interface SacredDividerProps {
 }
 
 /**
- * Sacred section divider: [линия-градиент] [◆ LABEL ◆] [линия-градиент].
- * Используется как единый заголовок секций на странице разработчика.
+ * Sacred section divider: [gradient-line] [◆ LABEL ◆] [gradient-line].
+ * Used as a unified section heading on the developer page.
  */
 const SacredDivider = memo(({ label, color = '#FFD700', icon = '✧' }: SacredDividerProps) => {
   return (

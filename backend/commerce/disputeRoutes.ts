@@ -23,10 +23,10 @@ router.post('/disputes', apiRequireAuth(), validateBody(createDisputeSchema), as
     const db = databases();
     const order = await db.getDocument(DATABASE_ID, COL_ORDERS, orderId);
     if (!addressesEqual(order['buyerWallet'] as string, openedByWallet)) {
-      res.status(403).json({ error: 'Только покупатель может открыть спор', code: 'FORBIDDEN' }); return;
+      res.status(403).json({ error: 'Only the buyer can open a dispute', code: 'FORBIDDEN' }); return;
     }
     if (order['state'] !== ORDER_STATE.PAID) {
-      res.status(400).json({ error: 'Спор доступен для оплаченных заказов', code: 'INVALID_STATE' }); return;
+      res.status(400).json({ error: 'Disputes are only available for paid orders', code: 'INVALID_STATE' }); return;
     }
     const dispute = await db.createDocument(DATABASE_ID, COL_DISPUTES, ID.unique(), {
       orderId, openedByWallet, reason,
@@ -36,7 +36,7 @@ router.post('/disputes', apiRequireAuth(), validateBody(createDisputeSchema), as
     res.json({ data: { dispute } });
   } catch (e: unknown) {
     logger.error('[commerce] dispute create:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Спор не создан', code: 'DISPUTE_CREATE' });
+    res.status(500).json({ error: 'Dispute creation failed', code: 'DISPUTE_CREATE' });
   }
 });
 
@@ -97,7 +97,7 @@ router.get('/sellers/:wallet/disputes', apiRequireAuth(), async (req: Request, r
     });
   } catch (e: unknown) {
     logger.error('[commerce] seller disputes:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Не удалось получить споры продавца', code: 'SELLER_DISPUTES' });
+    res.status(500).json({ error: 'Failed to fetch seller disputes', code: 'SELLER_DISPUTES' });
   }
 });
 
@@ -108,7 +108,7 @@ router.get('/admin/disputes', commerceAdmin, async (_req: Request, res: Response
     res.json({ data: { disputes: documents } });
   } catch (e: unknown) {
     logger.error('[commerce] admin disputes:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Список споров', code: 'ADMIN_DISPUTES' });
+    res.status(500).json({ error: 'Failed to fetch disputes', code: 'ADMIN_DISPUTES' });
   }
 });
 
@@ -127,7 +127,7 @@ router.post('/admin/disputes/:id/resolve', commerceAdmin, validateBody(resolveDi
     res.json({ data: { ok: true, disputeId, orderId, orderState: orderPatch.state } });
   } catch (e: unknown) {
     logger.error('[commerce] dispute resolve:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Решение не записано', code: 'DISPUTE_RESOLVE' });
+    res.status(500).json({ error: 'Dispute resolution failed', code: 'DISPUTE_RESOLVE' });
   }
 });
 
@@ -141,7 +141,7 @@ router.post('/admin/orders/:id/state', commerceAdmin, validateBody(orderStateSch
     res.json({ data: { ok: true, orderId, state } });
   } catch (e: unknown) {
     logger.error('[commerce] admin order state:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Статус не обновлён', code: 'ORDER_STATE' });
+    res.status(500).json({ error: 'Order state update failed', code: 'ORDER_STATE' });
   }
 });
 

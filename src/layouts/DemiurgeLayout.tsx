@@ -38,28 +38,28 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: 'creator',
     label: 'Creator',
-    labelRu: 'Творчество',
+    labelRu: 'Creator',
     items: [
-      { id: 'overview', path: '/profile', label: 'Overview', labelRu: 'Обзор', icon: LayoutDashboard, accent: '#FFD700' },
-      { id: 'studio', path: '/profile/studio', label: 'Studio', labelRu: 'Студия', icon: Hammer, accent: '#8B5CF6' },
-      { id: 'library', path: '/profile/library', label: 'Library', labelRu: 'Библиотека', icon: LibraryIcon, accent: '#00F5FF' },
+      { id: 'overview', path: '/profile', label: 'Overview', labelRu: 'Overview', icon: LayoutDashboard, accent: '#FFD700' },
+      { id: 'studio', path: '/profile/studio', label: 'Studio', labelRu: 'Studio', icon: Hammer, accent: '#8B5CF6' },
+      { id: 'library', path: '/profile/library', label: 'Library', labelRu: 'Library', icon: LibraryIcon, accent: '#00F5FF' },
     ],
   },
   {
     id: 'business',
     label: 'Business',
-    labelRu: 'Экономика',
+    labelRu: 'Business',
     items: [
-      { id: 'commerce', path: '/profile/commerce', label: 'Commerce', labelRu: 'Коммерция', icon: ShoppingBag, accent: '#FF6B6B' },
-      { id: 'wallet', path: '/profile/wallet', label: 'Wallet', labelRu: 'Кошелёк', icon: Wallet, accent: '#00FF88' },
+      { id: 'commerce', path: '/profile/commerce', label: 'Commerce', labelRu: 'Commerce', icon: ShoppingBag, accent: '#FF6B6B' },
+      { id: 'wallet', path: '/profile/wallet', label: 'Wallet', labelRu: 'Wallet', icon: Wallet, accent: '#00FF88' },
     ],
   },
   {
     id: 'identity',
     label: 'Identity',
-    labelRu: 'Образ',
+    labelRu: 'Identity',
     items: [
-      { id: 'profile', path: '/profile/profile', label: 'Profile', labelRu: 'Публичный профиль', icon: UserCircle2, accent: '#C9A6FF' },
+      { id: 'profile', path: '/profile/profile', label: 'Profile', labelRu: 'Profile', icon: UserCircle2, accent: '#C9A6FF' },
     ],
   },
 ];

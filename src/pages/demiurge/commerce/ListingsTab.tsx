@@ -1,6 +1,6 @@
-// ListingsTab — обзор опубликованных приложений из TonForge workspace.
-// На этом этапе показываем app.published list, метрики и быстрые ссылки.
-// Дальше (в commerce-orders-disputes) подключим on-chain listings из commerceApi.
+// ListingsTab — overview of published apps from the TonForge workspace.
+// At this stage we show the app.published list, metrics, and quick links.
+// Later (in commerce-orders-disputes) we'll wire on-chain listings from commerceApi.
 import { Link } from 'react-router-dom';
 import { ExternalLink, ShieldCheck, Sparkles } from 'lucide-react';
 import type { TonForgeDeveloperWorkspace } from '../../../domain/tonforge/types';
@@ -20,9 +20,9 @@ export default function ListingsTab({ workspace, workspaceLoading }: ListingsTab
   if (apps.length === 0) {
     return (
       <EmptyState
-        title="Нет опубликованных приложений"
-        message="Выпустите первое приложение во вкладке «Публикация» — оно появится здесь после прохождения artifact scan."
-        ctaLabel="Перейти к публикации"
+        title="No published apps"
+        message="Release your first app in the Publishing tab — it will appear here after passing the artifact scan."
+        ctaLabel="Go to Publishing"
         ctaTo="/profile/commerce/publishing"
       />
     );
@@ -72,14 +72,14 @@ export default function ListingsTab({ workspace, workspaceLoading }: ListingsTab
                     to={`/product/${encodeURIComponent(slugRoute)}`}
                     className="inline-flex items-center gap-1 text-[#00F5FF] hover:text-white"
                   >
-                    Открыть страницу <ExternalLink className="w-3 h-3" aria-hidden />
+                    Open page <ExternalLink className="w-3 h-3" aria-hidden />
                   </Link>
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
-                <Metric label="Загрузок" value={app.metrics.downloads} />
-                <Metric label="Покупок (нед.)" value={app.metrics.weeklyPurchases} />
-                <Metric label="Активных лицензий" value={app.metrics.activeLicenses} />
+                <Metric label="Downloads" value={app.metrics.downloads} />
+                <Metric label="Purchases (wk)" value={app.metrics.weeklyPurchases} />
+                <Metric label="Active licenses" value={app.metrics.activeLicenses} />
               </div>
             </li>
           );
@@ -98,10 +98,10 @@ function Kpis({ workspace }: { workspace: TonForgeDeveloperWorkspace | null }) {
 
   return (
     <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <Kpi label="Листингов" value={apps.length} accent="#00F5FF" />
+      <Kpi label="Listings" value={apps.length} accent="#00F5FF" />
       <Kpi label="Featured" value={featured} accent="#FFD700" />
-      <Kpi label="Всего загрузок" value={totalDownloads} accent="#8B5CF6" />
-      <Kpi label="Активных лицензий" value={totalActive} accent="#00FF88" />
+      <Kpi label="Total downloads" value={totalDownloads} accent="#8B5CF6" />
+      <Kpi label="Active licenses" value={totalActive} accent="#00FF88" />
     </dl>
   );
 }

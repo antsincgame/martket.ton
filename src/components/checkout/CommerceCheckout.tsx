@@ -201,7 +201,7 @@ function buildTransferBoc(to: string, amountRaw: string, memo: string): string {
 function extractMsgHash(boc: string): string {
   try {
     const raw = Uint8Array.from(atob(boc), (c) => c.charCodeAt(0));
-    // @ton/core Cell.fromBoc принимает Buffer | Uint8Array; в браузере передаём Uint8Array
+    // @ton/core Cell.fromBoc accepts Buffer | Uint8Array; in the browser we pass Uint8Array
     const cells = Cell.fromBoc(raw as never);
     if (cells.length === 0) return boc.slice(0, 64);
     const hashBytes = cells[0]!.hash();

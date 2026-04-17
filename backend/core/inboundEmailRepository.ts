@@ -137,6 +137,14 @@ export async function markRead(id: string, isRead: boolean): Promise<InboundEmai
   return findById(id);
 }
 
+export async function markReplied(id: string): Promise<InboundEmail | null> {
+  await databases().updateDocument(CORE_DATABASE_ID, COL_INBOUND_EMAILS, id, {
+    status: 'replied',
+    is_read: true,
+  });
+  return findById(id);
+}
+
 export async function archive(id: string): Promise<InboundEmail | null> {
   await databases().updateDocument(CORE_DATABASE_ID, COL_INBOUND_EMAILS, id, {
     status: 'archived',

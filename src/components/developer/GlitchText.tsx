@@ -13,8 +13,8 @@ interface GlitchTextProps {
 }
 
 /**
- * 3-слойный глитч-текст. Base — gold/cyan shimmer, 2 смещённых слоя с clip-path анимацией.
- * Уважает prefers-reduced-motion — вырождается в обычный shimmer.
+ * 3-layer glitch text. Base — gold/cyan shimmer, 2 offset layers with clip-path animation.
+ * Respects prefers-reduced-motion — degrades to a simple shimmer.
  */
 const GlitchText = memo(
   ({ text, tint = 'gold', intensity = 'calm', className = '', as = 'h1' }: GlitchTextProps) => {

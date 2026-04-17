@@ -38,25 +38,25 @@ export default function OverviewSection({
 
   const kpis: CabinetHeroKpi[] = [
     {
-      label: 'Загрузки',
+      label: 'Downloads',
       value: stats?.downloadsTotal ?? 0,
       accent: '#00F5FF',
-      hint: stats ? `${stats.productsPublished} опубл.` : undefined,
+      hint: stats ? `${stats.productsPublished} published` : undefined,
     },
     {
-      label: 'Доход 30д',
+      label: 'Revenue 30d',
       value: `${(stats?.revenue30d ?? 0).toFixed(2)} TON`,
       accent: '#FFD700',
-      hint: stats ? `${stats.sales30d} продаж` : undefined,
+      hint: stats ? `${stats.sales30d} sales` : undefined,
     },
     {
-      label: 'На модерации',
+      label: 'In Review',
       value: stats?.pendingReview ?? 0,
       accent: '#8B5CF6',
-      hint: stats?.drafts ? `${stats.drafts} черновиков` : undefined,
+      hint: stats?.drafts ? `${stats.drafts} drafts` : undefined,
     },
     {
-      label: 'Библиотека',
+      label: 'Library',
       value: stats?.librarySize ?? library.length,
       accent: '#00FF88',
       hint: stats?.avgRating ? `★ ${stats.avgRating.toFixed(1)}` : undefined,
@@ -151,7 +151,7 @@ function ProfileCompletion({
       </div>
       <div className="flex flex-wrap gap-3">
         <Link to="/profile/profile" className="text-xs text-[#FFD700] hover:underline">
-          Дополнить профиль
+          Complete profile
         </Link>
         {slug && (
           <a
@@ -160,7 +160,7 @@ function ProfileCompletion({
             rel="noopener noreferrer"
             className="text-xs text-[#00F5FF] hover:underline flex items-center gap-1"
           >
-            Открыть публичный кабинет <ExternalLink className="w-3 h-3" />
+            Open public page <ExternalLink className="w-3 h-3" />
           </a>
         )}
       </div>
@@ -172,22 +172,22 @@ function QuickActions() {
   const actions = [
     {
       to: '/profile/studio',
-      label: 'Создать продукт',
-      hint: 'Загрузите .zip и пройдите wizard',
+      label: 'Create product',
+      hint: 'Upload a .zip and follow the wizard',
       accent: '#FFD700',
       icon: Sparkles,
     },
     {
       to: '/profile/commerce/publishing',
-      label: 'Опубликовать в TonForge',
+      label: 'Publish to TonForge',
       hint: 'KYC + Artifact Scan + NFT lic.',
       accent: '#FF6B6B',
       icon: Package,
     },
     {
       to: '/profile/wallet',
-      label: 'Реестр выплат',
-      hint: 'Доход и история транзакций',
+      label: 'Payout ledger',
+      hint: 'Revenue and transaction history',
       accent: '#00FF88',
       icon: ArrowRight,
     },
@@ -229,12 +229,12 @@ function RecentCreations({ products, isLoading }: { products: CreatedProduct[]; 
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold text-white">Недавние продукты</h2>
+        <h2 className="text-lg font-semibold text-white">Recent products</h2>
         <Link
           to="/profile/studio"
           className="text-[#FFD700] text-xs font-medium hover:text-[#FFE066] flex items-center gap-1 transition-colors"
         >
-          Все <ArrowRight className="w-3.5 h-3.5" />
+          All <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
       <ul className="space-y-2">
@@ -284,9 +284,9 @@ function FirstTimeEmptyState() {
       <Link to="/profile/studio" className="block">
         <Sparkles className="w-10 h-10 text-[#FFD700]/40 group-hover:text-[#FFD700] mx-auto mb-3 transition-colors" />
         <p className="text-[#888] group-hover:text-white transition-colors text-sm font-medium">
-          Откройте Studio, чтобы выпустить первый <span className="text-[#FFD700]">артефакт</span>
+          Open Studio to release your first <span className="text-[#FFD700]">artifact</span>
         </p>
-        <p className="text-[#555] text-xs mt-1">Загрузите .zip с билдом — wizard сделает остальное</p>
+        <p className="text-[#555] text-xs mt-1">Upload a .zip with the build — the wizard will do the rest</p>
       </Link>
     </div>
   );

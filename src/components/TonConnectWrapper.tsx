@@ -10,10 +10,10 @@ interface FallbackState {
 }
 
 /**
- * Перехватывает ошибки инициализации TonConnect SDK (частая проблема
- * в мобильных WebView, ограниченных по Storage/API).
- * При ошибке — рендерит children БЕЗ TonConnect-контекста;
- * CommerceCheckout покажет «Connect Wallet» с graceful fallback.
+ * Catches TonConnect SDK initialization errors (a common issue
+ * in mobile WebViews with limited Storage/API support).
+ * On error — renders children WITHOUT the TonConnect context;
+ * CommerceCheckout will show "Connect Wallet" with graceful fallback.
  */
 class TonConnectSafeProvider extends Component<{ children: ReactNode }, FallbackState> {
   constructor(props: { children: ReactNode }) {

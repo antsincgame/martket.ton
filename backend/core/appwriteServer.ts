@@ -21,7 +21,7 @@ export function createServerClient(): Client {
   const projectId = getProjectId();
   const key = getApiKey();
   if (!endpoint || !projectId || !key) {
-    throw new Error('APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY обязательны');
+    throw new Error('APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY are required');
   }
   return new Client().setEndpoint(endpoint).setProject(projectId).setKey(key);
 }
@@ -30,7 +30,7 @@ export function createUserContextClient(jwt: string): Client {
   const endpoint = getEndpoint();
   const projectId = getProjectId();
   if (!endpoint || !projectId || !jwt) {
-    throw new Error('Appwrite session JWT отсутствует');
+    throw new Error('Appwrite session JWT is missing');
   }
   return new Client().setEndpoint(endpoint).setProject(projectId).setJWT(jwt);
 }

@@ -20,9 +20,9 @@ interface CabinetHeroProps {
 const DEFAULT_ACCENT = '#FFD700';
 
 /**
- * Compact "creator hero" — звучит из тех же neon-аккордов, что DevCinematicHero
- * на публичной странице, но в студийном, рабочем тоне. Показывает имя/роль/аватар
- * и до четырёх ключевых KPI в одной полосе.
+ * Compact "creator hero" — echoes the same neon chords as DevCinematicHero
+ * on the public page, but in a studio, workbench tone. Shows name/role/avatar
+ * and up to four key KPIs in a single strip.
  */
 const CabinetHero = memo(({ displayName, role, avatar, publicSlug, kpis }: CabinetHeroProps) => {
   return (

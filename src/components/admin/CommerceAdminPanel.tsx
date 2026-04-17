@@ -22,7 +22,7 @@ const CommerceAdminPanel: FC = () => {
 
   const loadAll = useCallback(async () => {
     if (!secret) {
-      setError('Введите секрет оператора');
+      setError('Enter the operator secret');
       return;
     }
     setLoading(true);
@@ -37,7 +37,7 @@ const CommerceAdminPanel: FC = () => {
       setDisputes(d.data.disputes);
       setAudit(a.data.logs);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ошибка загрузки');
+      setError(e instanceof Error ? e.message : 'Loading error');
     } finally {
       setLoading(false);
     }
@@ -54,7 +54,7 @@ const CommerceAdminPanel: FC = () => {
       });
       await loadAll();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ошибка');
+      setError(e instanceof Error ? e.message : 'Error');
     } finally {
       setLoading(false);
     }
@@ -75,7 +75,7 @@ const CommerceAdminPanel: FC = () => {
       );
       await loadAll();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ошибка');
+      setError(e instanceof Error ? e.message : 'Error');
     } finally {
       setLoading(false);
     }
@@ -86,14 +86,14 @@ const CommerceAdminPanel: FC = () => {
       <div className="flex items-start gap-2 text-sm text-amber-200/90 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
         <Lock className="w-4 h-4 mt-0.5 shrink-0" />
         <p>
-          Секрет берётся из <code className="font-mono">COMMERCE_ADMIN_SECRET</code> на сервере. Хранится только в
-          памяти браузера — при обновлении страницы потребуется ввести заново.
+          The secret comes from <code className="font-mono">COMMERCE_ADMIN_SECRET</code> on the server. It is only stored in
+          browser memory — you will need to re-enter it after a page refresh.
         </p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
         <div className="flex-1">
-          <label className="block text-xs text-gray-400 mb-1">Секрет</label>
+          <label className="block text-xs text-gray-400 mb-1">Secret</label>
           <input
             type="password"
             value={secretInput}
@@ -107,7 +107,7 @@ const CommerceAdminPanel: FC = () => {
           onClick={persistSecret}
           className="px-4 py-2 rounded-lg bg-white/15 hover:bg-white/25 text-sm"
         >
-          Сохранить
+          Save
         </button>
         <button
           type="button"
@@ -116,7 +116,7 @@ const CommerceAdminPanel: FC = () => {
           className="px-4 py-2 rounded-lg bg-ton-gradient text-sm flex items-center gap-2 disabled:opacity-50"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          Обновить
+          Refresh
         </button>
       </div>
 
@@ -124,7 +124,7 @@ const CommerceAdminPanel: FC = () => {
 
       <div className="grid md:grid-cols-2 gap-4">
         <div className="rounded-xl border border-white/10 p-4 bg-black/20">
-          <h3 className="font-semibold mb-2">Статус заказа</h3>
+          <h3 className="font-semibold mb-2">Order Status</h3>
           <input
             value={orderStateId}
             onChange={(e) => setOrderStateId(e.target.value)}
@@ -147,11 +147,11 @@ const CommerceAdminPanel: FC = () => {
             onClick={() => void patchOrderState()}
             className="text-sm px-3 py-1 rounded bg-purple-600"
           >
-            Применить
+            Apply
           </button>
         </div>
         <div className="rounded-xl border border-white/10 p-4 bg-black/20">
-          <h3 className="font-semibold mb-2">Решение спора</h3>
+          <h3 className="font-semibold mb-2">Dispute Resolution</h3>
           <input
             value={resolveDisputeId}
             onChange={(e) => setResolveDisputeId(e.target.value)}
@@ -163,13 +163,13 @@ const CommerceAdminPanel: FC = () => {
             onChange={(e) => setResolveKind(e.target.value as 'refund' | 'release')}
             className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm mb-2 text-black"
           >
-            <option value="release">release (заказ fulfilled)</option>
-            <option value="refund">refund (заказ refunded)</option>
+            <option value="release">release (order fulfilled)</option>
+            <option value="refund">refund (order refunded)</option>
           </select>
           <textarea
             value={resolveNote}
             onChange={(e) => setResolveNote(e.target.value)}
-            placeholder="Заметка"
+            placeholder="Note"
             rows={2}
             className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-xs mb-2 text-white"
           />
@@ -178,25 +178,25 @@ const CommerceAdminPanel: FC = () => {
             onClick={() => void resolveDispute()}
             className="text-sm px-3 py-1 rounded bg-amber-600"
           >
-            Закрыть спор
+            Close dispute
           </button>
         </div>
       </div>
 
       <div className="rounded-xl border border-white/10 p-4 bg-black/20 overflow-x-auto">
-        <h3 className="font-semibold mb-2">Заказы ({orders.length})</h3>
+        <h3 className="font-semibold mb-2">Orders ({orders.length})</h3>
         <pre className="text-[10px] text-gray-400 max-h-64 overflow-auto whitespace-pre-wrap break-all">
           {JSON.stringify(orders, null, 2)}
         </pre>
       </div>
       <div className="rounded-xl border border-white/10 p-4 bg-black/20 overflow-x-auto">
-        <h3 className="font-semibold mb-2">Споры ({disputes.length})</h3>
+        <h3 className="font-semibold mb-2">Disputes ({disputes.length})</h3>
         <pre className="text-[10px] text-gray-400 max-h-48 overflow-auto whitespace-pre-wrap break-all">
           {JSON.stringify(disputes, null, 2)}
         </pre>
       </div>
       <div className="rounded-xl border border-white/10 p-4 bg-black/20 overflow-x-auto">
-        <h3 className="font-semibold mb-2">Аудит commerce ({audit.length})</h3>
+        <h3 className="font-semibold mb-2">Commerce Audit ({audit.length})</h3>
         <pre className="text-[10px] text-gray-400 max-h-48 overflow-auto whitespace-pre-wrap break-all">
           {JSON.stringify(audit, null, 2)}
         </pre>

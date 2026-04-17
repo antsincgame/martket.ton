@@ -51,11 +51,11 @@ export default function SettingsSection({ myProducts = [] }: SettingsSectionProp
   const handleSave = async () => {
     const dn = form.displayName.trim();
     if (dn.length < DEVELOPER_DISPLAY_NAME_MIN) {
-      toast('error', `Display Name: минимум ${DEVELOPER_DISPLAY_NAME_MIN} символов`);
+      toast('error', `Display Name: minimum ${DEVELOPER_DISPLAY_NAME_MIN} characters`);
       return;
     }
     if (dn.length > DEVELOPER_DISPLAY_NAME_MAX) {
-      toast('error', `Display Name: максимум ${DEVELOPER_DISPLAY_NAME_MAX} символов`);
+      toast('error', `Display Name: maximum ${DEVELOPER_DISPLAY_NAME_MAX} characters`);
       return;
     }
     setSaving(true);
@@ -82,7 +82,7 @@ export default function SettingsSection({ myProducts = [] }: SettingsSectionProp
         const body = await res.json().catch(() => ({ message: 'Save failed' }));
         throw new Error(body.message || `HTTP ${res.status}`);
       }
-      toast('success', 'Профиль сохранён');
+      toast('success', 'Profile saved');
       await fetchProfile();
       void invalidateAll();
     } catch (err: unknown) {
@@ -116,9 +116,9 @@ export default function SettingsSection({ myProducts = [] }: SettingsSectionProp
         saving={saving}
         onSave={handleSave}
         onCancel={() => setForm(initial)}
-        saveLabel={saving ? 'Сохраняем…' : 'Сохранить изменения'}
-        cancelLabel="Отменить"
-        message={dirty ? 'У вас есть несохранённые изменения профиля.' : undefined}
+        saveLabel={saving ? 'Saving…' : 'Save changes'}
+        cancelLabel="Cancel"
+        message={dirty ? 'You have unsaved profile changes.' : undefined}
       />
     </div>
   );

@@ -1,4 +1,4 @@
-// Страница продукта обновлена по терминологии TonForge, чтобы purchase card объясняла escrow/NFT/device flow вместо старых обещаний.
+// Product page updated with TonForge terminology so the purchase card explains escrow/NFT/device flow instead of legacy promises.
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles, ThumbsUp, RefreshCw } from 'lucide-react';
@@ -43,7 +43,7 @@ const ProductPage = () => {
         logger.warn('[ProductPage] load failed', err);
         if (!cancelled) {
           setProduct(null);
-          setLoadError(err instanceof Error ? err.message : 'Не удалось загрузить товар');
+          setLoadError(err instanceof Error ? err.message : 'Failed to load product');
         }
       }
     })();
@@ -52,7 +52,7 @@ const ProductPage = () => {
     };
   }, [slug, retryNonce]);
 
-  // Canonical URL: если пришли по id или кривому slug — незаметно заменяем на ЧПУ.
+  // Canonical URL: if the user arrived via id or a non-canonical slug, silently replace with the pretty URL.
   useEffect(() => {
     if (!product || !slug) return;
     const canonical = slugify(product.name);
@@ -71,17 +71,17 @@ const ProductPage = () => {
   );
 
   if (product === undefined) {
-    return <LoadingScreen message="Загрузка товара..." />;
+    return <LoadingScreen message="Loading product..." />;
   }
 
   if (!product) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
         <h1 className="text-2xl font-bold text-white mb-4">
-          {loadError ? 'Ошибка загрузки' : 'Товар не найден'}
+          {loadError ? 'Loading error' : 'Product not found'}
         </h1>
         <p className="text-gray-400 mb-6">
-          {loadError ?? 'Проверьте ссылку или вернитесь в каталог.'}
+          {loadError ?? 'Check the link or return to the catalog.'}
         </p>
         <div className="flex gap-3">
           {loadError && (
@@ -90,14 +90,14 @@ const ProductPage = () => {
               className="bg-white/10 hover:bg-white/20 text-white font-semibold px-6 py-3 rounded-full flex items-center gap-2 transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
-              Повторить
+              Retry
             </button>
           )}
           <Link
             to="/"
             className="bg-ton-gradient text-white font-semibold px-6 py-3 rounded-full"
           >
-            В каталог
+            Browse catalog
           </Link>
         </div>
       </div>

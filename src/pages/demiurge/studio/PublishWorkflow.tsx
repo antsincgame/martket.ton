@@ -25,8 +25,8 @@ interface PublishWorkflowProps {
  *   pending_review  → Withdraw              → draft
  *   published       → Unpublish (back to draft)
  *
- * Переходы pending_review→published/rejected — только для admin'а
- * (выполняются на бэке валидатором).
+ * Transitions pending_review→published/rejected are admin-only
+ * (executed by the backend validator).
  */
 export default function PublishWorkflow({
   productId,
@@ -92,14 +92,14 @@ export default function PublishWorkflow({
       {!hasBuild && (
         <div className="rounded-lg border border-[#FFD700]/20 bg-[#FFD700]/5 p-3 flex items-center gap-2 text-xs text-[#FFD700]">
           <AlertCircle className="w-4 h-4 flex-shrink-0" aria-hidden />
-          Загрузите билд во вкладке «Build», чтобы отправить продукт на ревью.
+          Upload a build in the "Build" tab to submit the product for review.
         </div>
       )}
 
       {hasBuild && isScanInProgress && (
         <div className="rounded-lg border border-[#00F5FF]/20 bg-[#00F5FF]/5 p-3 flex items-center gap-2 text-xs text-[#00F5FF]">
           <ShieldCheck className="w-4 h-4 flex-shrink-0 animate-pulse" aria-hidden />
-          Билд в антивирусной проверке (VirusTotal). Submit будет доступен после завершения сканирования.
+          Build is being scanned by VirusTotal. Submit will be available after the scan is complete.
         </div>
       )}
 
@@ -114,7 +114,7 @@ export default function PublishWorkflow({
             </p>
             {(scanTotalEngines ?? 0) > 0 && (
               <p className="opacity-80 mt-1">
-                {scanMaliciousCount}/{scanTotalEngines} engines reported issues. Замените билд и загрузите заново.
+                {scanMaliciousCount}/{scanTotalEngines} engines reported issues. Replace the build and re-upload.
               </p>
             )}
           </div>

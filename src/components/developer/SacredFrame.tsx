@@ -8,8 +8,8 @@ interface SacredFrameProps {
 }
 
 /**
- * Храмовая рама: 4 SVG-уголка в углах блока + тонкий border.
- * Используется для обрамления Featured сетки и All Products секции.
+ * Temple frame: 4 SVG corner accents at the block's corners + a thin border.
+ * Used to frame the Featured grid and the All Products section.
  */
 const SacredFrame = memo(
   ({ children, color = '#FFD700', className = '', cornerSize = 22 }: SacredFrameProps) => {

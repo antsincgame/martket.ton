@@ -10,14 +10,14 @@ import SacredDivider from './SacredDivider';
 import SacredFrame from './SacredFrame';
 
 const PAGE_SIZE = 12;
-/** Максимум номеров страниц, отображаемых между Prev/Next. */
+/** Maximum number of page numbers displayed between Prev/Next. */
 const MAX_PAGE_BUTTONS = 5;
 
 interface DevArsenalProps {
   profile: PublicDeveloperProfile;
 }
 
-/** Строит массив отображаемых номеров страниц с «…» (null = ellipsis). */
+/** Builds an array of displayed page numbers with "…" (null = ellipsis). */
 function buildPageNumbers(current: number, total: number): (number | null)[] {
   if (total <= MAX_PAGE_BUTTONS + 2) {
     return Array.from({ length: total }, (_, i) => i);
@@ -59,7 +59,7 @@ const DevArsenal = memo(({ profile }: DevArsenalProps) => {
 
   return (
     <div className="space-y-14">
-      {/* ═══ Arsenal (все продукты) ═══ */}
+      {/* ═══ Arsenal (all products) ═══ */}
       <motion.section
         ref={sectionRef}
         initial={{ opacity: 0, y: 30 }}

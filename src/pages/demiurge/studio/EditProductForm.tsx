@@ -238,7 +238,7 @@ export default function EditProductForm({ getToken }: EditProductFormProps) {
         ) : (
           <p className="text-[#888] text-sm flex items-center gap-2">
             <Upload className="w-4 h-4" aria-hidden />
-            Билд не загружен. Используйте «Create new version» (доступно после первого билда; для первоначальной загрузки — пересоздайте через Studio → New product).
+            No build uploaded. Use "Create new version" (available after the first build; for the initial upload — recreate via Studio → New product).
           </p>
         )}
       </section>
@@ -326,7 +326,7 @@ export default function EditProductForm({ getToken }: EditProductFormProps) {
             kind="cover"
             getToken={getToken}
             aspectClass="aspect-video"
-            hint="PNG/JPG/WebP, до 5 MB. Обложка появится в маркетплейсе."
+            hint="PNG/JPG/WebP, up to 5 MB. The cover will appear in the marketplace."
           />
           <div className="mt-3">
             <label className="block text-[10px] uppercase tracking-wider text-[#666] mb-1">…or paste URL</label>

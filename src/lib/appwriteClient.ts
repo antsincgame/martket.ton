@@ -12,8 +12,8 @@ if (isAppwriteConfigured) {
   client.setEndpoint(endpoint).setProject(projectId);
 } else {
   logger.warn(
-    '[marketplace] Appwrite не настроен: задайте VITE_APPWRITE_ENDPOINT и VITE_APPWRITE_PROJECT_ID, ' +
-      'затем выполните scripts/provision-appwrite.mjs для развёртывания БД.'
+    '[marketplace] Appwrite not configured: set VITE_APPWRITE_ENDPOINT and VITE_APPWRITE_PROJECT_ID, ' +
+      'then run scripts/provision-appwrite.mjs to provision the database.'
   );
 }
 

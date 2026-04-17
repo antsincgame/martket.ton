@@ -10,8 +10,8 @@ interface HexRuneAvatarProps {
 }
 
 /**
- * Аватар в гексагональной маске, окружённый 2 вращающимися кольцами с рунами/точками.
- * Внешнее кольцо gold для Top Dev, cyan для обычных демиургов.
+ * Avatar in a hexagonal mask, surrounded by 2 rotating rings with runes/dots.
+ * Outer ring is gold for Top Dev, cyan for regular demiurges.
  */
 const HexRuneAvatar = memo(({ avatar, initials, isTopDev, size = 180 }: HexRuneAvatarProps) => {
   const reduce = useReducedMotion();

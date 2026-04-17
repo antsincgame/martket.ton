@@ -65,7 +65,7 @@ const DeveloperPage = () => {
       .finally(() => setLoading(false));
   }, [slug]);
 
-  // Canonical URL: если слаг в адресе отличается от канонического (например, id или старый slug) — незаметно заменяем.
+  // Canonical URL: if the slug in the address differs from the canonical one (e.g. id or old slug), silently replace it.
   useEffect(() => {
     if (!profile || !slug) return;
     const canonical = slugify(profile.displayName);
@@ -136,8 +136,8 @@ const DeveloperPage = () => {
         <DevCinematicHero profile={profile} isTopDev={isTopDev} />
 
         {/*
-          Stats и Sacred Timeline на desktop (lg+) уже встроены компактно в hero overlay
-          (DevCinematicHero → Ряд 4/5). На mobile/tablet места достаточно — показываем полные секции.
+          Stats and Sacred Timeline on desktop (lg+) are already embedded compactly in the hero overlay
+          (DevCinematicHero → Row 4/5). On mobile/tablet there is enough room — show full sections.
         */}
         <div className="lg:hidden px-6 sm:px-10">
           <DevStatsConstellation profile={profile} />

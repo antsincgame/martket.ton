@@ -5,7 +5,7 @@ function getServerClient(): Client {
   const projectId = process.env.APPWRITE_PROJECT_ID || process.env.VITE_APPWRITE_PROJECT_ID;
   const key = process.env.APPWRITE_API_KEY;
   if (!endpoint || !projectId || !key) {
-    throw new Error('APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY обязательны для commerce');
+    throw new Error('APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY are required for commerce');
   }
   return new Client().setEndpoint(endpoint).setProject(projectId).setKey(key);
 }

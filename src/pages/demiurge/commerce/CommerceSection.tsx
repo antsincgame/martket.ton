@@ -1,13 +1,13 @@
 // CommerceSection — merged Demiurge "Commerce" surface that absorbs the legacy
 // /seller/commerce page. It is structured as a tabbed workspace:
 //   - Listings   — published apps + on-chain listings (KPIs, status, links)
-//   - Orders     — заказы покупателей продавца (TON / Jetton)
-//   - Disputes   — открытые споры по своим продажам
-//   - Publishing — KYC + Artifact Scan + Publish App (бывший SellerCommercePage)
-// Tabs are URL-driven so deep-links (`/profile/commerce/orders`) и breadcrumbs
-// работают корректно. Внутренний state (workspace, scan, success/error)
-// поднят сюда, чтобы под-табы могли разделять последний artifact scan между
-// сессиями без повторной загрузки.
+//   - Orders     — buyer orders for the seller (TON / Jetton)
+//   - Disputes   — open disputes on the seller's sales
+//   - Publishing — KYC + Artifact Scan + Publish App (formerly SellerCommercePage)
+// Tabs are URL-driven so deep-links (`/profile/commerce/orders`) and breadcrumbs
+// work correctly. Internal state (workspace, scan, success/error) is lifted
+// here so sub-tabs can share the last artifact scan across sessions without
+// re-fetching.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, NavLink, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTonAddress } from '@tonconnect/ui-react';
@@ -27,10 +27,10 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: 'listings', path: 'listings', label: 'Листинги', description: 'Опубликованные товары и их статус' },
-  { id: 'orders', path: 'orders', label: 'Заказы', description: 'Покупки ваших товаров на блокчейне TON' },
-  { id: 'disputes', path: 'disputes', label: 'Споры', description: 'Открытые споры от покупателей' },
-  { id: 'publishing', path: 'publishing', label: 'Публикация', description: 'KYC, Artifact Scan и выпуск нового приложения' },
+  { id: 'listings', path: 'listings', label: 'Listings', description: 'Published products and their status' },
+  { id: 'orders', path: 'orders', label: 'Orders', description: 'Purchases of your products on the TON blockchain' },
+  { id: 'disputes', path: 'disputes', label: 'Disputes', description: 'Open disputes from buyers' },
+  { id: 'publishing', path: 'publishing', label: 'Publishing', description: 'KYC, Artifact Scan, and new app release' },
 ];
 
 interface FlashState {
@@ -59,7 +59,7 @@ export default function CommerceSection() {
         const data = await fetchDeveloperWorkspace(wallet);
         setWorkspace(data);
       } catch (e) {
-        setWorkspaceError(e instanceof Error ? e.message : 'Не удалось загрузить publisher workspace');
+        setWorkspaceError(e instanceof Error ? e.message : 'Failed to load publisher workspace');
       } finally {
         setWorkspaceLoading(false);
       }
@@ -143,7 +143,7 @@ function Header({ sellerBadge, kycStatus }: { sellerBadge: string | null; kycSta
       </div>
       <div className="min-w-0">
         <h1 className="text-2xl sm:text-3xl font-display font-bold text-white tracking-wide">Commerce</h1>
-        <p className="text-sm text-[#888]">Листинги, заказы, споры и публикация — единый publisher console.</p>
+        <p className="text-sm text-[#888]">Listings, orders, disputes, and publishing — unified publisher console.</p>
       </div>
       <div className="flex flex-wrap gap-2 ml-auto">
         {sellerBadge && (
@@ -218,7 +218,7 @@ function Banner({
           onClick={onDismiss}
           className="text-xs uppercase tracking-wider opacity-70 hover:opacity-100"
         >
-          закрыть
+          dismiss
         </button>
       )}
     </div>
@@ -230,16 +230,16 @@ function ConnectWalletEmptyState(): ReactNode {
     <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-200">
       <div className="flex items-center gap-3 mb-2">
         <WalletIcon className="w-5 h-5" aria-hidden />
-        <h2 className="font-semibold">Подключите TON-кошелёк</h2>
+        <h2 className="font-semibold">Connect a TON wallet</h2>
       </div>
       <p className="text-sm mb-4">
-        Commerce-операции (листинги, заказы, споры, публикация) привязаны к TON-кошельку продавца.
+        Commerce operations (listings, orders, disputes, publishing) are tied to the seller's TON wallet.
       </p>
       <Link
         to="/profile/wallet"
         className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/20 px-4 py-2 text-sm font-medium hover:bg-amber-500/30 transition-colors"
       >
-        Перейти в Wallet →
+        Go to Wallet →
       </Link>
     </div>
   );

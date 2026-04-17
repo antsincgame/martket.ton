@@ -149,7 +149,7 @@ export function mapProductDetail(documentId: string, raw: Record<string, unknown
   const data = raw as RawProductFields;
   const longDescription =
     asNonEmptyString(data.longDescription) ??
-    `${listing.description}\n\n— Описание из каталога (Appwrite).`;
+    `${listing.description}\n\n— Catalog description (Appwrite).`;
   const reviewStatsCount = asNumber(data.reviewStatsCount) ?? Math.max(1, Math.floor(listing.downloads / 200));
   const imagesRaw = asStringArray(data.images);
   const images = imagesRaw.length > 0 ? imagesRaw : [listing.image];
@@ -157,7 +157,7 @@ export function mapProductDetail(documentId: string, raw: Record<string, unknown
   const size = asNonEmptyString(data.size) ?? '—';
   const platformsRaw = asStringArray(data.platforms);
   const platforms = platformsRaw.length > 0 ? platformsRaw : ['Web', 'TON'];
-  const requirements = asNonEmptyString(data.requirements) ?? 'Уточняйте у разработчика';
+  const requirements = asNonEmptyString(data.requirements) ?? 'Check with the developer';
   const lastUpdated =
     asNonEmptyString(data.lastUpdated) ?? new Date().toISOString().slice(0, 10);
   const tagsRaw = asStringArray(data.tags);

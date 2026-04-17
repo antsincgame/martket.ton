@@ -6,11 +6,11 @@ interface TagCloudProps {
   products: CatalogListingProduct[];
   selected: Set<string>;
   onChange: (tags: Set<string>) => void;
-  /** "sidebar" — десктопная панель справа; "inline" — горизонтальная лента под списком (mobile). */
+  /** "sidebar" — desktop panel on the right; "inline" — horizontal strip below the list (mobile). */
   variant?: 'sidebar' | 'inline';
-  /** Полный лимит тэгов. По умолчанию 28 для sidebar, 24 для inline. */
+  /** Total tag limit. Defaults to 28 for sidebar, 24 for inline. */
   limit?: number;
-  /** Кол-во тэгов в свёрнутом виде (только для inline). По умолчанию 10. */
+  /** Number of tags in collapsed state (inline only). Defaults to 10. */
   collapsedLimit?: number;
 }
 
@@ -23,7 +23,7 @@ const NEON_PALETTE: Array<{ text: string; bg: string; border: string; glow: stri
   { text: 'text-[#FF6B35]', bg: 'bg-[#FF6B35]', border: 'border-[#FF6B35]', glow: 'rgba(255,107,53,', shadow: '255,107,53' },
 ];
 
-/** Tier: 0 — "top-3" большой glow, 1 — medium, 2 — small. */
+/** Tier: 0 — "top-3" large glow, 1 — medium, 2 — small. */
 function tierClass(tier: 0 | 1 | 2): string {
   if (tier === 0) return 'text-sm font-bold px-3.5 py-1.5 tracking-wide';
   if (tier === 1) return 'text-xs font-semibold px-3 py-1';
@@ -52,7 +52,7 @@ const TagCloud: React.FC<TagCloudProps> = ({
   }, [products, effectiveLimit]);
 
   const ordered = useMemo(() => {
-    // Активные тэги всегда сверху, остальные — по популярности.
+    // Active tags always on top, the rest sorted by popularity.
     const active: typeof tagCounts = [];
     const rest: typeof tagCounts = [];
     for (const entry of tagCounts) {
@@ -62,9 +62,9 @@ const TagCloud: React.FC<TagCloudProps> = ({
   }, [tagCounts, selected]);
 
   /**
-   * На inline (mobile) показываем первые `collapsedLimit` тэгов + все активные,
-   * чтобы пользователь никогда не «терял» свой выбор под катом.
-   * На sidebar — показываем всё (места достаточно).
+   * In inline (mobile) mode we show the first `collapsedLimit` tags + all active ones,
+   * so the user never "loses" their selection behind a fold.
+   * In sidebar mode we show everything (there is enough room).
    */
   const visible = useMemo(() => {
     if (variant !== 'inline' || expanded || ordered.length <= collapsedLimit) {
@@ -177,7 +177,7 @@ const TagCloud: React.FC<TagCloudProps> = ({
             })}
           </div>
 
-          {/* Show more / less toggle — только если есть что разворачивать. */}
+          {/* Show more / less toggle — only if there is content to expand. */}
           {(hiddenCount > 0 || expanded) && ordered.length > collapsedLimit && (
             <button
               type="button"

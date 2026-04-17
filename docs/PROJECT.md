@@ -22,7 +22,7 @@
                                  └──────────────────┘
 ```
 
-- **Фронтенд** (`src/`) — SPA, авторизация через **Appwrite Account** (magic-link email + GitHub OAuth), кошелёк через **TonConnect**, данные кабинета через **TanStack React Query**.
+- **Фронтенд** (`src/`) — SPA, авторизация через **Appwrite Account** (email OTP + GitHub OAuth), кошелёк через **TonConnect**, данные кабинета через **TanStack React Query**.
 - **Бэкенд** (`backend/`) — REST API, Appwrite JWT для защищённых маршрутов, **Appwrite** как основная БД, **Cloudflare R2** для загрузки изображений/артефактов.
 - **Commerce API** — отдельный префикс `VITE_COMMERCE_API_URL` → `/api/v1/commerce/*` (заказы, споры, листинги продавца).
 

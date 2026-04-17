@@ -26,7 +26,7 @@ const PORT = process.env.PORT || 8081;
 app.set('trust proxy', 1);
 
 if (!isCoreConfigured()) {
-  logger.warn('Appwrite core не настроен — auth & database endpoints will fail');
+  logger.warn('Appwrite core not configured — auth & database endpoints will fail');
 }
 
 // ─── Security middleware ────────────────────────────────────────────

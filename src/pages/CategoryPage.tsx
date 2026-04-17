@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Filter, SortDesc, Grid, List, Star } from 'lucide-react';
+import { logger } from '../lib/logger';
 import { CATEGORY_ICONS } from '../domain/marketplace/categoryIcons';
 import type { HomeCategorySlug } from '../domain/marketplace/types';
 import ProductCard from '../components/ProductCard';
@@ -64,7 +65,7 @@ const CategoryPage = () => {
           // Failsafe: render an empty inventory so we don't get stuck in
           // perpetual loading. The user can retry via navigation.
           setInventory({ products: [], spotlight: [], collections: [] } as unknown as MarketplaceInventoryLoad);
-          console.warn('[CategoryPage] inventory load failed:', err);
+          logger.warn('[CategoryPage] inventory load failed:', err);
         }
       });
     return () => {
@@ -95,7 +96,7 @@ const CategoryPage = () => {
   const hasMore = visibleCount < sorted.length;
 
   if (!inventory) {
-    return <LoadingScreen message="Загрузка категории..." />;
+    return <LoadingScreen message="Loading category..." />;
   }
 
   return (

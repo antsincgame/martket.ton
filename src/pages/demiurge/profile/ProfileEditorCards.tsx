@@ -19,7 +19,7 @@ export function ProfileHeader({ slug }: { slug: string }) {
       </div>
       <div className="min-w-0">
         <h1 className="text-2xl sm:text-3xl font-display font-bold text-white tracking-wide">Public Profile</h1>
-        <p className="text-sm text-[#888]">Как вас видит маркетплейс. Все поля синхронизируются с публичной страницей.</p>
+        <p className="text-sm text-[#888]">How the marketplace sees you. All fields sync with the public page.</p>
       </div>
       {slug && (
         <a
@@ -51,7 +51,7 @@ export function BasicInfoCard({
       <div className="grid gap-5 sm:grid-cols-[140px_minmax(0,1fr)] items-start">
         <div>
           <span className={labelClass}>Avatar</span>
-          <ImageUploader value={form.avatarUrl || null} onChange={(url) => update('avatarUrl', url ?? '')} kind="avatar" getToken={getToken} aspectClass="aspect-square" hint="Квадрат, до 5 MB" />
+          <ImageUploader value={form.avatarUrl || null} onChange={(url) => update('avatarUrl', url ?? '')} kind="avatar" getToken={getToken} aspectClass="aspect-square" hint="Square, up to 5 MB" />
         </div>
         <div className="space-y-4">
           <DisplayNameField form={form} update={update} saving={saving} email={email} />
@@ -60,8 +60,8 @@ export function BasicInfoCard({
         </div>
       </div>
       <div>
-        <span className={labelClass}>Banner (1500×220 рекомендуется)</span>
-        <ImageUploader value={form.bannerUrl || null} onChange={(url) => update('bannerUrl', url ?? '')} kind="banner" getToken={getToken} aspectClass="aspect-[6/1]" hint="Широкий баннер для героя публичного профиля" />
+        <span className={labelClass}>Banner (1500×220 recommended)</span>
+        <ImageUploader value={form.bannerUrl || null} onChange={(url) => update('bannerUrl', url ?? '')} kind="banner" getToken={getToken} aspectClass="aspect-[6/1]" hint="Wide banner for the public profile hero" />
       </div>
     </Card>
   );
@@ -76,7 +76,7 @@ function DisplayNameField({ form, update, saving, email }: { form: FormState; up
         <label className={`${labelClass} mb-0`}><User className="w-3.5 h-3.5 inline mr-1" />Display Name</label>
         <span className={`text-[10px] tabular-nums ${color}`}>{len}/{DEVELOPER_DISPLAY_NAME_MAX}</span>
       </div>
-      <input type="text" value={form.displayName} onChange={(e) => update('displayName', e.target.value.slice(0, DEVELOPER_DISPLAY_NAME_MAX))} maxLength={DEVELOPER_DISPLAY_NAME_MAX} minLength={DEVELOPER_DISPLAY_NAME_MIN} disabled={saving} className={inputClass} placeholder={`Имя (${DEVELOPER_DISPLAY_NAME_MIN}-${DEVELOPER_DISPLAY_NAME_MAX} симв.)`} />
+      <input type="text" value={form.displayName} onChange={(e) => update('displayName', e.target.value.slice(0, DEVELOPER_DISPLAY_NAME_MAX))} maxLength={DEVELOPER_DISPLAY_NAME_MAX} minLength={DEVELOPER_DISPLAY_NAME_MIN} disabled={saving} className={inputClass} placeholder={`Name (${DEVELOPER_DISPLAY_NAME_MIN}-${DEVELOPER_DISPLAY_NAME_MAX} chars)`} />
       <p className="text-[10px] text-[#555] mt-1">{email}</p>
     </div>
   );
@@ -94,7 +94,7 @@ function SlugField({ form, update, saving, onGenerate }: { form: FormState; upda
           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#666] text-sm">/developer/</span>
           <input type="text" value={form.slug} onChange={(e) => update('slug', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, DEVELOPER_SLUG_MAX))} maxLength={DEVELOPER_SLUG_MAX} disabled={saving} className={`${inputClass} pl-[6.5rem]`} placeholder="your-slug" />
         </div>
-        <button type="button" onClick={onGenerate} className="px-3 py-2 rounded-lg bg-white/[0.06] border border-white/10 text-gray-400 hover:text-[#FFD700] hover:border-[#FFD700]/30 transition-all" title="Сгенерировать из имени">
+        <button type="button" onClick={onGenerate} className="px-3 py-2 rounded-lg bg-white/[0.06] border border-white/10 text-gray-400 hover:text-[#FFD700] hover:border-[#FFD700]/30 transition-all" title="Generate from name">
           <Wand2 className="w-4 h-4" />
         </button>
       </div>
@@ -106,10 +106,10 @@ function BioField({ form, update, saving }: { form: FormState; update: FormUpdat
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <label className={`${labelClass} mb-0`}>Bio (короткое)</label>
+        <label className={`${labelClass} mb-0`}>Bio (short)</label>
         <span className={`text-[10px] tabular-nums ${form.bio.length > BIO_MAX ? 'text-[#FF4444]' : 'text-[#666]'}`}>{form.bio.length}/{BIO_MAX}</span>
       </div>
-      <textarea rows={2} value={form.bio} onChange={(e) => update('bio', e.target.value.slice(0, BIO_MAX))} maxLength={BIO_MAX} disabled={saving} className={`${inputClass} resize-none`} placeholder="Одна строка о себе…" />
+      <textarea rows={2} value={form.bio} onChange={(e) => update('bio', e.target.value.slice(0, BIO_MAX))} maxLength={BIO_MAX} disabled={saving} className={`${inputClass} resize-none`} placeholder="One line about yourself…" />
     </div>
   );
 }
@@ -139,10 +139,10 @@ export function ManifestoCard({ form, update, saving }: { form: FormState; updat
   return (
     <Card title="Manifesto">
       <div className="flex items-center justify-between -mt-2">
-        <p className="text-xs text-[#666]">До {ABOUT_LONG_MAX} символов. Появляется на публичной странице героя.</p>
+        <p className="text-xs text-[#666]">Up to {ABOUT_LONG_MAX} characters. Appears on the public hero page.</p>
         <span className={`text-[10px] tabular-nums ${form.aboutLong.length > ABOUT_LONG_MAX ? 'text-[#FF4444]' : 'text-[#666]'}`}>{form.aboutLong.length}/{ABOUT_LONG_MAX}</span>
       </div>
-      <textarea rows={6} value={form.aboutLong} onChange={(e) => update('aboutLong', e.target.value.slice(0, ABOUT_LONG_MAX))} maxLength={ABOUT_LONG_MAX} disabled={saving} className={`${inputClass} resize-none`} placeholder="Расскажите свою историю…" />
+      <textarea rows={6} value={form.aboutLong} onChange={(e) => update('aboutLong', e.target.value.slice(0, ABOUT_LONG_MAX))} maxLength={ABOUT_LONG_MAX} disabled={saving} className={`${inputClass} resize-none`} placeholder="Tell your story…" />
     </Card>
   );
 }
@@ -151,7 +151,7 @@ export function FeaturedPickerCard({ myProducts, featured, onToggle }: { myProdu
   if (myProducts.length === 0) return null;
   const set = new Set(featured);
   return (
-    <Card title="Featured Products (до 4)">
+    <Card title="Featured Products (up to 4)">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {myProducts.map((product) => {
           const isSelected = set.has(product.id);

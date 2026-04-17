@@ -12,8 +12,8 @@ interface BreadcrumbsProps {
 }
 
 /**
- * Хлебные крошки с тонким золотым акцентом.
- * Первый элемент всегда "Store" (ссылка на /), последний — текущая страница (без ссылки).
+ * Breadcrumbs with a subtle gold accent.
+ * The first item is always "Store" (link to /), the last is the current page (no link).
  */
 const Breadcrumbs = memo(({ items }: BreadcrumbsProps) => {
   if (items.length === 0) return null;

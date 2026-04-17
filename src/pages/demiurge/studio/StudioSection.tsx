@@ -67,7 +67,7 @@ export default function StudioSection({ myProducts, isLoading, getToken }: Studi
             <Hammer className="w-7 h-7 text-[#8B5CF6]" />
             Studio
           </h1>
-          <p className="text-[#666] text-sm mt-1">Создавайте, редактируйте и публикуйте свои творения</p>
+          <p className="text-[#666] text-sm mt-1">Create, edit, and publish your creations</p>
         </div>
         <button
           type="button"
@@ -184,7 +184,7 @@ function EmptyForge({ onCreate }: { onCreate: () => void }) {
       </div>
       <h3 className="text-lg font-semibold text-white mb-2">The Studio is quiet</h3>
       <p className="text-[#666] text-sm max-w-xs mx-auto mb-6">
-        Каждый демиург начинается с первого творения. Зажги студию.
+        Every demiurge starts with the first creation. Light up the studio.
       </p>
       <button
         type="button"
@@ -201,7 +201,7 @@ function EmptyForge({ onCreate }: { onCreate: () => void }) {
 function EmptyFilter() {
   return (
     <div className="text-center py-12 rounded-2xl border border-white/[0.06] bg-[#111119]/40">
-      <p className="text-[#888] text-sm">Нет продуктов в этой категории.</p>
+      <p className="text-[#888] text-sm">No products in this category.</p>
     </div>
   );
 }

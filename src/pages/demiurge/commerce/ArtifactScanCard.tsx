@@ -1,6 +1,6 @@
-// ArtifactScanCard — выделено из SellerCommercePage. Гоняет артефакт через
-// /api/tonforge/artifacts/scan, сохраняет последний успешный scan в общий
-// state CommerceSection, чтобы PublishAppCard мог его использовать.
+// ArtifactScanCard — extracted from SellerCommercePage. Runs artifact through
+// /api/tonforge/artifacts/scan, stores the last successful scan in the shared
+// CommerceSection state so PublishAppCard can use it.
 import { FileSearch } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -9,9 +9,9 @@ import type { TonForgeArtifactScan } from '../../../domain/tonforge/types';
 import { runArtifactScan } from '../../../services/tonforgeApi';
 
 const scanSchema = z.object({
-  fileName: z.string().min(3, 'Минимум 3 символа'),
-  artifactUrl: z.string().url('Нужна полная ссылка'),
-  sha256: z.string().length(64, 'SHA-256 — ровно 64 символа'),
+  fileName: z.string().min(3, 'Minimum 3 characters'),
+  artifactUrl: z.string().url('Full URL required'),
+  sha256: z.string().length(64, 'SHA-256 must be exactly 64 characters'),
 });
 
 type ScanFormValues = z.infer<typeof scanSchema>;
@@ -37,9 +37,9 @@ export default function ArtifactScanCard({ lastScan, setLastScan, setFlash }: Ar
     try {
       const scan = await runArtifactScan(values);
       setLastScan(scan);
-      setFlash({ success: 'Артефакт проверен. Можно публиковать приложение.', error: null });
+      setFlash({ success: 'Artifact verified. You can now publish the app.', error: null });
     } catch (e) {
-      setFlash({ error: e instanceof Error ? e.message : 'Artifact scan завершился ошибкой', success: null });
+      setFlash({ error: e instanceof Error ? e.message : 'Artifact scan failed', success: null });
     }
   };
 
@@ -51,7 +51,7 @@ export default function ArtifactScanCard({ lastScan, setLastScan, setFlash }: Ar
       </header>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
-        <Field label="Имя файла" error={form.formState.errors.fileName?.message}>
+        <Field label="File name" error={form.formState.errors.fileName?.message}>
           <input {...form.register('fileName')} className={inputClass} placeholder="app-v1.0.0.zip" />
         </Field>
         <Field label="Artifact URL" error={form.formState.errors.artifactUrl?.message}>
@@ -65,7 +65,7 @@ export default function ArtifactScanCard({ lastScan, setLastScan, setFlash }: Ar
           <input
             {...form.register('sha256')}
             className={`${inputClass} font-mono`}
-            placeholder="64-символьный хеш"
+            placeholder="64-character hash"
             maxLength={64}
           />
         </Field>
@@ -74,14 +74,14 @@ export default function ArtifactScanCard({ lastScan, setLastScan, setFlash }: Ar
           disabled={form.formState.isSubmitting}
           className="rounded-lg bg-[#00F5FF]/20 border border-[#00F5FF]/40 text-[#00F5FF] font-semibold uppercase tracking-wider px-4 py-2 text-sm hover:bg-[#00F5FF]/30 disabled:opacity-50"
         >
-          {form.formState.isSubmitting ? 'Сканирование…' : 'Проверить артефакт'}
+          {form.formState.isSubmitting ? 'Scanning…' : 'Verify artifact'}
         </button>
       </form>
 
       {lastScan && (
         <div className="mt-4 rounded-xl border border-[#00FF88]/30 bg-[#00FF88]/5 p-3 text-xs text-[#aaffcc] space-y-1">
           <p>
-            <span className="text-[#888]">Статус:</span>{' '}
+            <span className="text-[#888]">Status:</span>{' '}
             <span className="text-white font-semibold">{lastScan.status}</span>
           </p>
           <p className="font-mono break-all">

@@ -16,7 +16,7 @@ const PREVIEW_W = 320;
 const PREVIEW_GAP = 16;
 const PAGE_SIZE = 20;
 
-/** true на сенсорных устройствах — там hover-превью только мешает. */
+/** true on touch devices — hover preview only gets in the way there. */
 function isCoarsePointer(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
   return window.matchMedia('(pointer: coarse)').matches;
@@ -255,14 +255,14 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
                 Prev
               </button>
 
-              {/* Mobile: компактный Page X / N */}
+              {/* Mobile: compact Page X / N */}
               <div className="sm:hidden flex-1 text-center text-xs font-medium text-gray-400 tabular-nums">
                 Page <span className="text-[#FFD700]">{safePage + 1}</span>
                 <span className="text-gray-600"> / </span>
                 <span>{totalPages}</span>
               </div>
 
-              {/* Desktop: цифровая полоска */}
+              {/* Desktop: numeric page strip */}
               <div className="hidden sm:flex items-center gap-1">
                 {Array.from({ length: totalPages }, (_, i) => (
                   <button
@@ -290,7 +290,7 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
             </div>
           )}
 
-          {/* ═══ Mobile/tablet inline TagCloud — только <lg, под списком/пагинацией ═══ */}
+          {/* ═══ Mobile/tablet inline TagCloud — <lg only, below list/pagination ═══ */}
           <div className="lg:hidden mt-4">
             <TagCloud
               products={products}

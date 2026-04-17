@@ -20,7 +20,7 @@ export default function ArsenalSection({ library, isLoading, getToken }: Arsenal
       <div>
         <h1 className="text-2xl font-display font-bold uppercase tracking-widest text-white flex items-center gap-3">
           <Shield className="w-7 h-7 text-[#00F5FF]" />
-          Арсенал
+          Arsenal
         </h1>
         <p className="text-[#666] text-sm mt-1">Your purchased applications</p>
       </div>
@@ -133,7 +133,7 @@ function ArsenalDrawer({ item, onClose, getToken }: {
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <button
         type="button"
-        aria-label="Закрыть"
+        aria-label="Close"
         className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-default"
         onClick={onClose}
       />
@@ -143,7 +143,7 @@ function ArsenalDrawer({ item, onClose, getToken }: {
           <button
             ref={closeBtnRef}
             onClick={onClose}
-            aria-label="Закрыть панель"
+            aria-label="Close panel"
             className="text-[#666] hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#00F5FF]/50 rounded"
           >
             <X className="w-5 h-5" aria-hidden />
@@ -156,7 +156,7 @@ function ArsenalDrawer({ item, onClose, getToken }: {
             {item.product?.image ? (
               <img
                 src={item.product.image}
-                alt={`Обложка приложения ${item.product?.name ?? ''}`.trim()}
+                alt={`Cover for ${item.product?.name ?? ''}`.trim()}
                 className="w-full h-full object-cover"
               />
             ) : (
