@@ -6,8 +6,8 @@ import {
   fetchListingsForCatalog,
   createCommerceOrder,
   confirmCommerceOrder,
-  type CreateOrderResponse,
 } from '../../lib/commerceApi';
+import type { CreateOrderResponse } from '../../domain/commerce/types';
 import type { CommerceListingPublic } from '../../domain/commerce/types';
 import { logger } from '../../lib/logger';
 
@@ -200,10 +200,12 @@ function buildTransferBoc(to: string, amountRaw: string, memo: string): string {
 
 function extractMsgHash(boc: string): string {
   try {
-    const bytes = Uint8Array.from(atob(boc), (c) => c.charCodeAt(0));
-    const cells = Cell.fromBoc(Buffer.from(bytes));
+    const raw = Uint8Array.from(atob(boc), (c) => c.charCodeAt(0));
+    // @ton/core Cell.fromBoc принимает Buffer | Uint8Array; в браузере передаём Uint8Array
+    const cells = Cell.fromBoc(raw as never);
     if (cells.length === 0) return boc.slice(0, 64);
-    return cells[0]!.hash().toString('hex');
+    const hashBytes = cells[0]!.hash();
+    return Array.from(new Uint8Array(hashBytes)).map((b) => b.toString(16).padStart(2, '0')).join('');
   } catch {
     return boc.slice(0, 64);
   }

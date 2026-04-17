@@ -1,13 +1,14 @@
 // Страница продукта обновлена по терминологии TonForge, чтобы purchase card объясняла escrow/NFT/device flow вместо старых обещаний.
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles, ThumbsUp } from 'lucide-react';
+import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles, ThumbsUp, RefreshCw } from 'lucide-react';
 import { slugify } from '../utils/slugify';
 import LoadingScreen from '../components/LoadingScreen';
 import Breadcrumbs from '../components/Breadcrumbs';
 import CommerceCheckout from '../components/checkout/CommerceCheckout';
 import { resolveProductDetail, resolveProductReviews } from '../domain/marketplace/marketplaceRemote';
 import { categoryLabelToSlug } from '../domain/marketplace/catalog';
+import { logger } from '../lib/logger';
 import type { ProductDetail, ProductReview } from '../domain/marketplace/types';
 
 const ProductPage = () => {
@@ -16,6 +17,7 @@ const ProductPage = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [product, setProduct] = useState<ProductDetail | null | undefined>(undefined);
   const [reviews, setReviews] = useState<ProductReview[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug) {
@@ -24,14 +26,24 @@ const ProductPage = () => {
       return;
     }
     let cancelled = false;
+    setLoadError(null);
+    setProduct(undefined);
     (async () => {
-      const [nextProduct, nextReviews] = await Promise.all([
-        resolveProductDetail(slug),
-        resolveProductReviews(slug),
-      ]);
-      if (!cancelled) {
-        setProduct(nextProduct);
-        setReviews(nextReviews);
+      try {
+        const [nextProduct, nextReviews] = await Promise.all([
+          resolveProductDetail(slug),
+          resolveProductReviews(slug),
+        ]);
+        if (!cancelled) {
+          setProduct(nextProduct);
+          setReviews(nextReviews);
+        }
+      } catch (err) {
+        logger.warn('[ProductPage] load failed', err);
+        if (!cancelled) {
+          setProduct(null);
+          setLoadError(err instanceof Error ? err.message : 'Не удалось загрузить товар');
+        }
       }
     })();
     return () => {
@@ -64,14 +76,29 @@ const ProductPage = () => {
   if (!product) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
-        <h1 className="text-2xl font-bold text-white mb-4">Товар не найден</h1>
-        <p className="text-gray-400 mb-6">Проверьте ссылку или вернитесь в каталог.</p>
-        <Link
-          to="/category/apps"
-          className="bg-ton-gradient text-white font-semibold px-6 py-3 rounded-full"
-        >
-          В каталог
-        </Link>
+        <h1 className="text-2xl font-bold text-white mb-4">
+          {loadError ? 'Ошибка загрузки' : 'Товар не найден'}
+        </h1>
+        <p className="text-gray-400 mb-6">
+          {loadError ?? 'Проверьте ссылку или вернитесь в каталог.'}
+        </p>
+        <div className="flex gap-3">
+          {loadError && (
+            <button
+              onClick={() => setProduct(undefined)}
+              className="bg-white/10 hover:bg-white/20 text-white font-semibold px-6 py-3 rounded-full flex items-center gap-2 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Повторить
+            </button>
+          )}
+          <Link
+            to="/"
+            className="bg-ton-gradient text-white font-semibold px-6 py-3 rounded-full"
+          >
+            В каталог
+          </Link>
+        </div>
       </div>
     );
   }

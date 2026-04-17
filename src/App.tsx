@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { AuthProvider } from './contexts/AuthContext';
@@ -17,17 +17,29 @@ import { NetworkProvider } from './contexts/NetworkContext';
 import { queryClient } from './lib/queryClient';
 import CookieConsent from './components/CookieConsent';
 
-const HomePage = lazy(() => import('./pages/HomePage'));
-const ProductPage = lazy(() => import('./pages/ProductPage'));
-const DemiurgePage = lazy(() => import('./pages/demiurge/DemiurgePage'));
-const CategoryPage = lazy(() => import('./pages/CategoryPage'));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const DeveloperPage = lazy(() => import('./pages/DeveloperPage'));
-const OrdersPage = lazy(() => import('./pages/OrdersPage'));
-const ReceiptPage = lazy(() => import('./pages/ReceiptPage'));
-const TermsOfService = lazy(() => import('./pages/legal/TermsOfService'));
-const PrivacyPolicy = lazy(() => import('./pages/legal/PrivacyPolicy'));
-const RefundPolicy = lazy(() => import('./pages/legal/RefundPolicy'));
+/** lazy с автоматическим retry — при сетевой ошибке (мобильный, offline) повторяет загрузку чанка. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function lazyRetry(factory: () => Promise<{ default: React.ComponentType<any> }>, retries = 2, delayMs = 1500) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return lazy((): Promise<{ default: React.ComponentType<any> }> =>
+    factory().catch((err: unknown) => {
+      if (retries <= 0) throw err;
+      return new Promise((resolve) => setTimeout(() => resolve(factory()), delayMs));
+    }),
+  );
+}
+
+const HomePage = lazyRetry(() => import('./pages/HomePage'));
+const ProductPage = lazyRetry(() => import('./pages/ProductPage'));
+const DemiurgePage = lazyRetry(() => import('./pages/demiurge/DemiurgePage'));
+const CategoryPage = lazyRetry(() => import('./pages/CategoryPage'));
+const AdminDashboard = lazyRetry(() => import('./pages/AdminDashboard'));
+const DeveloperPage = lazyRetry(() => import('./pages/DeveloperPage'));
+const OrdersPage = lazyRetry(() => import('./pages/OrdersPage'));
+const ReceiptPage = lazyRetry(() => import('./pages/ReceiptPage'));
+const TermsOfService = lazyRetry(() => import('./pages/legal/TermsOfService'));
+const PrivacyPolicy = lazyRetry(() => import('./pages/legal/PrivacyPolicy'));
+const RefundPolicy = lazyRetry(() => import('./pages/legal/RefundPolicy'));
 
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
 
@@ -81,6 +93,21 @@ const SacredGem: React.FC = () => {
   return <SecretTrigger onActivate={() => navigate('/admin')} />;
 };
 
+/** Сбрасывает ErrorBoundary при смене маршрута — пользователь может уйти со сломанной страницы навигацией. */
+const RouteErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { pathname } = useLocation();
+  return <ErrorBoundary resetKey={pathname}>{children}</ErrorBoundary>;
+};
+
+/** Per-route Suspense + ErrorBoundary — изолирует отказ одного сегмента от остальных. */
+const RouteSuspense: React.FC<{ children: React.ReactNode; message?: string }> = ({ children, message }) => (
+  <RouteErrorBoundary>
+    <Suspense fallback={<LoadingScreen message={message} />}>
+      {children}
+    </Suspense>
+  </RouteErrorBoundary>
+);
+
 function App() {
   return (
     <ErrorBoundary>
@@ -95,26 +122,36 @@ function App() {
             <div className="min-h-screen bg-gradient-to-br from-ton-900 to-cosmic-900 text-white">
               <Header />
               <main className="container mx-auto px-4 py-8">
-                <Suspense fallback={<LoadingScreen />}>
-                  <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/product/:slug" element={<TonConnectWrapper><ProductPage /></TonConnectWrapper>} />
-                    <Route path="/category/:id" element={<CategoryPage />} />
-                    <Route path="/developer/:slug" element={<DeveloperPage />} />
-                    <Route path="/sign-in/*" element={<ClerkSignIn routing="path" path="/sign-in" afterSignInUrl="/profile" />} />
-                    <Route path="/sign-up/*" element={<ClerkSignUp routing="path" path="/sign-up" afterSignUpUrl="/profile" />} />
-                    <Route path="/profile/*" element={<ProtectedRoute><DemiurgePage /></ProtectedRoute>} />
-                    <Route path="/seller/commerce" element={<Navigate to="/profile/commerce" replace />} />
-                    <Route path="/seller/commerce/*" element={<Navigate to="/profile/commerce" replace />} />
-                    <Route path="/orders" element={<ProtectedRoute><TonConnectWrapper><OrdersPage /></TonConnectWrapper></ProtectedRoute>} />
-                    <Route path="/orders/:orderId/receipt" element={<ProtectedRoute><TonConnectWrapper><ReceiptPage /></TonConnectWrapper></ProtectedRoute>} />
-                    <Route path="/terms" element={<TermsOfService />} />
-                    <Route path="/privacy" element={<PrivacyPolicy />} />
-                    <Route path="/refund-policy" element={<RefundPolicy />} />
-                    <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
-                    <Route path="/admin-dashboard" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
-                  </Routes>
-                </Suspense>
+                <Routes>
+                  <Route path="/" element={<RouteSuspense message="Загрузка витрины..."><HomePage /></RouteSuspense>} />
+                  <Route path="/product/:slug" element={
+                    <RouteSuspense message="Загрузка товара...">
+                      <TonConnectWrapper><ProductPage /></TonConnectWrapper>
+                    </RouteSuspense>
+                  } />
+                  <Route path="/category/:id" element={<RouteSuspense><CategoryPage /></RouteSuspense>} />
+                  <Route path="/developer/:slug" element={<RouteSuspense><DeveloperPage /></RouteSuspense>} />
+                  <Route path="/sign-in/*" element={<ClerkSignIn routing="path" path="/sign-in" afterSignInUrl="/profile" />} />
+                  <Route path="/sign-up/*" element={<ClerkSignUp routing="path" path="/sign-up" afterSignUpUrl="/profile" />} />
+                  <Route path="/profile/*" element={<RouteSuspense><ProtectedRoute><DemiurgePage /></ProtectedRoute></RouteSuspense>} />
+                  <Route path="/seller/commerce" element={<Navigate to="/profile/commerce" replace />} />
+                  <Route path="/seller/commerce/*" element={<Navigate to="/profile/commerce" replace />} />
+                  <Route path="/orders" element={
+                    <RouteSuspense>
+                      <ProtectedRoute><TonConnectWrapper><OrdersPage /></TonConnectWrapper></ProtectedRoute>
+                    </RouteSuspense>
+                  } />
+                  <Route path="/orders/:orderId/receipt" element={
+                    <RouteSuspense>
+                      <ProtectedRoute><TonConnectWrapper><ReceiptPage /></TonConnectWrapper></ProtectedRoute>
+                    </RouteSuspense>
+                  } />
+                  <Route path="/terms" element={<RouteSuspense><TermsOfService /></RouteSuspense>} />
+                  <Route path="/privacy" element={<RouteSuspense><PrivacyPolicy /></RouteSuspense>} />
+                  <Route path="/refund-policy" element={<RouteSuspense><RefundPolicy /></RouteSuspense>} />
+                  <Route path="/admin" element={<RouteSuspense><ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
+                  <Route path="/admin-dashboard" element={<RouteSuspense><ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
+                </Routes>
               </main>
               <Footer />
               <CookieConsent />

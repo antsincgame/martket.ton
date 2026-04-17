@@ -3,6 +3,8 @@ import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
+  /** При смене этого ключа ErrorBoundary сбрасывает ошибку (полезно для route transitions). */
+  resetKey?: string;
 }
 
 interface State {
@@ -26,6 +28,31 @@ class ErrorBoundary extends Component<Props, State> {
       console.error('Mahakala Guardian caught error:', error, errorInfo);
     }
     this.setState({ error, errorInfo });
+    this.reportToSentry(error, errorInfo);
+  }
+
+  private reportToSentry(error: Error, errorInfo: ErrorInfo) {
+    const sentryPkg = '@sentry/' + 'react';
+    import(/* @vite-ignore */ sentryPkg)
+      .then((Sentry) => {
+        Sentry.withScope?.((scope: { setTag: (k: string, v: string) => void; setExtra: (k: string, v: unknown) => void }) => {
+          scope.setTag('boundary', 'mahakala');
+          scope.setTag('resetKey', this.props.resetKey ?? 'root');
+          scope.setExtra('componentStack', errorInfo.componentStack);
+          scope.setExtra('viewport', `${window.innerWidth}x${window.innerHeight}`);
+          scope.setExtra('userAgent', navigator.userAgent);
+          scope.setExtra('pathname', window.location.pathname);
+          scope.setExtra('isMobile', window.matchMedia?.('(pointer: coarse)')?.matches ?? false);
+          Sentry.captureException?.(error);
+        });
+      })
+      .catch(() => { /* @sentry/react not installed — skip */ });
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: undefined, errorInfo: undefined });
+    }
   }
 
   handleReload = () => {
@@ -34,6 +61,10 @@ class ErrorBoundary extends Component<Props, State> {
 
   handleGoHome = () => {
     window.location.href = '/';
+  };
+
+  handleRetry = () => {
+    this.setState({ hasError: false, error: undefined, errorInfo: undefined });
   };
 
   render() {
@@ -78,13 +109,13 @@ class ErrorBoundary extends Component<Props, State> {
             {/* Action Buttons */}
             <div className="space-y-3">
               <button
-                onClick={this.handleReload}
+                onClick={this.handleRetry}
                 className="w-full bg-mystical-gradient hover:scale-105 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 shadow-lg flex items-center justify-center space-x-2"
               >
                 <RefreshCw className="w-5 h-5" />
-                <span>Refresh Sacred Realm</span>
+                <span>Try Again</span>
               </button>
-              
+
               <button
                 onClick={this.handleGoHome}
                 className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 border border-white/20 flex items-center justify-center space-x-2"

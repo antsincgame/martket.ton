@@ -34,7 +34,7 @@ export default function OverviewSection({
   ];
   const profilePercent = Math.round((profileChecks.filter((c) => c.done).length / profileChecks.length) * 100);
 
-  const role = user?.profile?.role ?? user?.role?.name ?? 'demiurge';
+  const role = user?.role ?? 'demiurge';
 
   const kpis: CabinetHeroKpi[] = [
     {

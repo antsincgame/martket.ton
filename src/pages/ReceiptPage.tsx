@@ -3,7 +3,6 @@ import { useParams, Link } from 'react-router-dom';
 import { CheckCircle, ExternalLink, ArrowLeft, Package, Clock } from 'lucide-react';
 import { fetchCommerceOrder } from '../lib/commerceApi';
 import { nanoRawToTonHuman, shortHash } from '../utils/tonAmount';
-import { useAuth } from '../contexts/AuthContext';
 import { useTonAddress } from '@tonconnect/ui-react';
 
 interface ReceiptData {
@@ -21,7 +20,6 @@ interface ReceiptData {
 
 export default function ReceiptPage() {
   const { orderId } = useParams<{ orderId: string }>();
-  const { isAuthenticated } = useAuth();
   const tonAddress = useTonAddress();
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [error, setError] = useState<string | null>(null);

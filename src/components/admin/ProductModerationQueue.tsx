@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { CheckCircle, XCircle, Ban, Eye, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { storeApiUrl } from '../../lib/storeApi';
 import { logger } from '../../lib/logger';
 
 interface PendingProduct {
@@ -17,7 +18,14 @@ interface PendingProduct {
 }
 
 export default function ProductModerationQueue() {
-  const { authFetch } = useAuth();
+  const { getToken } = useAuth();
+
+  const authFetch = useCallback(async (path: string, init?: RequestInit): Promise<Response> => {
+    const token = await getToken();
+    const headers = new Headers(init?.headers);
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    return fetch(storeApiUrl(path), { ...init, headers, credentials: 'include' });
+  }, [getToken]);
   const [products, setProducts] = useState<PendingProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
