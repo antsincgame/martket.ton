@@ -4,6 +4,8 @@
 
 **Подробная документация для разработчиков:** [docs/PROJECT.md](docs/PROJECT.md)
 
+**Публичный манифест продукта (витрина + parity людей/ИИ, Mechanicus для LLM):** после `npm run dev` откройте маршрут `/docs` или ссылку **Documentation** в футере.
+
 ## Стек
 
 | Слой | Технологии |
@@ -11,7 +13,7 @@
 | **Frontend** | React 18, TypeScript (strict), Vite 5, Tailwind CSS 3 |
 | **Routing** | React Router DOM v6 |
 | **State / data** | TanStack React Query |
-| **Auth** | Appwrite Account (magic-link email + GitHub OAuth, JWT для backend), TonConnect (кошелёк TON) |
+| **Auth** | Appwrite Account (email OTP + GitHub OAuth, JWT для backend), TonConnect (кошелёк TON) |
 | **Forms** | react-hook-form, zod |
 | **Backend** | Node.js, Express, TypeScript (`tsx`) |
 | **БД** | Appwrite Databases (каталог, core: профили/продукты/покупки, commerce) |

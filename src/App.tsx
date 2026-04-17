@@ -40,6 +40,7 @@ const ReceiptPage = lazyRetry(() => import('./pages/ReceiptPage'));
 const TermsOfService = lazyRetry(() => import('./pages/legal/TermsOfService'));
 const PrivacyPolicy = lazyRetry(() => import('./pages/legal/PrivacyPolicy'));
 const RefundPolicy = lazyRetry(() => import('./pages/legal/RefundPolicy'));
+const DocumentationPage = lazyRetry(() => import('./pages/docs/DocumentationPage'));
 const SignInPage = lazyRetry(() => import('./pages/auth/SignInPage'));
 const AuthCallbackPage = lazyRetry(() => import('./pages/auth/AuthCallbackPage'));
 
@@ -112,6 +113,14 @@ function App() {
                   <Route path="/terms" element={<RouteSuspense><TermsOfService /></RouteSuspense>} />
                   <Route path="/privacy" element={<RouteSuspense><PrivacyPolicy /></RouteSuspense>} />
                   <Route path="/refund-policy" element={<RouteSuspense><RefundPolicy /></RouteSuspense>} />
+                  <Route
+                    path="/docs"
+                    element={
+                      <RouteSuspense message="Loading manifest...">
+                        <DocumentationPage />
+                      </RouteSuspense>
+                    }
+                  />
                   <Route path="/admin" element={<RouteSuspense><ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
                   <Route path="/admin-dashboard" element={<RouteSuspense><ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
                   <Route path="/moderator" element={<RouteSuspense><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></RouteSuspense>} />
