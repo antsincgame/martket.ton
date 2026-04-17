@@ -1,129 +1,124 @@
 # TON Web Store
 
-Маркетплейс цифровых товаров с интеграцией TON блокчейна.
+Маркетплейс цифровых товаров с интеграцией TON и личным кабинетом создателя (Creator Studio).
+
+**Подробная документация для разработчиков:** [docs/PROJECT.md](docs/PROJECT.md)
 
 ## Стек
 
 | Слой | Технологии |
-|------|-----------|
+|------|------------|
 | **Frontend** | React 18, TypeScript (strict), Vite 5, Tailwind CSS 3 |
 | **Routing** | React Router DOM v6 |
-| **Auth** | Appwrite Account (email+пароль), TonConnect (кошелёк), JWT API для кошелька |
-| **Backend** | Node.js, Express |
-| **БД** | Appwrite Databases (витрина, commerce, core: профили/legacy API), Appwrite Storage (снимок TonForge) |
+| **State / data** | TanStack React Query |
+| **Auth** | Clerk (сессия), TonConnect (кошелёк TON), JWT для API по кошельку где применимо |
+| **Forms** | react-hook-form, zod |
+| **Backend** | Node.js, Express, TypeScript (`tsx`) |
+| **БД** | Appwrite Databases (каталог, core: профили/продукты/покупки, commerce) |
+| **Файлы** | Cloudflare R2 (S3 API) — обложки, аватары, артефакты |
 
 ## Структура проекта
 
 ```
-├── backend/                 # Express API сервер
-│   ├── commerce/            # Commerce API (заказы, споры, аудит)
-│   ├── server.js            # Точка входа бэкенда
-│   ├── core/                # Репозиторий Appwrite (database core)
-│   └── logger.js            # Логгер
-├── scripts/                 # Провижининг и сид-данные
+├── backend/                 # Express API (server.ts)
+│   ├── commerce/            # Маршруты commerce: заказы, споры, продавцы
+│   ├── core/                # Репозитории Appwrite: профиль, stats, payouts, …
+│   ├── routes/              # session, products, stats, payouts, validation, …
+│   └── r2/                  # Загрузки и presigned download
+├── docs/
+│   └── PROJECT.md           # Архитектура, API кабинета, соглашения
+├── e2e/                     # Playwright
+├── scripts/                 # Провижининг Appwrite
 ├── src/
-│   ├── components/          # React компоненты
-│   │   └── admin/           # Админ-панель
-│   ├── contexts/            # React контексты (AuthContext)
-│   ├── domain/              # Доменная логика
-│   │   ├── commerce/        # Типы commerce
-│   │   └── marketplace/     # Каталог (Appwrite)
-│   ├── lib/                 # Клиенты API
-│   ├── pages/               # Страницы приложения
-│   ├── types/               # TypeScript типы
-│   └── utils/               # Утилиты
-├── public/                  # Статика (tonconnect-manifest.json)
-├── .env.example             # Шаблон переменных окружения
+│   ├── components/          # UI, Breadcrumbs, админка, studio/ImageUploader
+│   ├── contexts/            # Auth и др.
+│   ├── lib/                 # storeApi, commerceApi, …
+│   ├── pages/               # Главная, товар, разработчик, Demiurge-кабинет
+│   │   └── demiurge/        # Overview, Studio, Library, Commerce, Wallet, Profile
+│   ├── queries/             # sessionQueries и др.
+│   └── utils/               # slugify, tonAmount, …
+├── public/                  # Статика, tonconnect-manifest.json
+├── .env.example
 └── package.json
 ```
 
-## Запуск
+## Быстрый старт
 
-### Предварительные требования
+### Требования
 
 - Node.js 20+
-- Проект в Appwrite (провижининг: `provision:appwrite`, `provision:commerce`, `provision:core`)
+- Проект Appwrite и заполненные переменные (см. `.env.example`)
 
 ### Установка
 
 ```bash
-# Клонируйте репозиторий
 git clone <repo-url>
-cd martket.ton
+cd martket.ton-1
 
-# Установите зависимости фронтенда
 npm install
-
-# Установите зависимости бэкенда
 cd backend && npm install && cd ..
-
-# Скопируйте и заполните переменные окружения
-cp .env.example .env
 ```
 
-### Переменные окружения
+Скопируйте `.env.example` → `.env` и заполните значения (Clerk, Appwrite, URL API, при необходимости commerce и R2).
 
-Заполните `.env` по шаблону `.env.example`. Обязательные переменные:
-
-- `VITE_APPWRITE_*` — фронтенд (каталог + Auth)
-- `APPWRITE_*` — бэкенд (server API key)
-- `JWT_SECRET` — секрет для подписи JWT токенов
-
-### Запуск в режиме разработки
+### Разработка
 
 ```bash
-# Фронтенд (порт 8080)
+# Фронтенд (порт по умолчанию — см. vite.config / вывод терминала)
 npm run dev
 
-# Бэкенд (порт 8081) — в отдельном терминале
-cd backend && node server.js
+# Бэкенд — отдельный терминал
+cd backend && npm run dev
 ```
 
-### Провижининг Appwrite
+### Скрипты npm (корень)
 
-```bash
-npm run provision:appwrite
-npm run provision:commerce
-```
+| Скрипт | Назначение |
+|--------|------------|
+| `npm run dev` | Vite dev server |
+| `npm run build` | Production-сборка в `dist/` |
+| `npm run preview` | Превью production-сборки |
+| `npm run typecheck` | Проверка типов фронта |
+| `npm run lint` | ESLint |
+| `npm run test` | Vitest (unit) |
+| `npm run test:e2e` | Playwright |
+| `npm run provision:appwrite` | Провижининг каталога Appwrite |
+| `npm run provision:commerce` | Провижининг commerce |
+| `npm run provision:core` | Core DB (через backend) |
 
-### Сборка
+## Маршруты приложения (фронт)
 
-```bash
-npm run build
-npm run preview
-```
+| Путь | Описание |
+|------|----------|
+| `/` | Главная, каталог |
+| `/product/...` | Страница товара (в т.ч. ЧПУ где настроено) |
+| `/category/:id` | Страница категории |
+| `/developer/:slug` | Публичный профиль разработчика |
+| `/profile` | Кабинет: обзор (дашборд) |
+| `/profile/studio` | Студия: продукты, создание, редактирование |
+| `/profile/library` | Купленные приложения (Арсенал) |
+| `/profile/commerce` | Commerce: листинги, заказы, споры, публикация |
+| `/profile/wallet` | Кошелёк, выплаты, транзакции |
+| `/profile/profile` | Публичный профиль: редактор + превью |
+| `/admin`, `/admin-dashboard` | Админ-панель (роль `admin`, см. `App.tsx`) |
+| `/seller/commerce` | Редирект на `/profile/commerce` |
 
-## Маршруты приложения
+Устаревшие пути (`/profile/forge`, `/profile/arsenal`, `/profile/settings`, …) редиректятся на новые — см. `src/pages/demiurge/DemiurgePage.tsx` и `src/App.tsx`.
 
-| Путь | Страница | Доступ |
-|------|----------|--------|
-| `/` | Главная (каталог) | Публичный |
-| `/product/:id` | Страница товара | Публичный |
-| `/category/:id` | Категория | Публичный |
-| `/profile` | Профиль | Публичный |
-| `/developer` | Панель разработчика | Авторизованный |
-| `/developer/register` | Регистрация разработчика | Публичный |
-| `/seller/commerce` | Commerce продавца | Публичный |
-| `/admin` | Админ-панель | Роль `admin` |
+## API (обзор)
 
-## API эндпоинты (backend)
+Публичные и защищённые маршруты Express монтируются в `backend/server.ts`. Примеры:
 
-| Метод | Путь | Описание |
-|-------|------|----------|
-| `GET` | `/api/health` | Healthcheck |
-| `POST` | `/api/auth/login` | Авторизация по кошельку |
-| `GET` | `/api/developers` | Список разработчиков |
-| `POST` | `/api/developers` | Регистрация разработчика (JWT) |
-| `GET` | `/api/products` | Список продуктов |
-| `GET` | `/api/products/:id` | Продукт по ID |
-| `POST/GET` | `/api/audit-logs` | Аудит-логи (JWT) |
-| — | `/api/v1/commerce/*` | Commerce API (заказы, споры) |
+- `GET /api/health` — healthcheck
+- `GET/PATCH /api/session/*` — библиотека, продукты, профиль, stats, payouts, transactions
+- `POST /api/r2/upload/image` — загрузка изображений
+- Префикс commerce на отдельном сервисе/порту: `GET /api/v1/commerce/...` (база задаётся `VITE_COMMERCE_API_URL`)
 
-## Деплой и TON Connect
+Детальные таблицы и схема — в [docs/PROJECT.md](docs/PROJECT.md).
 
-Фронтенд собирается командой `npm run build` (артефакты в `dist/`). Деплой на любой хостинг статики — по выбору команды.
+## TON Connect
 
-Для продакшена укажите публичный URL приложения в `public/tonconnect-manifest.json` (поля `url`, `iconUrl`, `termsOfUseUrl`, `privacyPolicyUrl`, `app_url`) или задайте `VITE_TONCONNECT_MANIFEST_URL` на URL размещённого манифеста.
+Для продакшена задайте корректный публичный URL в `public/tonconnect-manifest.json` или используйте `VITE_TONCONNECT_MANIFEST_URL`.
 
 ## Лицензия
 

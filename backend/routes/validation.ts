@@ -47,6 +47,8 @@ export const patchProductSchema = z.object({
   image: z.string().max(2000).nullable().optional(),
   version: z.string().max(50).optional(),
   status: z.enum(['draft', 'pending_review', 'published', 'suspended']).optional(),
+  /** Optional moderator note for status_change audit log. */
+  reason: z.string().max(500).optional(),
 });
 
 export const createPurchaseSchema = z.object({

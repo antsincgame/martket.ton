@@ -23,6 +23,7 @@ const uploadLimiter = rateLimit({
 });
 
 const MAX_BUILD_SIZE = 500 * 1024 * 1024; // 500 MB
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;   // 5 MB
 const PRESIGNED_URL_EXPIRY = 15 * 60; // 15 minutes
 
 const ALLOWED_EXTENSIONS = new Set([
@@ -30,10 +31,30 @@ const ALLOWED_EXTENSIONS = new Set([
   '.deb', '.rpm', '.apk', '.aab', '.ipa', '.appimage',
 ]);
 
+const ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
+const ALLOWED_IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+const ALLOWED_IMAGE_KINDS = new Set(['avatar', 'banner', 'cover']);
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_BUILD_SIZE },
 });
+
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_IMAGE_SIZE },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_IMAGE_MIME.has((file.mimetype || '').toLowerCase())) cb(null, true);
+    else cb(new Error('Only PNG, JPEG, WebP and GIF images are allowed'));
+  },
+});
+
+function publicAssetUrl(key) {
+  const base = process.env.R2_PUBLIC_URL;
+  if (base) return `${base.replace(/\/+$/, '')}/${key}`;
+  // Fallback: stream through our own /api/r2/asset/* endpoint.
+  return `/api/r2/asset/${key}`;
+}
 
 function requireR2(_req, res, next) {
   if (!isR2Configured() || !getR2Client()) {
@@ -157,6 +178,114 @@ router.post(
     }
   }
 );
+
+// ── Upload image (avatar/banner/cover) ────────────────────────────
+router.post(
+  '/upload/image',
+  uploadLimiter,
+  apiRequireAuth(),
+  requireR2,
+  imageUpload.single('image'),
+  async (req, res) => {
+    try {
+      const profile = await resolveProfile(req);
+      if (!profile) {
+        return res.status(403).json({ success: false, message: 'Profile not found' });
+      }
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No image provided. Use multipart field "image"' });
+      }
+      const kind = String(req.body.kind || 'cover').toLowerCase();
+      if (!ALLOWED_IMAGE_KINDS.has(kind)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid kind "${kind}". Use one of: ${[...ALLOWED_IMAGE_KINDS].join(', ')}`,
+        });
+      }
+      const ext = getExtension(req.file.originalname);
+      if (ext && !ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
+        return res.status(400).json({
+          success: false,
+          message: `File extension "${ext}" is not allowed`,
+        });
+      }
+      const safeExt = ext || '.png';
+      const sha = crypto.createHash('sha256').update(req.file.buffer).digest('hex').slice(0, 24);
+      const key = `assets/${kind}/${profile.id}/${Date.now()}-${sha}${safeExt}`;
+
+      await getR2Client().send(new PutObjectCommand({
+        Bucket: getBucketName(),
+        Key: key,
+        Body: req.file.buffer,
+        ContentType: req.file.mimetype,
+        ContentLength: req.file.size,
+        CacheControl: 'public, max-age=31536000, immutable',
+        Metadata: {
+          'kind': kind,
+          'owner-id': profile.id,
+          'original-filename': req.file.originalname,
+        },
+      }));
+
+      const url = publicAssetUrl(key);
+
+      await repo.insertAuditLog({
+        id: generateId(),
+        user_id: profile.id,
+        action: 'upload_image',
+        resource: 'asset',
+        resource_id: key,
+        result: 'success',
+        metadata: JSON.stringify({ kind, size_bytes: req.file.size, url }),
+        ip_address: req.ip,
+        user_agent: req.get('user-agent') || '',
+      });
+
+      logger.info(`Image uploaded: ${key} (${req.file.size} bytes, kind=${kind})`);
+
+      return res.json({
+        success: true,
+        data: {
+          key,
+          url,
+          size_bytes: req.file.size,
+          kind,
+        },
+      });
+    } catch (err) {
+      logger.error('R2 image upload error:', err);
+      return res.status(500).json({ success: false, message: err.message || 'Image upload failed' });
+    }
+  }
+);
+
+// ── Public asset proxy (when R2_PUBLIC_URL is not set) ─────────────
+router.get('/asset/*', requireR2, async (req, res) => {
+  try {
+    const key = req.params[0];
+    if (!key || !key.startsWith('assets/')) {
+      return res.status(404).json({ success: false, message: 'Asset not found' });
+    }
+    const obj = await getR2Client().send(new GetObjectCommand({
+      Bucket: getBucketName(),
+      Key: key,
+    }));
+    res.setHeader('Content-Type', obj.ContentType || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    if (obj.Body && typeof obj.Body.pipe === 'function') {
+      obj.Body.pipe(res);
+    } else {
+      const buf = await obj.Body.transformToByteArray();
+      res.end(Buffer.from(buf));
+    }
+  } catch (err) {
+    if (err.$metadata && err.$metadata.httpStatusCode === 404) {
+      return res.status(404).json({ success: false, message: 'Asset not found' });
+    }
+    logger.error('R2 asset proxy error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to load asset' });
+  }
+});
 
 // ── Download build (presigned URL) ─────────────────────────────────
 router.get(

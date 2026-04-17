@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Download, Package, X, Loader2, Clock, Shield, FileArchive } from 'lucide-react';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 import { CopyableText } from '../../components/ui/CopyButton';
@@ -82,6 +82,25 @@ function ArsenalDrawer({ item, onClose, getToken }: {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const titleId = `arsenal-drawer-title-${item.id}`;
+
+  useEffect(() => {
+    closeBtnRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
 
   const handleDownload = async () => {
     if (!item.product) return;
@@ -111,13 +130,23 @@ function ArsenalDrawer({ item, onClose, getToken }: {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <button
+        type="button"
+        aria-label="Закрыть"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-default"
+        onClick={onClose}
+      />
       <div className="relative w-full max-w-md bg-[#0A0A0F] border-l border-white/[0.06] shadow-2xl overflow-y-auto animate-fade-in">
         <div className="sticky top-0 bg-[#0A0A0F]/90 backdrop-blur-md border-b border-white/[0.06] px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-white font-semibold truncate">{item.product?.name || 'Unknown'}</h2>
-          <button onClick={onClose} className="text-[#666] hover:text-white transition-colors">
-            <X className="w-5 h-5" />
+          <h2 id={titleId} className="text-white font-semibold truncate">{item.product?.name || 'Unknown'}</h2>
+          <button
+            ref={closeBtnRef}
+            onClick={onClose}
+            aria-label="Закрыть панель"
+            className="text-[#666] hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#00F5FF]/50 rounded"
+          >
+            <X className="w-5 h-5" aria-hidden />
           </button>
         </div>
 
@@ -125,9 +154,13 @@ function ArsenalDrawer({ item, onClose, getToken }: {
           {/* Cover */}
           <div className="h-48 rounded-xl bg-gradient-to-br from-[#0D0D1A] to-[#111119] border border-white/[0.06] flex items-center justify-center overflow-hidden">
             {item.product?.image ? (
-              <img src={item.product.image} alt="" className="w-full h-full object-cover" />
+              <img
+                src={item.product.image}
+                alt={`Обложка приложения ${item.product?.name ?? ''}`.trim()}
+                className="w-full h-full object-cover"
+              />
             ) : (
-              <FileArchive className="w-16 h-16 text-[#222]" />
+              <FileArchive className="w-16 h-16 text-[#222]" aria-hidden />
             )}
           </div>
 

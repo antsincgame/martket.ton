@@ -46,6 +46,21 @@ export const ROLES: Record<string, UserRole> = {
     requiresMFA: false,
     description: 'Creator and consumer of digital realms',
   },
+  seller: {
+    id: 'seller',
+    name: 'seller',
+    permissions: [
+      { resource: 'products', actions: ['create', 'read', 'update'] },
+      { resource: 'listings', actions: ['create', 'read', 'update'] },
+      { resource: 'orders', actions: ['read', 'update'] },
+      { resource: 'disputes', actions: ['read', 'update'] },
+      { resource: 'purchases', actions: ['create', 'read'] },
+      { resource: 'dashboard', actions: ['read'] },
+    ],
+    sessionDuration: 480,
+    requiresMFA: false,
+    description: 'Verified TonForge seller with commerce capabilities',
+  },
   viewer: {
     id: 'viewer',
     name: 'viewer',

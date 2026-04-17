@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { AuthProvider } from './contexts/AuthContext';
@@ -20,7 +20,6 @@ const ProductPage = lazy(() => import('./pages/ProductPage'));
 const DemiurgePage = lazy(() => import('./pages/demiurge/DemiurgePage'));
 const CategoryPage = lazy(() => import('./pages/CategoryPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const SellerCommercePage = lazy(() => import('./pages/SellerCommercePage'));
 const DeveloperPage = lazy(() => import('./pages/DeveloperPage'));
 
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
@@ -97,7 +96,8 @@ function App() {
                     <Route path="/sign-in/*" element={<ClerkSignIn routing="path" path="/sign-in" afterSignInUrl="/profile" />} />
                     <Route path="/sign-up/*" element={<ClerkSignUp routing="path" path="/sign-up" afterSignUpUrl="/profile" />} />
                     <Route path="/profile/*" element={<ProtectedRoute><DemiurgePage /></ProtectedRoute>} />
-                    <Route path="/seller/commerce" element={<TonConnectWrapper><SellerCommercePage /></TonConnectWrapper>} />
+                    <Route path="/seller/commerce" element={<Navigate to="/profile/commerce" replace />} />
+                    <Route path="/seller/commerce/*" element={<Navigate to="/profile/commerce" replace />} />
                     <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
                     <Route path="/admin-dashboard" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
                   </Routes>

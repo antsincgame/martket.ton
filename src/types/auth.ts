@@ -19,7 +19,7 @@ export interface MFAMethod {
 
 export interface UserRole {
   id: string;
-  name: 'super_admin' | 'admin' | 'moderator' | 'demiurge' | 'viewer';
+  name: 'super_admin' | 'admin' | 'moderator' | 'seller' | 'demiurge' | 'viewer';
   permissions: Permission[];
   sessionDuration: number; // in minutes
   requiresMFA: boolean;

@@ -143,6 +143,60 @@ export async function fetchSellerListings(wallet: string): Promise<CommerceListi
   return parsed.data.data.listings;
 }
 
+export interface SellerOrderRow {
+  id: string;
+  listingId: string;
+  listingTitle: string | null;
+  buyerWallet: string;
+  state: string;
+  amountRaw: string;
+  currency: string;
+  memo: string;
+  tonTxHash: string | null;
+  createdAt: string;
+}
+
+export async function fetchSellerOrders(
+  wallet: string,
+  authHeader?: string,
+  limit = 100,
+): Promise<SellerOrderRow[]> {
+  const res = await fetch(commerceUrl(`/sellers/${encodeURIComponent(wallet)}/orders?limit=${limit}`), {
+    headers: authHeader ? { Authorization: authHeader } : undefined,
+  });
+  const parsed = await parseJson<{ data: { orders: SellerOrderRow[] } }>(res);
+  if (!parsed.ok) throw new Error(parsed.error);
+  return parsed.data.data.orders;
+}
+
+export interface SellerDisputeRow {
+  id: string;
+  orderId: string;
+  buyerWallet: string;
+  reason: string;
+  status: string;
+  resolutionNote: string;
+  createdAt: string;
+  order: {
+    listingTitle: string | null;
+    amountRaw: string;
+    currency: string;
+    state: string;
+  } | null;
+}
+
+export async function fetchSellerDisputes(
+  wallet: string,
+  authHeader?: string,
+): Promise<SellerDisputeRow[]> {
+  const res = await fetch(commerceUrl(`/sellers/${encodeURIComponent(wallet)}/disputes`), {
+    headers: authHeader ? { Authorization: authHeader } : undefined,
+  });
+  const parsed = await parseJson<{ data: { disputes: SellerDisputeRow[] } }>(res);
+  if (!parsed.ok) throw new Error(parsed.error);
+  return parsed.data.data.disputes;
+}
+
 export async function uploadListingAsset(
   listingId: string,
   sellerWallet: string,

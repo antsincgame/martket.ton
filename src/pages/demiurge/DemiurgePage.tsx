@@ -1,54 +1,26 @@
-import { useState, useCallback, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { storeApiUrl } from '../../lib/storeApi';
-import { logger } from '../../lib/logger';
 import TonConnectWrapper from '../../components/TonConnectWrapper';
 import DemiurgeLayout from '../../layouts/DemiurgeLayout';
 import OverviewSection from './OverviewSection';
 import ArsenalSection from './ArsenalSection';
-import ForgeSection from './ForgeSection';
+import StudioSection from './studio/StudioSection';
+import EditProductForm from './studio/EditProductForm';
 import WalletSection from './WalletSection';
-import SettingsSection from './SettingsSection';
-import type { PurchaseWithProduct, CreatedProduct } from './types';
+import ProfileSection from './ProfileSection';
+import CommerceSection from './commerce/CommerceSection';
+import { useLibraryQuery, useMyProductsQuery } from '../../queries/sessionQueries';
 
 export default function DemiurgePage() {
   const { user, isAuthenticated, isLoading: isAuthLoading, getToken } = useAuth();
-  const [library, setLibrary] = useState<PurchaseWithProduct[]>([]);
-  const [myProducts, setMyProducts] = useState<CreatedProduct[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState(false);
 
-  const fetchLibrary = useCallback(async () => {
-    try {
-      const token = await getToken();
-      const res = await fetch(storeApiUrl('/api/session/library'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const body = await res.json();
-        setLibrary(body.data || []);
-      }
-    } catch (err) { logger.warn('[DemiurgePage] fetchLibrary failed:', err); }
-  }, [getToken]);
+  const libraryQuery = useLibraryQuery();
+  const productsQuery = useMyProductsQuery();
 
-  const fetchMyProducts = useCallback(async () => {
-    try {
-      const token = await getToken();
-      const res = await fetch(storeApiUrl('/api/session/products'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const body = await res.json();
-        setMyProducts(body.data || []);
-      }
-    } catch (err) { logger.warn('[DemiurgePage] fetchMyProducts failed:', err); }
-  }, [getToken]);
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    setIsLoadingData(true);
-    Promise.all([fetchLibrary(), fetchMyProducts()]).finally(() => setIsLoadingData(false));
-  }, [isAuthenticated, fetchLibrary, fetchMyProducts]);
+  const library = libraryQuery.data ?? [];
+  const myProducts = productsQuery.data ?? [];
+  const isLoadingData = libraryQuery.isLoading || productsQuery.isLoading;
+  const dataError = libraryQuery.error?.message || productsQuery.error?.message || null;
 
   if (isAuthLoading) {
     return (
@@ -66,10 +38,12 @@ export default function DemiurgePage() {
             Demiurge Awaits
           </h1>
           <p className="text-[#888] mb-6">Sign in to enter the Forge.</p>
-          <a href="/sign-in"
-            className="block w-full bg-[#FFD700] text-[#0A0A0A] font-semibold uppercase tracking-widest py-3 px-6 rounded-xl transition-all hover:shadow-[0_0_20px_rgba(255,215,0,0.3)] text-center">
+          <Link
+            to="/sign-in"
+            className="block w-full bg-[#FFD700] text-[#0A0A0A] font-semibold uppercase tracking-widest py-3 px-6 rounded-xl transition-all hover:shadow-[0_0_20px_rgba(255,215,0,0.3)] text-center"
+          >
             Sign In
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -81,17 +55,53 @@ export default function DemiurgePage() {
     <TonConnectWrapper>
       <DemiurgeLayout>
         <Routes>
-          <Route index element={
-            <OverviewSection library={library} myProducts={myProducts} isLoading={isLoadingData} displayName={displayName} />
-          } />
-          <Route path="arsenal" element={
-            <ArsenalSection library={library} isLoading={isLoadingData} getToken={getToken} />
-          } />
-          <Route path="forge" element={
-            <ForgeSection myProducts={myProducts} isLoading={isLoadingData} getToken={getToken} onRefresh={fetchMyProducts} />
-          } />
+          <Route
+            index
+            element={
+              <OverviewSection
+                library={library}
+                myProducts={myProducts}
+                isLoading={isLoadingData}
+                dataError={dataError}
+                displayName={displayName}
+              />
+            }
+          />
+
+          {/* Library (был Arsenal) */}
+          <Route
+            path="library"
+            element={
+              <ArsenalSection
+                library={library}
+                isLoading={isLoadingData}
+                getToken={getToken}
+              />
+            }
+          />
+          <Route path="arsenal" element={<Navigate to="/profile/library" replace />} />
+
+          {/* Studio (был Forge) */}
+          <Route
+            path="studio"
+            element={<StudioSection myProducts={myProducts} isLoading={isLoadingData} getToken={getToken} />}
+          />
+          <Route
+            path="studio/:id/edit"
+            element={<EditProductForm getToken={getToken} />}
+          />
+          <Route path="forge" element={<Navigate to="/profile/studio" replace />} />
+          <Route path="forge/*" element={<Navigate to="/profile/studio" replace />} />
+
+          {/* Commerce — merge SellerCommercePage */}
+          <Route path="commerce/*" element={<CommerceSection />} />
+
+          {/* Wallet */}
           <Route path="wallet" element={<WalletSection />} />
-          <Route path="settings" element={<SettingsSection myProducts={myProducts} />} />
+
+          {/* Identity (был Settings) */}
+          <Route path="profile" element={<ProfileSection myProducts={myProducts} />} />
+          <Route path="settings" element={<Navigate to="/profile/profile" replace />} />
         </Routes>
       </DemiurgeLayout>
     </TonConnectWrapper>

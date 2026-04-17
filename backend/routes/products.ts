@@ -114,17 +114,65 @@ router.patch(
       return;
     }
     const allowedFields = ['name', 'description', 'short_description', 'price_ton', 'category', 'image', 'version'];
-    if (isAdmin) allowedFields.push('status');
     const body = req.body as Record<string, unknown>;
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {
       if (body[field] !== undefined) updates[field] = body[field];
     }
+
+    // Status workflow: owners may move draft↔pending_review and published→draft (unpublish).
+    // Only admins can publish or suspend.
+    if (body.status !== undefined) {
+      const target = String(body.status);
+      const current = product.status;
+      const ownerAllowed: Record<string, string[]> = {
+        draft: ['pending_review'],
+        pending_review: ['draft'],
+        published: ['draft'],
+        suspended: [],
+      };
+      const adminAllowed: Record<string, string[]> = {
+        draft: ['pending_review', 'published', 'suspended'],
+        pending_review: ['published', 'suspended', 'draft'],
+        published: ['draft', 'suspended'],
+        suspended: ['draft', 'published'],
+      };
+      const allowed = isAdmin ? adminAllowed[current] : ownerAllowed[current];
+      if (!allowed || !allowed.includes(target)) {
+        res.status(403).json({
+          success: false,
+          message: `Status transition ${current} → ${target} is not permitted for your role`,
+        });
+        return;
+      }
+      updates.status = target;
+    }
+
     if (Object.keys(updates).length === 0) {
       res.status(400).json({ success: false, message: 'No valid fields to update' });
       return;
     }
     const updated = await repo.updateProduct(str(req.params.id), updates);
+
+    if (updates.status) {
+      await repo.insertAuditLog({
+        id: generateId(),
+        user_id: profile.id,
+        action: 'status_change',
+        resource: 'product',
+        resource_id: product.id,
+        result: 'success',
+        metadata: JSON.stringify({
+          from: product.status,
+          to: updates.status,
+          reason: typeof body.reason === 'string' ? body.reason : null,
+          by_role: profile.role,
+        }),
+        ip_address: req.ip,
+        user_agent: req.get('user-agent') || '',
+      });
+    }
+
     res.json({ success: true, data: updated ? productToSnakeCase(updated) : null });
   }),
 );

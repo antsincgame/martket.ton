@@ -22,6 +22,7 @@ export const UserRole = {
   VIEWER: 'viewer',
   DEMIURGE: 'demiurge',
   SELLER: 'seller',
+  MODERATOR: 'moderator',
   ADMIN: 'admin',
   SUPER_ADMIN: 'super_admin',
 } as const;
@@ -102,6 +103,18 @@ export interface Profile {
   isActive: boolean;
   appwriteUserId: string | null;
   clerkUserId: string | null;
+  /** Storefront slug for /developer/:slug public page. */
+  slug: string | null;
+  /** Public banner URL (hero background). */
+  bannerUrl: string | null;
+  website: string | null;
+  github: string | null;
+  telegram: string | null;
+  twitter: string | null;
+  /** Long-form public manifest (max 500 chars, see ABOUT_LONG_MAX). */
+  aboutLong: string | null;
+  /** JSON-encoded array of product IDs the demiurge has pinned (max 4). */
+  featuredProductIds: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

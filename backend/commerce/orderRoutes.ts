@@ -119,6 +119,52 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
   }
 });
 
+router.get('/sellers/:wallet/orders', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const wallet = str(req.params.wallet);
+    if (!wallet) { res.status(400).json({ error: 'wallet param required', code: 'VALIDATION' }); return; }
+    const db = databases();
+    const limitRaw = typeof req.query.limit === 'string' ? req.query.limit : '100';
+    const limit = Math.min(parseInt(limitRaw, 10) || 100, 500);
+
+    const { documents: sellerListings } = await db.listDocuments(DATABASE_ID, COL_LISTINGS, [
+      Query.equal('sellerWallet', wallet),
+      Query.limit(500),
+    ]);
+    const listingIds = sellerListings.map((l) => l.$id);
+    if (listingIds.length === 0) {
+      res.json({ data: { orders: [] } });
+      return;
+    }
+
+    const { documents: orders } = await db.listDocuments(DATABASE_ID, COL_ORDERS, [
+      Query.equal('listingId', listingIds),
+      Query.orderDesc('$createdAt'),
+      Query.limit(limit),
+    ]);
+
+    res.json({
+      data: {
+        orders: orders.map((o) => ({
+          id: o.$id,
+          listingId: o['listingId'],
+          listingTitle: o['listingSnapshotTitle'] ?? null,
+          buyerWallet: o['buyerWallet'],
+          state: o['state'],
+          amountRaw: o['amountRaw'],
+          currency: o['currency'],
+          memo: o['memo'],
+          tonTxHash: o['tonTxHash'] || null,
+          createdAt: o.$createdAt,
+        })),
+      },
+    });
+  } catch (e: unknown) {
+    logger.error('[commerce] seller orders:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Не удалось получить заказы продавца', code: 'SELLER_ORDERS' });
+  }
+});
+
 router.get('/orders/:id', async (req: Request, res: Response) => {
   try {
     const orderId = str(req.params.id);

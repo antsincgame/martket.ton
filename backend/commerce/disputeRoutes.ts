@@ -1,6 +1,6 @@
 import express, { type Request, type Response } from 'express';
 import {
-  DATABASE_ID, COL_ORDERS, COL_DISPUTES,
+  DATABASE_ID, COL_ORDERS, COL_DISPUTES, COL_LISTINGS,
   ORDER_STATE, DISPUTE_STATUS,
 } from './constants.js';
 import { databases, ID, Query } from './appwrite.js';
@@ -37,6 +37,67 @@ router.post('/disputes', apiRequireAuth(), validateBody(createDisputeSchema), as
   } catch (e: unknown) {
     logger.error('[commerce] dispute create:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Спор не создан', code: 'DISPUTE_CREATE' });
+  }
+});
+
+router.get('/sellers/:wallet/disputes', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const wallet = str(req.params.wallet);
+    if (!wallet) { res.status(400).json({ error: 'wallet param required', code: 'VALIDATION' }); return; }
+    const db = databases();
+
+    const { documents: sellerListings } = await db.listDocuments(DATABASE_ID, COL_LISTINGS, [
+      Query.equal('sellerWallet', wallet),
+      Query.limit(500),
+    ]);
+    const listingIds = sellerListings.map((l) => l.$id);
+    if (listingIds.length === 0) {
+      res.json({ data: { disputes: [] } });
+      return;
+    }
+
+    const { documents: orders } = await db.listDocuments(DATABASE_ID, COL_ORDERS, [
+      Query.equal('listingId', listingIds),
+      Query.limit(500),
+    ]);
+    const orderIds = orders.map((o) => o.$id);
+    if (orderIds.length === 0) {
+      res.json({ data: { disputes: [] } });
+      return;
+    }
+    const orderById = new Map(orders.map((o) => [o.$id, o]));
+
+    const { documents: disputes } = await db.listDocuments(DATABASE_ID, COL_DISPUTES, [
+      Query.equal('orderId', orderIds),
+      Query.orderDesc('$createdAt'),
+      Query.limit(200),
+    ]);
+
+    res.json({
+      data: {
+        disputes: disputes.map((d) => {
+          const o = orderById.get(d['orderId'] as string);
+          return {
+            id: d.$id,
+            orderId: d['orderId'],
+            buyerWallet: d['openedByWallet'],
+            reason: d['reason'],
+            status: d['status'],
+            resolutionNote: d['resolutionNote'] || '',
+            createdAt: d.$createdAt,
+            order: o ? {
+              listingTitle: o['listingSnapshotTitle'] ?? null,
+              amountRaw: o['amountRaw'],
+              currency: o['currency'],
+              state: o['state'],
+            } : null,
+          };
+        }),
+      },
+    });
+  } catch (e: unknown) {
+    logger.error('[commerce] seller disputes:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Не удалось получить споры продавца', code: 'SELLER_DISPUTES' });
   }
 });
 
