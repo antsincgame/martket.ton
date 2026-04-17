@@ -26,12 +26,32 @@ export default function ReceiptPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!orderId || !tonAddress) return;
+    if (!orderId) {
+      setLoading(false);
+      setError('Missing order id');
+      return;
+    }
+    if (!tonAddress) {
+      setLoading(false);
+      setError('Connect your TON wallet to view this receipt');
+      return;
+    }
     setLoading(true);
+    setError(null);
+    let cancelled = false;
     fetchCommerceOrder(orderId, tonAddress)
-      .then((data) => setReceipt(data as unknown as ReceiptData))
-      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load receipt'))
-      .finally(() => setLoading(false));
+      .then((data) => {
+        if (!cancelled) setReceipt(data as unknown as ReceiptData);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load receipt');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [orderId, tonAddress]);
 
   if (loading) {

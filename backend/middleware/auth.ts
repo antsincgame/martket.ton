@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getAuth } from '@clerk/express';
+import { Account, type Models } from 'node-appwrite';
 import { logger } from '../logger.js';
 import * as repo from '../core/repository.js';
+import { createUserContextClient } from '../core/appwriteServer.js';
 import type { Profile } from '../domain/types.js';
 
 declare module 'express-serve-static-core' {
@@ -10,10 +11,124 @@ declare module 'express-serve-static-core' {
   }
 }
 
+/**
+ * Per-process cache of validated Appwrite JWTs.
+ *
+ * Appwrite JWTs are short-lived (~15 minutes). We avoid hitting the Appwrite
+ * Account API on every backend request by caching the resolved user for a
+ * short window. The cache key is the raw token, which is unique per session.
+ *
+ * Soft TTL: cache entries expire faster than the JWT itself so a deactivated
+ * user is locked out within 30 seconds at the latest.
+ */
+const TOKEN_CACHE_TTL_MS = 30_000;
+const TOKEN_CACHE_MAX = 1000;
+type CachedUser = Models.User<Models.Preferences>;
+const tokenCache = new Map<string, { user: CachedUser; expiresAt: number }>();
+
+function pruneTokenCache(now: number): void {
+  for (const [token, entry] of tokenCache) {
+    if (entry.expiresAt <= now) tokenCache.delete(token);
+  }
+  if (tokenCache.size > TOKEN_CACHE_MAX) {
+    // Drop oldest by deletion order (Map preserves insertion order).
+    const overflow = tokenCache.size - TOKEN_CACHE_MAX;
+    let i = 0;
+    for (const key of tokenCache.keys()) {
+      if (i++ >= overflow) break;
+      tokenCache.delete(key);
+    }
+  }
+}
+
+/**
+ * Minimal request shape needed to read the Authorization header.
+ * Defining a local interface lets unit tests pass plain objects without
+ * fighting Express's overloaded Request.get() return types.
+ */
+export interface HasGet {
+  get(name: string): string | string[] | undefined | null;
+}
+
+/**
+ * Extracts the raw Appwrite JWT from a Bearer Authorization header.
+ *
+ * Returns null when the header is missing, blank, doesn't follow the
+ * `Bearer <token>` shape, or wraps an empty token string.
+ *
+ * Exported for unit tests; production callers go through resolveProfile().
+ */
+export function extractBearerToken(req: HasGet): string | null {
+  const raw = req.get('authorization') ?? req.get('Authorization');
+  const header = Array.isArray(raw) ? raw[0] : raw;
+  if (!header) return null;
+  const m = /^Bearer\s+(.+)$/i.exec(header.trim());
+  return m && m[1] ? m[1].trim() : null;
+}
+
+/**
+ * Validates an Appwrite session JWT and returns the underlying account.
+ *
+ * Returns null on any failure (missing/invalid/expired token, network error).
+ * Errors are logged at debug-level — auth failures are expected during
+ * normal operation (anonymous requests, expired tokens).
+ */
+async function resolveAppwriteUser(token: string): Promise<CachedUser | null> {
+  const now = Date.now();
+  const cached = tokenCache.get(token);
+  if (cached && cached.expiresAt > now) return cached.user;
+  try {
+    const client = createUserContextClient(token);
+    const user = await new Account(client).get();
+    tokenCache.set(token, { user, expiresAt: now + TOKEN_CACHE_TTL_MS });
+    pruneTokenCache(now);
+    return user;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn(`[appwrite-auth] token verify failed: ${msg.slice(0, 200)}`);
+    return null;
+  }
+}
+
+/**
+ * Resolves the backend profile for the currently authenticated Appwrite user.
+ *
+ * Returns null if:
+ *   - the request has no Bearer token
+ *   - the token is invalid / expired
+ *   - no profile exists for that Appwrite user id (auto-creates on first hit
+ *     using upsertProfileForAppwriteUser with role=demiurge)
+ *   - the profile has been deactivated (`is_active = false`)
+ *
+ * Deactivation check is the single choke-point for banning a user: setting
+ * `is_active = false` in Appwrite makes every authenticated endpoint see
+ * the caller as anonymous.
+ */
 export async function resolveProfile(req: Request): Promise<Profile | null> {
-  const auth = getAuth(req);
-  if (!auth || !auth.userId) return null;
-  return repo.findUserByClerkId(auth.userId);
+  const token = extractBearerToken(req);
+  if (!token) return null;
+  const user = await resolveAppwriteUser(token);
+  if (!user) return null;
+
+  let profile = await repo.findUserByAppwriteId(user.$id);
+  if (!profile) {
+    // Lazy upsert on first authenticated request — mirrors what a webhook
+    // would have done. New profiles get the default `demiurge` role.
+    profile = await repo.upsertProfileForAppwriteUser(user.$id, {
+      email: user.email || null,
+      name: user.name || (user.email ? user.email.split('@')[0] : 'Demiurge'),
+      role: 'demiurge',
+    });
+    if (!profile) {
+      logger.error(`[appwrite-auth] failed to upsert profile for ${user.$id}`);
+      return null;
+    }
+  }
+  if (profile.isActive === false) {
+    logger.warn(`[appwrite-auth] blocked deactivated profile ${profile.id} (appwrite=${user.$id})`);
+    return null;
+  }
+  return profile;
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
@@ -72,19 +187,33 @@ export function requireSuperAdmin(req: Request, res: Response, next: NextFunctio
     });
 }
 
+/**
+ * Lightweight gate that only verifies the presence + validity of an Appwrite
+ * session JWT. Use it for routes that don't need the full Profile lookup.
+ */
 export function apiRequireAuth() {
   return (req: Request, res: Response, next: NextFunction): void => {
-    try {
-      const auth = getAuth(req);
-      if (!auth || !auth.userId) {
-        res.status(401).json({ success: false, message: 'Unauthorized' });
-        return;
-      }
-      next();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      logger.error('Auth verification failed:', message);
-      res.status(401).json({ success: false, message: 'Authentication failed' });
+    const token = extractBearerToken(req);
+    if (!token) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
     }
+    resolveAppwriteUser(token)
+      .then((user) => {
+        if (!user) {
+          res.status(401).json({ success: false, message: 'Authentication failed' });
+          return;
+        }
+        next();
+      })
+      .catch((err: Error) => {
+        logger.error('apiRequireAuth error:', err.message);
+        res.status(401).json({ success: false, message: 'Authentication failed' });
+      });
   };
+}
+
+/** Test-only helper: clears the in-memory JWT cache between specs. */
+export function __resetAuthCacheForTesting(): void {
+  tokenCache.clear();
 }

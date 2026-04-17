@@ -59,7 +59,54 @@ router.get(
 );
 
 router.get(
-  '/session/products',
+  '/:id/scan-status',
+  apiRequireAuth(),
+  asyncHandler(async (req, res) => {
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      res.status(403).json({ success: false, message: 'Profile not found' });
+      return;
+    }
+    const product = await repo.findProductById(str(req.params.id));
+    if (!product) {
+      res.status(404).json({ success: false, message: 'Product not found' });
+      return;
+    }
+    const isOwner = product.creatorId === profile.id;
+    const isStaff = isAdminRole(profile.role) || isModeratorRole(profile.role);
+    if (!isOwner && !isStaff) {
+      res.status(403).json({ success: false, message: 'Access denied' });
+      return;
+    }
+    res.json({
+      success: true,
+      data: {
+        product_id: product.id,
+        status: product.status,
+        scan_status: product.scanStatus,
+        scan_provider: product.scanProvider,
+        scan_report_id: product.scanReportId,
+        scan_malicious_count: product.scanMaliciousCount,
+        scan_total_engines: product.scanTotalEngines,
+        scan_completed_at: product.scanCompletedAt,
+        has_clean_build: !!product.buildR2Key,
+        has_quarantine: !!product.quarantineKey,
+      },
+    });
+  }),
+);
+
+/**
+ * Session "my products" handler.
+ *
+ * Exported separately because it is mounted at `/api/session/products` (not
+ * `/api/products/...`). Avoids the previous bug where mounting the whole
+ * router on `/api/session/products` matched `router.get('/')` (public list)
+ * instead of the authenticated owner-scoped list.
+ */
+export const sessionProductsRouter = express.Router();
+sessionProductsRouter.get(
+  '/',
   apiRequireAuth(),
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
@@ -149,7 +196,6 @@ router.patch(
     if (body.status !== undefined) {
       const target = String(body.status);
       const current = product.status;
-      const isMod = isModeratorRole(profile.role);
       const ownerAllowed: Record<string, string[]> = {
         draft: ['pending_review'],
         pending_review: ['draft'],
@@ -172,7 +218,21 @@ router.patch(
         });
         return;
       }
+      const requiresCleanScan = target === 'published' || target === 'pending_review';
+      if (requiresCleanScan && product.scanStatus !== 'clean') {
+        res.status(409).json({
+          success: false,
+          message: `Cannot move to "${target}" until the build passes virus scan (current scan_status=${product.scanStatus})`,
+          code: 'SCAN_NOT_CLEAN',
+        });
+        return;
+      }
       updates.status = target;
+      if (target === 'published' || target === 'rejected') {
+        updates.moderator_id = profile.id;
+        updates.moderation_reason = typeof body.reason === 'string' ? body.reason : null;
+        updates.moderated_at = new Date().toISOString();
+      }
     }
 
     if (Object.keys(updates).length === 0) {
@@ -198,6 +258,23 @@ router.patch(
         ip_address: req.ip,
         user_agent: req.get('user-agent') || '',
       });
+
+      if ((isAdmin || isMod) && product.creatorId !== profile.id) {
+        const creator = await repo.findUserById(product.creatorId);
+        if (creator) {
+          if (updates.status === 'published' && product.status !== 'published') {
+            await repo.updateProfile(creator.id, {
+              published_count: (creator.publishedCount ?? 0) + 1,
+              trust_score: (creator.trustScore ?? 0) + 1,
+            });
+          } else if (updates.status === 'rejected') {
+            await repo.updateProfile(creator.id, {
+              rejection_count: (creator.rejectionCount ?? 0) + 1,
+              trust_score: Math.max(-100, (creator.trustScore ?? 0) - 5),
+            });
+          }
+        }
+      }
 
       if (updates.status === 'published' && profile.tonAddress) {
         autoCreateListing(updated ?? product, profile).catch((err) =>

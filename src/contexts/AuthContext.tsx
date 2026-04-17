@@ -12,7 +12,7 @@ import { profileRowToAuthenticatedUser, type ProfileRow } from '../lib/authProfi
 import { storeApiUrl } from '../lib/storeApi';
 import { ROLES } from '../domain/auth/roleCatalog';
 import { logger } from '../lib/logger';
-import { CLERK_CONFIGURED, useClerkUser, useClerkAuth, useClerkUserStub, useClerkAuthStub } from '../lib/clerkSafe';
+import { getCurrentUser, getJwt, logout as appwriteLogout } from '../lib/appwriteAuth';
 
 const PERMISSION_ACTIONS = ['create', 'read', 'update', 'delete', 'approve', 'ban'] as const;
 
@@ -42,30 +42,28 @@ function createSession(user: AuthenticatedUser): AuthSession {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function useAuthCore(
-  isClerkLoaded: boolean,
-  isSignedIn: boolean,
-  getToken: () => Promise<string | null>,
-): AuthContextValue {
+/**
+ * Single source of truth for auth state.
+ *
+ * Bootstraps by asking Appwrite for the current account; if a session exists,
+ * fetches the backend profile and exposes a stable `useAuth()` contract.
+ *
+ * `getToken()` returns a short-lived Appwrite JWT (cached in lib/appwriteAuth)
+ * that backend middleware verifies via `Account.get()`.
+ */
+function useAuthInternal(): AuthContextValue {
   const [profile, setProfile] = useState<AuthenticatedUser | null>(null);
   const [session, setSession] = useState<AuthSession | null>(null);
+  const [isAppwriteLoaded, setIsAppwriteLoaded] = useState(false);
+  const [isSignedIn, setIsSignedIn] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [securityAlerts, setSecurityAlerts] = useState<SecurityFlag[]>([]);
   const [securityEvents] = useState<SecurityEvent[]>([]);
 
-  const getTokenRef = useRef(getToken);
-  getTokenRef.current = getToken;
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchProfile = useCallback(async () => {
-    if (!isSignedIn) {
-      setProfile(null);
-      setSession(null);
-      setIsLoadingProfile(false);
-      return;
-    }
-
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -77,7 +75,7 @@ function useAuthCore(
 
     const tryFetch = async (): Promise<ProfileRow | null> => {
       if (controller.signal.aborted) return null;
-      const token = await getTokenRef.current();
+      const token = await getJwt();
       if (!token || controller.signal.aborted) return null;
       const res = await fetch(storeApiUrl('/api/session/profile'), {
         headers: { Authorization: `Bearer ${token}` },
@@ -120,18 +118,29 @@ function useAuthCore(
       clearTimeout(timeout);
       if (!controller.signal.aborted) setIsLoadingProfile(false);
     }
-  }, [isSignedIn]);
+  }, []);
 
+  // On mount: ask Appwrite for current session and decide whether to load
+  // the backend profile.
   useEffect(() => {
-    if (isClerkLoaded && isSignedIn) {
-      void fetchProfile();
-    } else if (isClerkLoaded && !isSignedIn) {
-      setProfile(null);
-      setSession(null);
-      setIsLoadingProfile(false);
-    }
-    return () => { abortRef.current?.abort(); };
-  }, [isClerkLoaded, isSignedIn, fetchProfile]);
+    let cancelled = false;
+    (async () => {
+      const user = await getCurrentUser();
+      if (cancelled) return;
+      const signed = !!user;
+      setIsSignedIn(signed);
+      setIsAppwriteLoaded(true);
+      if (signed) {
+        await fetchProfile();
+      } else {
+        setIsLoadingProfile(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      abortRef.current?.abort();
+    };
+  }, [fetchProfile]);
 
   const reportSecurityEvent = useCallback((event: Omit<SecurityEvent, 'id' | 'timestamp'>) => {
     logger.warn('[SecurityEvent]', { ...event, id: String(Date.now()), timestamp: new Date() });
@@ -139,7 +148,13 @@ function useAuthCore(
   const logAuditEvent = useCallback((a: string, r: string, result: string, m?: Record<string, unknown>) => {
     logger.warn('[Audit]', { action: a, resource: r, result, metadata: m, at: new Date().toISOString() });
   }, []);
-  const logout = useCallback(async () => { setProfile(null); setSession(null); setError(null); }, []);
+  const logout = useCallback(async () => {
+    await appwriteLogout();
+    setProfile(null);
+    setSession(null);
+    setIsSignedIn(false);
+    setError(null);
+  }, []);
   const hasPermission = useCallback((resource: string, action: string): boolean => {
     if (!profile || !isPermissionAction(action)) return false;
     return (profile.permissions || []).some(p => (p.resource === '*' || p.resource === resource) && p.actions.includes(action));
@@ -165,18 +180,18 @@ function useAuthCore(
     setSession(createSession(u));
   }, [profile]);
 
-  const isLoading = !isClerkLoaded || (isSignedIn && isLoadingProfile);
+  const isLoading = !isAppwriteLoaded || (isSignedIn && isLoadingProfile);
 
   const clearAlerts = useCallback(() => setSecurityAlerts([]), []);
 
-  const stableGetToken = useCallback(async () => getTokenRef.current(), []);
+  const stableGetToken = useCallback(async () => getJwt(), []);
 
   const value: AuthContextValue = useMemo(() => ({
     user: profile,
     session,
     isLoading,
     isAuthenticated: !!isSignedIn && !!profile,
-    clerkSignedIn: !!isSignedIn,
+    providerSignedIn: !!isSignedIn,
     securityAlerts,
     sacredAccess: null,
     error,
@@ -205,23 +220,9 @@ function useAuthCore(
   return value;
 }
 
-const ClerkAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isLoaded } = useClerkUser();
-  const { isSignedIn, getToken } = useClerkAuth();
-  const value = useAuthCore(isLoaded, !!isSignedIn, getToken);
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
-const StubAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isLoaded } = useClerkUserStub();
-  const { isSignedIn, getToken } = useClerkAuthStub();
-  const value = useAuthCore(isLoaded, isSignedIn, getToken);
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  if (CLERK_CONFIGURED) return <ClerkAuthProvider>{children}</ClerkAuthProvider>;
-  return <StubAuthProvider>{children}</StubAuthProvider>;
+  const value = useAuthInternal();
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 // eslint-disable-next-line react-refresh/only-export-components

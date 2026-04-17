@@ -46,8 +46,9 @@ export default function PrivacyPolicy() {
           <h2 className="text-xl font-semibold text-white">4. Data Sharing</h2>
           <p>
             We do not sell your personal data. We may share data with: payment processors
-            (TON blockchain), authentication providers (Clerk), cloud infrastructure
-            providers (Appwrite, Cloudflare), and law enforcement when legally required.
+            (TON blockchain), authentication and database providers (Appwrite),
+            cloud infrastructure providers (Cloudflare), and law enforcement when
+            legally required.
           </p>
         </section>
 

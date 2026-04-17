@@ -3,6 +3,7 @@ import { databases } from './db.js';
 import { CORE_DATABASE_ID, COL_SUPPORT_TICKETS } from './constants.js';
 import { generateId } from './generateId.js';
 import { type AppwriteDoc, asDoc } from '../domain/appwrite-helpers.js';
+import { logger } from '../logger.js';
 
 export interface TicketMessage {
   authorId: string;
@@ -25,10 +26,22 @@ export interface SupportTicket {
   updatedAt: string;
 }
 
-function parseMessages(raw: unknown): TicketMessage[] {
+function parseMessages(raw: unknown, ticketId?: string): TicketMessage[] {
   if (!raw) return [];
   if (typeof raw === 'string') {
-    try { return JSON.parse(raw) as TicketMessage[]; } catch { return []; }
+    try {
+      return JSON.parse(raw) as TicketMessage[];
+    } catch (err: unknown) {
+      // Corrupted JSON in `messages` would otherwise silently lose the entire
+      // conversation. Log so we can investigate while still returning [] to
+      // keep the ticket viewable.
+      logger.warn(
+        `[support] failed to parse messages for ticket ${ticketId ?? '?'}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+      return [];
+    }
   }
   return Array.isArray(raw) ? (raw as TicketMessage[]) : [];
 }
@@ -43,7 +56,7 @@ function mapTicket(doc: AppwriteDoc): SupportTicket {
     priority: (doc['priority'] as string) ?? 'normal',
     productId: (doc['product_id'] as string) ?? null,
     assignedTo: (doc['assigned_to'] as string) ?? null,
-    messages: parseMessages(doc['messages']),
+    messages: parseMessages(doc['messages'], doc.$id),
     createdAt: doc.$createdAt,
     updatedAt: doc.$updatedAt,
   };

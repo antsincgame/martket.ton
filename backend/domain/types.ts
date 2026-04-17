@@ -88,6 +88,24 @@ export const SecurityLevel = {
 } as const;
 export type SecurityLevel = (typeof SecurityLevel)[keyof typeof SecurityLevel];
 
+export const ScanStatus = {
+  PENDING: 'pending',
+  SCANNING: 'scanning',
+  CLEAN: 'clean',
+  SUSPICIOUS: 'suspicious',
+  MALICIOUS: 'malicious',
+  ERROR: 'error',
+} as const;
+export type ScanStatus = (typeof ScanStatus)[keyof typeof ScanStatus];
+
+export const ScanJobStatus = {
+  PENDING: 'pending',
+  RUNNING: 'running',
+  DONE: 'done',
+  FAILED: 'failed',
+} as const;
+export type ScanJobStatus = (typeof ScanJobStatus)[keyof typeof ScanJobStatus];
+
 // ─── Profile (Demiurge) ─────────────────────────────────────────────
 
 export interface Profile {
@@ -102,6 +120,7 @@ export interface Profile {
   securityLevel: SecurityLevel;
   isActive: boolean;
   appwriteUserId: string | null;
+  /** @deprecated Legacy from Clerk migration; new profiles use appwriteUserId. */
   clerkUserId: string | null;
   /** Storefront slug for /developer/:slug public page. */
   slug: string | null;
@@ -115,6 +134,12 @@ export interface Profile {
   aboutLong: string | null;
   /** JSON-encoded array of product IDs the demiurge has pinned (max 4). */
   featuredProductIds: string | null;
+  /** Verified demiurges get auto-publish after scan=clean (no manual moderation). */
+  verified: boolean;
+  /** Reputation score: +1 per approved publication, -5 per rejection. */
+  trustScore: number;
+  publishedCount: number;
+  rejectionCount: number;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -139,8 +164,39 @@ export interface Product {
   buildSha256: string | null;
   buildSizeBytes: number | null;
   buildFilename: string | null;
+  /** Antivirus scan result for the build. */
+  scanStatus: ScanStatus;
+  scanProvider: string | null;
+  /** External report id (e.g. VirusTotal analysis id). */
+  scanReportId: string | null;
+  scanMaliciousCount: number;
+  scanTotalEngines: number;
+  scanCompletedAt: string | null;
+  /** Temporary R2 key while build is in quarantine; cleared after move to public path. */
+  quarantineKey: string | null;
+  /** Profile id of the moderator who approved/rejected the product. */
+  moderatorId: string | null;
+  moderationReason: string | null;
+  moderatedAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+// ─── Scan Job (queue) ───────────────────────────────────────────────
+
+export interface ScanJob {
+  readonly id: string;
+  productId: ProductId;
+  quarantineKey: string;
+  sha256: string;
+  sizeBytes: number;
+  status: ScanJobStatus;
+  attempts: number;
+  vtAnalysisId: string | null;
+  errorMessage: string | null;
+  readonly createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
 }
 
 // ─── Listing (Commerce) ─────────────────────────────────────────────

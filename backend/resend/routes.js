@@ -8,6 +8,14 @@ const { requireAdmin: requireAdminRole, apiRequireAuth } = require('../middlewar
 
 const router = express.Router();
 
+let inboundRepoCache = null;
+async function getInboundRepo() {
+  if (!inboundRepoCache) {
+    inboundRepoCache = await import('../core/inboundEmailRepository.js');
+  }
+  return inboundRepoCache;
+}
+
 function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return null;
@@ -208,6 +216,211 @@ router.post(
       res.status(500).json({ success: false, message: err.message });
     }
   }
+);
+
+// ─── Inbound (receiving) emails ─────────────────────────────────────
+
+/**
+ * Resend inbound webhook.
+ *
+ * Resend POSTs `email.received` events here. We validate the svix
+ * signature, store metadata in Appwrite, and ack. The full body and
+ * attachments are fetched on-demand via the Receiving API.
+ *
+ * IMPORTANT: this endpoint must NOT be behind apiRequireAuth — Resend
+ * authenticates via svix headers, not Appwrite JWT.
+ *
+ * The `express.raw` middleware below makes `req.body` a Buffer so we can
+ * compute the svix signature over the exact bytes Resend sent.
+ */
+router.post(
+  '/webhook/inbound',
+  express.raw({ type: 'application/json', limit: '5mb' }),
+  async (req, res) => {
+    const resend = getResendClient();
+    if (!resend) {
+      logger.warn('[resend/inbound] webhook hit but RESEND_API_KEY not set');
+      return res.status(503).json({ success: false, message: 'Resend not configured' });
+    }
+
+    const secret = process.env.RESEND_WEBHOOK_SECRET;
+    const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
+
+    if (secret) {
+      try {
+        await resend.webhooks.verify({
+          payload: rawBody,
+          headers: {
+            id: req.get('svix-id') || '',
+            timestamp: req.get('svix-timestamp') || '',
+            signature: req.get('svix-signature') || '',
+          },
+          webhookSecret: secret,
+        });
+      } catch (err) {
+        logger.warn('[resend/inbound] webhook signature invalid:', err.message);
+        return res.status(401).json({ success: false, message: 'Invalid webhook signature' });
+      }
+    } else {
+      logger.warn('[resend/inbound] RESEND_WEBHOOK_SECRET not set — skipping signature verify');
+    }
+
+    let event;
+    try {
+      event = JSON.parse(rawBody);
+    } catch {
+      return res.status(400).json({ success: false, message: 'Invalid JSON' });
+    }
+
+    if (!event || event.type !== 'email.received' || !event.data) {
+      return res.json({ success: true, ignored: true });
+    }
+
+    const data = event.data;
+    try {
+      const inbound = await getInboundRepo();
+      await inbound.createOrGetInboundEmail({
+        emailId: String(data.email_id || ''),
+        messageId: data.message_id ? String(data.message_id) : null,
+        from: String(data.from || ''),
+        to: Array.isArray(data.to) ? data.to.map(String) : [],
+        cc: Array.isArray(data.cc) ? data.cc.map(String) : [],
+        subject: data.subject ? String(data.subject) : '',
+        receivedAt: data.created_at ? String(data.created_at) : new Date().toISOString(),
+        attachments: Array.isArray(data.attachments)
+          ? data.attachments.map((a) => ({
+              id: String(a.id || ''),
+              filename: String(a.filename || ''),
+              contentType: String(a.content_type || ''),
+              contentDisposition: a.content_disposition ? String(a.content_disposition) : undefined,
+              contentId: a.content_id ? String(a.content_id) : undefined,
+            }))
+          : [],
+      });
+      return res.json({ success: true });
+    } catch (err) {
+      logger.error('[resend/inbound] failed to persist event:', err.message);
+      // Return 500 so Resend retries delivery.
+      return res.status(500).json({ success: false, message: 'Persist failed' });
+    }
+  },
+);
+
+/**
+ * Admin: list inbound emails (paginated by `limit`, default 100).
+ * Optional filters: `status`, `to` (substring match on recipients).
+ */
+router.get(
+  '/inbox',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    try {
+      const inbound = await getInboundRepo();
+      const limit = Math.min(parseInt(String(req.query.limit || '100'), 10) || 100, 200);
+      const status = req.query.status ? String(req.query.status) : undefined;
+      const toAddress = req.query.to ? String(req.query.to) : undefined;
+      const items = await inbound.listInbound({ limit, status, toAddress });
+      const unread = await inbound.countUnread();
+      res.json({ success: true, data: { items, unread } });
+    } catch (err) {
+      logger.error('[resend/inbox] list failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
+/**
+ * Admin: fetch full body of a single inbound email from Resend
+ * (HTML + text + headers). Marks the local record as read on success.
+ */
+router.get(
+  '/inbox/:id',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    const resend = getResendClient();
+    if (!resend) {
+      return res.status(503).json({ success: false, message: 'Resend not configured' });
+    }
+    try {
+      const inbound = await getInboundRepo();
+      const local = await inbound.findById(req.params.id);
+      if (!local) return res.status(404).json({ success: false, message: 'Not found' });
+
+      let body = null;
+      try {
+        const remote = await resend.emails.receiving.get(local.emailId);
+        body = remote?.data ?? remote ?? null;
+      } catch (err) {
+        logger.warn('[resend/inbox] body fetch failed:', err.message);
+      }
+
+      if (!local.isRead) {
+        await inbound.markRead(local.id, true);
+      }
+      res.json({ success: true, data: { meta: local, body } });
+    } catch (err) {
+      logger.error('[resend/inbox/:id] failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
+router.post(
+  '/inbox/:id/archive',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    try {
+      const inbound = await getInboundRepo();
+      const updated = await inbound.archive(req.params.id);
+      if (!updated) return res.status(404).json({ success: false, message: 'Not found' });
+      res.json({ success: true, data: updated });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
+router.delete(
+  '/inbox/:id',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    try {
+      const inbound = await getInboundRepo();
+      await inbound.deleteInbound(req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
+/**
+ * Admin: returns hints for setting up inbound — public webhook URL,
+ * MX domain (Resend-managed), DNS instructions.
+ *
+ * The frontend uses this to render a "how to wire this up" card so the
+ * operator doesn't need to read the docs.
+ */
+router.get(
+  '/inbox-setup',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    const apiOrigin = (process.env.PUBLIC_API_ORIGIN || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+    res.json({
+      success: true,
+      data: {
+        webhookUrl: `${apiOrigin}/api/admin/resend/webhook/inbound`,
+        webhookSecretConfigured: !!process.env.RESEND_WEBHOOK_SECRET,
+        senderFrom: process.env.RESEND_FROM || null,
+        apiKeyConfigured: !!process.env.RESEND_API_KEY,
+      },
+    });
+  },
 );
 
 module.exports = router;

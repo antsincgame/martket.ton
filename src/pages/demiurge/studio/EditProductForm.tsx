@@ -30,6 +30,9 @@ interface ProductDetail {
   build_size_bytes: number | null;
   build_sha256: string | null;
   downloads: number;
+  scan_status?: 'pending' | 'scanning' | 'clean' | 'suspicious' | 'malicious' | 'error' | null;
+  scan_malicious_count?: number;
+  scan_total_engines?: number;
 }
 
 const CATEGORIES = ['apps', 'games', 'ai', 'developer-tools', 'finance', 'social', 'other'];
@@ -209,6 +212,9 @@ export default function EditProductForm({ getToken }: EditProductFormProps) {
         productId={product.id}
         status={product.status}
         hasBuild={Boolean(product.build_r2_key)}
+        scanStatus={product.scan_status ?? null}
+        scanMaliciousCount={product.scan_malicious_count ?? 0}
+        scanTotalEngines={product.scan_total_engines ?? 0}
         getToken={getToken}
         onChanged={(next) => setProduct({ ...product, status: next })}
       />

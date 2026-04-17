@@ -1,4 +1,3 @@
-import { CATALOG_LISTING_PRODUCTS, getSeedDetailOrNull, REVIEWS_PRODUCT_1 } from './seed';
 import type {
   CatalogListingProduct,
   CategoryMeta,
@@ -164,9 +163,9 @@ export function getHomeSpotlightProductsForProducts(
   return inventory.slice(0, 8);
 }
 
-/** Блок «Featured Treasures» на главной — на демо-каталоге. */
+/** @deprecated Use getHomeSpotlightProductsForProducts with real data. Returns empty for clean site. */
 export function getHomeSpotlightProducts(): CatalogListingProduct[] {
-  return getHomeSpotlightProductsForProducts(CATALOG_LISTING_PRODUCTS);
+  return [];
 }
 
 export function getHomeCategorySummariesForProducts(
@@ -247,50 +246,12 @@ export function sortListingProducts(
   }
 }
 
-export function getProductDetail(productId: string | undefined): ProductDetail | null {
-  if (!productId) return null;
-  const rich = getSeedDetailOrNull(productId);
-  if (rich) return { ...rich, id: productId };
-  const listing = CATALOG_LISTING_PRODUCTS.find((item) => item.id === productId);
-  if (!listing) return null;
-  return buildDetailFromListing(listing);
+/** @deprecated Seed fallback removed. Returns null — real products come from Appwrite API. */
+export function getProductDetail(_productId: string | undefined): ProductDetail | null {
+  return null;
 }
 
-function buildDetailFromListing(listing: CatalogListingProduct): ProductDetail {
-  return {
-    ...listing,
-    longDescription: `${listing.description}\n\n— Демо-карточка: полное описание будет из backend.`,
-    reviewStatsCount: Math.max(1, Math.floor(listing.downloads / 200)),
-    images: [listing.image],
-    version: '1.0.0',
-    size: '—',
-    platforms: ['Web', 'TON'],
-    requirements: 'Уточняйте у разработчика',
-    lastUpdated: new Date().toISOString().slice(0, 10),
-    tags: [listing.category],
-  };
-}
-
-export function getProductReviews(productId: string): ProductReview[] {
-  if (productId === '10') return REVIEWS_PRODUCT_1;
-  const listing = CATALOG_LISTING_PRODUCTS.find((item) => item.id === productId);
-  const name = listing?.name ?? 'этот продукт';
-  return [
-    {
-      id: 'seed-review-a',
-      author: 'SacredUser',
-      rating: 5,
-      date: new Date().toISOString().slice(0, 10),
-      comment: `Отличная находка: «${name}». Жду полноценных отзывов из базы.`,
-      helpful: 3,
-    },
-    {
-      id: 'seed-review-b',
-      author: 'TONWanderer',
-      rating: 4,
-      date: new Date().toISOString().slice(0, 10),
-      comment: 'Демо-отзыв: данные из Appwrite подменят этот текст при непустой коллекции reviews.',
-      helpful: 1,
-    },
-  ];
+/** @deprecated Seed fallback removed. Returns [] — real reviews come from Appwrite API. */
+export function getProductReviews(_productId: string): ProductReview[] {
+  return [];
 }

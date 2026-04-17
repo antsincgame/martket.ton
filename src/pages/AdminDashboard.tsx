@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock, Coins, Mail, Folder, MessageCircle } from 'lucide-react';
+import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock, Coins, Mail, Folder, MessageCircle, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import SecurityMonitor from '../components/SecurityMonitor';
 import RealUserManagement from '../components/RealUserManagement';
@@ -11,6 +11,7 @@ import CategoryManagement from '../components/admin/CategoryManagement';
 import AnalyticsDashboard from '../components/admin/AnalyticsDashboard';
 import SystemConfig from '../components/admin/SystemConfig';
 import SupportTickets from '../components/admin/SupportTickets';
+import VerifiedDemiurges from '../components/admin/VerifiedDemiurges';
 
 const AdminDashboard = () => {
   const { user, hasPermission, getSecurityLevel, hasRole, isAuthenticated, isLoading } = useAuth();
@@ -91,6 +92,13 @@ const AdminDashboard = () => {
       icon: Database,
       component: ProductModerationQueue,
       requiredPermission: { resource: 'products', action: 'read' },
+    },
+    {
+      id: 'verified',
+      label: 'Verified',
+      icon: ShieldCheck,
+      component: VerifiedDemiurges,
+      requiredPermission: { resource: 'users', action: 'update' },
     },
     {
       id: 'categories',

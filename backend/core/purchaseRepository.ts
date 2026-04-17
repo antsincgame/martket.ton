@@ -26,6 +26,19 @@ export async function findPurchase(userId: string, productId: string): Promise<P
   return doc ? mapPurchase(asDoc(doc)) : null;
 }
 
+/**
+ * Anti-replay lookup: ensure the same on-chain tx_hash cannot be used twice.
+ */
+export async function findPurchaseByTxHash(txHash: string): Promise<Purchase | null> {
+  if (!txHash) return null;
+  const res = await databases().listDocuments(CORE_DATABASE_ID, COL_PURCHASES, [
+    Query.equal('tx_hash', txHash),
+    Query.limit(1),
+  ]);
+  const doc = res.documents[0];
+  return doc ? mapPurchase(asDoc(doc)) : null;
+}
+
 export async function listPurchasesByUser(userId: string): Promise<Purchase[]> {
   const res = await databases().listDocuments(CORE_DATABASE_ID, COL_PURCHASES, [
     Query.equal('user_id', userId),

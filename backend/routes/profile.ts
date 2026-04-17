@@ -1,5 +1,4 @@
 import express from 'express';
-import { getAuth } from '@clerk/express';
 import { logger } from '../logger.js';
 import { resolveProfile, apiRequireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
@@ -27,14 +26,9 @@ router.get(
   '/session/profile',
   apiRequireAuth(),
   asyncHandler(async (req, res) => {
-    let profile = await resolveProfile(req);
-    if (!profile) {
-      const auth = getAuth(req);
-      if (auth?.userId) {
-        logger.info(`Auto-creating profile for Clerk user ${auth.userId}`);
-        profile = await repo.upsertProfileForClerkUser(auth.userId, { role: 'demiurge' });
-      }
-    }
+    // resolveProfile auto-upserts on first authenticated hit using the
+    // Appwrite user metadata, so no Clerk-style manual fallback is needed.
+    const profile = await resolveProfile(req);
     if (!profile) {
       res.status(404).json({ success: false, message: 'Profile not found' });
       return;

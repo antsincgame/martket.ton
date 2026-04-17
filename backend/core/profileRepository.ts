@@ -4,36 +4,6 @@ import { CORE_DATABASE_ID, COL_PROFILES } from './constants.js';
 import { generateId } from './generateId.js';
 import type { Profile, ProfileId, TonAddress } from '../domain/types.js';
 import { type AppwriteDoc, asDoc } from '../domain/appwrite-helpers.js';
-import { logger } from '../logger.js';
-
-const ADMIN_EMAILS: ReadonlySet<string> = new Set(
-  (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean),
-);
-
-const MODERATOR_EMAILS: ReadonlySet<string> = new Set(
-  (process.env.MODERATOR_EMAILS || '')
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean),
-);
-
-function resolveRole(email: string | null | undefined, fallback: string): string {
-  if (!email) return normalizeLegacyRole(fallback);
-  const lower = email.toLowerCase();
-  if (ADMIN_EMAILS.has(lower)) {
-    logger.info(`[auto-promote] ${email} → super_admin (ADMIN_EMAILS match)`);
-    return 'super_admin';
-  }
-  if (MODERATOR_EMAILS.has(lower)) {
-    logger.info(`[auto-promote] ${email} → moderator (MODERATOR_EMAILS match)`);
-    return 'moderator';
-  }
-  return normalizeLegacyRole(fallback);
-}
-
 function normalizeLegacyRole(role: string): string {
   return role === 'seller' ? 'demiurge' : role;
 }
@@ -45,7 +15,7 @@ function mapProfile(doc: AppwriteDoc): Profile {
     tonAddress: ((doc['ton_address'] as string) ?? null) as TonAddress | null,
     name: (doc['name'] as string) ?? '',
     displayName: (doc['display_name'] as string) ?? (doc['name'] as string) ?? '',
-    role: (doc['role'] as Profile['role']) ?? 'demiurge',
+    role: normalizeLegacyRole((doc['role'] as string) ?? 'demiurge') as Profile['role'],
     avatar: (doc['avatar'] as string) ?? null,
     bio: (doc['bio'] as string) ?? null,
     securityLevel: (doc['security_level'] as Profile['securityLevel']) ?? 'low',
@@ -60,6 +30,10 @@ function mapProfile(doc: AppwriteDoc): Profile {
     twitter: (doc['twitter'] as string) ?? null,
     aboutLong: (doc['about_long'] as string) ?? null,
     featuredProductIds: (doc['featured_product_ids'] as string) ?? null,
+    verified: doc['verified'] === true,
+    trustScore: (doc['trust_score'] as number) ?? 0,
+    publishedCount: (doc['published_count'] as number) ?? 0,
+    rejectionCount: (doc['rejection_count'] as number) ?? 0,
     createdAt: doc.$createdAt,
     updatedAt: doc.$updatedAt,
   };
@@ -87,6 +61,10 @@ export function profileToSnakeCase(p: Profile): Record<string, unknown> {
     twitter: p.twitter,
     about_long: p.aboutLong,
     featured_product_ids: p.featuredProductIds,
+    verified: p.verified,
+    trust_score: p.trustScore,
+    published_count: p.publishedCount,
+    rejection_count: p.rejectionCount,
     created_at: p.createdAt,
     updated_at: p.updatedAt,
   };
@@ -124,15 +102,6 @@ export async function findUserByEmail(email: string): Promise<Profile | null> {
   if (!email) return null;
   const res = await databases().listDocuments(CORE_DATABASE_ID, COL_PROFILES, [
     Query.equal('email', email),
-    Query.limit(1),
-  ]);
-  const doc = res.documents[0];
-  return doc ? mapProfile(asDoc(doc)) : null;
-}
-
-export async function findUserByClerkId(clerkUserId: string): Promise<Profile | null> {
-  const res = await databases().listDocuments(CORE_DATABASE_ID, COL_PROFILES, [
-    Query.equal('clerk_user_id', clerkUserId),
     Query.limit(1),
   ]);
   const doc = res.documents[0];
@@ -178,64 +147,27 @@ interface UpsertPayload {
   is_active?: boolean;
 }
 
-export async function upsertProfileForClerkUser(
-  clerkUserId: string,
-  payload: UpsertPayload,
-): Promise<Profile | null> {
-  let existing = await findUserByClerkId(clerkUserId);
-  if (!existing && payload.email) {
-    const byEmail = await findUserByEmail(payload.email);
-    if (byEmail && !byEmail.clerkUserId) {
-      existing = byEmail;
-    }
-  }
-
-  const effectiveEmail = payload.email ?? existing?.email ?? null;
-  const effectiveRole = resolveRole(
-    effectiveEmail,
-    payload.role ?? existing?.role ?? 'demiurge',
-  );
-
-  const data: Record<string, unknown> = {
-    clerk_user_id: clerkUserId,
-    email: effectiveEmail,
-    ton_address: payload.ton_address ?? existing?.tonAddress ?? null,
-    name: payload.name ?? existing?.name ?? 'Demiurge',
-    display_name:
-      payload.display_name ??
-      existing?.displayName ??
-      payload.name ??
-      existing?.name ??
-      'Demiurge',
-    role: effectiveRole,
-    avatar: payload.avatar ?? existing?.avatar ?? null,
-    bio: payload.bio ?? existing?.bio ?? null,
-    security_level: payload.security_level ?? existing?.securityLevel ?? 'low',
-    is_active: payload.is_active !== false,
-  };
-
-  if (existing) {
-    await databases().updateDocument(CORE_DATABASE_ID, COL_PROFILES, existing.id, data);
-    return findUserById(existing.id);
-  }
-  const id = generateId();
-  await databases().createDocument(CORE_DATABASE_ID, COL_PROFILES, id, data);
-  return findUserById(id);
-}
-
+/**
+ * Find-or-create a profile for an Appwrite Account user.
+ *
+ * GoD principle: one email = one profile. If a profile already exists for
+ * this email (from a different auth method, e.g. magic-link vs GitHub OAuth),
+ * we merge by updating the existing document with the new `appwrite_user_id`.
+ * This prevents duplicate accounts and preserves purchases, trust_score, etc.
+ */
 export async function upsertProfileForAppwriteUser(
   appwriteUserId: string,
   payload: UpsertPayload,
 ): Promise<Profile | null> {
+  // Priority 1: profile already bound to this Appwrite account.
   const byAccount = await findUserByAppwriteId(appwriteUserId);
+  // Priority 2: profile bound to this email (any or no provider).
   const byEmail = payload.email ? await findUserByEmail(payload.email) : null;
-  let existing = byAccount;
-  if (!existing && byEmail && !byEmail.appwriteUserId) {
-    existing = byEmail;
-  }
-  if (!existing && byEmail && byEmail.appwriteUserId === appwriteUserId) {
-    existing = byEmail;
-  }
+
+  // Merge strategy: prefer byAccount; fall back to byEmail regardless of
+  // its current appwrite_user_id — the latest authenticated provider wins.
+  // This handles GitHub-OAuth → magic-link (or vice-versa) for the same email.
+  const existing = byAccount ?? byEmail ?? null;
 
   const data: Record<string, unknown> = {
     appwrite_user_id: appwriteUserId,
@@ -248,7 +180,7 @@ export async function upsertProfileForAppwriteUser(
       payload.name ??
       existing?.name ??
       'Demiurge',
-    role: payload.role ?? existing?.role ?? 'demiurge',
+    role: normalizeLegacyRole(payload.role ?? existing?.role ?? 'demiurge'),
     avatar: payload.avatar ?? existing?.avatar ?? null,
     bio: payload.bio ?? existing?.bio ?? null,
     security_level: payload.security_level ?? existing?.securityLevel ?? 'low',

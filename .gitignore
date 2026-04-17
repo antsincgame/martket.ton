@@ -13,7 +13,11 @@ dist/
 .vite_cache/
 .bolt/
 .env
-.env.local
+.env.*
+!.env.example
+!deploy/*.env.example
+**/.env
+**/.env.local
 .DS_Store
 *.local
 

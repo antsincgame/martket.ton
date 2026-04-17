@@ -143,7 +143,12 @@ export interface AuthContextValue {
   session: AuthSession | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  clerkSignedIn: boolean;
+  /**
+   * True if the user has a session at the auth provider (Appwrite Account)
+   * but the backend profile may not have resolved yet. Used by ProtectedRoute
+   * to differentiate "logged out" from "logged in but loading profile".
+   */
+  providerSignedIn: boolean;
   securityAlerts: SecurityFlag[];
   sacredAccess: SacredAccess | null;
   error: string | null;

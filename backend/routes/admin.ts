@@ -72,18 +72,28 @@ router.get(
   }),
 );
 
+/**
+ * Manual audit-log entry surface.
+ *
+ * Restricted to super-admins and to a small whitelist of action types
+ * (see AUDIT_LOG_CLIENT_ACTIONS). All other action types must be inserted
+ * by trusted server-side code via repo.insertAuditLog directly.
+ *
+ * The user_id is always taken from the authenticated profile, never the
+ * request body — the writer cannot impersonate another user.
+ */
 router.post(
   '/audit-logs',
   apiRequireAuth(),
-  requireAdmin,
+  requireSuperAdmin,
   validateBody(createAuditLogSchema),
   asyncHandler(async (req, res) => {
     const { action, resource, resource_id, result, metadata } = req.body as Record<string, unknown>;
     await repo.insertAuditLog({
       id: generateId(),
       user_id: req.profile?.id || 'unknown',
-      action: String(action || 'unknown'),
-      resource: String(resource || 'unknown'),
+      action: String(action),
+      resource: String(resource),
       resource_id: (resource_id as string) || null,
       result: String(result || 'success'),
       metadata: metadata ? JSON.stringify(metadata) : null,
@@ -208,6 +218,120 @@ router.get(
   asyncHandler(async (_req, res) => {
     const products = await repo.listProductsByStatus('pending_review');
     res.json({ success: true, data: products.map(repo.productToSnakeCase) });
+  }),
+);
+
+router.post(
+  '/products/:id/rescan',
+  apiRequireAuth(),
+  requireModerator,
+  asyncHandler(async (req, res) => {
+    const product = await repo.findProductById(str(req.params.id));
+    if (!product) {
+      res.status(404).json({ success: false, message: 'Product not found' });
+      return;
+    }
+    const sourceKey = product.quarantineKey || product.buildR2Key;
+    if (!sourceKey || !product.buildSha256 || !product.buildSizeBytes) {
+      res.status(409).json({
+        success: false,
+        message: 'Product has no build to rescan',
+      });
+      return;
+    }
+
+    let quarantineKey = product.quarantineKey;
+    if (!quarantineKey && product.buildR2Key) {
+      const ext = product.buildR2Key.slice(product.buildR2Key.lastIndexOf('.'));
+      quarantineKey = `quarantine/builds/${product.id}/${product.version || '1.0.0'}-${Date.now()}${ext}`;
+      const r2Mod = await import('../r2/client.js');
+      const r2 = ((r2Mod as unknown as { default?: typeof r2Mod }).default ?? r2Mod);
+      const { CopyObjectCommand } = await import('@aws-sdk/client-s3');
+      const client = r2.getR2Client();
+      if (!client) {
+        res.status(503).json({ success: false, message: 'R2 not configured' });
+        return;
+      }
+      const bucket = r2.getBucketName();
+      await client.send(new CopyObjectCommand({
+        Bucket: bucket,
+        Key: quarantineKey,
+        CopySource: `${bucket}/${encodeURIComponent(product.buildR2Key)}`,
+      }));
+    }
+
+    if (!quarantineKey) {
+      res.status(409).json({ success: false, message: 'Failed to prepare build for rescan' });
+      return;
+    }
+
+    await repo.updateProduct(product.id, {
+      quarantine_key: quarantineKey,
+      scan_status: 'pending',
+      scan_report_id: null,
+      scan_malicious_count: 0,
+      scan_total_engines: 0,
+      scan_completed_at: null,
+    });
+
+    const scanJobsMod = await import('../core/scanJobRepository.js');
+    const scanJobs = ((scanJobsMod as unknown as { default?: typeof scanJobsMod }).default ?? scanJobsMod);
+    const job = await scanJobs.createScanJob({
+      productId: product.id,
+      quarantineKey,
+      sha256: product.buildSha256,
+      sizeBytes: product.buildSizeBytes,
+    });
+
+    await repo.insertAuditLog({
+      id: generateId(),
+      user_id: req.profile?.id || 'unknown',
+      action: 'rescan_request',
+      resource: 'product',
+      resource_id: product.id,
+      result: 'success',
+      metadata: JSON.stringify({ scan_job_id: job?.id, quarantine_key: quarantineKey }),
+      ip_address: req.ip,
+      user_agent: req.get('user-agent') || '',
+    });
+
+    res.status(202).json({
+      success: true,
+      data: { status: 'scanning', scan_job_id: job?.id, quarantine_key: quarantineKey },
+    });
+  }),
+);
+
+router.patch(
+  '/profiles/:id/verify',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const targetId = str(req.params.id);
+    const { verified } = req.body as { verified?: boolean };
+    if (typeof verified !== 'boolean') {
+      res.status(400).json({ success: false, message: 'verified must be a boolean' });
+      return;
+    }
+    const target = await repo.findUserById(targetId);
+    if (!target) {
+      res.status(404).json({ success: false, message: 'Profile not found' });
+      return;
+    }
+    await updateProfile(targetId, { verified });
+    await repo.insertAuditLog({
+      id: generateId(),
+      user_id: req.profile?.id || 'unknown',
+      action: verified ? 'profile_verify' : 'profile_unverify',
+      resource: 'profile',
+      resource_id: targetId,
+      result: 'success',
+      metadata: JSON.stringify({ from: target.verified, to: verified }),
+      ip_address: req.ip,
+      user_agent: req.get('user-agent') || '',
+    });
+    const updated = await repo.findUserById(targetId);
+    res.json({ success: true, data: updated ? profileToSnakeCase(updated) : null });
   }),
 );
 

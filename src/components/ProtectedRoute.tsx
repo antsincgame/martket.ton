@@ -1,28 +1,24 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { Shield, Lock, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { CLERK_CONFIGURED, useAuthModal } from '../lib/clerkSafe';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: string;
 }
 
+/**
+ * Gate that requires an authenticated session for the wrapped route.
+ *
+ * - While auth is bootstrapping → spinner (no flicker to /sign-in)
+ * - Logged in but profile still loading → spinner with manual Retry
+ * - Logged out → redirect to /sign-in (mobile and desktop alike)
+ * - Logged in but missing role → access-denied screen
+ */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
-  const { isAuthenticated, clerkSignedIn, hasRole, isLoading, user, fetchProfile } = useAuth();
-  const { openAuthModal } = useAuthModal();
+  const { isAuthenticated, providerSignedIn, hasRole, isLoading, user, fetchProfile } = useAuth();
   const location = useLocation();
-  const modalFired = useRef(false);
-
-  const needsRedirect = !isLoading && !isAuthenticated && !clerkSignedIn && CLERK_CONFIGURED;
-
-  useEffect(() => {
-    if (needsRedirect && !modalFired.current && window.innerWidth >= 768) {
-      modalFired.current = true;
-      openAuthModal('sign-in');
-    }
-  }, [needsRedirect, openAuthModal]);
 
   if (isLoading) {
     return (
@@ -33,7 +29,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
   }
 
   if (!isAuthenticated) {
-    if (CLERK_CONFIGURED && clerkSignedIn) {
+    // Session exists at the auth provider but the backend profile hasn't
+    // resolved yet — give the user a way to retry instead of a blank screen.
+    if (providerSignedIn) {
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center max-w-sm">
@@ -50,14 +48,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
         </div>
       );
     }
-
-    if (CLERK_CONFIGURED) {
-      if (typeof window !== 'undefined' && window.innerWidth < 768) {
-        return <Navigate to="/sign-in" state={{ from: location }} replace />;
-      }
-      return <Navigate to="/" replace />;
-    }
-    return <Navigate to="/" replace />;
+    return <Navigate to="/sign-in" state={{ from: location }} replace />;
   }
 
   if (requiredRole && !hasRole(requiredRole)) {

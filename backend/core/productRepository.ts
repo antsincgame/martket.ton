@@ -1,8 +1,8 @@
-import { Query } from 'node-appwrite';
+import { Query, type Models } from 'node-appwrite';
 import { databases } from './db.js';
 import { CORE_DATABASE_ID, COL_LEGACY_PRODUCTS } from './constants.js';
 import { generateId } from './generateId.js';
-import type { Product, ProductId, ProfileId, ProductStatus } from '../domain/types.js';
+import type { Product, ProductId, ProfileId, ProductStatus, ScanStatus } from '../domain/types.js';
 import { type AppwriteDoc, asDoc } from '../domain/appwrite-helpers.js';
 
 function mapProduct(doc: AppwriteDoc): Product {
@@ -24,6 +24,16 @@ function mapProduct(doc: AppwriteDoc): Product {
     buildSha256: (doc['build_sha256'] as string) ?? null,
     buildSizeBytes: (doc['build_size_bytes'] as number) ?? null,
     buildFilename: (doc['build_filename'] as string) ?? null,
+    scanStatus: ((doc['scan_status'] as string) ?? 'pending') as ScanStatus,
+    scanProvider: (doc['scan_provider'] as string) ?? null,
+    scanReportId: (doc['scan_report_id'] as string) ?? null,
+    scanMaliciousCount: (doc['scan_malicious_count'] as number) ?? 0,
+    scanTotalEngines: (doc['scan_total_engines'] as number) ?? 0,
+    scanCompletedAt: (doc['scan_completed_at'] as string) ?? null,
+    quarantineKey: (doc['quarantine_key'] as string) ?? null,
+    moderatorId: (doc['moderator_id'] as string) ?? null,
+    moderationReason: (doc['moderation_reason'] as string) ?? null,
+    moderatedAt: (doc['moderated_at'] as string) ?? null,
     createdAt: doc.$createdAt,
     updatedAt: doc.$updatedAt,
   };
@@ -48,6 +58,16 @@ export function productToSnakeCase(p: Product): Record<string, unknown> {
     build_sha256: p.buildSha256,
     build_size_bytes: p.buildSizeBytes,
     build_filename: p.buildFilename,
+    scan_status: p.scanStatus,
+    scan_provider: p.scanProvider,
+    scan_report_id: p.scanReportId,
+    scan_malicious_count: p.scanMaliciousCount,
+    scan_total_engines: p.scanTotalEngines,
+    scan_completed_at: p.scanCompletedAt,
+    quarantine_key: p.quarantineKey,
+    moderator_id: p.moderatorId,
+    moderation_reason: p.moderationReason,
+    moderated_at: p.moderatedAt,
     created_at: p.createdAt,
     updated_at: p.updatedAt,
   };
@@ -70,13 +90,35 @@ export async function listAllProducts(): Promise<Product[]> {
   return res.documents.map((d) => mapProduct(asDoc(d)));
 }
 
+/**
+ * Lists products owned by a given profile.
+ *
+ * Includes both `creator_id` (modern) and `developer_id` (legacy migration)
+ * matches, deduplicated by id. Without the developer_id fallback, profiles
+ * created before the rename would see an empty "my products" list.
+ */
 export async function listProductsByCreator(creatorId: string): Promise<Product[]> {
-  const res = await databases().listDocuments(CORE_DATABASE_ID, COL_LEGACY_PRODUCTS, [
-    Query.equal('creator_id', creatorId),
-    Query.orderDesc('$createdAt'),
-    Query.limit(5000),
+  const [byCreator, byDeveloper] = await Promise.all([
+    databases().listDocuments(CORE_DATABASE_ID, COL_LEGACY_PRODUCTS, [
+      Query.equal('creator_id', creatorId),
+      Query.orderDesc('$createdAt'),
+      Query.limit(5000),
+    ]),
+    databases().listDocuments(CORE_DATABASE_ID, COL_LEGACY_PRODUCTS, [
+      Query.equal('developer_id', creatorId),
+      Query.orderDesc('$createdAt'),
+      Query.limit(5000),
+    ]).catch(() => ({ documents: [] as Models.Document[] })),
   ]);
-  return res.documents.map((d) => mapProduct(asDoc(d)));
+  const seen = new Set<string>();
+  const merged: Product[] = [];
+  for (const d of [...byCreator.documents, ...byDeveloper.documents]) {
+    const product = mapProduct(asDoc(d));
+    if (seen.has(product.id)) continue;
+    seen.add(product.id);
+    merged.push(product);
+  }
+  return merged;
 }
 
 export async function findProductById(id: string): Promise<Product | null> {
@@ -131,4 +173,30 @@ export async function updateProduct(
 ): Promise<Product | null> {
   await databases().updateDocument(CORE_DATABASE_ID, COL_LEGACY_PRODUCTS, productId, data);
   return findProductById(productId);
+}
+
+export interface ScanResultUpdate {
+  scanStatus: ScanStatus;
+  scanProvider?: string | null;
+  scanReportId?: string | null;
+  scanMaliciousCount?: number;
+  scanTotalEngines?: number;
+  scanCompletedAt?: string | null;
+}
+
+/**
+ * Atomic write of antivirus scan result. Used by scan worker only —
+ * never touches build_*, status, or moderation fields.
+ */
+export async function updateScanResult(
+  productId: string,
+  result: ScanResultUpdate,
+): Promise<Product | null> {
+  const data: Record<string, unknown> = { scan_status: result.scanStatus };
+  if (result.scanProvider !== undefined) data['scan_provider'] = result.scanProvider;
+  if (result.scanReportId !== undefined) data['scan_report_id'] = result.scanReportId;
+  if (result.scanMaliciousCount !== undefined) data['scan_malicious_count'] = result.scanMaliciousCount;
+  if (result.scanTotalEngines !== undefined) data['scan_total_engines'] = result.scanTotalEngines;
+  if (result.scanCompletedAt !== undefined) data['scan_completed_at'] = result.scanCompletedAt;
+  return updateProduct(productId, data);
 }

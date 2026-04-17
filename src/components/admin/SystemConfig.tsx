@@ -19,14 +19,14 @@ interface EnvEntry {
 
 const frontendEnvEntries: EnvEntry[] = [
   {
-    label: 'Clerk Publishable Key',
-    key: 'VITE_CLERK_PUBLISHABLE_KEY',
-    configured: !!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-  },
-  {
     label: 'Appwrite Endpoint',
     key: 'VITE_APPWRITE_ENDPOINT',
     configured: !!import.meta.env.VITE_APPWRITE_ENDPOINT,
+  },
+  {
+    label: 'Appwrite Project ID',
+    key: 'VITE_APPWRITE_PROJECT_ID',
+    configured: !!import.meta.env.VITE_APPWRITE_PROJECT_ID,
   },
   {
     label: 'Commerce API URL',
@@ -109,7 +109,7 @@ const SystemConfig: FC = () => {
               {([
                 ['Status', health.status === 'OK'],
                 ['Database', health.db !== 'not_configured'],
-                ['Auth (Clerk)', !health.auth.includes('not_configured')],
+                ['Auth (Appwrite)', !health.auth.includes('not_configured')],
                 ['Storage (R2)', health.storage !== 'not_configured'],
               ] as const).map(([label, ok]) => (
                 <div key={label} className="flex items-center justify-between">

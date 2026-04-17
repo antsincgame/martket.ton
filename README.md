@@ -11,7 +11,7 @@
 | **Frontend** | React 18, TypeScript (strict), Vite 5, Tailwind CSS 3 |
 | **Routing** | React Router DOM v6 |
 | **State / data** | TanStack React Query |
-| **Auth** | Clerk (сессия), TonConnect (кошелёк TON), JWT для API по кошельку где применимо |
+| **Auth** | Appwrite Account (magic-link email + GitHub OAuth, JWT для backend), TonConnect (кошелёк TON) |
 | **Forms** | react-hook-form, zod |
 | **Backend** | Node.js, Express, TypeScript (`tsx`) |
 | **БД** | Appwrite Databases (каталог, core: профили/продукты/покупки, commerce) |
@@ -59,7 +59,13 @@ npm install
 cd backend && npm install && cd ..
 ```
 
-Скопируйте `.env.example` → `.env` и заполните значения (Clerk, Appwrite, URL API, при необходимости commerce и R2).
+Скопируйте `.env.example` → `.env` и заполните значения (Appwrite endpoint/project/API key, URL API, при необходимости commerce, R2 и VirusTotal).
+
+В Appwrite Console включите:
+- **Auth → Settings**: Email/Password (нужен для magic-link).
+- **Auth → Templates → Magic URL**: настройте брендинг письма.
+- **Auth → Settings → OAuth2 Providers → GitHub**: введите Client ID/Secret из созданного на GitHub OAuth App; redirect URL подскажет Appwrite.
+- (Опционально) **Auth → Settings → SMTP**: подключите Resend как кастомный SMTP, чтобы письма приходили с вашего домена.
 
 ### Разработка
 
@@ -80,11 +86,41 @@ cd backend && npm run dev
 | `npm run preview` | Превью production-сборки |
 | `npm run typecheck` | Проверка типов фронта |
 | `npm run lint` | ESLint |
-| `npm run test` | Vitest (unit) |
+| `npm run test` | Vitest (unit + backend) |
 | `npm run test:e2e` | Playwright |
 | `npm run provision:appwrite` | Провижининг каталога Appwrite |
 | `npm run provision:commerce` | Провижининг commerce |
 | `npm run provision:core` | Core DB (через backend) |
+
+### Первый деплой (контрольный список)
+
+1. Заполнить `.env` (или `backend/.env`) обязательными секретами:
+   `APPWRITE_API_KEY`, `APPWRITE_PROJECT_ID`,
+   `TREASURY_WALLET_ADDRESS`, `R2_*`, `VIRUSTOTAL_API_KEY`
+   (см. `.env.example` со всеми опциями).
+2. Запустить провижининг Appwrite: `npm run provision:core` —
+   создаёт коллекции `profiles`, `legacy_products`, `scan_jobs`,
+   `support_tickets`, `api_audit_logs` и нужные индексы.
+3. Запустить `npm run provision:commerce` для коллекций commerce
+   (listings/orders/disputes), затем `npm run provision:appwrite`
+   для каталога витрины.
+4. Поднять backend (`cd backend && npm run dev` или Docker) — он
+   стартует фоновый `scan-worker` если VirusTotal сконфигурирован.
+5. Проверить health: `GET /api/health` (минимум `{ status: "OK" }`,
+   полная диагностика — через `?detailed=1` + `X-Health-Token`).
+
+### Тесты
+
+```bash
+# Все unit-тесты (frontend + backend)
+npm run test
+
+# Конкретный модуль
+npx vitest run backend/r2/quarantine.test.ts
+
+# E2E (Playwright)
+npm run test:e2e
+```
 
 ## Маршруты приложения (фронт)
 

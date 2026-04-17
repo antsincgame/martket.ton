@@ -11,7 +11,7 @@
 ```
 ┌─────────────┐     HTTPS      ┌──────────────────┐
 │  Vite SPA   │ ─────────────► │  Express (API)   │
-│  React 18   │   JWT / Clerk  │  Node + tsx      │
+│  React 18   │  Appwrite JWT  │  Node + tsx      │
 └──────┬──────┘                └────────┬─────────┘
        │                                  │
        │ TonConnect                       │ Appwrite SDK
@@ -22,8 +22,8 @@
                                  └──────────────────┘
 ```
 
-- **Фронтенд** (`src/`) — SPA, авторизация через **Clerk**, кошелёк через **TonConnect**, данные кабинета через **TanStack React Query**.
-- **Бэкенд** (`backend/`) — REST API, Clerk JWT для защищённых маршрутов, **Appwrite** как основная БД, **Cloudflare R2** для загрузки изображений/артефактов.
+- **Фронтенд** (`src/`) — SPA, авторизация через **Appwrite Account** (magic-link email + GitHub OAuth), кошелёк через **TonConnect**, данные кабинета через **TanStack React Query**.
+- **Бэкенд** (`backend/`) — REST API, Appwrite JWT для защищённых маршрутов, **Appwrite** как основная БД, **Cloudflare R2** для загрузки изображений/артефактов.
 - **Commerce API** — отдельный префикс `VITE_COMMERCE_API_URL` → `/api/v1/commerce/*` (заказы, споры, листинги продавца).
 
 ## Структура репозитория
@@ -87,7 +87,7 @@
 
 Полный список и комментарии — в `.env.example`. Критично:
 
-- Clerk (фронт + бэк): ключи приложения и секреты вебхуков при необходимости.
+- Appwrite (фронт + бэк): `VITE_APPWRITE_ENDPOINT`, `VITE_APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`.
 - `VITE_STORE_API_URL` / прокси к API витрины.
 - `VITE_COMMERCE_API_URL` — база commerce API.
 - Appwrite: endpoint, project id, API key для сервера.

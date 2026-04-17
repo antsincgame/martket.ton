@@ -46,7 +46,7 @@ export const patchProductSchema = z.object({
   category: z.string().max(100).optional(),
   image: z.string().max(2000).nullable().optional(),
   version: z.string().max(50).optional(),
-  status: z.enum(['draft', 'pending_review', 'published', 'suspended']).optional(),
+  status: z.enum(['draft', 'pending_review', 'published', 'suspended', 'rejected']).optional(),
   /** Optional moderator note for status_change audit log. */
   reason: z.string().max(500).optional(),
 });
@@ -71,10 +71,41 @@ export const patchProfileSchema = z.object({
   featured_product_ids: z.string().max(500).nullable().optional(),
 });
 
+/**
+ * Whitelist of actions that an external admin/UI is allowed to insert into
+ * the audit log. Internal repository writes (`repo.insertAuditLog`) are not
+ * constrained by this list — only the public POST /api/audit-logs surface.
+ *
+ * Keeping this tight prevents a compromised admin token (or a curious admin)
+ * from forging arbitrary events that could mask real activity.
+ */
+export const AUDIT_LOG_CLIENT_ACTIONS = [
+  'admin_note',
+  'manual_review',
+  'support_action',
+  'compliance_review',
+] as const;
+
+export const SUPPORT_TICKET_STATUSES = ['open', 'in_progress', 'waiting', 'resolved', 'closed'] as const;
+export const SUPPORT_TICKET_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
+
+/**
+ * Schema for moderator-side ticket updates. Status/priority are constrained
+ * to known enums; assigned_to is treated as a free-form profile id but with
+ * a hard length cap to fit the column.
+ */
+export const patchSupportTicketSchema = z.object({
+  status: z.enum(SUPPORT_TICKET_STATUSES).optional(),
+  priority: z.enum(SUPPORT_TICKET_PRIORITIES).optional(),
+  assigned_to: z.string().min(1).max(64).nullable().optional(),
+}).refine((data) => Object.keys(data).length > 0, {
+  message: 'At least one field (status, priority, assigned_to) is required',
+});
+
 export const createAuditLogSchema = z.object({
-  action: z.string().min(1).max(200),
+  action: z.enum(AUDIT_LOG_CLIENT_ACTIONS),
   resource: z.string().min(1).max(200),
   resource_id: z.string().max(200).nullable().optional(),
-  result: z.string().max(50).default('success'),
+  result: z.enum(['success', 'fail', 'pending']).default('success'),
   metadata: z.unknown().optional(),
 });

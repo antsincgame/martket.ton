@@ -54,7 +54,22 @@ const CategoryPage = () => {
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE);
 
   useEffect(() => {
-    getMarketplaceInventoryOnce().then(setInventory);
+    let cancelled = false;
+    getMarketplaceInventoryOnce()
+      .then((data) => {
+        if (!cancelled) setInventory(data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          // Failsafe: render an empty inventory so we don't get stuck in
+          // perpetual loading. The user can retry via navigation.
+          setInventory({ products: [], spotlight: [], collections: [] } as unknown as MarketplaceInventoryLoad);
+          console.warn('[CategoryPage] inventory load failed:', err);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

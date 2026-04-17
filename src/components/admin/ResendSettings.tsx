@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Mail, Send, CheckCircle, XCircle, FileText, Users, RefreshCw, Plus, Eye } from 'lucide-react';
+import { Mail, Send, CheckCircle, XCircle, FileText, Users, RefreshCw, Plus, Eye, Inbox } from 'lucide-react';
 import { storeApiUrl } from '../../lib/storeApi';
 import { useAuth } from '../../contexts/AuthContext';
+import InboxPanel from './InboxPanel';
 
 interface ResendStatus {
   connected: boolean;
@@ -47,7 +48,7 @@ async function apiFetch<T>(path: string, token: string | null, options?: Request
 
 const ResendSettings = () => {
   const { getToken } = useAuth();
-  const [subtab, setSubtab] = useState<'status' | 'templates' | 'campaigns'>('status');
+  const [subtab, setSubtab] = useState<'status' | 'inbox' | 'templates' | 'campaigns'>('status');
 
   const [status, setStatus] = useState<ResendStatus | null>(null);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
@@ -148,6 +149,7 @@ const ResendSettings = () => {
 
   const subtabs = [
     { id: 'status' as const, label: 'Status', icon: CheckCircle },
+    { id: 'inbox' as const, label: 'Inbox', icon: Inbox },
     { id: 'templates' as const, label: 'Templates', icon: FileText },
     { id: 'campaigns' as const, label: 'Campaigns', icon: Users },
   ];
@@ -241,6 +243,9 @@ const ResendSettings = () => {
           )}
         </div>
       )}
+
+      {/* Inbox */}
+      {subtab === 'inbox' && <InboxPanel />}
 
       {/* Templates */}
       {subtab === 'templates' && (

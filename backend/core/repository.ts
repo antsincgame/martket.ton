@@ -8,12 +8,10 @@ export {
   findUserById,
   findUserByAppwriteId,
   findUserByEmail,
-  findUserByClerkId,
   findProfileBySlug,
   listUsers,
   countUsers,
   updateProfile,
-  upsertProfileForClerkUser,
   upsertProfileForAppwriteUser,
 } from './profileRepository.js';
 
@@ -26,10 +24,12 @@ export {
   searchProducts,
   insertProduct,
   updateProduct,
+  updateScanResult,
 } from './productRepository.js';
 
 export {
   findPurchase,
+  findPurchaseByTxHash,
   listPurchasesByUser,
   insertPurchase,
 } from './purchaseRepository.js';

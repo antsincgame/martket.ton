@@ -1,41 +1,25 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, Sparkles, Gem, LogIn, LogOut, Search } from 'lucide-react';
-import { SignedIn, SignedOut, useAuthModal } from '../lib/clerkSafe';
-import * as ClerkReact from '@clerk/clerk-react';
 import { useSearch } from '../contexts/SearchContext';
 import { useNetwork } from '../contexts/NetworkContext';
+import { useAuth } from '../contexts/AuthContext';
 import { logger } from '../lib/logger';
 
 interface HeaderProps {
   onLogoClick?: () => void;
 }
 
-function SignOutButton() {
-  const { signOut } = ClerkReact.useClerk();
-  return (
-    <button
-      onClick={() => { signOut().catch((err: unknown) => { logger.error('Sign out failed:', err); }); }}
-      className="p-2 text-[#999] hover:text-[#FF4444] transition-colors"
-      title="Sign Out"
-    >
-      <LogOut className="w-5 h-5" />
-    </button>
-  );
-}
-
 const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
-  const { openAuthModal } = useAuthModal();
   const navigate = useNavigate();
   const { query, setQuery } = useSearch();
   const { isTestnet, toggleNetwork } = useNetwork();
+  const { isAuthenticated, isLoading, logout } = useAuth();
 
-  const handleSignIn = () => {
-    if (window.innerWidth < 768) {
-      navigate('/sign-in');
-    } else {
-      openAuthModal('sign-in');
-    }
+  const handleSignOut = (): void => {
+    logout()
+      .then(() => navigate('/'))
+      .catch((err: unknown) => logger.error('Sign out failed:', err));
   };
 
   return (
@@ -107,28 +91,37 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
 
         {/* Auth */}
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          <SignedOut>
-            <button
-              onClick={handleSignIn}
+          {isLoading ? (
+            <div className="w-9 h-9 rounded-full bg-white/5 animate-pulse" aria-hidden />
+          ) : isAuthenticated ? (
+            <>
+              <Link
+                to="/profile"
+                className="flex items-center space-x-2 bg-[#FFD700]/10 hover:bg-[#FFD700]/20 border border-[#FFD700]/30 px-3 sm:px-4 py-2 rounded-full transition-all duration-300"
+                aria-label="Profile"
+              >
+                <User className="w-5 h-5 text-[#FFD700]" />
+                <span className="hidden sm:inline text-[#FFD700] font-medium text-sm">Profile</span>
+              </Link>
+              <button
+                onClick={handleSignOut}
+                className="p-2 text-[#999] hover:text-[#FF4444] transition-colors"
+                title="Sign Out"
+                aria-label="Sign Out"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </>
+          ) : (
+            <Link
+              to="/sign-in"
               className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] px-3 sm:px-4 py-2 rounded-full transition-all duration-300 text-white font-semibold text-sm"
               aria-label="Sign in"
             >
               <LogIn className="w-4 h-4" />
               <span className="hidden sm:inline">Sign In</span>
-            </button>
-          </SignedOut>
-
-          <SignedIn>
-            <Link
-              to="/profile"
-              className="flex items-center space-x-2 bg-[#FFD700]/10 hover:bg-[#FFD700]/20 border border-[#FFD700]/30 px-3 sm:px-4 py-2 rounded-full transition-all duration-300"
-              aria-label="Profile"
-            >
-              <User className="w-5 h-5 text-[#FFD700]" />
-              <span className="hidden sm:inline text-[#FFD700] font-medium text-sm">Profile</span>
             </Link>
-            <SignOutButton />
-          </SignedIn>
+          )}
         </div>
       </div>
     </header>

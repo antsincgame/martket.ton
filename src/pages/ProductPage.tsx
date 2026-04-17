@@ -18,6 +18,7 @@ const ProductPage = () => {
   const [product, setProduct] = useState<ProductDetail | null | undefined>(undefined);
   const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     if (!slug) {
@@ -49,7 +50,7 @@ const ProductPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, retryNonce]);
 
   // Canonical URL: если пришли по id или кривому slug — незаметно заменяем на ЧПУ.
   useEffect(() => {
@@ -85,7 +86,7 @@ const ProductPage = () => {
         <div className="flex gap-3">
           {loadError && (
             <button
-              onClick={() => setProduct(undefined)}
+              onClick={() => setRetryNonce((n) => n + 1)}
               className="bg-white/10 hover:bg-white/20 text-white font-semibold px-6 py-3 rounded-full flex items-center gap-2 transition-colors"
             >
               <RefreshCw className="w-4 h-4" />

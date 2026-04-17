@@ -1,16 +1,20 @@
 import { useState } from 'react';
-import { Send, Pause, RotateCcw, AlertCircle, Loader2 } from 'lucide-react';
+import { Send, Pause, RotateCcw, AlertCircle, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { storeApiUrl } from '../../../lib/storeApi';
 import { useToast } from '../../../components/ui/Toast';
 import { useSessionInvalidator } from '../../../queries/sessionQueries';
 import StudioStatusBadge, { getStatusMeta } from './StudioStatusBadge';
 
-export type ProductStatus = 'draft' | 'pending_review' | 'published' | 'suspended';
+export type ProductStatus = 'draft' | 'pending_review' | 'published' | 'suspended' | 'rejected';
+export type ScanStatus = 'pending' | 'scanning' | 'clean' | 'suspicious' | 'malicious' | 'error';
 
 interface PublishWorkflowProps {
   productId: string;
   status: string;
   hasBuild: boolean;
+  scanStatus?: ScanStatus | null;
+  scanMaliciousCount?: number;
+  scanTotalEngines?: number;
   getToken: () => Promise<string | null>;
   onChanged?: (newStatus: ProductStatus) => void;
 }
@@ -28,6 +32,9 @@ export default function PublishWorkflow({
   productId,
   status,
   hasBuild,
+  scanStatus,
+  scanMaliciousCount,
+  scanTotalEngines,
   getToken,
   onChanged,
 }: PublishWorkflowProps) {
@@ -35,6 +42,10 @@ export default function PublishWorkflow({
   const meta = getStatusMeta(status);
   const { toast } = useToast();
   const invalidator = useSessionInvalidator();
+  const isScanClean = scanStatus === 'clean' || !scanStatus;
+  const isScanInProgress = scanStatus === 'pending' || scanStatus === 'scanning';
+  const isScanFailed = scanStatus === 'malicious' || scanStatus === 'suspicious' || scanStatus === 'error';
+  const canSubmitForReview = hasBuild && isScanClean;
 
   const transition = async (target: ProductStatus, label: string) => {
     setBusy(true);
@@ -85,11 +96,36 @@ export default function PublishWorkflow({
         </div>
       )}
 
+      {hasBuild && isScanInProgress && (
+        <div className="rounded-lg border border-[#00F5FF]/20 bg-[#00F5FF]/5 p-3 flex items-center gap-2 text-xs text-[#00F5FF]">
+          <ShieldCheck className="w-4 h-4 flex-shrink-0 animate-pulse" aria-hidden />
+          Билд в антивирусной проверке (VirusTotal). Submit будет доступен после завершения сканирования.
+        </div>
+      )}
+
+      {hasBuild && isScanFailed && (
+        <div className="rounded-lg border border-[#FF4444]/20 bg-[#FF4444]/5 p-3 flex items-start gap-2 text-xs text-[#FF4444]">
+          <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden />
+          <div>
+            <p className="font-semibold">
+              {scanStatus === 'malicious' && 'Build flagged as malicious'}
+              {scanStatus === 'suspicious' && 'Build flagged as suspicious'}
+              {scanStatus === 'error' && 'Scan failed'}
+            </p>
+            {(scanTotalEngines ?? 0) > 0 && (
+              <p className="opacity-80 mt-1">
+                {scanMaliciousCount}/{scanTotalEngines} engines reported issues. Замените билд и загрузите заново.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2 pt-1">
         {status === 'draft' && (
           <button
             type="button"
-            disabled={busy || !hasBuild}
+            disabled={busy || !canSubmitForReview}
             onClick={() => transition('pending_review', 'Sent to moderators')}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#00F5FF]/15 border border-[#00F5FF]/30 text-[#00F5FF] text-xs font-semibold uppercase tracking-wider hover:bg-[#00F5FF]/25 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ minHeight: 44 }}

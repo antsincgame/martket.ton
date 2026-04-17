@@ -1,9 +1,11 @@
 import express from 'express';
 import { resolveProfile, apiRequireAuth, requireModerator } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
 import { logger } from '../logger.js';
 import * as support from '../core/supportRepository.js';
+import { patchSupportTicketSchema } from './validation.js';
 
 const router = express.Router();
 
@@ -111,17 +113,18 @@ router.patch(
   '/support/tickets/:id',
   apiRequireAuth(),
   requireModerator,
+  validateBody(patchSupportTicketSchema),
   asyncHandler(async (req, res) => {
     const ticket = await support.findTicketById(str(req.params.id));
     if (!ticket) {
       res.status(404).json({ success: false, message: 'Ticket not found' });
       return;
     }
-    const { status, priority, assigned_to } = req.body as Record<string, unknown>;
+    const body = req.body as { status?: string; priority?: string; assigned_to?: string | null };
     const updated = await support.updateTicket(str(req.params.id), {
-      status: typeof status === 'string' ? status : undefined,
-      priority: typeof priority === 'string' ? priority : undefined,
-      assignedTo: typeof assigned_to === 'string' ? assigned_to : undefined,
+      status: body.status,
+      priority: body.priority,
+      assignedTo: body.assigned_to ?? undefined,
     });
     res.json({ success: true, data: updated ? support.ticketToSnakeCase(updated) : null });
   }),

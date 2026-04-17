@@ -33,8 +33,9 @@ export default function TermsOfService() {
         <section>
           <h2 className="text-xl font-semibold text-white">3. User Accounts</h2>
           <p>
-            You must authenticate via a supported provider (Clerk) to use certain features.
-            You are responsible for maintaining the security of your account credentials
+            You must authenticate via a supported provider (Appwrite Account: email
+            magic-link or GitHub OAuth) to use certain features. You are responsible
+            for maintaining the security of your account credentials
             and your TON wallet private keys.
           </p>
         </section>

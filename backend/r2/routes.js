@@ -2,14 +2,23 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
 const rateLimit = require('express-rate-limit');
 const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const multer = require('multer');
 const { logger } = require('../logger');
 const { getR2Client, getBucketName, isR2Configured } = require('./client');
+const {
+  isQuarantineKey,
+  quarantineKeyFor,
+} = require('./quarantine');
+const { computeFileSha256, streamFileToR2, safeUnlink } = require('./streamUpload');
 const { resolveProfile, apiRequireAuth } = require('../middleware/auth');
 const repo = require('../core/repository');
+const scanJobs = require('../core/scanJobRepository');
 const { generateId } = require('../core/generateId');
 
 const router = express.Router();
@@ -22,9 +31,25 @@ const uploadLimiter = rateLimit({
   message: { success: false, message: 'Too many uploads. Try again later.' },
 });
 
-const MAX_BUILD_SIZE = 500 * 1024 * 1024; // 500 MB
+/**
+ * Cap on build uploads (megabytes).
+ *
+ * Build uploads now use multer.diskStorage() and are streamed to R2 via
+ * streamFileToR2 — no full-file buffer in RAM. With uploadLimiter
+ * (10 uploads / 15 min per IP) the worst-case is `R2_MAX_BUILD_MB` * 10
+ * temp files on disk; tmp files are deleted in `finally`.
+ *
+ * Default 100 MB; raise via R2_MAX_BUILD_MB env when needed.
+ */
+const MAX_BUILD_SIZE = (parseInt(process.env.R2_MAX_BUILD_MB || '100', 10) || 100) * 1024 * 1024;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;   // 5 MB
 const PRESIGNED_URL_EXPIRY = 15 * 60; // 15 minutes
+const BUILD_TMP_DIR = process.env.R2_BUILD_TMP_DIR || path.join(os.tmpdir(), 'ton-store-builds');
+
+// Ensure tmp dir exists (best-effort; multer would also create it on demand).
+try { fs.mkdirSync(BUILD_TMP_DIR, { recursive: true }); } catch { /* noop */ }
+
+const { safeFilename } = require('./safeFilename');
 
 const ALLOWED_EXTENSIONS = new Set([
   '.zip', '.tar.gz', '.tgz', '.dmg', '.exe', '.msi',
@@ -35,11 +60,24 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gi
 const ALLOWED_IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const ALLOWED_IMAGE_KINDS = new Set(['avatar', 'banner', 'cover']);
 
+/**
+ * Build uploads use diskStorage to avoid loading 100 MB into RAM. The tmp
+ * file lives in BUILD_TMP_DIR and is deleted in the route's `finally` block
+ * (regardless of upload success/failure).
+ */
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, BUILD_TMP_DIR),
+    filename: (_req, _file, cb) => {
+      const rand = crypto.randomBytes(16).toString('hex');
+      cb(null, `build-${Date.now()}-${rand}`);
+    },
+  }),
   limits: { fileSize: MAX_BUILD_SIZE },
 });
 
+// Images are small (≤ 5 MB) — memoryStorage is fine and lets us hash + ship
+// in a single pass without touching disk.
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_IMAGE_SIZE },
@@ -71,13 +109,13 @@ function getExtension(filename) {
   return dotIdx >= 0 ? lower.slice(dotIdx) : '';
 }
 
-function buildR2Key(productId, version, filename) {
-  const ext = getExtension(filename) || '.zip';
-  const ts = Date.now();
-  return `builds/${productId}/${version}-${ts}${ext}`;
-}
-
-// ── Upload build to R2 ─────────────────────────────────────────────
+// ── Upload build to R2 (quarantine + scan job) ─────────────────────
+//
+// Workflow:
+//   1) PUT object into `quarantine/builds/{productId}/{version}-{ts}{ext}`.
+//   2) Save sha256/size/filename + quarantine_key into product, reset scan_status=pending.
+//   3) Create scan_job → background worker picks it up and runs VirusTotal.
+//   4) Respond 202 Accepted — UI must poll `/api/products/:id/scan-status`.
 router.post(
   '/upload/:productId',
   uploadLimiter,
@@ -85,6 +123,8 @@ router.post(
   requireR2,
   upload.single('build'),
   async (req, res) => {
+    // Capture path early — multer assigns req.file.path with diskStorage.
+    const tmpPath = req.file ? req.file.path : null;
     try {
       const profile = await resolveProfile(req);
       if (!profile) {
@@ -96,11 +136,9 @@ router.post(
         return res.status(404).json({ success: false, message: 'Product not found' });
       }
 
-      if (product.creator_id !== profile.id) {
-        const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
-        if (!isAdmin) {
-          return res.status(403).json({ success: false, message: 'Only the creator can upload builds' });
-        }
+      const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
+      if (product.creatorId !== profile.id && !isAdmin) {
+        return res.status(403).json({ success: false, message: 'Only the creator can upload builds' });
       }
 
       if (!req.file) {
@@ -116,30 +154,48 @@ router.post(
       }
 
       const version = req.body.version || product.version || '1.0.0';
-      const r2Key = buildR2Key(product.id, version, req.file.originalname);
-      const sha256 = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+      const quarantineKey = quarantineKeyFor(product.id, version, ext);
+      // Hash the on-disk file streamingly — O(1) memory, O(filesize) IO.
+      const sha256 = await computeFileSha256(tmpPath);
 
-      await getR2Client().send(new PutObjectCommand({
-        Bucket: getBucketName(),
-        Key: r2Key,
-        Body: req.file.buffer,
-        ContentType: req.file.mimetype || 'application/octet-stream',
-        ContentLength: req.file.size,
-        Metadata: {
+      await streamFileToR2({
+        client: getR2Client(),
+        PutObjectCommand,
+        bucket: getBucketName(),
+        key: quarantineKey,
+        filePath: tmpPath,
+        contentLength: req.file.size,
+        contentType: req.file.mimetype || 'application/octet-stream',
+        metadata: {
           'product-id': product.id,
           'creator-id': profile.id,
           'sha256': sha256,
           'original-filename': req.file.originalname,
           'version': version,
+          'quarantine': '1',
         },
-      }));
+      });
 
       await repo.updateProduct(product.id, {
-        build_r2_key: r2Key,
+        quarantine_key: quarantineKey,
         build_sha256: sha256,
         build_size_bytes: req.file.size,
         build_filename: req.file.originalname,
         version,
+        scan_status: 'pending',
+        scan_provider: 'virustotal',
+        scan_report_id: null,
+        scan_malicious_count: 0,
+        scan_total_engines: 0,
+        scan_completed_at: null,
+        build_r2_key: null,
+      });
+
+      const job = await scanJobs.createScanJob({
+        productId: product.id,
+        quarantineKey,
+        sha256,
+        sizeBytes: req.file.size,
       });
 
       await repo.insertAuditLog({
@@ -150,22 +206,25 @@ router.post(
         resource_id: product.id,
         result: 'success',
         metadata: JSON.stringify({
-          r2_key: r2Key,
+          quarantine_key: quarantineKey,
           sha256,
           size_bytes: req.file.size,
           filename: req.file.originalname,
           version,
+          scan_job_id: job ? job.id : null,
         }),
         ip_address: req.ip,
         user_agent: req.get('user-agent') || '',
       });
 
-      logger.info(`Build uploaded: ${r2Key} (${req.file.size} bytes, SHA-256: ${sha256})`);
+      logger.info(`Build quarantined: ${quarantineKey} (${req.file.size} bytes, SHA-256: ${sha256})`);
 
-      res.json({
+      return res.status(202).json({
         success: true,
         data: {
-          r2_key: r2Key,
+          status: 'scanning',
+          scan_job_id: job ? job.id : null,
+          quarantine_key: quarantineKey,
           sha256,
           size_bytes: req.file.size,
           filename: req.file.originalname,
@@ -175,6 +234,11 @@ router.post(
     } catch (err) {
       logger.error('R2 upload error:', err);
       res.status(500).json({ success: false, message: 'Build upload failed' });
+    } finally {
+      // Always clean up the multer-created temp file. Runs on success and
+      // on every error path — including early returns (403/404/400) — so
+      // the disk never fills up from rejected or partial uploads.
+      await safeUnlink(tmpPath);
     }
   }
 );
@@ -263,7 +327,7 @@ router.post(
 router.get('/asset/*', requireR2, async (req, res) => {
   try {
     const key = req.params[0];
-    if (!key || !key.startsWith('assets/')) {
+    if (!key || !key.startsWith('assets/') || isQuarantineKey(key)) {
       return res.status(404).json({ success: false, message: 'Asset not found' });
     }
     const obj = await getR2Client().send(new GetObjectCommand({
@@ -304,13 +368,13 @@ router.get(
         return res.status(404).json({ success: false, message: 'Product not found' });
       }
 
-      if (!product.build_r2_key) {
-        return res.status(404).json({ success: false, message: 'No build file available for this product' });
+      if (!product.buildR2Key || isQuarantineKey(product.buildR2Key)) {
+        return res.status(404).json({ success: false, message: 'No clean build available for this product' });
       }
 
-      const isCreator = product.creator_id === profile.id;
+      const isCreator = product.creatorId === profile.id;
       const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
-      const isFreeProduct = product.price_ton === 0;
+      const isFreeProduct = product.priceTon === 0;
 
       if (!isCreator && !isAdmin && !isFreeProduct) {
         const purchase = await repo.findPurchase(profile.id, product.id);
@@ -322,10 +386,11 @@ router.get(
         }
       }
 
+      const filename = safeFilename(product.buildFilename);
       const command = new GetObjectCommand({
         Bucket: getBucketName(),
-        Key: product.build_r2_key,
-        ResponseContentDisposition: `attachment; filename="${product.build_filename || 'build.zip'}"`,
+        Key: product.buildR2Key,
+        ResponseContentDisposition: `attachment; filename="${filename}"`,
       });
 
       const url = await getSignedUrl(getR2Client(), command, { expiresIn: PRESIGNED_URL_EXPIRY });
@@ -338,8 +403,8 @@ router.get(
         resource_id: product.id,
         result: 'success',
         metadata: JSON.stringify({
-          r2_key: product.build_r2_key,
-          sha256: product.build_sha256,
+          r2_key: product.buildR2Key,
+          sha256: product.buildSha256,
         }),
         ip_address: req.ip,
         user_agent: req.get('user-agent') || '',
@@ -350,9 +415,9 @@ router.get(
         data: {
           download_url: url,
           expires_in: PRESIGNED_URL_EXPIRY,
-          sha256: product.build_sha256,
-          filename: product.build_filename,
-          size_bytes: product.build_size_bytes,
+          sha256: product.buildSha256,
+          filename: product.buildFilename,
+          size_bytes: product.buildSizeBytes,
         },
       });
     } catch (err) {
@@ -363,21 +428,37 @@ router.get(
 );
 
 // ── Build info ─────────────────────────────────────────────────────
+//
+// Auth required: this surface leaks build size/version/scan_status which can
+// help attackers fingerprint suspicious uploads. Public consumers should rely
+// on the published product page instead.
 router.get(
   '/info/:productId',
+  apiRequireAuth(),
   async (req, res) => {
     try {
+      const profile = await resolveProfile(req);
+      if (!profile) {
+        return res.status(403).json({ success: false, message: 'Profile not found' });
+      }
       const product = await repo.findProductById(req.params.productId);
       if (!product) {
+        return res.status(404).json({ success: false, message: 'Product not found' });
+      }
+
+      const isCreator = product.creatorId === profile.id;
+      const isStaff = profile.role === 'admin' || profile.role === 'super_admin' || profile.role === 'moderator';
+      if (!isCreator && !isStaff && product.status !== 'published') {
         return res.status(404).json({ success: false, message: 'Product not found' });
       }
 
       res.json({
         success: true,
         data: {
-          has_build: !!product.build_r2_key,
+          has_build: !!product.buildR2Key,
           version: product.version,
-          size_bytes: product.build_size_bytes,
+          size_bytes: product.buildSizeBytes,
+          scan_status: product.scanStatus,
         },
       });
     } catch (err) {
@@ -404,20 +485,21 @@ router.delete(
         return res.status(404).json({ success: false, message: 'Product not found' });
       }
 
-      if (product.creator_id !== profile.id) {
+      if (product.creatorId !== profile.id) {
         const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
         if (!isAdmin) {
           return res.status(403).json({ success: false, message: 'Only the creator or admin can delete builds' });
         }
       }
 
-      if (!product.build_r2_key) {
+      const keyToDelete = product.buildR2Key || product.quarantineKey;
+      if (!keyToDelete) {
         return res.status(404).json({ success: false, message: 'No build to delete' });
       }
 
       await getR2Client().send(new DeleteObjectCommand({
         Bucket: getBucketName(),
-        Key: product.build_r2_key,
+        Key: keyToDelete,
       }));
 
       await repo.updateProduct(product.id, {
@@ -425,6 +507,12 @@ router.delete(
         build_sha256: null,
         build_size_bytes: null,
         build_filename: null,
+        quarantine_key: null,
+        scan_status: 'pending',
+        scan_report_id: null,
+        scan_malicious_count: 0,
+        scan_total_engines: 0,
+        scan_completed_at: null,
       });
 
       await repo.insertAuditLog({
