@@ -1118,7 +1118,7 @@ export const SEED_DEVELOPERS: DeveloperProfile[] = [
   {
     id: 'dev-10', name: 'Sacred Devs',
     avatar: 'https://i.pravatar.cc/128?u=sacred-devs',
-    bio: 'We write code to write code — and it's beautiful',
+    bio: "We write code to write code — and it's beautiful",
     website: 'https://sacreddevs.io', tonWallet: 'EQAf...r2Wn',
     joinedDate: '2023-08-01', productCount: 1, totalDownloads: 12500,
     bannerUrl: 'https://images.pexels.com/photos/270348/pexels-photo-270348.jpeg?auto=compress&cs=tinysrgb&w=1200',
@@ -1201,7 +1201,7 @@ export const SEED_DEVELOPERS: DeveloperProfile[] = [
   {
     id: 'dev-19', name: 'PrivacyFirst',
     avatar: 'https://i.pravatar.cc/128?u=privacyfirst',
-    bio: 'Privacy is not a feature. It's a fundamental right.',
+    bio: "Privacy is not a feature. It's a fundamental right.",
     website: 'https://privacyfirst.ton', joinedDate: '2023-07-14', productCount: 1, totalDownloads: 31200,
     bannerUrl: 'https://images.pexels.com/photos/1148820/pexels-photo-1148820.jpeg?auto=compress&cs=tinysrgb&w=1200',
     github: 'privacyfirst', twitter: 'PrivacyFirstVPN', telegram: 'privacyfirst_vpn',
@@ -1277,7 +1277,7 @@ export const SEED_DEVELOPERS: DeveloperProfile[] = [
   {
     id: 'dev-27', name: 'InfraOps',
     avatar: 'https://i.pravatar.cc/128?u=infraops',
-    bio: 'Five nines uptime is not a goal — it's a guarantee',
+    bio: "Five nines uptime is not a goal — it's a guarantee",
     website: 'https://infraops.io', joinedDate: '2024-05-22', productCount: 1, totalDownloads: 5400,
     bannerUrl: 'https://images.pexels.com/photos/1148820/pexels-photo-1148820.jpeg?auto=compress&cs=tinysrgb&w=1200',
     github: 'infraops', twitter: 'InfraOpsIO', telegram: 'infraops',
@@ -1286,7 +1286,7 @@ export const SEED_DEVELOPERS: DeveloperProfile[] = [
   {
     id: 'dev-28', name: 'VaultSync',
     avatar: 'https://i.pravatar.cc/128?u=vaultsync',
-    bio: 'Your data, encrypted and decentralized — even we can't read it',
+    bio: "Your data, encrypted and decentralized — even we can't read it",
     website: 'https://vaultsync.ton', joinedDate: '2024-04-30', productCount: 1, totalDownloads: 9100,
     bannerUrl: 'https://images.pexels.com/photos/1181467/pexels-photo-1181467.jpeg?auto=compress&cs=tinysrgb&w=1200',
     github: 'vaultsync', telegram: 'vaultsync_ton',
@@ -1315,7 +1315,7 @@ export const SEED_DEVELOPERS: DeveloperProfile[] = [
   {
     id: 'dev-god', name: 'God',
     avatar: 'https://i.pravatar.cc/128?u=god-creator',
-    bio: 'I don't build products. I create universes.',
+    bio: "I don't build products. I create universes.",
     website: 'https://god.ton', tonWallet: 'EQGo...d000',
     joinedDate: '2024-01-01', productCount: 4, totalDownloads: 177700,
     bannerUrl: 'https://images.pexels.com/photos/1629236/pexels-photo-1629236.jpeg?auto=compress&cs=tinysrgb&w=1200',
