@@ -1,13 +1,7 @@
-// CommerceSection — merged Demiurge "Commerce" surface that absorbs the legacy
-// /seller/commerce page. It is structured as a tabbed workspace:
-//   - Listings   — published apps + on-chain listings (KPIs, status, links)
-//   - Orders     — buyer orders for the seller (TON / Jetton)
-//   - Disputes   — open disputes on the seller's sales
-//   - Publishing — KYC + Artifact Scan + Publish App (formerly SellerCommercePage)
-// Tabs are URL-driven so deep-links (`/profile/commerce/orders`) and breadcrumbs
-// work correctly. Internal state (workspace, scan, success/error) is lifted
-// here so sub-tabs can share the last artifact scan across sessions without
-// re-fetching.
+// CommerceSection — merged Demiurge "Commerce" surface.
+// Tabs: Listings, Orders, Publishing (URL-driven for deep-links).
+// Internal state (workspace, scan, success/error) is lifted here so
+// sub-tabs can share the last artifact scan across sessions.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, NavLink, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTonAddress } from '@tonconnect/ui-react';
@@ -66,14 +60,7 @@ export default function CommerceSection() {
   );
 
   useEffect(() => {
-    let cancelled = false;
-    void reloadWorkspace().catch(() => {
-      // Errors are surfaced via workspaceError state.
-    });
-    return () => {
-      cancelled = true;
-      void cancelled;
-    };
+    void reloadWorkspace().catch(() => {});
   }, [reloadWorkspace]);
 
   const activeTab = useMemo(() => {
@@ -127,6 +114,7 @@ export default function CommerceSection() {
             />
           }
         />
+        <Route path="*" element={<Navigate to="listings" replace />} />
       </Routes>
     </div>
   );

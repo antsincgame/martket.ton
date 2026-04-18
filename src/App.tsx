@@ -27,18 +27,24 @@ import ScrollToTop from './components/ScrollToTop';
 function lazyRetry(factory: () => Promise<{ default: React.ComponentType<any> }>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return lazy((): Promise<{ default: React.ComponentType<any> }> =>
-    factory().catch(() =>
-      new Promise<{ default: React.ComponentType<any> }>((resolve) =>
-        setTimeout(() => resolve(factory()), 1500),
-      ),
-    ).catch(() => {
-      const reloaded = sessionStorage.getItem('chunk_reload');
-      if (reloaded !== window.location.pathname) {
-        sessionStorage.setItem('chunk_reload', window.location.pathname);
-        window.location.reload();
-      }
-      return { default: (() => null) as React.ComponentType<any> };
-    }),
+    factory()
+      .then((mod) => {
+        sessionStorage.removeItem('chunk_reload');
+        return mod;
+      })
+      .catch(() =>
+        new Promise<{ default: React.ComponentType<any> }>((resolve) =>
+          setTimeout(() => resolve(factory()), 1500),
+        ),
+      )
+      .catch(() => {
+        const reloaded = sessionStorage.getItem('chunk_reload');
+        if (reloaded !== window.location.pathname) {
+          sessionStorage.setItem('chunk_reload', window.location.pathname);
+          window.location.reload();
+        }
+        return { default: (() => null) as React.ComponentType<any> };
+      }),
   );
 }
 

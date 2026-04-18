@@ -24,7 +24,9 @@ const ERROR_STATUS: Record<string, number> = {
   LICENSE_NOT_FOUND: 404,
   BUYER_WALLET_MISMATCH: 403,
   LICENSE_ACCESS_DENIED: 403,
+  LICENSE_ONCHAIN_VERIFY_FAILED: 403,
   SESSION_ALREADY_CONFIRMED: 409,
+  ONCHAIN_DISABLED: 503,
 };
 
 function handleError(res: Response, error: unknown): void {

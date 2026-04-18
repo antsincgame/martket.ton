@@ -55,7 +55,7 @@ A|W|ChangeOwner=0x4d8b8b8b;Burn(internal)=fwd_from_collection
 
 ## AUTHORITY MATRIX
 P|A|MintLicense.sender→require==self.ownerAddress(oracle)
-P|A|BurnLicense.sender→require==self.ownerAddress(oracle)
+P|A|BuyerBurn.sender→require==self.ownerAddress(buyer);now<burnDeadline
 P|A|Burn(item).sender→require==self.collection
 P|A|Transfer(item).sender→require==self.ownerAddress;count→require<self.transferLimit
 
@@ -63,7 +63,7 @@ P|A|Transfer(item).sender→require==self.ownerAddress;count→require<self.tran
 A|W|wallet=WalletV4;mnemonic=ORACLE_MNEMONIC(env)
 A|W|wallet.address≡AppCollection.ownerAddress;deploy_owner==oracle
 A|W|on_event(escrow_locked)→mintLicense(buyer,escrow,index)
-A|W|on_event(refund_decision)→burnLicense(itemAddress)
+A|W|on_event(buyer_burn)→LicenseItem.BuyerBurn→Escrow.RefundOnBurn
 A|W|verifyOwner→runMethod(get_nft_data)→cmp_ownerAddress
 
 ## STATE MACHINE
@@ -103,8 +103,7 @@ ASCII_FALLBACK::
   buyer -> Frontend -> TonConnect -> Escrow.deploy+pay
   Escrow.locked -> Backend.oracle -> AppCollection.MintLicense
   AppCollection -> deploy LicenseItem -> buyer.wallet
-  refund -> Backend.oracle -> AppCollection.BurnLicense
-  AppCollection -> Burn(itemAddr) -> LicenseItem.selfdestruct -> buyer.refunded
+  refund -> buyer.BuyerBurn -> LicenseItem.selfdestruct -> Escrow.RefundOnBurn -> buyer.wallet
 
 READY@send_chunk`;
 
@@ -427,7 +426,7 @@ export default function LicenseNftPage() {
                 { t: 'soulbound NFT', c: 'gold' },
                 { t: ' (несъёмный): после минта он навсегда привязан к кошельку покупателя. Передать нельзя — ' },
                 { t: 'transferLimit = 0', c: 'magenta' },
-                { t: '. Сжечь может только наш backend-оракул, и только если эскроу подтвердил возврат средств.' },
+                { t: '. Сжечь может сам покупатель через BuyerBurn в течение trial window — эскроу автоматически вернёт средства.' },
               ])}
             </p>
             <p className="rounded-lg border border-[#FFD700]/15 bg-black/40 px-4 py-3 font-mono text-xs text-[#FFD700]/90">
@@ -749,7 +748,7 @@ export default function LicenseNftPage() {
               ['Mint без оплаты', 'Практически невозможен при целостности ключа: только oracle-кошелёк может вызвать MintLicense, и backend дёргает его только после escrow_locked.'],
               ['Двойной mint', 'queryId=hash(sessionId), unique-constraint на purchase_session_id в БД, SELECT…FOR UPDATE.'],
               ['Подмена лицензии', 'activateDevice → on-chain verifyLicenseOwner перед записью deviceId.'],
-              ['Refund-fraud', 'Burn только из collection, и только после admin-decision на дispute. Событие публично.'],
+              ['Refund-fraud', 'BuyerBurn возможен только от owner в пределах burnDeadline. После deadline — эскроу release seller.'],
               ['Compromise oracle', 'ChangeOwner(newOracle) → ротация ключа, старые лицензии валидны.'],
               ['Loss of mnemonic', 'Plan B: новая коллекция, старые NFT остаются у владельцев навсегда.'],
             ].map(([title, body]) => (

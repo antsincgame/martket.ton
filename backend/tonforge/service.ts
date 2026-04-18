@@ -298,6 +298,9 @@ export function createTonForgeService(
       `${license.collectionIndex}.json`;
     try {
       const trialEndMs = new Date(session.trialEndsAt).getTime();
+      if (!Number.isFinite(trialEndMs)) {
+        throw new Error('INVALID_TRIAL_ENDS_AT');
+      }
       const burnDeadline = Math.floor(trialEndMs / 1000);
       const result = await mintLicense({
         collectionAddress: app.collectionAddress,

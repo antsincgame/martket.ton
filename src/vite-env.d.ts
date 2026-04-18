@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_COMMERCE_API_URL: string;
   readonly VITE_TONFORGE_API_URL: string;
   readonly VITE_APP_ORIGIN: string;
+  readonly VITE_SENTRY_DSN: string;
 }
 
 interface ImportMeta {

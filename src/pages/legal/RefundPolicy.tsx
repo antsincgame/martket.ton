@@ -6,7 +6,7 @@ const STATE = 'Delaware';
 const DOMAIN = 'tonforge.org';
 const DMCA_CONTACT = `dmca@${DOMAIN}`;
 const LEGAL_CONTACT = `legal@${DOMAIN}`;
-const DISPUTE_WINDOW_HOURS = 72;
+const TRIAL_WINDOW_HOURS = 72;
 
 export default function RefundPolicy() {
   return (
@@ -58,7 +58,7 @@ export default function RefundPolicy() {
         <section>
           <h2 className="text-xl font-semibold text-white">2. Trial Window</h2>
           <p>
-            After payment is confirmed on-chain, buyers have a <strong>{DISPUTE_WINDOW_HOURS}-hour
+            After payment is confirmed on-chain, buyers have a <strong>{TRIAL_WINDOW_HOURS}-hour
             Trial Window</strong> to evaluate the product. During this period, proceeds are held in
             the non-custodial Escrow Smart Contract on the TON blockchain.
           </p>
@@ -97,7 +97,7 @@ export default function RefundPolicy() {
             <li>
               <strong>Navigate to your license</strong> in the{' '}
               <Link to="/profile" className="text-[#8B5CF6] hover:underline">My Licenses</Link>{' '}
-              section within {DISPUTE_WINDOW_HOURS} hours of purchase.
+              section within {TRIAL_WINDOW_HOURS} hours of purchase.
             </li>
             <li>
               <strong>Burn your License NFT:</strong> click the &quot;Burn &amp; Refund&quot; button.

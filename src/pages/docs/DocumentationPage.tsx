@@ -81,7 +81,7 @@ A|W|GET /api/health→liveness;?detailed=1+X-Health-Token→full_status
 
 ## COMMERCE
 A|W|TON_payment→tx_hash_verify→anti_replay_check→purchase_record
-A|W|escrow→trial_window=72h;fee_bps=250;buyer_burn_refund
+A|W|escrow→trial_window=72h;fee_bps=1500;buyer_burn_refund
 A|W|commerce_api_base=VITE_COMMERCE_API_URL/api/v1/commerce
 
 ## SECURITY
@@ -566,7 +566,7 @@ export default function DocumentationPage() {
             <li className="flex gap-4">
               <span className="mt-0.5 font-mono text-[#00FF88]">03</span>
               <span>
-                {'Disputes and refunds — governed by '}
+                {'Refunds — governed by '}
                 <Link to="/refund-policy" className="text-[#8B5CF6] hover:underline">Refund & DMCA policy</Link>.
               </span>
             </li>
