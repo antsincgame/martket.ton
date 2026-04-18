@@ -81,7 +81,7 @@ A|W|GET /api/health→liveness;?detailed=1+X-Health-Token→full_status
 
 ## COMMERCE
 A|W|TON_payment→tx_hash_verify→anti_replay_check→purchase_record
-A|W|escrow→dispute_window=24h;fee_bps=250
+A|W|escrow→trial_window=72h;fee_bps=250;buyer_burn_refund
 A|W|commerce_api_base=VITE_COMMERCE_API_URL/api/v1/commerce
 
 ## SECURITY

@@ -43,7 +43,6 @@ export const ROLES: Record<string, UserRole> = {
       { resource: 'products', actions: ['create', 'read', 'update'] },
       { resource: 'listings', actions: ['create', 'read', 'update'] },
       { resource: 'orders', actions: ['read', 'update'] },
-      { resource: 'disputes', actions: ['read', 'update'] },
       { resource: 'purchases', actions: ['create', 'read'] },
       { resource: 'dashboard', actions: ['read'] },
       { resource: 'support_tickets', actions: ['create', 'read'] },

@@ -15,7 +15,6 @@ const COL_LISTINGS = 'listings';
 const COL_LISTING_SECRETS = 'listing_secrets';
 const COL_ORDERS = 'orders';
 const COL_ENTITLEMENTS = 'entitlements';
-const COL_DISPUTES = 'disputes';
 const COL_AUDIT = 'commerce_audit_logs';
 const BUCKET_ASSETS = 'commerce_assets';
 
@@ -168,24 +167,6 @@ async function setupEntitlements(databases) {
   await idx(databases, COL_ENTITLEMENTS, 'idx_buyer', IndexType.Key, ['buyerWallet']);
 }
 
-async function setupDisputes(databases) {
-  await ensureCollection(databases, COL_DISPUTES, 'Disputes', SERVER_ONLY);
-  const cols = [
-    ['orderId', 64, true],
-    ['openedByWallet', 128, true],
-    ['reason', 8000, true],
-    ['status', 32, true],
-    ['resolutionNote', 8000, false],
-  ];
-  for (const [k, size, req] of cols) {
-    await ignoreConflict(() =>
-      databases.createStringAttribute(DATABASE_ID, COL_DISPUTES, k, size, req)
-    );
-    await waitForAttribute(databases, COL_DISPUTES, k);
-  }
-  await idx(databases, COL_DISPUTES, 'idx_dispute_order', IndexType.Key, ['orderId']);
-}
-
 async function setupAudit(databases) {
   await ensureCollection(databases, COL_AUDIT, 'Commerce audit', SERVER_ONLY);
   const cols = [
@@ -236,7 +217,6 @@ async function main() {
   await setupListingSecrets(databases);
   await setupOrders(databases);
   await setupEntitlements(databases);
-  await setupDisputes(databases);
   await setupAudit(databases);
   await ensureBucket(storage);
 

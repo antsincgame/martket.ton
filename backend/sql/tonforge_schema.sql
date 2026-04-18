@@ -97,12 +97,37 @@ create table if not exists licenses (
   buyer_wallet text not null,
   nft_address text not null unique,
   collection_address text not null,
+  collection_index bigint not null default 0,
   escrow_address text not null,
   state text not null check (
-    state in ('trial_active', 'released', 'refunded', 'device_bound')
+    state in (
+      'mint_pending',
+      'mint_failed',
+      'trial_active',
+      'device_bound',
+      'released',
+      'refunded',
+      'burn_pending',
+      'revoked'
+    )
   ),
   purchase_tx_hash text not null,
+  mint_tx_hash text,
+  burn_tx_hash text,
+  mint_error text,
+  burn_deadline integer,
   trial_ends_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists app_collections (
+  app_id uuid primary key references apps(app_id) on delete cascade,
+  collection_address text not null unique,
+  owner_wallet text not null,
+  deploy_tx_hash text not null,
+  metadata_uri_prefix text,
+  network text not null check (network in ('mainnet', 'testnet')),
   created_at timestamptz not null default now()
 );
 
@@ -123,17 +148,37 @@ create table if not exists reviews (
   created_at timestamptz not null default now()
 );
 
-create table if not exists disputes (
-  dispute_id uuid primary key default gen_random_uuid(),
-  license_id uuid not null references licenses(license_id) on delete cascade,
-  buyer_wallet text not null,
-  reason text not null,
-  state text not null default 'open',
-  created_at timestamptz not null default now()
-);
-
 create index if not exists idx_apps_seller_wallet on apps (seller_wallet);
 create index if not exists idx_purchase_sessions_buyer_wallet on purchase_sessions (buyer_wallet);
 create index if not exists idx_licenses_buyer_wallet on licenses (buyer_wallet);
+create index if not exists idx_licenses_nft_address on licenses (nft_address);
+create index if not exists idx_licenses_state on licenses (state);
+create index if not exists idx_app_collections_network on app_collections (network);
 create index if not exists idx_reviews_app_id on reviews (app_id);
-create index if not exists idx_disputes_license_id on disputes (license_id);
+
+-- Migration helper: forward-compat for existing DBs deployed before NFT
+-- integration. Safe to re-run.
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_name = 'licenses' and column_name = 'collection_index') then
+    alter table licenses add column collection_index bigint not null default 0;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'licenses' and column_name = 'mint_tx_hash') then
+    alter table licenses add column mint_tx_hash text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'licenses' and column_name = 'burn_tx_hash') then
+    alter table licenses add column burn_tx_hash text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'licenses' and column_name = 'mint_error') then
+    alter table licenses add column mint_error text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'licenses' and column_name = 'updated_at') then
+    alter table licenses add column updated_at timestamptz not null default now();
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'licenses' and column_name = 'burn_deadline') then
+    alter table licenses add column burn_deadline integer;
+  end if;
+end$$;
+
+-- v2 migration: drop disputes table (refund is now buyer-initiated on-chain)
+drop table if exists disputes;

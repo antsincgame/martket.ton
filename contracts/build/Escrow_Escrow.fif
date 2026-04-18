@@ -18,14 +18,16 @@ PROGRAM{
   DECLPROC $Escrow$_fun_state
   DECLPROC $Parties$_constructor_buyer_seller_treasury
   DECLPROC $Escrow$_fun_parties
-  DECLPROC $EscrowDetails$_constructor_orderId_amountNano_feeBps_disputeWindowSec_state_paidAt
+  DECLPROC $EscrowDetails$_constructor_orderId_amountNano_feeBps_trialWindowSec_state_paidAt
   DECLPROC $Escrow$_fun_details
+  DECLPROC $Escrow$_fun_license_address
   DECLPROC $MessageParameters$_constructor_bounce_to_value_mode_body
   DECLPROC $Escrow$_fun_notify
   DECLPROC $DeployOk$_constructor_queryId
   77589 DECLMETHOD %state
   127113 DECLMETHOD %parties
   118890 DECLMETHOD %details
+  92280 DECLMETHOD %license_address
   DECLPROC recv_internal
   DECLGLOBVAR __tact_context
   DECLGLOBVAR __tact_context_sender
@@ -50,18 +52,17 @@ PROGRAM{
     ENDC
   }>
   $Escrow$_store PROCINLINE:<{
-    s8 s9 XCHG2
+    s9 s10 XCHG2
     256 STU
-    s1 s6 XCHG
+    s1 s7 XCHG
     STSLICE
-    s1 s4 XCHG
+    s1 s5 XCHG
     STSLICE
-    s0 s2 XCHG
+    s0 s3 XCHG
     NEWC
     STSLICE
-    SWAP
+    ROT
     STVARUINT16
-    s1 s2 XCHG
     16 STU
     s1 s2 XCHG
     32 STU
@@ -69,6 +70,8 @@ PROGRAM{
     8 STU
     s1 s2 XCHG
     32 STU
+    s1 s2 XCHG
+    STSLICE
     STBREFR
   }>
   $Escrow$_load PROCINLINE:<{
@@ -84,10 +87,11 @@ PROGRAM{
     32 LDU
     8 LDU
     32 LDU
+    LDMSGADDR
     DROP
-    s6 s9 XCHG
-    s6 s8 XCHG
-    s6 s7 XCHG
+    s7 s10 XCHG
+    s7 s9 XCHG
+    s7 s8 XCHG
   }>
   $Context$_get_value PROCINLINE:<{
     s1 s3 XCHG
@@ -123,6 +127,7 @@ PROGRAM{
   $Escrow$_contract_init PROCINLINE:<{
     0 PUSHINT
     DUP
+        B{b5ee9c72410101010024000043800000000000000000000000000000000000000000000000000000000000000000104aec829d} B>boc <s PUSHSLICE
   }>
   $Escrow$_contract_load PROCINLINE:<{
     c4 PUSH
@@ -131,7 +136,7 @@ PROGRAM{
     SWAP
     IF:<{
       $Escrow$_load INLINECALLDICT
-      1 9 BLKDROP2
+      1 10 BLKDROP2
     }>ELSE<{
       $Escrow$init$_load INLINECALLDICT
       s0 s7 XCHG
@@ -145,7 +150,7 @@ PROGRAM{
     TRUE
     SWAP
     1 STI
-    9 -ROLL
+    10 -ROLL
     $Escrow$_store INLINECALLDICT
     ENDC
     c4 POP
@@ -158,17 +163,17 @@ PROGRAM{
     s0 s3 XCHG
   }>
   $Escrow$_fun_releaseFunds PROCREF:<{
-    NIP
-    2OVER
+    s2 POP
+    s4 s3 PUSH2
     MUL
     10000 PUSHINT
     DIV
-    s4 s(-1) PUXC
+    s5 s(-1) PUXC
     SUB
     1 PUSHINT
     FALSE
         B{b5ee9c7241010101001400002400000000457363726f772072656c656173654d3d3e04} B>boc PUSHREF
-    s9 PUSH
+    s10 PUSH
     4 -ROLL
     $SendParameters$_constructor_to_value_mode_bounce_body INLINECALLDICT
         NEWC
@@ -241,7 +246,7 @@ PROGRAM{
     160 PUSHINT
     FALSE
         B{b5ee9c7241010101001200002000000000506c6174666f726d2066656575ee76c0} B>boc PUSHREF
-    s8 PUSH
+    s9 PUSH
     4 -ROLL
     $SendParameters$_constructor_to_value_mode_bounce_body INLINECALLDICT
         NEWC
@@ -311,23 +316,26 @@ PROGRAM{
         SWAP
         SENDRAWMSG // https://github.com/tact-lang/tact/issues/1558
     3 PUSHINT
-    SWAP
+    s0 s2 XCHG
   }>
   $Escrow$_fun_state PROCREF:<{
-    OVER
+    s2 PUSH
   }>
   $Parties$_constructor_buyer_seller_treasury PROCINLINE:<{
   }>
   $Escrow$_fun_parties PROCREF:<{
-    s7 s6 s5 PUSH3
+    s8 s7 s6 PUSH3
     $Parties$_constructor_buyer_seller_treasury INLINECALLDICT
   }>
-  $EscrowDetails$_constructor_orderId_amountNano_feeBps_disputeWindowSec_state_paidAt PROCINLINE:<{
+  $EscrowDetails$_constructor_orderId_amountNano_feeBps_trialWindowSec_state_paidAt PROCINLINE:<{
   }>
   $Escrow$_fun_details PROCREF:<{
-    s8 s4 s3 PUSH3
-    s5 s4 s3 PUSH3
-    $EscrowDetails$_constructor_orderId_amountNano_feeBps_disputeWindowSec_state_paidAt INLINECALLDICT
+    s9 s5 s4 PUSH3
+    s6 s5 s4 PUSH3
+    $EscrowDetails$_constructor_orderId_amountNano_feeBps_trialWindowSec_state_paidAt INLINECALLDICT
+  }>
+  $Escrow$_fun_license_address PROCREF:<{
+    DUP
   }>
   $MessageParameters$_constructor_bounce_to_value_mode_body PROCINLINE:<{
     s3 s3 XCHG2
@@ -364,19 +372,24 @@ PROGRAM{
   %state PROC:<{
     $Escrow$_contract_load INLINECALLDICT
     $Escrow$_fun_state INLINECALLDICT
-    9 1 BLKDROP2
+    10 1 BLKDROP2
   }>
   %parties PROC:<{
     $Escrow$_contract_load INLINECALLDICT
     $Escrow$_fun_parties INLINECALLDICT
-    9 3 BLKDROP2
+    10 3 BLKDROP2
     $Parties$_to_external INLINECALLDICT
   }>
   %details PROC:<{
     $Escrow$_contract_load INLINECALLDICT
     $Escrow$_fun_details INLINECALLDICT
-    9 6 BLKDROP2
+    10 6 BLKDROP2
     $EscrowDetails$_to_external INLINECALLDICT
+  }>
+  %license_address PROC:<{
+    $Escrow$_contract_load INLINECALLDICT
+    $Escrow$_fun_license_address INLINECALLDICT
+    10 1 BLKDROP2
   }>
   recv_internal PROC:<{
     SWAP
@@ -394,41 +407,42 @@ PROGRAM{
     s0 s2 XCHG
     __tact_context_sender SETGLOB
     $Escrow$_contract_load INLINECALLDICT
-    s0 s10 XCHG
+    s0 s11 XCHG
     IFJMP:<{
-      10 BLKDROP
+      11 BLKDROP
     }>
-    s0 s8 XCHG
+    s0 s9 XCHG
     32 LDUQ 130 THROWIFNOT
     OVER
     3453919792 PUSHINT
     EQUAL
     IFJMP:<{
       2DROP
-      s8 POP
       27392 PUSHINT
-      s0 s7 XCHG
+      s9 POP
       0 EQINT
-      s1 s7 XCHG
+      s1 s8 XCHG
       THROWANYIFNOT
       15821 PUSHINT
       __tact_context_get_sender INLINECALLDICT
-      s5 PUSH
+      s6 PUSH
       SDEQ
       THROWANYIFNOT
       46647 PUSHINT
       __tact_context_get INLINECALLDICT
       $Context$_get_value INLINECALLDICT
-      s2 PUSH
+      s3 PUSH
       GEQ
       THROWANYIFNOT
       1 PUSHINT
           NOW
+      s7 s9 XCHG
       s6 s8 XCHG
       s5 s7 XCHG
       s4 s6 XCHG
       s3 s5 XCHG
-      s2 s4 XCHG
+      s1 s0 s4 XCHG3
+      s0 s3 XCHG
       $Escrow$_contract_store INLINECALLDICT
     }>
     OVER
@@ -437,68 +451,66 @@ PROGRAM{
     IFJMP:<{
       2DROP
       30244 PUSHINT
-      s8 PUSH
+      OVER
       1 EQINT
       THROWANYIFNOT
       15821 PUSHINT
       __tact_context_get_sender INLINECALLDICT
-      s7 PUSH
+      s8 PUSH
       SDEQ
       THROWANYIFNOT
-      s6 s8 XCHG
-      2 6 BLKSWAP
+      s7 s9 XCHG
+      2 7 BLKSWAP
       $Escrow$_fun_releaseFunds INLINECALLDICT
       $Escrow$_contract_store INLINECALLDICT
     }>
     OVER
-    2663435750 PUSHINT
+    1893439881 PUSHINT
     EQUAL
     IFJMP:<{
-      2DROP
+      NIP
+      s10 POP
+      s0 s9 XCHG
+      LDMSGADDR
+      DROP
       30244 PUSHINT
-      s0 s8 XCHG
+      s10 PUSH
       1 EQINT
-      s1 s8 XCHG
       THROWANYIFNOT
-      15821 PUSHINT
+      40644 PUSHINT
       __tact_context_get_sender INLINECALLDICT
       s6 PUSH
       SDEQ
       THROWANYIFNOT
-      s7 s6 PUSH2
-      ADD
-      51455 PUSHINT
-          NOW
-      ROT
-      LEQ
-      THROWANYIFNOT
+      s7 s9 XCHG
+      s6 s8 XCHG
       s5 s7 XCHG
-      2 5 BLKSWAP
-      2 PUSHINT
-      SWAP
+      s4 s6 XCHG
+      s3 s5 XCHG
+      s4 s3 s0 XCHG3
+      s1 s2 XCHG
       $Escrow$_contract_store INLINECALLDICT
     }>
     OVER
-    2284215684 PUSHINT
+    2114466325 PUSHINT
     EQUAL
     IFJMP:<{
       2DROP
-      62062 PUSHINT
-      s0 s8 XCHG
-      2 EQINT
-      s1 s8 XCHG
+      30244 PUSHINT
+      SWAP
+      1 EQINT
       THROWANYIFNOT
-      16461 PUSHINT
+      8717 PUSHINT
       __tact_context_get_sender INLINECALLDICT
-      s4 PUSH
+      s10 PUSH
       SDEQ
       THROWANYIFNOT
       4 PUSHINT
       0 PUSHINT
       160 PUSHINT
       FALSE
-          B{b5ee9c7241010101001300002200000000457363726f7720726566756e640f661c65} B>boc PUSHREF
-      s9 PUSH
+          B{b5ee9c7241010101001a00003000000000457363726f7720726566756e6420286275726e29591fd4ec} B>boc PUSHREF
+      s10 PUSH
       4 -ROLL
       $SendParameters$_constructor_to_value_mode_bounce_body INLINECALLDICT
           NEWC
@@ -567,31 +579,8 @@ PROGRAM{
           // Group 5: Sending the message, with `mode` on top
           SWAP
           SENDRAWMSG // https://github.com/tact-lang/tact/issues/1558
-      s6 s8 XCHG
-      s5 s7 XCHG
-      s4 s6 XCHG
-      s3 s5 XCHG
-      s4 s0 s3 XCHG3
-      s0 s2 XCHG
-      $Escrow$_contract_store INLINECALLDICT
-    }>
-    OVER
-    1387388998 PUSHINT
-    EQUAL
-    IFJMP:<{
-      2DROP
-      62062 PUSHINT
-      s8 PUSH
-      2 EQINT
-      THROWANYIFNOT
-      16461 PUSHINT
-      __tact_context_get_sender INLINECALLDICT
-      s5 PUSH
-      SDEQ
-      THROWANYIFNOT
-      s6 s8 XCHG
-      2 6 BLKSWAP
-      $Escrow$_fun_releaseFunds INLINECALLDICT
+      s7 s9 XCHG
+      2 7 BLKSWAP
       $Escrow$_contract_store INLINECALLDICT
     }>
     OVER
@@ -600,18 +589,18 @@ PROGRAM{
     IFJMP:<{
       2DROP
       30244 PUSHINT
-      s8 PUSH
+      OVER
       1 EQINT
       THROWANYIFNOT
-      s8 s0 PUSH2
+      s8 s1 PUSH2
       ADD
       34557 PUSHINT
           NOW
       ROT
       GREATER
       THROWANYIFNOT
-      s6 s8 XCHG
-      2 6 BLKSWAP
+      s7 s9 XCHG
+      2 7 BLKSWAP
       $Escrow$_fun_releaseFunds INLINECALLDICT
       $Escrow$_contract_store INLINECALLDICT
     }>
@@ -624,16 +613,18 @@ PROGRAM{
       $DeployOk$_constructor_queryId INLINECALLDICT
       NEWC
       $DeployOk$_store_cell INLINECALLDICT
+      s8 s10 XCHG
       s7 s9 XCHG
       s6 s8 XCHG
       s5 s7 XCHG
       s4 s6 XCHG
       s3 s5 XCHG
       s4 s3 s0 XCHG3
+      s1 s2 XCHG
       $Escrow$_fun_notify INLINECALLDICT
       $Escrow$_contract_store INLINECALLDICT
     }>
-    10 BLKDROP
+    11 BLKDROP
     130 THROW
   }>
 }END>c

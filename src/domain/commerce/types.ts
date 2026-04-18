@@ -28,7 +28,7 @@ export interface EscrowInfo {
   stateInit: string;
   payload: string;
   totalAmountRaw: string;
-  disputeWindowSec: number;
+  trialWindowSec: number;
 }
 
 export interface CreateOrderResponse {

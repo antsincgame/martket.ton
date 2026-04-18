@@ -1,13 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   commerceUrl,
-  fetchSellerDisputes,
   fetchSellerOrders,
   fetchBuyerOrders,
   createCommerceOrder,
   fetchCommerceConfig,
   CommerceApiError,
-  type SellerDisputeRow,
   type SellerOrderRow,
 } from './commerceApi';
 
@@ -97,52 +95,6 @@ describe('fetchSellerOrders', () => {
     } catch (err) {
       expect(err).toBeInstanceOf(CommerceApiError);
     }
-  });
-});
-
-describe('fetchSellerDisputes', () => {
-  const wallet = 'EQTEST';
-
-  it('returns disputes array on 200', async () => {
-    const disputes: SellerDisputeRow[] = [
-      {
-        id: 'd1',
-        orderId: 'o1',
-        buyerWallet: 'EQBUYER',
-        reason: 'не работает',
-        status: 'open',
-        resolutionNote: '',
-        createdAt: '2026-04-17T00:00:00.000Z',
-        order: {
-          listingTitle: 'Demo App',
-          amountRaw: '500000000',
-          currency: 'TON',
-          state: 'paid',
-        },
-      },
-    ];
-    mockFetch().mockResolvedValueOnce(jsonResponse({ data: { disputes } }));
-
-    const result = await fetchSellerDisputes(wallet);
-
-    expect(result).toEqual(disputes);
-    const [url] = mockFetch().mock.calls[0];
-    expect(String(url)).toContain(`/sellers/${wallet}/disputes`);
-  });
-
-  it('includes JWT header when no explicit auth', async () => {
-    mockFetch().mockResolvedValueOnce(jsonResponse({ data: { disputes: [] } }));
-    await fetchSellerDisputes(wallet);
-    const [, init] = mockFetch().mock.calls[0];
-    const headers = init.headers as Record<string, string>;
-    expect(headers.Authorization).toBe('Bearer mock-jwt-token');
-  });
-
-  it('throws on backend error', async () => {
-    mockFetch().mockResolvedValueOnce(
-      jsonResponse({ error: 'boom' }, { status: 500 }),
-    );
-    await expect(fetchSellerDisputes(wallet)).rejects.toThrow('boom');
   });
 });
 

@@ -42,17 +42,6 @@ export const confirmOrderSchema = z.object({
   buyerWallet: z.string().min(1, 'buyerWallet is required'),
 });
 
-export const createDisputeSchema = z.object({
-  orderId: z.string().min(1),
-  openedByWallet: z.string().min(1),
-  reason: z.string().min(1).max(5000),
-});
-
-export const resolveDisputeSchema = z.object({
-  resolution: z.enum(['refund', 'release']),
-  resolutionNote: z.string().max(5000).default(''),
-});
-
 export const orderStateSchema = z.object({
   state: z.enum(['pending_payment', 'paid', 'fulfilled', 'refunded', 'cancelled']),
 });

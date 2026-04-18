@@ -22,7 +22,7 @@
 - Разработчик проходит KYC и публикует приложение после successful artifact scan.
 - Покупатель создаёт purchase session и получает NFT license.
 - Покупатель привязывает `device_id` и видит binding в профиле.
-- Покупатель открывает dispute до окончания trial.
+- Покупатель может сжечь NFT и получить возврат в течение trial window.
 - Разработчик видит contract readiness и опубликованные приложения в dashboard.
 
 ## Replace Demo With Production

@@ -1,6 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import { getTonForgeService } from './service.js';
 import { validateBody } from '../middleware/validate.js';
+import { requireAdmin } from '../middleware/auth.js';
 import {
   kycSchema,
   scanArtifactSchema,
@@ -8,7 +9,6 @@ import {
   purchaseSessionSchema,
   confirmPurchaseSchema,
   activateDeviceSchema,
-  openDisputeSchema,
 } from './validation.js';
 
 const router = express.Router();
@@ -112,10 +112,10 @@ router.get('/licenses/me', (req: Request, res: Response) => {
   res.json({ data: getTonForgeService().getWalletProfile(wallet) });
 });
 
-router.post('/licenses/:licenseId/activate-device', validateBody(activateDeviceSchema), (req: Request, res: Response) => {
+router.post('/licenses/:licenseId/activate-device', validateBody(activateDeviceSchema), async (req: Request, res: Response) => {
   try {
     const body = req.body as { buyerWallet: string; deviceId: string };
-    const response = getTonForgeService().activateLicenseDevice({
+    const response = await getTonForgeService().activateLicenseDevice({
       licenseId: str(req.params.licenseId),
       buyerWallet: body.buyerWallet,
       deviceId: body.deviceId,
@@ -126,12 +126,37 @@ router.post('/licenses/:licenseId/activate-device', validateBody(activateDeviceS
   }
 });
 
-router.post('/disputes', validateBody(openDisputeSchema), (req: Request, res: Response) => {
+router.get('/licenses/:licenseId', (req: Request, res: Response) => {
+  const license = getTonForgeService().getLicenseById(str(req.params.licenseId));
+  if (!license) {
+    res.status(404).json({ error: 'LICENSE_NOT_FOUND' });
+    return;
+  }
+  res.json({ data: { license } });
+});
+
+router.get('/licenses/:licenseId/verify', async (req: Request, res: Response) => {
   try {
-    const dispute = getTonForgeService().openDispute(
-      req.body as { licenseId: string; buyerWallet: string; reason: string },
+    const verify = await getTonForgeService().verifyLicenseOnchain(str(req.params.licenseId));
+    res.json({ data: { verify } });
+  } catch (error) {
+    handleError(res, error);
+  }
+});
+
+router.post('/admin/apps/:appId/collection', requireAdmin, (req: Request, res: Response) => {
+  try {
+    const body = req.body as { collectionAddress?: string; metadataUriPrefix?: string };
+    if (!body.collectionAddress) {
+      res.status(400).json({ error: 'COLLECTION_ADDRESS_REQUIRED' });
+      return;
+    }
+    const app = getTonForgeService().setAppCollectionAddress(
+      str(req.params.appId),
+      body.collectionAddress,
+      body.metadataUriPrefix,
     );
-    res.json({ data: { dispute } });
+    res.json({ data: { app } });
   } catch (error) {
     handleError(res, error);
   }

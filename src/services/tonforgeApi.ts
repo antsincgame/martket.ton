@@ -5,7 +5,6 @@ import type {
   TonForgeContractOverview,
   TonForgeDeveloperProfile,
   TonForgeDeveloperWorkspace,
-  TonForgeDispute,
   TonForgeLicense,
   TonForgePurchaseSession,
   TonForgeReview,
@@ -148,11 +147,30 @@ export async function activateLicenseDevice(payload: {
   );
 }
 
-export async function openLicenseDispute(payload: {
-  licenseId: string;
-  buyerWallet: string;
-  reason: string;
-}): Promise<TonForgeDispute> {
-  const data = await postJson<{ dispute: TonForgeDispute }>('/disputes', payload);
-  return data.dispute;
+export interface TonForgeOnchainVerify {
+  ok: boolean;
+  reason?: string;
+  ownerOnchain?: string;
+  ownerExpected?: string;
+  index?: string;
+  collection?: string;
 }
+
+export async function fetchLicenseById(
+  licenseId: string,
+): Promise<TonForgeLicense> {
+  const data = await getJson<{ license: TonForgeLicense }>(
+    `/licenses/${encodeURIComponent(licenseId)}`,
+  );
+  return data.license;
+}
+
+export async function verifyLicenseOnchain(
+  licenseId: string,
+): Promise<TonForgeOnchainVerify> {
+  const data = await getJson<{ verify: TonForgeOnchainVerify }>(
+    `/licenses/${encodeURIComponent(licenseId)}/verify`,
+  );
+  return data.verify;
+}
+

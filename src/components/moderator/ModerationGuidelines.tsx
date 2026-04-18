@@ -73,7 +73,7 @@ const ModerationGuidelines: FC = () => (
         <Li>Escalate complex cases to admin (change priority to urgent)</Li>
         <Li>Always explain the reason for any action taken</Li>
         <Li>If unsure about a decision, mark ticket as in_progress and consult</Li>
-        <Li ok={false}>Do not take sides in disputes without investigation</Li>
+        <Li ok={false}>Do not take sides in user conflicts without investigation</Li>
         <Li ok={false}>Do not promise outcomes you cannot guarantee</Li>
       </ul>
     </Section>

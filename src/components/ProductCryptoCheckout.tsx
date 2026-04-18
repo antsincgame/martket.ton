@@ -10,7 +10,6 @@ import {
   fetchTonForgeAppDetails,
   fetchTonForgeConfig,
   fetchWalletProfile,
-  openLicenseDispute,
 } from '../services/tonforgeApi';
 
 interface ProductCryptoCheckoutProps {
@@ -34,7 +33,6 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
   const [license, setLicense] = useState<TonForgeLicense | null>(null);
   const [txHash, setTxHash] = useState('');
   const [deviceId, setDeviceId] = useState('');
-  const [disputeReason, setDisputeReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -140,25 +138,6 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
       setSuccessMessage('Device bound. Runtime verification can now validate device_id.');
     } catch (error: unknown) {
       setLoadError(error instanceof Error ? error.message : 'Failed to bind device');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onOpenDispute = async () => {
-    if (!license || !buyerAddress || !disputeReason.trim()) return;
-    setBusy(true);
-    setLoadError(null);
-    try {
-      await openLicenseDispute({
-        licenseId: license.licenseId,
-        buyerWallet: buyerAddress,
-        reason: disputeReason.trim(),
-      });
-      setDisputeReason('');
-      setSuccessMessage('Dispute opened and awaiting escrow/trial chain review.');
-    } catch (error: unknown) {
-      setLoadError(error instanceof Error ? error.message : 'Failed to open dispute');
     } finally {
       setBusy(false);
     }
@@ -349,28 +328,6 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
         </div>
       )}
 
-      {license && buyerAddress && (
-        <div className="space-y-2 border-t border-white/10 pt-4">
-          <p className="text-sm text-gray-400">
-            If the license, artifact, or trial is not working correctly, open a dispute before the escrow expires.
-          </p>
-          <textarea
-            value={disputeReason}
-            onChange={(event) => setDisputeReason(event.target.value)}
-            placeholder="Describe the issue with escrow, artifact, or activation"
-            rows={3}
-            className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white"
-          />
-          <button
-            type="button"
-            onClick={() => void onOpenDispute()}
-            disabled={busy || !disputeReason.trim()}
-            className="rounded-lg bg-amber-600/80 px-4 py-2 text-sm font-medium disabled:opacity-50 hover:bg-amber-600"
-          >
-            Open dispute
-          </button>
-        </div>
-      )}
     </div>
   );
 };

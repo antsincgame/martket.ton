@@ -80,7 +80,7 @@ export default function PrivacyPolicy() {
             <li>Authenticating your identity via Appwrite Account services</li>
             <li>Verifying on-chain transaction hashes to confirm purchases</li>
             <li>Moderating published products (security scanning, content review)</li>
-            <li>Communicating order confirmations, disputes, and support responses</li>
+            <li>Communicating order confirmations, refund notifications, and support responses</li>
             <li>Detecting and preventing fraud, abuse, and Terms violations</li>
             <li>Enforcing rate limits and security protections</li>
             <li>Processing Publisher identity verification (KYC/KYB) through third-party providers to comply with anti-money laundering (AML) regulations</li>
@@ -198,7 +198,7 @@ export default function PrivacyPolicy() {
             <li>Provide a clear and conspicuous unsubscribe mechanism</li>
             <li>Honor opt-out requests within 10 business days</li>
           </ul>
-          <p>Transactional emails (order confirmations, security alerts, dispute updates) are exempt from CAN-SPAM opt-out requirements as they relate to an existing business relationship.</p>
+          <p>Transactional emails (order confirmations, security alerts, refund notifications) are exempt from CAN-SPAM opt-out requirements as they relate to an existing business relationship.</p>
         </section>
 
         <section>

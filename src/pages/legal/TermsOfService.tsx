@@ -138,16 +138,11 @@ export default function TermsOfService() {
         </section>
 
         <section>
-          <h2 className="text-xl font-semibold text-white">7. Disputes, Escrow Mechanism &amp; Dispute Window</h2>
-          <p><strong>Dispute Window.</strong> Buyers may open a dispute within seventy-two (72) hours after payment confirmation (&quot;Dispute Window&quot;). Disputes must be submitted through the Platform&apos;s dispute mechanism on the Orders page. After the Dispute Window closes, funds are automatically released to the Seller by the smart contract, and no further disputes may be initiated for that transaction.</p>
-          <p><strong>Escrow Smart Contract &amp; Oracle Role.</strong> Funds from each purchase are held in a non-custodial Escrow Smart Contract deployed on the TON blockchain. <strong>The Company does not custody these funds at any time.</strong> During the 72-hour Dispute Window, the funds remain locked in the smart contract and are not accessible to either party. The Company acts solely as a <strong>technical oracle</strong> (&quot;Platform Oracle&quot;) for the Escrow Smart Contract. Based on the outcome of the dispute resolution process, the Platform Oracle may broadcast a cryptographic signature allowing the smart contract to execute one of the following outcomes:</p>
-          <ul className="list-disc pl-6 space-y-1">
-            <li><strong>Refund:</strong> the smart contract returns the full purchase amount (minus gas fees) to the Buyer&apos;s wallet;</li>
-            <li><strong>Release:</strong> the smart contract releases the funds (minus the {FEE} platform commission) to the Seller&apos;s wallet;</li>
-            <li><strong>Partial refund:</strong> in cases where both parties agree, the smart contract may split the funds according to the agreed proportion.</li>
-          </ul>
-          <p>The Company&apos;s oracle function is limited to signing the dispute outcome. The Company does not have unilateral access to the escrowed funds and cannot move, redirect, or appropriate them. If the Company fails to sign within 14 calendar days after a dispute is opened, the smart contract automatically releases funds to the Seller.</p>
-          <p><strong>Dispute Review Process.</strong> The Company will review submitted evidence (screenshots, logs, product functionality reports) from both parties and render a decision within five (5) business days. The Company&apos;s decision determines which cryptographic signature the Platform Oracle broadcasts. This decision is final with respect to the smart-contract outcome, subject to the arbitration provisions in Section 18.</p>
+          <h2 className="text-xl font-semibold text-white">7. Escrow, Trial Window &amp; Buyer-Initiated Refund</h2>
+          <p><strong>Trial Window.</strong> Buyers have a seventy-two (72) hour trial period after payment confirmation (&quot;Trial Window&quot;). During this period, the Buyer may request a full refund by burning their License NFT on-chain. After the Trial Window closes, funds are automatically released to the Seller by the smart contract, and no further refund may be initiated for that transaction.</p>
+          <p><strong>Buyer-Initiated Burn &amp; Refund.</strong> Refunds are fully on-chain and buyer-initiated. To obtain a refund within the Trial Window, the Buyer sends a BuyerBurn transaction to their License NFT smart contract. The NFT self-destructs and sends a RefundOnBurn message to the Escrow smart contract, which automatically returns the full purchase amount (minus gas fees) to the Buyer&apos;s wallet. <strong>No oracle signature, Company intervention, or dispute process is required.</strong></p>
+          <p><strong>Non-Custodial Escrow.</strong> Funds from each purchase are held in a non-custodial Escrow Smart Contract deployed on the TON blockchain. <strong>The Company does not custody these funds at any time.</strong> During the Trial Window, the funds remain locked in the smart contract. After the Trial Window expires without a BuyerBurn, anyone may trigger a timeout release that sends funds (minus the {FEE} platform commission) to the Seller&apos;s wallet.</p>
+          <p><strong>Oracle Role (Limited).</strong> The Company&apos;s oracle role is limited to registering the License NFT address on the Escrow contract after minting. The oracle does not participate in refund decisions, does not sign refund transactions, and has no access to escrowed funds.</p>
           <p><strong>European Economic Area &amp; United Kingdom — Waiver of Withdrawal Right.</strong> For Users located in the European Economic Area (EEA) or the United Kingdom: by initiating a download, accessing, or activating a digital product purchased on the Platform, you expressly consent to the immediate performance of the contract and expressly acknowledge that you thereby lose your right of withdrawal (cooling-off period) under Directive 2011/83/EU (Consumer Rights Directive), Article 16(m), and the UK Consumer Contracts (Information, Cancellation and Additional Charges) Regulations 2013, Regulation 37. This waiver is presented to you at the point of purchase and your acceptance is recorded.</p>
         </section>
 
@@ -225,7 +220,7 @@ export default function TermsOfService() {
 
         <section>
           <h2 className="text-xl font-semibold text-white">17. Governing Law &amp; Jurisdiction</h2>
-          <p>These Terms shall be governed by and construed in accordance with the laws of the State of {ST}, United States, without regard to its conflict-of-law principles. Any dispute arising under these Terms shall be resolved exclusively in the state or federal courts located in {ST}, and you consent to the personal jurisdiction of such courts.</p>
+          <p>These Terms shall be governed by and construed in accordance with the laws of the State of {ST}, United States, without regard to its conflict-of-law principles. Any claim arising under these Terms shall be resolved exclusively in the state or federal courts located in {ST}, and you consent to the personal jurisdiction of such courts.</p>
         </section>
 
         <section>

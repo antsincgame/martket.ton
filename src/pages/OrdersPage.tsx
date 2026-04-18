@@ -1,9 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, ExternalLink, Clock, CheckCircle, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
+import { Package, ExternalLink, Clock, CheckCircle, XCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 import { fetchBuyerOrders, type BuyerOrderRow } from '../lib/commerceApi';
 import { logger } from '../lib/logger';
-import DisputeButton from '../components/order/DisputeButton';
 
 function rawToHuman(raw: string): string {
   if (!raw || raw === '0') return '0';
@@ -19,7 +18,6 @@ const stateConfig: Record<string, { label: string; icon: typeof Clock; className
   fulfilled: { label: 'Fulfilled', icon: CheckCircle, className: 'text-emerald-400' },
   refunded: { label: 'Refunded', icon: XCircle, className: 'text-blue-400' },
   cancelled: { label: 'Cancelled', icon: XCircle, className: 'text-gray-400' },
-  disputed: { label: 'Disputed', icon: AlertTriangle, className: 'text-red-400' },
 };
 
 export default function OrdersPage() {
@@ -113,9 +111,6 @@ export default function OrdersPage() {
                       <ExternalLink className="w-3 h-3" />
                       Tx
                     </a>
-                  )}
-                  {(order.state === 'paid' || order.state === 'fulfilled') && (
-                    <DisputeButton orderId={order.id} onDisputeOpened={loadOrders} />
                   )}
                 </div>
               </div>

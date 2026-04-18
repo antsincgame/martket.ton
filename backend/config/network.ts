@@ -7,7 +7,7 @@ export interface NetworkConfig {
   tonapiBase: string;
   tonapiKey: string;
   treasuryAddress: string;
-  disputeWindowSec: number;
+  trialWindowSec: number;
 }
 
 const NETWORK_HEADER = 'x-ton-network';
@@ -22,14 +22,14 @@ const configs: Record<TonNetwork, NetworkConfig> = {
     tonapiBase: env('TONAPI_BASE_URL_MAINNET', env('TONAPI_BASE_URL', 'https://tonapi.io')),
     tonapiKey: env('TONAPI_KEY_MAINNET', env('TONAPI_KEY', '')),
     treasuryAddress: env('TREASURY_WALLET_ADDRESS_MAINNET', env('TREASURY_WALLET_ADDRESS', '')),
-    disputeWindowSec: parseInt(env('DISPUTE_WINDOW_SEC', '259200'), 10),
+    trialWindowSec: parseInt(env('TRIAL_WINDOW_SEC', '259200'), 10),
   },
   testnet: {
     network: 'testnet',
     tonapiBase: env('TONAPI_BASE_URL_TESTNET', 'https://testnet.tonapi.io'),
     tonapiKey: env('TONAPI_KEY_TESTNET', env('TONAPI_KEY', '')),
     treasuryAddress: env('TREASURY_WALLET_ADDRESS_TESTNET', env('TREASURY_WALLET_ADDRESS', '')),
-    disputeWindowSec: parseInt(env('DISPUTE_WINDOW_SEC', '259200'), 10),
+    trialWindowSec: parseInt(env('TRIAL_WINDOW_SEC', '259200'), 10),
   },
 };
 

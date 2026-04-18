@@ -21,10 +21,10 @@ builder $DeployOk$_store(builder build_0, (int) v) inline;
 cell $DeployOk$_store_cell((int) v, builder b) inline;
 
 ;; $Escrow$_store
-builder $Escrow$_store(builder build_0, (int, slice, slice, slice, int, int, int, int, int) v) inline;
+builder $Escrow$_store(builder build_0, (int, slice, slice, slice, int, int, int, int, int, slice) v) inline;
 
 ;; $Escrow$_load
-(slice, ((int, slice, slice, slice, int, int, int, int, int))) $Escrow$_load(slice sc_0) inline;
+(slice, ((int, slice, slice, slice, int, int, int, int, int, slice))) $Escrow$_load(slice sc_0) inline;
 
 ;; $Context$_get_value
 _ $Context$_get_value((int, slice, int, slice) v) inline;
@@ -39,40 +39,43 @@ _ $Context$_get_value((int, slice, int, slice) v) inline;
 (slice, ((int, slice, slice, slice, int, int, int))) $Escrow$init$_load(slice sc_0) inline;
 
 ;; $Escrow$_contract_init
-(int, slice, slice, slice, int, int, int, int, int) $Escrow$_contract_init(int $orderId, slice $buyer, slice $seller, slice $treasury, int $amountNano, int $feeBps, int $disputeWindowSec) impure inline;
+(int, slice, slice, slice, int, int, int, int, int, slice) $Escrow$_contract_init(int $orderId, slice $buyer, slice $seller, slice $treasury, int $amountNano, int $feeBps, int $trialWindowSec) impure inline;
 
 ;; $Escrow$_contract_load
-(int, slice, slice, slice, int, int, int, int, int) $Escrow$_contract_load() impure inline;
+(int, slice, slice, slice, int, int, int, int, int, slice) $Escrow$_contract_load() impure inline;
 
 ;; $Escrow$_contract_store
-() $Escrow$_contract_store((int, slice, slice, slice, int, int, int, int, int) v) impure inline;
+() $Escrow$_contract_store((int, slice, slice, slice, int, int, int, int, int, slice) v) impure inline;
 
 ;; $SendParameters$_constructor_to_value_mode_bounce_body
 ((int, cell, cell, cell, int, slice, int)) $SendParameters$_constructor_to_value_mode_bounce_body(slice $to, int $value, int $mode, int $bounce, cell $body) inline;
 
 ;; $Escrow$_fun_releaseFunds
-((int, slice, slice, slice, int, int, int, int, int), ()) $Escrow$_fun_releaseFunds((int, slice, slice, slice, int, int, int, int, int) $self) impure inline_ref;
+((int, slice, slice, slice, int, int, int, int, int, slice), ()) $Escrow$_fun_releaseFunds((int, slice, slice, slice, int, int, int, int, int, slice) $self) impure inline_ref;
 
 ;; $Escrow$_fun_state
-((int, slice, slice, slice, int, int, int, int, int), int) $Escrow$_fun_state((int, slice, slice, slice, int, int, int, int, int) $self) impure inline_ref;
+((int, slice, slice, slice, int, int, int, int, int, slice), int) $Escrow$_fun_state((int, slice, slice, slice, int, int, int, int, int, slice) $self) impure inline_ref;
 
 ;; $Parties$_constructor_buyer_seller_treasury
 ((slice, slice, slice)) $Parties$_constructor_buyer_seller_treasury(slice $buyer, slice $seller, slice $treasury) inline;
 
 ;; $Escrow$_fun_parties
-((int, slice, slice, slice, int, int, int, int, int), (slice, slice, slice)) $Escrow$_fun_parties((int, slice, slice, slice, int, int, int, int, int) $self) impure inline_ref;
+((int, slice, slice, slice, int, int, int, int, int, slice), (slice, slice, slice)) $Escrow$_fun_parties((int, slice, slice, slice, int, int, int, int, int, slice) $self) impure inline_ref;
 
-;; $EscrowDetails$_constructor_orderId_amountNano_feeBps_disputeWindowSec_state_paidAt
-((int, int, int, int, int, int)) $EscrowDetails$_constructor_orderId_amountNano_feeBps_disputeWindowSec_state_paidAt(int $orderId, int $amountNano, int $feeBps, int $disputeWindowSec, int $state, int $paidAt) inline;
+;; $EscrowDetails$_constructor_orderId_amountNano_feeBps_trialWindowSec_state_paidAt
+((int, int, int, int, int, int)) $EscrowDetails$_constructor_orderId_amountNano_feeBps_trialWindowSec_state_paidAt(int $orderId, int $amountNano, int $feeBps, int $trialWindowSec, int $state, int $paidAt) inline;
 
 ;; $Escrow$_fun_details
-((int, slice, slice, slice, int, int, int, int, int), (int, int, int, int, int, int)) $Escrow$_fun_details((int, slice, slice, slice, int, int, int, int, int) $self) impure inline_ref;
+((int, slice, slice, slice, int, int, int, int, int, slice), (int, int, int, int, int, int)) $Escrow$_fun_details((int, slice, slice, slice, int, int, int, int, int, slice) $self) impure inline_ref;
+
+;; $Escrow$_fun_license_address
+((int, slice, slice, slice, int, int, int, int, int, slice), slice) $Escrow$_fun_license_address((int, slice, slice, slice, int, int, int, int, int, slice) $self) impure inline_ref;
 
 ;; $MessageParameters$_constructor_bounce_to_value_mode_body
 ((int, cell, int, slice, int)) $MessageParameters$_constructor_bounce_to_value_mode_body(int $bounce, slice $to, int $value, int $mode, cell $body) inline;
 
 ;; $Escrow$_fun_notify
-((int, slice, slice, slice, int, int, int, int, int), ()) $Escrow$_fun_notify((int, slice, slice, slice, int, int, int, int, int) $self, cell $body) impure inline;
+((int, slice, slice, slice, int, int, int, int, int, slice), ()) $Escrow$_fun_notify((int, slice, slice, slice, int, int, int, int, int, slice) $self, cell $body) impure inline;
 
 ;; $DeployOk$_constructor_queryId
 ((int)) $DeployOk$_constructor_queryId(int $queryId) inline;
@@ -199,8 +202,8 @@ int $global_now() impure asm """
     NOW
 """;
 
-((int, slice, slice, slice, int, int, int, int, int), ()) $Escrow$_fun_notify((int, slice, slice, slice, int, int, int, int, int) $self, cell $body) impure inline {
-    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt)) = $self;
+((int, slice, slice, slice, int, int, int, int, int, slice), ()) $Escrow$_fun_notify((int, slice, slice, slice, int, int, int, int, int, slice) $self, cell $body) impure inline {
+    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress)) = $self;
     slice $to = __tact_context_get_sender();
     int $bounce = false;
     if (false) {
@@ -209,14 +212,19 @@ int $global_now() impure asm """
         if (($balanceBeforeMessage < 0)) {
             $global_nativeReserve(0, 0);
             $global_message($MessageParameters$_constructor_bounce_to_value_mode_body($bounce, $to, 0, 130, $body));
-            return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt), ());
+            return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress), ());
         }
     }
     $global_message($MessageParameters$_constructor_bounce_to_value_mode_body($bounce, $to, 0, 66, $body));
-    return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt), ());
+    return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress), ());
 }
 
 ;; Escrow_Escrow.constants.fc
+;; EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c
+slice __gen_slice_address_61ab4641fa30d9310391025086eec65d200d79268e1b7cd402565e01ba64be3c() asm """
+    B{b5ee9c72410101010024000043800000000000000000000000000000000000000000000000000000000000000000104aec829d} B>boc <s PUSHSLICE
+""";
+
 ;; Cell PpMLogIjFXn97lC8Ft3DM6yvud52o2aFzHV9rwyz55M=
 cell __gen_cell_cell_3e930ba202231579fdee50bc16ddc333acafb9de76a36685cc757daf0cb3e793() asm """
     B{b5ee9c7241010101001400002400000000457363726f772072656c656173654d3d3e04} B>boc PUSHREF
@@ -227,9 +235,9 @@ cell __gen_cell_cell_58c510fdc5f0ab917524b322d7a3394a9439a35ab802413ac44b26f16d6
     B{b5ee9c7241010101001200002000000000506c6174666f726d2066656575ee76c0} B>boc PUSHREF
 """;
 
-;; Cell c3Kn6gneJRGU0bY6f44pClZcWlb9Imun9gWoS6/KhmM=
-cell __gen_cell_cell_7372a7ea09de251194d1b63a7f8e290a565c5a56fd226ba7f605a84bafca8663() asm """
-    B{b5ee9c7241010101001300002200000000457363726f7720726566756e640f661c65} B>boc PUSHREF
+;; Cell vHfdnup3mNsxpw9ZA6skAnhLzZo+RmG0Aav4Y0ENj+I=
+cell __gen_cell_cell_bc77dd9eea7798db31a70f5903ab2402784bcd9a3e4661b401abf863410d8fe2() asm """
+    B{b5ee9c7241010101001a00003000000000457363726f7720726566756e6420286275726e29591fd4ec} B>boc PUSHREF
 """;
 
 ;; Escrow_Escrow.storage.fc
@@ -298,25 +306,25 @@ cell $DeployOk$_store_cell((int) v, builder b) inline {
 
 ;;
 ;; Type: EscrowDetails
-;; TLB: _ orderId:uint256 amountNano:coins feeBps:uint16 disputeWindowSec:uint32 state:uint8 paidAt:uint32 = EscrowDetails
+;; TLB: _ orderId:uint256 amountNano:coins feeBps:uint16 trialWindowSec:uint32 state:uint8 paidAt:uint32 = EscrowDetails
 ;;
 
 (int, int, int, int, int, int) $EscrowDetails$_to_external(((int, int, int, int, int, int)) v) inline {
-    var (v'orderId, v'amountNano, v'feeBps, v'disputeWindowSec, v'state, v'paidAt) = v; 
-    return (v'orderId, v'amountNano, v'feeBps, v'disputeWindowSec, v'state, v'paidAt);
+    var (v'orderId, v'amountNano, v'feeBps, v'trialWindowSec, v'state, v'paidAt) = v; 
+    return (v'orderId, v'amountNano, v'feeBps, v'trialWindowSec, v'state, v'paidAt);
 }
 
-((int, int, int, int, int, int)) $EscrowDetails$_constructor_orderId_amountNano_feeBps_disputeWindowSec_state_paidAt(int $orderId, int $amountNano, int $feeBps, int $disputeWindowSec, int $state, int $paidAt) inline {
-    return ($orderId, $amountNano, $feeBps, $disputeWindowSec, $state, $paidAt);
+((int, int, int, int, int, int)) $EscrowDetails$_constructor_orderId_amountNano_feeBps_trialWindowSec_state_paidAt(int $orderId, int $amountNano, int $feeBps, int $trialWindowSec, int $state, int $paidAt) inline {
+    return ($orderId, $amountNano, $feeBps, $trialWindowSec, $state, $paidAt);
 }
 
 ;;
 ;; Type: Escrow
-;; TLB: _ orderId:uint256 buyer:address seller:address treasury:address amountNano:coins feeBps:uint16 disputeWindowSec:uint32 state:uint8 paidAt:uint32 = Escrow
+;; TLB: _ orderId:uint256 buyer:address seller:address treasury:address amountNano:coins feeBps:uint16 trialWindowSec:uint32 state:uint8 paidAt:uint32 licenseAddress:address = Escrow
 ;;
 
-builder $Escrow$_store(builder build_0, (int, slice, slice, slice, int, int, int, int, int) v) inline {
-    var (v'orderId, v'buyer, v'seller, v'treasury, v'amountNano, v'feeBps, v'disputeWindowSec, v'state, v'paidAt) = v;
+builder $Escrow$_store(builder build_0, (int, slice, slice, slice, int, int, int, int, int, slice) v) inline {
+    var (v'orderId, v'buyer, v'seller, v'treasury, v'amountNano, v'feeBps, v'trialWindowSec, v'state, v'paidAt, v'licenseAddress) = v;
     build_0 = build_0.store_uint(v'orderId, 256);
     build_0 = build_0.store_slice(v'buyer);
     build_0 = build_0.store_slice(v'seller);
@@ -324,14 +332,15 @@ builder $Escrow$_store(builder build_0, (int, slice, slice, slice, int, int, int
     build_1 = build_1.store_slice(v'treasury);
     build_1 = build_1.store_varuint16(v'amountNano);
     build_1 = build_1.store_uint(v'feeBps, 16);
-    build_1 = build_1.store_uint(v'disputeWindowSec, 32);
+    build_1 = build_1.store_uint(v'trialWindowSec, 32);
     build_1 = build_1.store_uint(v'state, 8);
     build_1 = build_1.store_uint(v'paidAt, 32);
+    build_1 = build_1.store_slice(v'licenseAddress);
     build_0 = store_builder_ref(build_0, build_1);
     return build_0;
 }
 
-(slice, ((int, slice, slice, slice, int, int, int, int, int))) $Escrow$_load(slice sc_0) inline {
+(slice, ((int, slice, slice, slice, int, int, int, int, int, slice))) $Escrow$_load(slice sc_0) inline {
     var v'orderId = sc_0~load_uint(256);
     var v'buyer = sc_0~load_msg_addr();
     var v'seller = sc_0~load_msg_addr();
@@ -339,10 +348,11 @@ builder $Escrow$_store(builder build_0, (int, slice, slice, slice, int, int, int
     var v'treasury = sc_1~load_msg_addr();
     var v'amountNano = sc_1~load_varuint16();
     var v'feeBps = sc_1~load_uint(16);
-    var v'disputeWindowSec = sc_1~load_uint(32);
+    var v'trialWindowSec = sc_1~load_uint(32);
     var v'state = sc_1~load_uint(8);
     var v'paidAt = sc_1~load_uint(32);
-    return (sc_0, (v'orderId, v'buyer, v'seller, v'treasury, v'amountNano, v'feeBps, v'disputeWindowSec, v'state, v'paidAt));
+    var v'licenseAddress = sc_1~load_msg_addr();
+    return (sc_0, (v'orderId, v'buyer, v'seller, v'treasury, v'amountNano, v'feeBps, v'trialWindowSec, v'state, v'paidAt, v'licenseAddress));
 }
 
 (slice, ((int, slice, slice, slice, int, int, int))) $Escrow$init$_load(slice sc_0) inline {
@@ -354,24 +364,24 @@ builder $Escrow$_store(builder build_0, (int, slice, slice, slice, int, int, int
     var v'amountNano = sc_1~load_int(257);
     var v'feeBps = sc_1~load_int(257);
     slice sc_2 = sc_1~load_ref().begin_parse();
-    var v'disputeWindowSec = sc_2~load_int(257);
-    return (sc_0, (v'orderId, v'buyer, v'seller, v'treasury, v'amountNano, v'feeBps, v'disputeWindowSec));
+    var v'trialWindowSec = sc_2~load_int(257);
+    return (sc_0, (v'orderId, v'buyer, v'seller, v'treasury, v'amountNano, v'feeBps, v'trialWindowSec));
 }
 
-(int, slice, slice, slice, int, int, int, int, int) $Escrow$_contract_load() impure inline {
+(int, slice, slice, slice, int, int, int, int, int, slice) $Escrow$_contract_load() impure inline {
     slice $sc = get_data().begin_parse();
     int $loaded = $sc~load_int(1);
     if ($loaded) {
         return $sc~$Escrow$_load();
     }
     else {
-        (int $orderId, slice $buyer, slice $seller, slice $treasury, int $amountNano, int $feeBps, int $disputeWindowSec) = $sc~$Escrow$init$_load();
+        (int $orderId, slice $buyer, slice $seller, slice $treasury, int $amountNano, int $feeBps, int $trialWindowSec) = $sc~$Escrow$init$_load();
         $sc.end_parse();
-        return $Escrow$_contract_init($orderId, $buyer, $seller, $treasury, $amountNano, $feeBps, $disputeWindowSec);
+        return $Escrow$_contract_init($orderId, $buyer, $seller, $treasury, $amountNano, $feeBps, $trialWindowSec);
     }
 }
 
-() $Escrow$_contract_store((int, slice, slice, slice, int, int, int, int, int) v) impure inline {
+() $Escrow$_contract_store((int, slice, slice, slice, int, int, int, int, int, slice) v) impure inline {
     builder b = begin_cell();
     b = b.store_int(true, 1);
     b = $Escrow$_store(b, v);
@@ -382,46 +392,53 @@ builder $Escrow$_store(builder build_0, (int, slice, slice, slice, int, int, int
 ;; Contract Escrow functions
 ;;
 
-(int, slice, slice, slice, int, int, int, int, int) $Escrow$_contract_init(int $orderId, slice $buyer, slice $seller, slice $treasury, int $amountNano, int $feeBps, int $disputeWindowSec) impure inline {
-    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt)) = (null(), null(), null(), null(), null(), null(), null(), null(), null());
+(int, slice, slice, slice, int, int, int, int, int, slice) $Escrow$_contract_init(int $orderId, slice $buyer, slice $seller, slice $treasury, int $amountNano, int $feeBps, int $trialWindowSec) impure inline {
+    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress)) = (null(), null(), null(), null(), null(), null(), null(), null(), null(), null());
     $self'orderId = $orderId;
     $self'buyer = $buyer;
     $self'seller = $seller;
     $self'treasury = $treasury;
     $self'amountNano = $amountNano;
     $self'feeBps = $feeBps;
-    $self'disputeWindowSec = $disputeWindowSec;
+    $self'trialWindowSec = $trialWindowSec;
     $self'state = 0;
     $self'paidAt = 0;
-    return ($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt);
+    $self'licenseAddress = __gen_slice_address_61ab4641fa30d9310391025086eec65d200d79268e1b7cd402565e01ba64be3c();
+    return ($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress);
 }
 
-((int, slice, slice, slice, int, int, int, int, int), ()) $Escrow$_fun_releaseFunds((int, slice, slice, slice, int, int, int, int, int) $self) impure inline_ref {
-    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt)) = $self;
+((int, slice, slice, slice, int, int, int, int, int, slice), ()) $Escrow$_fun_releaseFunds((int, slice, slice, slice, int, int, int, int, int, slice) $self) impure inline_ref {
+    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress)) = $self;
     int $fee = (($self'amountNano * $self'feeBps) / 10000);
     int $sellerAmount = ($self'amountNano - $fee);
     $global_send($SendParameters$_constructor_to_value_mode_bounce_body($self'seller, $sellerAmount, 1, false, __gen_cell_cell_3e930ba202231579fdee50bc16ddc333acafb9de76a36685cc757daf0cb3e793()));
     $global_send($SendParameters$_constructor_to_value_mode_bounce_body($self'treasury, 0, 160, false, __gen_cell_cell_58c510fdc5f0ab917524b322d7a3394a9439a35ab802413ac44b26f16d6aa383()));
     $self'state = 3;
-    return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt), ());
+    return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress), ());
 }
 
-((int, slice, slice, slice, int, int, int, int, int), int) $Escrow$_fun_state((int, slice, slice, slice, int, int, int, int, int) $self) impure inline_ref {
-    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt)) = $self;
+((int, slice, slice, slice, int, int, int, int, int, slice), int) $Escrow$_fun_state((int, slice, slice, slice, int, int, int, int, int, slice) $self) impure inline_ref {
+    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress)) = $self;
     var $fresh$ret_0 = $self'state;
-    return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt), $fresh$ret_0);
+    return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress), $fresh$ret_0);
 }
 
-((int, slice, slice, slice, int, int, int, int, int), (slice, slice, slice)) $Escrow$_fun_parties((int, slice, slice, slice, int, int, int, int, int) $self) impure inline_ref {
-    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt)) = $self;
+((int, slice, slice, slice, int, int, int, int, int, slice), (slice, slice, slice)) $Escrow$_fun_parties((int, slice, slice, slice, int, int, int, int, int, slice) $self) impure inline_ref {
+    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress)) = $self;
     var $fresh$ret_1 = $Parties$_constructor_buyer_seller_treasury($self'buyer, $self'seller, $self'treasury);
-    return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt), $fresh$ret_1);
+    return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress), $fresh$ret_1);
 }
 
-((int, slice, slice, slice, int, int, int, int, int), (int, int, int, int, int, int)) $Escrow$_fun_details((int, slice, slice, slice, int, int, int, int, int) $self) impure inline_ref {
-    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt)) = $self;
-    var $fresh$ret_2 = $EscrowDetails$_constructor_orderId_amountNano_feeBps_disputeWindowSec_state_paidAt($self'orderId, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt);
-    return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt), $fresh$ret_2);
+((int, slice, slice, slice, int, int, int, int, int, slice), (int, int, int, int, int, int)) $Escrow$_fun_details((int, slice, slice, slice, int, int, int, int, int, slice) $self) impure inline_ref {
+    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress)) = $self;
+    var $fresh$ret_2 = $EscrowDetails$_constructor_orderId_amountNano_feeBps_trialWindowSec_state_paidAt($self'orderId, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt);
+    return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress), $fresh$ret_2);
+}
+
+((int, slice, slice, slice, int, int, int, int, int, slice), slice) $Escrow$_fun_license_address((int, slice, slice, slice, int, int, int, int, int, slice) $self) impure inline_ref {
+    var (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress)) = $self;
+    var $fresh$ret_3 = $self'licenseAddress;
+    return (($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress), $fresh$ret_3);
 }
 
 ;;
@@ -446,6 +463,12 @@ _ %details() method_id(118890) {
     return $EscrowDetails$_to_external(res);
 }
 
+_ %license_address() method_id(92280) {
+    var self = $Escrow$_contract_load();
+    var res = self~$Escrow$_fun_license_address();
+    return res;
+}
+
 ;;
 ;; Routing of a Contract Escrow
 ;;
@@ -466,7 +489,7 @@ _ %details() method_id(118890) {
     __tact_context_sender = msg_sender_addr;
     
     ;; Load contract data
-    var ($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt) = $Escrow$_contract_load();
+    var ($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress) = $Escrow$_contract_load();
     
     ;; Handle bounced messages
     if (msg_bounced) { return (); }
@@ -479,7 +502,7 @@ _ %details() method_id(118890) {
         throw_unless(46647, ($Context$_get_value(__tact_context_get()) >= $self'amountNano));
         $self'state = 1;
         $self'paidAt = $global_now();
-        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt));
+        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress));
         return ();
     }
     
@@ -488,41 +511,29 @@ _ %details() method_id(118890) {
         var $msg = empty_tuple();
         throw_unless(30244, ($self'state == 1));
         throw_unless(15821, ( equal_slices_bits(__tact_context_get_sender(), $self'buyer) ));
-        ($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt)~$Escrow$_fun_releaseFunds();
-        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt));
+        ($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress)~$Escrow$_fun_releaseFunds();
+        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress));
         return ();
     }
     
-    ;; Receive OpenDispute message
-    if (op == 2663435750) {
+    ;; Receive RegisterLicense message
+    if (op == 1893439881) {
+        var $msg'licenseAddress = in_msg~load_msg_addr();
+        throw_unless(30244, ($self'state == 1));
+        throw_unless(40644, ( equal_slices_bits(__tact_context_get_sender(), $self'treasury) ));
+        $self'licenseAddress = $msg'licenseAddress;
+        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress));
+        return ();
+    }
+    
+    ;; Receive RefundOnBurn message
+    if (op == 2114466325) {
         var $msg = empty_tuple();
         throw_unless(30244, ($self'state == 1));
-        throw_unless(15821, ( equal_slices_bits(__tact_context_get_sender(), $self'buyer) ));
-        int $deadline = ($self'paidAt + $self'disputeWindowSec);
-        throw_unless(51455, ($global_now() <= $deadline));
-        $self'state = 2;
-        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt));
-        return ();
-    }
-    
-    ;; Receive ResolveRefund message
-    if (op == 2284215684) {
-        var $msg = empty_tuple();
-        throw_unless(62062, ($self'state == 2));
-        throw_unless(16461, ( equal_slices_bits(__tact_context_get_sender(), $self'treasury) ));
+        throw_unless(8717, ( equal_slices_bits(__tact_context_get_sender(), $self'licenseAddress) ));
         $self'state = 4;
-        $global_send($SendParameters$_constructor_to_value_mode_bounce_body($self'buyer, 0, 160, false, __gen_cell_cell_7372a7ea09de251194d1b63a7f8e290a565c5a56fd226ba7f605a84bafca8663()));
-        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt));
-        return ();
-    }
-    
-    ;; Receive ResolveRelease message
-    if (op == 1387388998) {
-        var $msg = empty_tuple();
-        throw_unless(62062, ($self'state == 2));
-        throw_unless(16461, ( equal_slices_bits(__tact_context_get_sender(), $self'treasury) ));
-        ($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt)~$Escrow$_fun_releaseFunds();
-        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt));
+        $global_send($SendParameters$_constructor_to_value_mode_bounce_body($self'buyer, 0, 160, false, __gen_cell_cell_bc77dd9eea7798db31a70f5903ab2402784bcd9a3e4661b401abf863410d8fe2()));
+        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress));
         return ();
     }
     
@@ -530,18 +541,18 @@ _ %details() method_id(118890) {
     if (op == 432490359) {
         var $msg = empty_tuple();
         throw_unless(30244, ($self'state == 1));
-        int $deadline = ($self'paidAt + $self'disputeWindowSec);
+        int $deadline = ($self'paidAt + $self'trialWindowSec);
         throw_unless(34557, ($global_now() > $deadline));
-        ($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt)~$Escrow$_fun_releaseFunds();
-        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt));
+        ($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress)~$Escrow$_fun_releaseFunds();
+        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress));
         return ();
     }
     
     ;; Receive Deploy message
     if (op == 0x946a98b6) {
         var $deploy'queryId = in_msg~load_uint(64);
-        ($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt)~$Escrow$_fun_notify($DeployOk$_store_cell($DeployOk$_constructor_queryId($deploy'queryId), begin_cell()));
-        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'disputeWindowSec, $self'state, $self'paidAt));
+        ($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress)~$Escrow$_fun_notify($DeployOk$_store_cell($DeployOk$_constructor_queryId($deploy'queryId), begin_cell()));
+        $Escrow$_contract_store(($self'orderId, $self'buyer, $self'seller, $self'treasury, $self'amountNano, $self'feeBps, $self'trialWindowSec, $self'state, $self'paidAt, $self'licenseAddress));
         return ();
     }
     

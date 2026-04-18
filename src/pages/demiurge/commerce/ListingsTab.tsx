@@ -1,6 +1,6 @@
 // ListingsTab — overview of published apps from the TonForge workspace.
 // At this stage we show the app.published list, metrics, and quick links.
-// Later (in commerce-orders-disputes) we'll wire on-chain listings from commerceApi.
+// Later we'll wire on-chain listings from commerceApi.
 import { Link } from 'react-router-dom';
 import { ExternalLink, ShieldCheck, Sparkles } from 'lucide-react';
 import type { TonForgeDeveloperWorkspace } from '../../../domain/tonforge/types';

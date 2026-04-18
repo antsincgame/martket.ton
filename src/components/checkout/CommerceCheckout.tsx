@@ -10,6 +10,12 @@ import {
 import type { CreateOrderResponse } from '../../domain/commerce/types';
 import type { CommerceListingPublic } from '../../domain/commerce/types';
 import { logger } from '../../lib/logger';
+import LicenseMintIndicator from './LicenseMintIndicator';
+
+function resolveTonNetwork(): 'mainnet' | 'testnet' {
+  if (typeof window === 'undefined') return 'mainnet';
+  return window.localStorage.getItem('ton_network') === 'testnet' ? 'testnet' : 'mainnet';
+}
 
 interface Props {
   catalogProductId: string;
@@ -127,6 +133,13 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
             <Download className="w-4 h-4" />
             Download now
           </a>
+        )}
+        {buyerWallet && (
+          <LicenseMintIndicator
+            buyerWallet={buyerWallet}
+            appId={catalogProductId}
+            network={resolveTonNetwork()}
+          />
         )}
       </div>
     );

@@ -380,7 +380,7 @@ const ProductPage = () => {
                 </h4>
                 <div className="space-y-2.5">
                   {[
-                    '72h escrow and dispute window',
+                    '72h escrow and buyer trial window',
                     'SHA-256 and malware verification',
                     'NFT-based lifetime entitlement',
                     'Device activation and runtime checks',

@@ -65,7 +65,7 @@
 
 ### Commerce (отдельный base URL)
 
-Клиент: `src/lib/commerceApi.ts`. Типичные пути: листинги продавца, `GET /sellers/:wallet/orders`, `GET /sellers/:wallet/disputes`, KYC, публикация TonForge-приложений — см. код модуля и `backend/commerce/`.
+Клиент: `src/lib/commerceApi.ts`. Типичные пути: листинги продавца, `GET /sellers/:wallet/orders`, KYC, публикация TonForge-приложений — см. код модуля и `backend/commerce/`.
 
 ## Соглашения по коду
 

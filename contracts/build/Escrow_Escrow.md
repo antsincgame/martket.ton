@@ -1,9 +1,9 @@
 # Tact compilation report
 Contract: Escrow
-BoC Size: 1365 bytes
+BoC Size: 1109 bytes
 
 ## Structures (Structs and Messages)
-Total structures: 22
+Total structures: 21
 
 ### DataSize
 TL-B: `_ cells:int257 bits:int257 refs:int257 = DataSize`
@@ -65,36 +65,32 @@ Signature: `PayEscrow{}`
 TL-B: `confirm_delivery#f4a8bfa0  = ConfirmDelivery`
 Signature: `ConfirmDelivery{}`
 
-### OpenDispute
-TL-B: `open_dispute#9ec0cde6  = OpenDispute`
-Signature: `OpenDispute{}`
-
-### ResolveRefund
-TL-B: `resolve_refund#88265d84  = ResolveRefund`
-Signature: `ResolveRefund{}`
-
-### ResolveRelease
-TL-B: `resolve_release#52b1e046  = ResolveRelease`
-Signature: `ResolveRelease{}`
-
 ### TimeoutRelease
 TL-B: `timeout_release#19c74777  = TimeoutRelease`
 Signature: `TimeoutRelease{}`
+
+### RegisterLicense
+TL-B: `register_license#70db9989 licenseAddress:address = RegisterLicense`
+Signature: `RegisterLicense{licenseAddress:address}`
+
+### RefundOnBurn
+TL-B: `refund_on_burn#7e083215  = RefundOnBurn`
+Signature: `RefundOnBurn{}`
 
 ### Parties
 TL-B: `_ buyer:address seller:address treasury:address = Parties`
 Signature: `Parties{buyer:address,seller:address,treasury:address}`
 
 ### EscrowDetails
-TL-B: `_ orderId:uint256 amountNano:coins feeBps:uint16 disputeWindowSec:uint32 state:uint8 paidAt:uint32 = EscrowDetails`
-Signature: `EscrowDetails{orderId:uint256,amountNano:coins,feeBps:uint16,disputeWindowSec:uint32,state:uint8,paidAt:uint32}`
+TL-B: `_ orderId:uint256 amountNano:coins feeBps:uint16 trialWindowSec:uint32 state:uint8 paidAt:uint32 = EscrowDetails`
+Signature: `EscrowDetails{orderId:uint256,amountNano:coins,feeBps:uint16,trialWindowSec:uint32,state:uint8,paidAt:uint32}`
 
 ### Escrow$Data
-TL-B: `_ orderId:uint256 buyer:address seller:address treasury:address amountNano:coins feeBps:uint16 disputeWindowSec:uint32 state:uint8 paidAt:uint32 = Escrow`
-Signature: `Escrow{orderId:uint256,buyer:address,seller:address,treasury:address,amountNano:coins,feeBps:uint16,disputeWindowSec:uint32,state:uint8,paidAt:uint32}`
+TL-B: `_ orderId:uint256 buyer:address seller:address treasury:address amountNano:coins feeBps:uint16 trialWindowSec:uint32 state:uint8 paidAt:uint32 licenseAddress:address = Escrow`
+Signature: `Escrow{orderId:uint256,buyer:address,seller:address,treasury:address,amountNano:coins,feeBps:uint16,trialWindowSec:uint32,state:uint8,paidAt:uint32,licenseAddress:address}`
 
 ## Get methods
-Total get methods: 3
+Total get methods: 4
 
 ## state
 No arguments
@@ -103,6 +99,9 @@ No arguments
 No arguments
 
 ## details
+No arguments
+
+## license_address
 No arguments
 
 ## Exit codes
@@ -142,14 +141,13 @@ No arguments
 * 135: Code of a contract was not found
 * 136: Invalid standard address
 * 138: Not a basechain address
+* 8717: Only registered license
 * 15821: Only buyer
-* 16461: Only admin
 * 27392: Already funded
 * 30244: Not funded
 * 34557: Window still open
+* 40644: Only treasury
 * 46647: Insufficient payment
-* 51455: Dispute window closed
-* 62062: Not disputed
 
 ## Trait inheritance diagram
 

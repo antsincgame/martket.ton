@@ -10,6 +10,7 @@ import {
   ExternalLink,
   MessageCircle,
   ChevronRight,
+  ShieldCheck,
 } from 'lucide-react';
 
 const TELEGRAM_URL = 'https://t.me/tonforge';
@@ -53,6 +54,13 @@ const SUPPORT_LINKS: SupportItem[] = [
     icon: Zap,
     accent: 'group-hover:text-[#8B5CF6]',
     desc: 'Wallets · TonConnect · network',
+  },
+  {
+    to: '/docs/license-nft',
+    label: 'License NFT',
+    icon: ShieldCheck,
+    accent: 'group-hover:text-[#FF2A6D]',
+    desc: 'Soulbound proof of purchase · TEP-62/64/85',
   },
 ];
 
@@ -211,6 +219,14 @@ const Footer = () => {
               <span className="mt-0.5 block h-1.5 w-1.5 shrink-0 rounded-full bg-[#8B5CF6]" />
               <span><strong className="text-gray-300">Delaware LLC.</strong> Subject to US federal &amp; state law.</span>
             </div>
+            <div className="flex items-start gap-1.5 sm:col-span-2 lg:col-span-4">
+              <span className="mt-0.5 block h-1.5 w-1.5 shrink-0 rounded-full bg-[#FF2A6D]" />
+              <span>
+                <strong className="text-gray-300">Soulbound proof of purchase.</strong> Каждая покупка минтит{' '}
+                <Link to="/docs/license-nft" className="text-[#FF2A6D] hover:underline">License NFT</Link> в TON —
+                несъёмный, верифицируемый on-chain, сжигается только при возврате средств. TEP-62 / TEP-64.
+              </span>
+            </div>
           </div>
         </div>
 
@@ -225,6 +241,13 @@ const Footer = () => {
             >
               <BookOpen className="h-3.5 w-3.5" aria-hidden />
               Docs
+            </Link>
+            <Link
+              to="/docs/license-nft"
+              className="inline-flex items-center gap-1.5 font-medium text-[#FF2A6D]/80 transition-colors hover:text-[#FF2A6D]"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+              License NFT
             </Link>
             <span className="hidden h-4 w-px bg-white/15 sm:inline" aria-hidden />
             <Link to="/terms" className="font-medium text-white/80 transition-colors hover:text-white">

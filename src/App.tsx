@@ -42,6 +42,7 @@ const TermsOfService = lazyRetry(() => import('./pages/legal/TermsOfService'));
 const PrivacyPolicy = lazyRetry(() => import('./pages/legal/PrivacyPolicy'));
 const RefundPolicy = lazyRetry(() => import('./pages/legal/RefundPolicy'));
 const DocumentationPage = lazyRetry(() => import('./pages/docs/DocumentationPage'));
+const LicenseNftPage = lazyRetry(() => import('./pages/docs/LicenseNftPage'));
 const SignInPage = lazyRetry(() => import('./pages/auth/SignInPage'));
 const AuthCallbackPage = lazyRetry(() => import('./pages/auth/AuthCallbackPage'));
 
@@ -120,6 +121,14 @@ function App() {
                     element={
                       <RouteSuspense message="Loading manifest...">
                         <DocumentationPage />
+                      </RouteSuspense>
+                    }
+                  />
+                  <Route
+                    path="/docs/license-nft"
+                    element={
+                      <RouteSuspense message="Forging license codex...">
+                        <LicenseNftPage />
                       </RouteSuspense>
                     }
                   />

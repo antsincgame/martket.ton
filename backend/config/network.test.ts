@@ -6,8 +6,8 @@ describe('getNetworkConfig', () => {
     const cfg = getNetworkConfig('mainnet');
     expect(cfg.network).toBe('mainnet');
     expect(cfg.tonapiBase).toContain('tonapi.io');
-    expect(typeof cfg.disputeWindowSec).toBe('number');
-    expect(cfg.disputeWindowSec).toBeGreaterThan(0);
+    expect(typeof cfg.trialWindowSec).toBe('number');
+    expect(cfg.trialWindowSec).toBeGreaterThan(0);
   });
 
   it('returns testnet config with testnet base URL', () => {

@@ -27,8 +27,8 @@ export default function RefundPolicy() {
         <p className="text-sm text-gray-300 leading-relaxed">
           This policy is part of the{' '}
           <Link to="/terms" className="text-[#FFD700] hover:underline">Terms of Service</Link> and
-          governs refund eligibility, dispute resolution, and DMCA copyright takedown procedures.
-          <strong className="text-white"> All transactions are on-chain and irreversible after the dispute window closes.</strong>
+          governs refund eligibility, buyer-initiated refund procedures, and DMCA copyright takedown procedures.
+          <strong className="text-white"> All transactions are on-chain and irreversible after the trial window closes.</strong>
         </p>
       </div>
 
@@ -56,14 +56,14 @@ export default function RefundPolicy() {
         </section>
 
         <section>
-          <h2 className="text-xl font-semibold text-white">2. Dispute Window</h2>
+          <h2 className="text-xl font-semibold text-white">2. Trial Window</h2>
           <p>
             After payment is confirmed on-chain, buyers have a <strong>{DISPUTE_WINDOW_HOURS}-hour
-            Dispute Window</strong> to report issues. During this period, proceeds may be held in
-            the smart-contract escrow (where applicable) pending resolution.
+            Trial Window</strong> to evaluate the product. During this period, proceeds are held in
+            the non-custodial Escrow Smart Contract on the TON blockchain.
           </p>
           <p>
-            <strong>After the Dispute Window closes,</strong> funds are released to the seller.
+            <strong>After the Trial Window closes,</strong> funds are released to the seller.
             Once released, the Company has no technical ability to reverse the transaction.
           </p>
         </section>
@@ -82,7 +82,7 @@ export default function RefundPolicy() {
         <section>
           <h2 className="text-xl font-semibold text-white">4. Non-Refundable Cases</h2>
           <ul className="list-disc pl-6 space-y-1">
-            <li>Dispute Window has expired and funds have been released to the seller</li>
+            <li>Trial Window has expired and funds have been released to the seller</li>
             <li>Buyer has downloaded and used the product (unless it contains malware)</li>
             <li>Buyer&apos;s dissatisfaction with subjective quality (&quot;I don&apos;t like it&quot;)</li>
             <li>Price changes after purchase</li>
@@ -95,23 +95,19 @@ export default function RefundPolicy() {
           <h2 className="text-xl font-semibold text-white">5. Refund Process</h2>
           <ol className="list-decimal pl-6 space-y-2">
             <li>
-              <strong>Open a dispute</strong> through the{' '}
-              <Link to="/orders" className="text-[#8B5CF6] hover:underline">Orders</Link>{' '}
-              page within {DISPUTE_WINDOW_HOURS} hours of purchase.
+              <strong>Navigate to your license</strong> in the{' '}
+              <Link to="/profile" className="text-[#8B5CF6] hover:underline">My Licenses</Link>{' '}
+              section within {DISPUTE_WINDOW_HOURS} hours of purchase.
             </li>
             <li>
-              <strong>Provide evidence:</strong> describe the issue clearly. Screenshots, error logs,
-              and transaction hashes strengthen your case.
+              <strong>Burn your License NFT:</strong> click the &quot;Burn &amp; Refund&quot; button.
+              This sends a BuyerBurn transaction to your License NFT on-chain, which
+              self-destructs and triggers an automatic refund from the Escrow contract.
             </li>
             <li>
-              <strong>Review:</strong> the Company will review and respond within 5 business days.
-              The seller may provide a counter-statement.
-            </li>
-            <li>
-              <strong>Resolution:</strong> the Company will issue a non-binding recommendation. If the
-              smart-contract escrow allows, funds will be returned to the buyer&apos;s wallet. If funds
-              have already been released, the Company will attempt to facilitate a voluntary refund
-              from the seller but cannot guarantee it.
+              <strong>Automatic refund:</strong> the Escrow smart contract returns the full purchase
+              amount (minus gas fees) directly to your wallet. No Company review or intervention
+              is required.
             </li>
           </ol>
         </section>
@@ -127,17 +123,16 @@ export default function RefundPolicy() {
         </section>
 
         <section>
-          <h2 className="text-xl font-semibold text-white">6.5. Dispute Abuse &amp; Fraud Protection</h2>
+          <h2 className="text-xl font-semibold text-white">6.5. Refund Abuse &amp; Fraud Protection</h2>
           <p>
-            The Company takes dispute abuse seriously. The following conduct constitutes abuse
-            of the dispute mechanism and may result in account suspension or permanent ban:
+            The Company takes refund abuse seriously. The following conduct may result in account
+            suspension or permanent ban:
           </p>
           <ul className="list-disc pl-6 space-y-1">
-            <li>Filing disputes in bad faith (e.g., claiming non-delivery after downloading and using a product)</li>
-            <li>Filing three (3) or more disputes found to be without merit within any twelve (12) month period</li>
-            <li>Attempting to obtain a refund while retaining access to the purchased product</li>
-            <li>Colluding with sellers to file fraudulent disputes</li>
-            <li>Re-opening a dispute on the same grounds after a prior dispute on the same transaction was resolved</li>
+            <li>Burning License NFTs in bad faith (e.g., after downloading and extensively using a product)</li>
+            <li>Repeatedly purchasing and immediately refunding to exploit trial periods</li>
+            <li>Attempting to retain access to purchased products after burning the license</li>
+            <li>Colluding with sellers to conduct fraudulent transactions</li>
           </ul>
           <p>
             <strong>Legal notice:</strong> Fraudulent refund claims may constitute wire fraud under
@@ -147,9 +142,11 @@ export default function RefundPolicy() {
             relevant law enforcement agencies.
           </p>
           <p>
-            <strong>Seller protection:</strong> If a buyer&apos;s dispute is resolved in favor of the
-            seller, the buyer may not re-open a dispute on the same transaction for the same reason.
-            Sellers impacted by fraudulent disputes may contact <a href={`mailto:${LEGAL_CONTACT}`} className="text-[#00F5FF] hover:underline">{LEGAL_CONTACT}</a> for assistance.
+            <strong>Seller protection:</strong> Sellers are protected by the Trial Window mechanism.
+            After the window expires, the buyer can no longer burn the NFT and funds are released.
+            Additionally, applications must integrate NFT verification to ensure non-functional
+            operation after a license burn. Sellers impacted by refund abuse may
+            contact <a href={`mailto:${LEGAL_CONTACT}`} className="text-[#00F5FF] hover:underline">{LEGAL_CONTACT}</a> for assistance.
           </p>
         </section>
 

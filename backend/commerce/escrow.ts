@@ -17,7 +17,7 @@ let _EscrowClass: EscrowStaticApi | null = null;
 interface EscrowStaticApi {
   init(
     orderId: bigint, buyer: Address, seller: Address, treasury: Address,
-    amountNano: bigint, feeBps: bigint, disputeWindowSec: bigint,
+    amountNano: bigint, feeBps: bigint, trialWindowSec: bigint,
   ): Promise<{ code: Cell; data: Cell }>;
 }
 
@@ -35,7 +35,7 @@ export interface EscrowOrderParams {
   treasury: string;
   amountNano: string;
   feeBps: number;
-  disputeWindowSec: number;
+  trialWindowSec: number;
 }
 
 export interface EscrowComputeResult {
@@ -69,7 +69,7 @@ export async function computeEscrow(params: EscrowOrderParams): Promise<EscrowCo
     treasury,
     amountNano,
     BigInt(params.feeBps),
-    BigInt(params.disputeWindowSec),
+    BigInt(params.trialWindowSec),
   );
 
   const stateInit: StateInit = { code: init.code, data: init.data };
@@ -106,26 +106,18 @@ export async function computeEscrow(params: EscrowOrderParams): Promise<EscrowCo
   };
 }
 
-export function buildResolveRefundPayload(): string {
-  const OP_RESOLVE_REFUND = 0xf5a93bdf;
-  const cell = beginCell().storeUint(OP_RESOLVE_REFUND, 32).storeUint(0, 64).endCell();
-  return cell.toBoc().toString('base64');
-}
-
-export function buildResolveReleasePayload(): string {
-  const OP_RESOLVE_RELEASE = 0xfe22fa25;
-  const cell = beginCell().storeUint(OP_RESOLVE_RELEASE, 32).storeUint(0, 64).endCell();
-  return cell.toBoc().toString('base64');
-}
-
 export function buildConfirmDeliveryPayload(): string {
   const OP_CONFIRM = 0x45dfb5a1;
   const cell = beginCell().storeUint(OP_CONFIRM, 32).storeUint(0, 64).endCell();
   return cell.toBoc().toString('base64');
 }
 
-export function buildOpenDisputePayload(): string {
-  const OP_OPEN_DISPUTE = 0x03a24519;
-  const cell = beginCell().storeUint(OP_OPEN_DISPUTE, 32).storeUint(0, 64).endCell();
+export function buildRegisterLicensePayload(licenseAddress: string): string {
+  const OP_REGISTER_LICENSE = 0x70e30189;
+  const addr = Address.parse(licenseAddress);
+  const cell = beginCell()
+    .storeUint(OP_REGISTER_LICENSE, 32)
+    .storeAddress(addr)
+    .endCell();
   return cell.toBoc().toString('base64');
 }

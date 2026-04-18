@@ -4,6 +4,16 @@
       "name": "Escrow",
       "path": "./src/escrow.tact",
       "output": "./build"
+    },
+    {
+      "name": "AppCollection",
+      "path": "./src/appCollection.tact",
+      "output": "./build"
+    },
+    {
+      "name": "LicenseItem",
+      "path": "./src/licenseItem.tact",
+      "output": "./build"
     }
   ]
 }

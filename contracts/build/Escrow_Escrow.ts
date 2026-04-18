@@ -838,129 +838,6 @@ export function dictValueParserConfirmDelivery(): DictionaryValue<ConfirmDeliver
     }
 }
 
-export type OpenDispute = {
-    $$type: 'OpenDispute';
-}
-
-export function storeOpenDispute(src: OpenDispute) {
-    return (builder: Builder) => {
-        const b_0 = builder;
-        b_0.storeUint(2663435750, 32);
-    };
-}
-
-export function loadOpenDispute(slice: Slice) {
-    const sc_0 = slice;
-    if (sc_0.loadUint(32) !== 2663435750) { throw Error('Invalid prefix'); }
-    return { $$type: 'OpenDispute' as const };
-}
-
-export function loadTupleOpenDispute(source: TupleReader) {
-    return { $$type: 'OpenDispute' as const };
-}
-
-export function loadGetterTupleOpenDispute(source: TupleReader) {
-    return { $$type: 'OpenDispute' as const };
-}
-
-export function storeTupleOpenDispute(source: OpenDispute) {
-    const builder = new TupleBuilder();
-    return builder.build();
-}
-
-export function dictValueParserOpenDispute(): DictionaryValue<OpenDispute> {
-    return {
-        serialize: (src, builder) => {
-            builder.storeRef(beginCell().store(storeOpenDispute(src)).endCell());
-        },
-        parse: (src) => {
-            return loadOpenDispute(src.loadRef().beginParse());
-        }
-    }
-}
-
-export type ResolveRefund = {
-    $$type: 'ResolveRefund';
-}
-
-export function storeResolveRefund(src: ResolveRefund) {
-    return (builder: Builder) => {
-        const b_0 = builder;
-        b_0.storeUint(2284215684, 32);
-    };
-}
-
-export function loadResolveRefund(slice: Slice) {
-    const sc_0 = slice;
-    if (sc_0.loadUint(32) !== 2284215684) { throw Error('Invalid prefix'); }
-    return { $$type: 'ResolveRefund' as const };
-}
-
-export function loadTupleResolveRefund(source: TupleReader) {
-    return { $$type: 'ResolveRefund' as const };
-}
-
-export function loadGetterTupleResolveRefund(source: TupleReader) {
-    return { $$type: 'ResolveRefund' as const };
-}
-
-export function storeTupleResolveRefund(source: ResolveRefund) {
-    const builder = new TupleBuilder();
-    return builder.build();
-}
-
-export function dictValueParserResolveRefund(): DictionaryValue<ResolveRefund> {
-    return {
-        serialize: (src, builder) => {
-            builder.storeRef(beginCell().store(storeResolveRefund(src)).endCell());
-        },
-        parse: (src) => {
-            return loadResolveRefund(src.loadRef().beginParse());
-        }
-    }
-}
-
-export type ResolveRelease = {
-    $$type: 'ResolveRelease';
-}
-
-export function storeResolveRelease(src: ResolveRelease) {
-    return (builder: Builder) => {
-        const b_0 = builder;
-        b_0.storeUint(1387388998, 32);
-    };
-}
-
-export function loadResolveRelease(slice: Slice) {
-    const sc_0 = slice;
-    if (sc_0.loadUint(32) !== 1387388998) { throw Error('Invalid prefix'); }
-    return { $$type: 'ResolveRelease' as const };
-}
-
-export function loadTupleResolveRelease(source: TupleReader) {
-    return { $$type: 'ResolveRelease' as const };
-}
-
-export function loadGetterTupleResolveRelease(source: TupleReader) {
-    return { $$type: 'ResolveRelease' as const };
-}
-
-export function storeTupleResolveRelease(source: ResolveRelease) {
-    const builder = new TupleBuilder();
-    return builder.build();
-}
-
-export function dictValueParserResolveRelease(): DictionaryValue<ResolveRelease> {
-    return {
-        serialize: (src, builder) => {
-            builder.storeRef(beginCell().store(storeResolveRelease(src)).endCell());
-        },
-        parse: (src) => {
-            return loadResolveRelease(src.loadRef().beginParse());
-        }
-    }
-}
-
 export type TimeoutRelease = {
     $$type: 'TimeoutRelease';
 }
@@ -998,6 +875,94 @@ export function dictValueParserTimeoutRelease(): DictionaryValue<TimeoutRelease>
         },
         parse: (src) => {
             return loadTimeoutRelease(src.loadRef().beginParse());
+        }
+    }
+}
+
+export type RegisterLicense = {
+    $$type: 'RegisterLicense';
+    licenseAddress: Address;
+}
+
+export function storeRegisterLicense(src: RegisterLicense) {
+    return (builder: Builder) => {
+        const b_0 = builder;
+        b_0.storeUint(1893439881, 32);
+        b_0.storeAddress(src.licenseAddress);
+    };
+}
+
+export function loadRegisterLicense(slice: Slice) {
+    const sc_0 = slice;
+    if (sc_0.loadUint(32) !== 1893439881) { throw Error('Invalid prefix'); }
+    const _licenseAddress = sc_0.loadAddress();
+    return { $$type: 'RegisterLicense' as const, licenseAddress: _licenseAddress };
+}
+
+export function loadTupleRegisterLicense(source: TupleReader) {
+    const _licenseAddress = source.readAddress();
+    return { $$type: 'RegisterLicense' as const, licenseAddress: _licenseAddress };
+}
+
+export function loadGetterTupleRegisterLicense(source: TupleReader) {
+    const _licenseAddress = source.readAddress();
+    return { $$type: 'RegisterLicense' as const, licenseAddress: _licenseAddress };
+}
+
+export function storeTupleRegisterLicense(source: RegisterLicense) {
+    const builder = new TupleBuilder();
+    builder.writeAddress(source.licenseAddress);
+    return builder.build();
+}
+
+export function dictValueParserRegisterLicense(): DictionaryValue<RegisterLicense> {
+    return {
+        serialize: (src, builder) => {
+            builder.storeRef(beginCell().store(storeRegisterLicense(src)).endCell());
+        },
+        parse: (src) => {
+            return loadRegisterLicense(src.loadRef().beginParse());
+        }
+    }
+}
+
+export type RefundOnBurn = {
+    $$type: 'RefundOnBurn';
+}
+
+export function storeRefundOnBurn(src: RefundOnBurn) {
+    return (builder: Builder) => {
+        const b_0 = builder;
+        b_0.storeUint(2114466325, 32);
+    };
+}
+
+export function loadRefundOnBurn(slice: Slice) {
+    const sc_0 = slice;
+    if (sc_0.loadUint(32) !== 2114466325) { throw Error('Invalid prefix'); }
+    return { $$type: 'RefundOnBurn' as const };
+}
+
+export function loadTupleRefundOnBurn(source: TupleReader) {
+    return { $$type: 'RefundOnBurn' as const };
+}
+
+export function loadGetterTupleRefundOnBurn(source: TupleReader) {
+    return { $$type: 'RefundOnBurn' as const };
+}
+
+export function storeTupleRefundOnBurn(source: RefundOnBurn) {
+    const builder = new TupleBuilder();
+    return builder.build();
+}
+
+export function dictValueParserRefundOnBurn(): DictionaryValue<RefundOnBurn> {
+    return {
+        serialize: (src, builder) => {
+            builder.storeRef(beginCell().store(storeRefundOnBurn(src)).endCell());
+        },
+        parse: (src) => {
+            return loadRefundOnBurn(src.loadRef().beginParse());
         }
     }
 }
@@ -1064,7 +1029,7 @@ export type EscrowDetails = {
     orderId: bigint;
     amountNano: bigint;
     feeBps: bigint;
-    disputeWindowSec: bigint;
+    trialWindowSec: bigint;
     state: bigint;
     paidAt: bigint;
 }
@@ -1075,7 +1040,7 @@ export function storeEscrowDetails(src: EscrowDetails) {
         b_0.storeUint(src.orderId, 256);
         b_0.storeCoins(src.amountNano);
         b_0.storeUint(src.feeBps, 16);
-        b_0.storeUint(src.disputeWindowSec, 32);
+        b_0.storeUint(src.trialWindowSec, 32);
         b_0.storeUint(src.state, 8);
         b_0.storeUint(src.paidAt, 32);
     };
@@ -1086,30 +1051,30 @@ export function loadEscrowDetails(slice: Slice) {
     const _orderId = sc_0.loadUintBig(256);
     const _amountNano = sc_0.loadCoins();
     const _feeBps = sc_0.loadUintBig(16);
-    const _disputeWindowSec = sc_0.loadUintBig(32);
+    const _trialWindowSec = sc_0.loadUintBig(32);
     const _state = sc_0.loadUintBig(8);
     const _paidAt = sc_0.loadUintBig(32);
-    return { $$type: 'EscrowDetails' as const, orderId: _orderId, amountNano: _amountNano, feeBps: _feeBps, disputeWindowSec: _disputeWindowSec, state: _state, paidAt: _paidAt };
+    return { $$type: 'EscrowDetails' as const, orderId: _orderId, amountNano: _amountNano, feeBps: _feeBps, trialWindowSec: _trialWindowSec, state: _state, paidAt: _paidAt };
 }
 
 export function loadTupleEscrowDetails(source: TupleReader) {
     const _orderId = source.readBigNumber();
     const _amountNano = source.readBigNumber();
     const _feeBps = source.readBigNumber();
-    const _disputeWindowSec = source.readBigNumber();
+    const _trialWindowSec = source.readBigNumber();
     const _state = source.readBigNumber();
     const _paidAt = source.readBigNumber();
-    return { $$type: 'EscrowDetails' as const, orderId: _orderId, amountNano: _amountNano, feeBps: _feeBps, disputeWindowSec: _disputeWindowSec, state: _state, paidAt: _paidAt };
+    return { $$type: 'EscrowDetails' as const, orderId: _orderId, amountNano: _amountNano, feeBps: _feeBps, trialWindowSec: _trialWindowSec, state: _state, paidAt: _paidAt };
 }
 
 export function loadGetterTupleEscrowDetails(source: TupleReader) {
     const _orderId = source.readBigNumber();
     const _amountNano = source.readBigNumber();
     const _feeBps = source.readBigNumber();
-    const _disputeWindowSec = source.readBigNumber();
+    const _trialWindowSec = source.readBigNumber();
     const _state = source.readBigNumber();
     const _paidAt = source.readBigNumber();
-    return { $$type: 'EscrowDetails' as const, orderId: _orderId, amountNano: _amountNano, feeBps: _feeBps, disputeWindowSec: _disputeWindowSec, state: _state, paidAt: _paidAt };
+    return { $$type: 'EscrowDetails' as const, orderId: _orderId, amountNano: _amountNano, feeBps: _feeBps, trialWindowSec: _trialWindowSec, state: _state, paidAt: _paidAt };
 }
 
 export function storeTupleEscrowDetails(source: EscrowDetails) {
@@ -1117,7 +1082,7 @@ export function storeTupleEscrowDetails(source: EscrowDetails) {
     builder.writeNumber(source.orderId);
     builder.writeNumber(source.amountNano);
     builder.writeNumber(source.feeBps);
-    builder.writeNumber(source.disputeWindowSec);
+    builder.writeNumber(source.trialWindowSec);
     builder.writeNumber(source.state);
     builder.writeNumber(source.paidAt);
     return builder.build();
@@ -1142,9 +1107,10 @@ export type Escrow$Data = {
     treasury: Address;
     amountNano: bigint;
     feeBps: bigint;
-    disputeWindowSec: bigint;
+    trialWindowSec: bigint;
     state: bigint;
     paidAt: bigint;
+    licenseAddress: Address;
 }
 
 export function storeEscrow$Data(src: Escrow$Data) {
@@ -1157,9 +1123,10 @@ export function storeEscrow$Data(src: Escrow$Data) {
         b_1.storeAddress(src.treasury);
         b_1.storeCoins(src.amountNano);
         b_1.storeUint(src.feeBps, 16);
-        b_1.storeUint(src.disputeWindowSec, 32);
+        b_1.storeUint(src.trialWindowSec, 32);
         b_1.storeUint(src.state, 8);
         b_1.storeUint(src.paidAt, 32);
+        b_1.storeAddress(src.licenseAddress);
         b_0.storeRef(b_1.endCell());
     };
 }
@@ -1173,10 +1140,11 @@ export function loadEscrow$Data(slice: Slice) {
     const _treasury = sc_1.loadAddress();
     const _amountNano = sc_1.loadCoins();
     const _feeBps = sc_1.loadUintBig(16);
-    const _disputeWindowSec = sc_1.loadUintBig(32);
+    const _trialWindowSec = sc_1.loadUintBig(32);
     const _state = sc_1.loadUintBig(8);
     const _paidAt = sc_1.loadUintBig(32);
-    return { $$type: 'Escrow$Data' as const, orderId: _orderId, buyer: _buyer, seller: _seller, treasury: _treasury, amountNano: _amountNano, feeBps: _feeBps, disputeWindowSec: _disputeWindowSec, state: _state, paidAt: _paidAt };
+    const _licenseAddress = sc_1.loadAddress();
+    return { $$type: 'Escrow$Data' as const, orderId: _orderId, buyer: _buyer, seller: _seller, treasury: _treasury, amountNano: _amountNano, feeBps: _feeBps, trialWindowSec: _trialWindowSec, state: _state, paidAt: _paidAt, licenseAddress: _licenseAddress };
 }
 
 export function loadTupleEscrow$Data(source: TupleReader) {
@@ -1186,10 +1154,11 @@ export function loadTupleEscrow$Data(source: TupleReader) {
     const _treasury = source.readAddress();
     const _amountNano = source.readBigNumber();
     const _feeBps = source.readBigNumber();
-    const _disputeWindowSec = source.readBigNumber();
+    const _trialWindowSec = source.readBigNumber();
     const _state = source.readBigNumber();
     const _paidAt = source.readBigNumber();
-    return { $$type: 'Escrow$Data' as const, orderId: _orderId, buyer: _buyer, seller: _seller, treasury: _treasury, amountNano: _amountNano, feeBps: _feeBps, disputeWindowSec: _disputeWindowSec, state: _state, paidAt: _paidAt };
+    const _licenseAddress = source.readAddress();
+    return { $$type: 'Escrow$Data' as const, orderId: _orderId, buyer: _buyer, seller: _seller, treasury: _treasury, amountNano: _amountNano, feeBps: _feeBps, trialWindowSec: _trialWindowSec, state: _state, paidAt: _paidAt, licenseAddress: _licenseAddress };
 }
 
 export function loadGetterTupleEscrow$Data(source: TupleReader) {
@@ -1199,10 +1168,11 @@ export function loadGetterTupleEscrow$Data(source: TupleReader) {
     const _treasury = source.readAddress();
     const _amountNano = source.readBigNumber();
     const _feeBps = source.readBigNumber();
-    const _disputeWindowSec = source.readBigNumber();
+    const _trialWindowSec = source.readBigNumber();
     const _state = source.readBigNumber();
     const _paidAt = source.readBigNumber();
-    return { $$type: 'Escrow$Data' as const, orderId: _orderId, buyer: _buyer, seller: _seller, treasury: _treasury, amountNano: _amountNano, feeBps: _feeBps, disputeWindowSec: _disputeWindowSec, state: _state, paidAt: _paidAt };
+    const _licenseAddress = source.readAddress();
+    return { $$type: 'Escrow$Data' as const, orderId: _orderId, buyer: _buyer, seller: _seller, treasury: _treasury, amountNano: _amountNano, feeBps: _feeBps, trialWindowSec: _trialWindowSec, state: _state, paidAt: _paidAt, licenseAddress: _licenseAddress };
 }
 
 export function storeTupleEscrow$Data(source: Escrow$Data) {
@@ -1213,9 +1183,10 @@ export function storeTupleEscrow$Data(source: Escrow$Data) {
     builder.writeAddress(source.treasury);
     builder.writeNumber(source.amountNano);
     builder.writeNumber(source.feeBps);
-    builder.writeNumber(source.disputeWindowSec);
+    builder.writeNumber(source.trialWindowSec);
     builder.writeNumber(source.state);
     builder.writeNumber(source.paidAt);
+    builder.writeAddress(source.licenseAddress);
     return builder.build();
 }
 
@@ -1238,7 +1209,7 @@ export function dictValueParserEscrow$Data(): DictionaryValue<Escrow$Data> {
     treasury: Address;
     amountNano: bigint;
     feeBps: bigint;
-    disputeWindowSec: bigint;
+    trialWindowSec: bigint;
 }
 
 function initEscrow_init_args(src: Escrow_init_args) {
@@ -1252,17 +1223,17 @@ function initEscrow_init_args(src: Escrow_init_args) {
         b_1.storeInt(src.amountNano, 257);
         b_1.storeInt(src.feeBps, 257);
         const b_2 = new Builder();
-        b_2.storeInt(src.disputeWindowSec, 257);
+        b_2.storeInt(src.trialWindowSec, 257);
         b_1.storeRef(b_2.endCell());
         b_0.storeRef(b_1.endCell());
     };
 }
 
-async function Escrow_init(orderId: bigint, buyer: Address, seller: Address, treasury: Address, amountNano: bigint, feeBps: bigint, disputeWindowSec: bigint) {
-    const __code = Cell.fromHex('b5ee9c7241021901000549000114ff00f4a413f4bcf2c80b01020162021101f6d001d072d721d200d200fa4021103450666f04f86102f862ed44d0d200018e1ed3fffa40fa40d401d0fa40fa00d30fd31fd307d31f301069106810676c198e2d810101d700fa40fa40d401d0fa40810101d700810101d700d430d0810101d7003010471046104507d155057020e20a925f0ae008d70d1ff2e082210304fe8210cddea230ba8e565b38816b0007c00017f2f4813dcdf84225c705f2f48200b637f8416f24135f0322bef2f471f82310681057104610351024c87f01ca0055805089cbff16ce14ce02c8ce01fa0212cb0f12cb1f12cb0712cb1fcdc9ed54e0218210f4a8bfa0bae3022182109ec0cde6bae30221821088265d84bae3022104050609017c5b81762428c001f2f4813dcdf84227c705f2f410685515db3cc87f01ca0055805089cbff16ce14ce02c8ce01fa0212cb0f12cb1f12cb0712cb1fcdc9ed540b00985b81762408c00118f2f4813dcdf84226c705f2f45376a08200c8fff82358bbf2f4105755147201c87f01ca0055805089cbff16ce14ce02c8ce01fa0212cb0f12cb1f12cb0712cb1fcdc9ed5402c25b8200f26e08c00218f2f481404df84224c705f2f474708100a0708829553010246d50436d03c8cf8580ca00cf8440ce01fa028069cf40025c6e016eb0935bcf819d58cf8680cf8480f400f400cf81e2f400c901fb0010681057104610354403020708002200000000457363726f7720726566756e64004ac87f01ca0055805089cbff16ce14ce02c8ce01fa0212cb0f12cb1f12cb0712cb1fcdc9ed5403c4821052b1e046ba8ebf5b8200f26e28c002f2f481404df84225c705f2f410685515db3cc87f01ca0055805089cbff16ce14ce02c8ce01fa0212cb0f12cb1f12cb0712cb1fcdc9ed54e021821019c74777bae302018210946a98b6bae3025f0af2c0820b0a1001825b81762428c001f2f45380a0820086fdf82358bcf2f410685515db3cc87f01ca0055805089cbff16ce14ce02c8ce01fa0212cb0f12cb1f12cb0712cb1fcdc9ed540b04f6315da8812710a9045240a171708829553010246d50436d03c8cf8580ca00cf8440ce01fa028069cf40025c6e016eb0935bcf819d58cf8680cf8480f400f400cf81e2f400c901fb00708100a0708828553010246d50436d03c8cf8580ca00cf8440ce01fa028069cf40025c6e016eb0935bcf818ae2f400c901fb000c0d0e0f002400000000457363726f772072656c65617365002000000000506c6174666f726d20666565001a58cf8680cf8480f400f400cf810004730100cad33f30c8018210aff90f5758cb1fcb3fc9107910681057104610354430f84270705003804201503304c8cf8580ca00cf8440ce01fa02806acf40f400c901fb00c87f01ca0055805089cbff16ce14ce02c8ce01fa0212cb0f12cb1f12cb0712cb1fcdc9ed54020120121401b9bd78af6a268690000c70f69fffd207d206a00e87d207d006987e98fe983e98f98083488340833b60cc716c08080eb807d207d206a00e87d20408080eb80408080eb806a1868408080eb801808238823082283e8aa82b810716d9e3648c13000221020158151701b9b60d5da89a1a400031c3da7fff481f481a803a1f481f401a61fa63fa60fa63e6020d220d020ced8331c5b020203ae01f481f481a803a1f481020203ae01020203ae01a861a1020203ae0060208e208c208a0fa2aa0ae041c5b678d92d016000c54784354754301b9b6113da89a1a400031c3da7fff481f481a803a1f481f401a61fa63fa60fa63e6020d220d020ced8331c5b020203ae01f481f481a803a1f481020203ae01020203ae01a861a1020203ae0060208e208c208a0fa2aa0ae041c5b678d92701800065477655aa9f84c');
+async function Escrow_init(orderId: bigint, buyer: Address, seller: Address, treasury: Address, amountNano: bigint, feeBps: bigint, trialWindowSec: bigint) {
+    const __code = Cell.fromHex('b5ee9c7241021b01000449000114ff00f4a413f4bcf2c80b01020162020e04f6d001d072d721d200d200fa4021103450666f04f86102f862db3c0b925f0be009d70d1ff2e082218210cddea230bae302218210f4a8bfa0ba8ebf5b81762421c001f2f4813dcdf84228c705f2f410795516db3cc87f01ca005590509acbff17ce15ce03c8ce58fa02cb0f12cb1f12cb0712cb1f12cecdc9ed54e0211803080400b25b816b0039c00018f2f4813dcdf84226c705f2f48200b637f8416f24135f0323bef2f471f82310791068105710461035410403c87f01ca005590509acbff17ce15ce03c8ce58fa02cb0f12cb1f12cb0712cb1f12cecdc9ed5403f2821070db9989ba8e4c313a09fa40308176242ac001f2f482009ec4f84226c705f2f410791068105710461035443012c87f01ca005590509acbff17ce15ce03c8ce58fa02cb0f12cb1f12cb0712cb1f12cecdc9ed54e02182107e083215bae30221821019c74777bae302018210946a98b6bae3025f0bf2c08205070d01fc5b81762401c001f2f481220df8422ac705f2f474708100a070882a553010246d50436d03c8cf8580ca00cf8440ce01fa028069cf40025c6e016eb0935bcf819d58cf8680cf8480f400f400cf81e2f400c901fb0010795516c87f01ca005590509acbff17ce15ce03c8ce58fa02cb0f12cb1f12cb0712cb1f12cecdc9ed5406003000000000457363726f7720726566756e6420286275726e2901845b81762421c001f2f45381a0820086fdf82358bcf2f410795516db3cc87f01ca005590509acbff17ce15ce03c8ce58fa02cb0f12cb1f12cb0712cb1f12cecdc9ed540804f4325343a8812710a9045250a17170882a553010246d50436d03c8cf8580ca00cf8440ce01fa028069cf40025c6e016eb0935bcf819d58cf8680cf8480f400f400cf81e2f400c901fb00708100a0708829553010246d50436d03c8cf8580ca00cf8440ce01fa028069cf40025c6e016eb0935bcf818ae2f400c901090a0b0c002400000000457363726f772072656c65617365002000000000506c6174666f726d20666565001a58cf8680cf8480f400f400cf810008fb00730200d2d33f30c8018210aff90f5758cb1fcb3fc9108a10791068105710461035443012f84270705003804201503304c8cf8580ca00cf8440ce01fa02806acf40f400c901fb00c87f01ca005590509acbff17ce15ce03c8ce58fa02cb0f12cb1f12cb0712cb1f12cecdc9ed540201200f1402012010120211baf15db3cdb3c6ca1818110002220211ba878db3cdb3c6ca18181300022002015815170211b60d5b679b678d94d01816000c5479545476540211b6113b679b678d9470181a01f6ed44d0d200018e20d3fffa40fa40d401d0fa40fa00d30fd31fd307d31ffa4030107a107910786c1a8e51810101d700fa40fa40d401d0fa40810101d700810101d700d430d0810101d7003010471046104507d1550570208d0860000000000000000000000000000000000000000000000000000000000000000004190002e20006547876502d6a16');
     const builder = beginCell();
     builder.storeUint(0, 1);
-    initEscrow_init_args({ $$type: 'Escrow_init_args', orderId, buyer, seller, treasury, amountNano, feeBps, disputeWindowSec })(builder);
+    initEscrow_init_args({ $$type: 'Escrow_init_args', orderId, buyer, seller, treasury, amountNano, feeBps, trialWindowSec })(builder);
     const __data = builder.endCell();
     return { code: __code, data: __data };
 }
@@ -1304,14 +1275,13 @@ export const Escrow_errors = {
     135: { message: "Code of a contract was not found" },
     136: { message: "Invalid standard address" },
     138: { message: "Not a basechain address" },
+    8717: { message: "Only registered license" },
     15821: { message: "Only buyer" },
-    16461: { message: "Only admin" },
     27392: { message: "Already funded" },
     30244: { message: "Not funded" },
     34557: { message: "Window still open" },
+    40644: { message: "Only treasury" },
     46647: { message: "Insufficient payment" },
-    51455: { message: "Dispute window closed" },
-    62062: { message: "Not disputed" },
 } as const
 
 export const Escrow_errors_backward = {
@@ -1351,14 +1321,13 @@ export const Escrow_errors_backward = {
     "Code of a contract was not found": 135,
     "Invalid standard address": 136,
     "Not a basechain address": 138,
+    "Only registered license": 8717,
     "Only buyer": 15821,
-    "Only admin": 16461,
     "Already funded": 27392,
     "Not funded": 30244,
     "Window still open": 34557,
+    "Only treasury": 40644,
     "Insufficient payment": 46647,
-    "Dispute window closed": 51455,
-    "Not disputed": 62062,
 } as const
 
 const Escrow_types: ABIType[] = [
@@ -1377,13 +1346,12 @@ const Escrow_types: ABIType[] = [
     {"name":"FactoryDeploy","header":1829761339,"fields":[{"name":"queryId","type":{"kind":"simple","type":"uint","optional":false,"format":64}},{"name":"cashback","type":{"kind":"simple","type":"address","optional":false}}]},
     {"name":"PayEscrow","header":3453919792,"fields":[]},
     {"name":"ConfirmDelivery","header":4104699808,"fields":[]},
-    {"name":"OpenDispute","header":2663435750,"fields":[]},
-    {"name":"ResolveRefund","header":2284215684,"fields":[]},
-    {"name":"ResolveRelease","header":1387388998,"fields":[]},
     {"name":"TimeoutRelease","header":432490359,"fields":[]},
+    {"name":"RegisterLicense","header":1893439881,"fields":[{"name":"licenseAddress","type":{"kind":"simple","type":"address","optional":false}}]},
+    {"name":"RefundOnBurn","header":2114466325,"fields":[]},
     {"name":"Parties","header":null,"fields":[{"name":"buyer","type":{"kind":"simple","type":"address","optional":false}},{"name":"seller","type":{"kind":"simple","type":"address","optional":false}},{"name":"treasury","type":{"kind":"simple","type":"address","optional":false}}]},
-    {"name":"EscrowDetails","header":null,"fields":[{"name":"orderId","type":{"kind":"simple","type":"uint","optional":false,"format":256}},{"name":"amountNano","type":{"kind":"simple","type":"uint","optional":false,"format":"coins"}},{"name":"feeBps","type":{"kind":"simple","type":"uint","optional":false,"format":16}},{"name":"disputeWindowSec","type":{"kind":"simple","type":"uint","optional":false,"format":32}},{"name":"state","type":{"kind":"simple","type":"uint","optional":false,"format":8}},{"name":"paidAt","type":{"kind":"simple","type":"uint","optional":false,"format":32}}]},
-    {"name":"Escrow$Data","header":null,"fields":[{"name":"orderId","type":{"kind":"simple","type":"uint","optional":false,"format":256}},{"name":"buyer","type":{"kind":"simple","type":"address","optional":false}},{"name":"seller","type":{"kind":"simple","type":"address","optional":false}},{"name":"treasury","type":{"kind":"simple","type":"address","optional":false}},{"name":"amountNano","type":{"kind":"simple","type":"uint","optional":false,"format":"coins"}},{"name":"feeBps","type":{"kind":"simple","type":"uint","optional":false,"format":16}},{"name":"disputeWindowSec","type":{"kind":"simple","type":"uint","optional":false,"format":32}},{"name":"state","type":{"kind":"simple","type":"uint","optional":false,"format":8}},{"name":"paidAt","type":{"kind":"simple","type":"uint","optional":false,"format":32}}]},
+    {"name":"EscrowDetails","header":null,"fields":[{"name":"orderId","type":{"kind":"simple","type":"uint","optional":false,"format":256}},{"name":"amountNano","type":{"kind":"simple","type":"uint","optional":false,"format":"coins"}},{"name":"feeBps","type":{"kind":"simple","type":"uint","optional":false,"format":16}},{"name":"trialWindowSec","type":{"kind":"simple","type":"uint","optional":false,"format":32}},{"name":"state","type":{"kind":"simple","type":"uint","optional":false,"format":8}},{"name":"paidAt","type":{"kind":"simple","type":"uint","optional":false,"format":32}}]},
+    {"name":"Escrow$Data","header":null,"fields":[{"name":"orderId","type":{"kind":"simple","type":"uint","optional":false,"format":256}},{"name":"buyer","type":{"kind":"simple","type":"address","optional":false}},{"name":"seller","type":{"kind":"simple","type":"address","optional":false}},{"name":"treasury","type":{"kind":"simple","type":"address","optional":false}},{"name":"amountNano","type":{"kind":"simple","type":"uint","optional":false,"format":"coins"}},{"name":"feeBps","type":{"kind":"simple","type":"uint","optional":false,"format":16}},{"name":"trialWindowSec","type":{"kind":"simple","type":"uint","optional":false,"format":32}},{"name":"state","type":{"kind":"simple","type":"uint","optional":false,"format":8}},{"name":"paidAt","type":{"kind":"simple","type":"uint","optional":false,"format":32}},{"name":"licenseAddress","type":{"kind":"simple","type":"address","optional":false}}]},
 ]
 
 const Escrow_opcodes = {
@@ -1392,30 +1360,30 @@ const Escrow_opcodes = {
     "FactoryDeploy": 1829761339,
     "PayEscrow": 3453919792,
     "ConfirmDelivery": 4104699808,
-    "OpenDispute": 2663435750,
-    "ResolveRefund": 2284215684,
-    "ResolveRelease": 1387388998,
     "TimeoutRelease": 432490359,
+    "RegisterLicense": 1893439881,
+    "RefundOnBurn": 2114466325,
 }
 
 const Escrow_getters: ABIGetter[] = [
     {"name":"state","methodId":77589,"arguments":[],"returnType":{"kind":"simple","type":"int","optional":false,"format":257}},
     {"name":"parties","methodId":127113,"arguments":[],"returnType":{"kind":"simple","type":"Parties","optional":false}},
     {"name":"details","methodId":118890,"arguments":[],"returnType":{"kind":"simple","type":"EscrowDetails","optional":false}},
+    {"name":"license_address","methodId":92280,"arguments":[],"returnType":{"kind":"simple","type":"address","optional":false}},
 ]
 
 export const Escrow_getterMapping: { [key: string]: string } = {
     'state': 'getState',
     'parties': 'getParties',
     'details': 'getDetails',
+    'license_address': 'getLicenseAddress',
 }
 
 const Escrow_receivers: ABIReceiver[] = [
     {"receiver":"internal","message":{"kind":"typed","type":"PayEscrow"}},
     {"receiver":"internal","message":{"kind":"typed","type":"ConfirmDelivery"}},
-    {"receiver":"internal","message":{"kind":"typed","type":"OpenDispute"}},
-    {"receiver":"internal","message":{"kind":"typed","type":"ResolveRefund"}},
-    {"receiver":"internal","message":{"kind":"typed","type":"ResolveRelease"}},
+    {"receiver":"internal","message":{"kind":"typed","type":"RegisterLicense"}},
+    {"receiver":"internal","message":{"kind":"typed","type":"RefundOnBurn"}},
     {"receiver":"internal","message":{"kind":"typed","type":"TimeoutRelease"}},
     {"receiver":"internal","message":{"kind":"typed","type":"Deploy"}},
 ]
@@ -1427,12 +1395,12 @@ export class Escrow implements Contract {
     public static readonly errors = Escrow_errors_backward;
     public static readonly opcodes = Escrow_opcodes;
     
-    static async init(orderId: bigint, buyer: Address, seller: Address, treasury: Address, amountNano: bigint, feeBps: bigint, disputeWindowSec: bigint) {
-        return await Escrow_init(orderId, buyer, seller, treasury, amountNano, feeBps, disputeWindowSec);
+    static async init(orderId: bigint, buyer: Address, seller: Address, treasury: Address, amountNano: bigint, feeBps: bigint, trialWindowSec: bigint) {
+        return await Escrow_init(orderId, buyer, seller, treasury, amountNano, feeBps, trialWindowSec);
     }
     
-    static async fromInit(orderId: bigint, buyer: Address, seller: Address, treasury: Address, amountNano: bigint, feeBps: bigint, disputeWindowSec: bigint) {
-        const __gen_init = await Escrow_init(orderId, buyer, seller, treasury, amountNano, feeBps, disputeWindowSec);
+    static async fromInit(orderId: bigint, buyer: Address, seller: Address, treasury: Address, amountNano: bigint, feeBps: bigint, trialWindowSec: bigint) {
+        const __gen_init = await Escrow_init(orderId, buyer, seller, treasury, amountNano, feeBps, trialWindowSec);
         const address = contractAddress(0, __gen_init);
         return new Escrow(address, __gen_init);
     }
@@ -1455,7 +1423,7 @@ export class Escrow implements Contract {
         this.init = init;
     }
     
-    async send(provider: ContractProvider, via: Sender, args: { value: bigint, bounce?: boolean| null | undefined }, message: PayEscrow | ConfirmDelivery | OpenDispute | ResolveRefund | ResolveRelease | TimeoutRelease | Deploy) {
+    async send(provider: ContractProvider, via: Sender, args: { value: bigint, bounce?: boolean| null | undefined }, message: PayEscrow | ConfirmDelivery | RegisterLicense | RefundOnBurn | TimeoutRelease | Deploy) {
         
         let body: Cell | null = null;
         if (message && typeof message === 'object' && !(message instanceof Slice) && message.$$type === 'PayEscrow') {
@@ -1464,14 +1432,11 @@ export class Escrow implements Contract {
         if (message && typeof message === 'object' && !(message instanceof Slice) && message.$$type === 'ConfirmDelivery') {
             body = beginCell().store(storeConfirmDelivery(message)).endCell();
         }
-        if (message && typeof message === 'object' && !(message instanceof Slice) && message.$$type === 'OpenDispute') {
-            body = beginCell().store(storeOpenDispute(message)).endCell();
+        if (message && typeof message === 'object' && !(message instanceof Slice) && message.$$type === 'RegisterLicense') {
+            body = beginCell().store(storeRegisterLicense(message)).endCell();
         }
-        if (message && typeof message === 'object' && !(message instanceof Slice) && message.$$type === 'ResolveRefund') {
-            body = beginCell().store(storeResolveRefund(message)).endCell();
-        }
-        if (message && typeof message === 'object' && !(message instanceof Slice) && message.$$type === 'ResolveRelease') {
-            body = beginCell().store(storeResolveRelease(message)).endCell();
+        if (message && typeof message === 'object' && !(message instanceof Slice) && message.$$type === 'RefundOnBurn') {
+            body = beginCell().store(storeRefundOnBurn(message)).endCell();
         }
         if (message && typeof message === 'object' && !(message instanceof Slice) && message.$$type === 'TimeoutRelease') {
             body = beginCell().store(storeTimeoutRelease(message)).endCell();
@@ -1503,6 +1468,13 @@ export class Escrow implements Contract {
         const builder = new TupleBuilder();
         const source = (await provider.get('details', builder.build())).stack;
         const result = loadGetterTupleEscrowDetails(source);
+        return result;
+    }
+    
+    async getLicenseAddress(provider: ContractProvider) {
+        const builder = new TupleBuilder();
+        const source = (await provider.get('license_address', builder.build())).stack;
+        const result = source.readAddress();
         return result;
     }
     

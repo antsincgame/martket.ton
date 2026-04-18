@@ -22,7 +22,6 @@ export interface TonForgeLicensePolicy {
 export interface TonForgeTrustSignals {
   sellerBadge: string;
   kycStatus: TonForgeKycStatus;
-  disputeRate: number;
   refundRate: number;
   rating: number;
   reviewCount: number;
@@ -93,6 +92,10 @@ export interface TonForgeLicense {
   activatedDevices: TonForgeActivatedDevice[];
   trialEndsAt: string;
   purchaseTxHash: string;
+  collectionIndex?: number;
+  mintTxHash?: string | null;
+  burnTxHash?: string | null;
+  mintError?: string | null;
 }
 
 export interface TonForgeUserProfile {
@@ -103,7 +106,6 @@ export interface TonForgeUserProfile {
   totalSpentTon: number;
   totalLicenses: number;
   devicesBound: number;
-  disputesOpened: number;
 }
 
 export interface TonForgeDeveloperProfile {
@@ -139,22 +141,12 @@ export interface TonForgeDeveloperWorkspace {
 export interface TonForgeWalletProfile {
   profile: TonForgeUserProfile;
   licenses: TonForgeLicense[];
-  disputes: TonForgeDispute[];
   stats: {
     totalSpentTon: number;
     totalLicenses: number;
     devicesBound: number;
     activeTrials: number;
   };
-}
-
-export interface TonForgeDispute {
-  disputeId: string;
-  licenseId: string;
-  buyerWallet: string;
-  reason: string;
-  state: string;
-  createdAt: string;
 }
 
 export interface TonForgeContractOverview {

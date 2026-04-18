@@ -5,6 +5,7 @@ import { CopyableText } from '../../components/ui/CopyButton';
 import { useToast } from '../../components/ui/Toast';
 import { storeApiUrl } from '../../lib/storeApi';
 import type { PurchaseWithProduct } from './types';
+import MyLicensesPanel from './MyLicensesPanel';
 
 interface ArsenalProps {
   library: PurchaseWithProduct[];
@@ -38,6 +39,10 @@ export default function ArsenalSection({ library, isLoading, getToken }: Arsenal
       ) : (
         <EmptyArsenal />
       )}
+
+      <div className="pt-4 border-t border-white/[0.06]">
+        <MyLicensesPanel />
+      </div>
 
       {/* Side drawer */}
       {drawer && (

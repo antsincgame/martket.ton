@@ -103,7 +103,7 @@ cd backend && npm run dev
    создаёт коллекции `profiles`, `legacy_products`, `scan_jobs`,
    `support_tickets`, `api_audit_logs` и нужные индексы.
 3. Запустить `npm run provision:commerce` для коллекций commerce
-   (listings/orders/disputes), затем `npm run provision:appwrite`
+   (listings/orders), затем `npm run provision:appwrite`
    для каталога витрины.
 4. Поднять backend (`cd backend && npm run dev` или Docker) — он
    стартует фоновый `scan-worker` если VirusTotal сконфигурирован.

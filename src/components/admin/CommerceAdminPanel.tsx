@@ -6,15 +6,11 @@ const CommerceAdminPanel: FC = () => {
   const [secretInput, setSecretInput] = useState('');
   const [secret, setSecret] = useState('');
   const [orders, setOrders] = useState<unknown[]>([]);
-  const [disputes, setDisputes] = useState<unknown[]>([]);
   const [audit, setAudit] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderStateId, setOrderStateId] = useState('');
   const [orderStateValue, setOrderStateValue] = useState('paid');
-  const [resolveDisputeId, setResolveDisputeId] = useState('');
-  const [resolveKind, setResolveKind] = useState<'refund' | 'release'>('release');
-  const [resolveNote, setResolveNote] = useState('');
 
   const persistSecret = useCallback(() => {
     setSecret(secretInput.trim());
@@ -28,13 +24,11 @@ const CommerceAdminPanel: FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [o, d, a] = await Promise.all([
+      const [o, a] = await Promise.all([
         adminCommerceFetch('/admin/orders', secret) as Promise<{ data: { orders: unknown[] } }>,
-        adminCommerceFetch('/admin/disputes', secret) as Promise<{ data: { disputes: unknown[] } }>,
         adminCommerceFetch('/admin/audit', secret) as Promise<{ data: { logs: unknown[] } }>,
       ]);
       setOrders(o.data.orders);
-      setDisputes(d.data.disputes);
       setAudit(a.data.logs);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Loading error');
@@ -52,27 +46,6 @@ const CommerceAdminPanel: FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ state: orderStateValue }),
       });
-      await loadAll();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resolveDispute = async () => {
-    if (!secret || !resolveDisputeId.trim()) return;
-    setLoading(true);
-    try {
-      await adminCommerceFetch(
-        `/admin/disputes/${encodeURIComponent(resolveDisputeId.trim())}/resolve`,
-        secret,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resolution: resolveKind, resolutionNote: resolveNote }),
-        }
-      );
       await loadAll();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error');
@@ -122,77 +95,38 @@ const CommerceAdminPanel: FC = () => {
 
       {error && <div className="text-sm text-red-300">{error}</div>}
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <div className="rounded-xl border border-white/10 p-4 bg-black/20">
-          <h3 className="font-semibold mb-2">Order Status</h3>
-          <input
-            value={orderStateId}
-            onChange={(e) => setOrderStateId(e.target.value)}
-            placeholder="order document id"
-            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 font-mono text-xs mb-2"
-          />
-          <select
-            value={orderStateValue}
-            onChange={(e) => setOrderStateValue(e.target.value)}
-            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm mb-2 text-black"
-          >
-            <option value="pending_payment">pending_payment</option>
-            <option value="paid">paid</option>
-            <option value="fulfilled">fulfilled</option>
-            <option value="refunded">refunded</option>
-            <option value="cancelled">cancelled</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => void patchOrderState()}
-            className="text-sm px-3 py-1 rounded bg-purple-600"
-          >
-            Apply
-          </button>
-        </div>
-        <div className="rounded-xl border border-white/10 p-4 bg-black/20">
-          <h3 className="font-semibold mb-2">Dispute Resolution</h3>
-          <input
-            value={resolveDisputeId}
-            onChange={(e) => setResolveDisputeId(e.target.value)}
-            placeholder="dispute id"
-            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 font-mono text-xs mb-2"
-          />
-          <select
-            value={resolveKind}
-            onChange={(e) => setResolveKind(e.target.value as 'refund' | 'release')}
-            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm mb-2 text-black"
-          >
-            <option value="release">release (order fulfilled)</option>
-            <option value="refund">refund (order refunded)</option>
-          </select>
-          <textarea
-            value={resolveNote}
-            onChange={(e) => setResolveNote(e.target.value)}
-            placeholder="Note"
-            rows={2}
-            className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-xs mb-2 text-white"
-          />
-          <button
-            type="button"
-            onClick={() => void resolveDispute()}
-            className="text-sm px-3 py-1 rounded bg-amber-600"
-          >
-            Close dispute
-          </button>
-        </div>
+      <div className="rounded-xl border border-white/10 p-4 bg-black/20">
+        <h3 className="font-semibold mb-2">Order Status</h3>
+        <input
+          value={orderStateId}
+          onChange={(e) => setOrderStateId(e.target.value)}
+          placeholder="order document id"
+          className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 font-mono text-xs mb-2"
+        />
+        <select
+          value={orderStateValue}
+          onChange={(e) => setOrderStateValue(e.target.value)}
+          className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-sm mb-2 text-black"
+        >
+          <option value="pending_payment">pending_payment</option>
+          <option value="paid">paid</option>
+          <option value="fulfilled">fulfilled</option>
+          <option value="refunded">refunded</option>
+          <option value="cancelled">cancelled</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => void patchOrderState()}
+          className="text-sm px-3 py-1 rounded bg-purple-600"
+        >
+          Apply
+        </button>
       </div>
 
       <div className="rounded-xl border border-white/10 p-4 bg-black/20 overflow-x-auto">
         <h3 className="font-semibold mb-2">Orders ({orders.length})</h3>
         <pre className="text-[10px] text-gray-400 max-h-64 overflow-auto whitespace-pre-wrap break-all">
           {JSON.stringify(orders, null, 2)}
-        </pre>
-      </div>
-      <div className="rounded-xl border border-white/10 p-4 bg-black/20 overflow-x-auto">
-        <h3 className="font-semibold mb-2">Disputes ({disputes.length})</h3>
-        <pre className="text-[10px] text-gray-400 max-h-48 overflow-auto whitespace-pre-wrap break-all">
-          {JSON.stringify(disputes, null, 2)}
         </pre>
       </div>
       <div className="rounded-xl border border-white/10 p-4 bg-black/20 overflow-x-auto">

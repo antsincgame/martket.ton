@@ -12,7 +12,6 @@ export type ProductId = string & { readonly __brand: 'ProductId' };
 export type ListingId = string & { readonly __brand: 'ListingId' };
 export type OrderId = string & { readonly __brand: 'OrderId' };
 export type LicenseId = string & { readonly __brand: 'LicenseId' };
-export type DisputeId = string & { readonly __brand: 'DisputeId' };
 export type PurchaseSessionId = string & { readonly __brand: 'PurchaseSessionId' };
 export type TonAddress = string & { readonly __brand: 'TonAddress' };
 
@@ -53,19 +52,16 @@ export const OrderState = {
 export type OrderState = (typeof OrderState)[keyof typeof OrderState];
 
 export const LicenseState = {
+  MINT_PENDING: 'mint_pending',
+  MINT_FAILED: 'mint_failed',
   TRIAL_ACTIVE: 'trial_active',
   DEVICE_BOUND: 'device_bound',
   RELEASED: 'released',
+  REFUNDED: 'refunded',
+  BURN_PENDING: 'burn_pending',
   REVOKED: 'revoked',
 } as const;
 export type LicenseState = (typeof LicenseState)[keyof typeof LicenseState];
-
-export const DisputeStatus = {
-  OPEN: 'open',
-  RESOLVED_REFUND: 'resolved_refund',
-  RESOLVED_RELEASE: 'resolved_release',
-} as const;
-export type DisputeStatus = (typeof DisputeStatus)[keyof typeof DisputeStatus];
 
 export const Currency = {
   TON: 'TON',
@@ -267,6 +263,10 @@ export interface License {
   activatedDevices: ActivatedDevice[];
   trialEndsAt: string;
   purchaseTxHash: string;
+  collectionIndex?: number;
+  mintTxHash?: string | null;
+  burnTxHash?: string | null;
+  mintError?: string | null;
 }
 
 // ─── Purchase Session (TonForge) ────────────────────────────────────
@@ -330,7 +330,6 @@ export interface LicensePolicy {
 export interface TrustInfo {
   sellerBadge: string;
   kycStatus: string;
-  disputeRate: number;
   refundRate: number;
   rating: number;
   reviewCount: number;
@@ -359,26 +358,10 @@ export interface TonForgeApp {
   license: LicensePolicy;
   trust: TrustInfo;
   metrics: AppMetrics;
-}
-
-// ─── Dispute ────────────────────────────────────────────────────────
-
-export interface Dispute {
-  readonly disputeId: DisputeId;
-  licenseId: LicenseId;
-  buyerWallet: TonAddress;
-  reason: string;
-  state: DisputeStatus;
-  readonly createdAt: string;
-}
-
-export interface CommerceDispute {
-  readonly id: DisputeId;
-  orderId: OrderId;
-  openedByWallet: TonAddress;
-  reason: string;
-  status: DisputeStatus;
-  resolutionNote: string;
+  /** TON address of the deployed AppCollection contract for this app. */
+  collectionAddress?: string;
+  /** Off-chain URI prefix used when minting individual License metadata. */
+  metadataUriPrefix?: string;
 }
 
 // ─── Audit ──────────────────────────────────────────────────────────
@@ -418,7 +401,6 @@ export interface TonForgeState {
   licenses: License[];
   purchaseSessions: PurchaseSession[];
   scans: ScanResult[];
-  disputes: Dispute[];
 }
 
 export interface UserProfile {
@@ -429,7 +411,6 @@ export interface UserProfile {
   totalSpentTon: number;
   totalLicenses: number;
   devicesBound: number;
-  disputesOpened: number;
 }
 
 export interface AppReview {

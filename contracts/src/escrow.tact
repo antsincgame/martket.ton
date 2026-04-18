@@ -4,10 +4,9 @@ import "@stdlib/deploy";
 
 message PayEscrow {}
 message ConfirmDelivery {}
-message OpenDispute {}
-message ResolveRefund {}
-message ResolveRelease {}
 message TimeoutRelease {}
+message RegisterLicense { licenseAddress: Address; }
+message RefundOnBurn {}
 
 // ─── Structs (getter returns) ────────────────────────────────────────
 
@@ -21,17 +20,16 @@ struct EscrowDetails {
     orderId: Int as uint256;
     amountNano: Int as coins;
     feeBps: Int as uint16;
-    disputeWindowSec: Int as uint32;
+    trialWindowSec: Int as uint32;
     state: Int as uint8;
     paidAt: Int as uint32;
 }
 
-// ─── State constants (not exported, used internally) ─────────────────
+// ─── State constants ─────────────────────────────────────────────────
 //   0 = INIT        — deployed, awaiting buyer payment
-//   1 = FUNDED      — buyer paid, dispute window open
-//   2 = DISPUTED    — buyer opened dispute
+//   1 = FUNDED      — buyer paid, trial window open
 //   3 = RELEASED    — seller paid, contract self-destructed
-//   4 = REFUNDED    — buyer refunded, contract self-destructed
+//   4 = REFUNDED    — buyer burned NFT → auto-refund, contract self-destructed
 
 // ─── Contract ────────────────────────────────────────────────────────
 
@@ -42,9 +40,10 @@ contract Escrow with Deployable {
     treasury:         Address;
     amountNano:       Int as coins;
     feeBps:           Int as uint16;
-    disputeWindowSec: Int as uint32;
+    trialWindowSec:   Int as uint32;
     state:            Int as uint8;
     paidAt:           Int as uint32;
+    licenseAddress:   Address;
 
     init(
         orderId:          Int,
@@ -53,7 +52,7 @@ contract Escrow with Deployable {
         treasury:         Address,
         amountNano:       Int,
         feeBps:           Int,
-        disputeWindowSec: Int,
+        trialWindowSec:   Int,
     ) {
         self.orderId          = orderId;
         self.buyer            = buyer;
@@ -61,9 +60,10 @@ contract Escrow with Deployable {
         self.treasury         = treasury;
         self.amountNano       = amountNano;
         self.feeBps           = feeBps;
-        self.disputeWindowSec = disputeWindowSec;
+        self.trialWindowSec   = trialWindowSec;
         self.state            = 0;
         self.paidAt           = 0;
+        self.licenseAddress   = newAddress(0, 0);
     }
 
     // ─── Buyer pays ──────────────────────────────────────────────────
@@ -84,44 +84,38 @@ contract Escrow with Deployable {
         self.releaseFunds();
     }
 
-    // ─── Buyer opens dispute ─────────────────────────────────────────
+    // ─── Register license address (oracle calls after mint) ──────────
 
-    receive(msg: OpenDispute) {
+    receive(msg: RegisterLicense) {
         require(self.state == 1, "Not funded");
-        require(sender() == self.buyer, "Only buyer");
-        let deadline: Int = self.paidAt + self.disputeWindowSec;
-        require(now() <= deadline, "Dispute window closed");
-        self.state = 2;
+        require(sender() == self.treasury, "Only treasury");
+        self.licenseAddress = msg.licenseAddress;
     }
 
-    // ─── Admin (treasury) refunds buyer ──────────────────────────────
+    // ─── Refund triggered by LicenseItem burn ────────────────────────
+    //
+    // When buyer burns their NFT (BuyerBurn on LicenseItem), the item
+    // sends RefundOnBurn{} here. We verify sender is the registered
+    // license and escrow is still funded, then return all funds to buyer.
 
-    receive(msg: ResolveRefund) {
-        require(self.state == 2, "Not disputed");
-        require(sender() == self.treasury, "Only admin");
+    receive(msg: RefundOnBurn) {
+        require(self.state == 1, "Not funded");
+        require(sender() == self.licenseAddress, "Only registered license");
         self.state = 4;
         send(SendParameters{
             to: self.buyer,
             value: 0,
             mode: SendRemainingBalance | SendDestroyIfZero,
             bounce: false,
-            body: "Escrow refund".asComment(),
+            body: "Escrow refund (burn)".asComment(),
         });
     }
 
-    // ─── Admin (treasury) releases to seller ─────────────────────────
-
-    receive(msg: ResolveRelease) {
-        require(self.state == 2, "Not disputed");
-        require(sender() == self.treasury, "Only admin");
-        self.releaseFunds();
-    }
-
-    // ─── Timeout release (anyone, after dispute window) ──────────────
+    // ─── Timeout release (anyone, after trial window) ────────────────
 
     receive(msg: TimeoutRelease) {
         require(self.state == 1, "Not funded");
-        let deadline: Int = self.paidAt + self.disputeWindowSec;
+        let deadline: Int = self.paidAt + self.trialWindowSec;
         require(now() > deadline, "Window still open");
         self.releaseFunds();
     }
@@ -170,9 +164,13 @@ contract Escrow with Deployable {
             orderId: self.orderId,
             amountNano: self.amountNano,
             feeBps: self.feeBps,
-            disputeWindowSec: self.disputeWindowSec,
+            trialWindowSec: self.trialWindowSec,
             state: self.state,
             paidAt: self.paidAt,
         };
+    }
+
+    get fun license_address(): Address {
+        return self.licenseAddress;
     }
 }

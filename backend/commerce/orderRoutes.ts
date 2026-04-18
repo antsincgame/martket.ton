@@ -64,7 +64,7 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
         treasury,
         amountNano: amountRaw,
         feeBps,
-        disputeWindowSec: netCfg.disputeWindowSec,
+        trialWindowSec: netCfg.trialWindowSec,
       });
     } catch (err) {
       logger.warn('[commerce] escrow compute fallback to treasury:', err instanceof Error ? err.message : err);
@@ -83,7 +83,7 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
           stateInit: escrowData.stateInitBase64,
           payload: escrowData.payloadBase64,
           totalAmountRaw: escrowData.totalAmountRaw,
-          disputeWindowSec: netCfg.disputeWindowSec,
+          trialWindowSec: netCfg.trialWindowSec,
         } : null,
       },
     });

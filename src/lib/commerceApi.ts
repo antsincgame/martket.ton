@@ -152,17 +152,6 @@ export async function fetchCommerceOrder(
   return result.data;
 }
 
-export async function openCommerceDispute(
-  orderId: string,
-  openedByWallet: string,
-  reason: string
-): Promise<void> {
-  await commerceAuthFetch<unknown>('/disputes', {
-    method: 'POST',
-    body: JSON.stringify({ orderId, openedByWallet, reason }),
-  });
-}
-
 export async function registerSeller(wallet: string, displayName: string, bio?: string): Promise<void> {
   await commerceAuthFetch<unknown>('/sellers/register', {
     method: 'POST',
@@ -208,40 +197,6 @@ export async function fetchSellerOrders(
     `/sellers/${encodeURIComponent(wallet)}/orders?limit=${limit}`,
   );
   return result.data.orders;
-}
-
-export interface SellerDisputeRow {
-  id: string;
-  orderId: string;
-  buyerWallet: string;
-  reason: string;
-  status: string;
-  resolutionNote: string;
-  createdAt: string;
-  order: {
-    listingTitle: string | null;
-    amountRaw: string;
-    currency: string;
-    state: string;
-  } | null;
-}
-
-export async function fetchSellerDisputes(
-  wallet: string,
-  explicitAuth?: string,
-): Promise<SellerDisputeRow[]> {
-  if (explicitAuth) {
-    const res = await fetch(commerceUrl(`/sellers/${encodeURIComponent(wallet)}/disputes`), {
-      headers: { Authorization: explicitAuth },
-    });
-    const parsed = await parseJson<{ data: { disputes: SellerDisputeRow[] } }>(res);
-    if (!parsed.ok) throw new CommerceApiError({ message: parsed.error });
-    return parsed.data.data.disputes;
-  }
-  const result = await commerceAuthFetch<{ data: { disputes: SellerDisputeRow[] } }>(
-    `/sellers/${encodeURIComponent(wallet)}/disputes`,
-  );
-  return result.data.disputes;
 }
 
 export async function uploadListingAsset(

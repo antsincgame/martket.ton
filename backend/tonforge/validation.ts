@@ -52,9 +52,3 @@ export const activateDeviceSchema = z.object({
   buyerWallet: z.string().min(1),
   deviceId: z.string().min(1).max(200),
 });
-
-export const openDisputeSchema = z.object({
-  licenseId: z.string().min(1),
-  buyerWallet: z.string().min(1),
-  reason: z.string().min(1).max(5000),
-});

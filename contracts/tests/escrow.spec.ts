@@ -1,7 +1,8 @@
 /**
- * Escrow contract sandbox tests using Tact-generated wrapper.
+ * Escrow v2 contract sandbox tests.
  *
- * Run `npm run build` in contracts/ directory before running tests.
+ * v2 removes disputes. Adds RegisterLicense + RefundOnBurn for trustless
+ * buyer-initiated burn-and-refund.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -10,7 +11,7 @@ import { toNano } from '@ton/core';
 import '@ton/test-utils';
 import { Escrow } from '../build/Escrow_Escrow';
 
-describe('Escrow Contract', () => {
+describe('Escrow v2 Contract', () => {
   let blockchain: Blockchain;
   let buyer: SandboxContract<TreasuryContract>;
   let seller: SandboxContract<TreasuryContract>;
@@ -21,7 +22,7 @@ describe('Escrow Contract', () => {
   const ORDER_ID = 1n;
   const AMOUNT = toNano('1');
   const FEE_BPS = 500n;
-  const DISPUTE_WINDOW = 3600n;
+  const TRIAL_WINDOW = 3600n;
 
   beforeEach(async () => {
     blockchain = await Blockchain.create();
@@ -38,7 +39,7 @@ describe('Escrow Contract', () => {
       treasury.address,
       AMOUNT,
       FEE_BPS,
-      DISPUTE_WINDOW,
+      TRIAL_WINDOW,
     );
     escrow = blockchain.openContract(contract);
 
@@ -74,7 +75,7 @@ describe('Escrow Contract', () => {
     expect(details.orderId).toBe(ORDER_ID);
     expect(details.amountNano).toBe(AMOUNT);
     expect(details.feeBps).toBe(FEE_BPS);
-    expect(details.disputeWindowSec).toBe(DISPUTE_WINDOW);
+    expect(details.trialWindowSec).toBe(TRIAL_WINDOW);
     expect(details.state).toBe(0n);
     expect(details.paidAt).toBe(0n);
   });
@@ -127,88 +128,112 @@ describe('Escrow Contract', () => {
     expect(diff).toBeLessThan(expectedSellerReceive + toNano('0.02'));
   });
 
-  // ─── Dispute → admin refund ─────────────────────────────────────
+  // ─── RegisterLicense ──────────────────────────────────────────────
 
-  it('should allow buyer to open dispute', async () => {
+  it('treasury can register license address', async () => {
     await escrow.send(
       buyer.getSender(),
       { value: AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
+
+    const fakeAddr = outsider.address;
+    const result = await escrow.send(
+      treasury.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: fakeAddr },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: treasury.address,
+      to: escrow.address,
+      success: true,
+    });
+
+    const lic = await escrow.getLicenseAddress();
+    expect(lic.equals(fakeAddr)).toBe(true);
+  });
+
+  it('rejects RegisterLicense from non-treasury', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: AMOUNT + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+
+    const result = await escrow.send(
+      outsider.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: outsider.address },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: outsider.address,
+      to: escrow.address,
+      success: false,
+    });
+  });
+
+  it('rejects RegisterLicense when not funded', async () => {
+    const result = await escrow.send(
+      treasury.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: outsider.address },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: treasury.address,
+      to: escrow.address,
+      success: false,
+    });
+  });
+
+  // ─── RefundOnBurn ─────────────────────────────────────────────────
+
+  it('rejects RefundOnBurn from non-registered address', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: AMOUNT + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    await escrow.send(
+      treasury.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: outsider.address },
+    );
+
     const result = await escrow.send(
       buyer.getSender(),
       { value: toNano('0.05') },
-      { $$type: 'OpenDispute' },
+      { $$type: 'RefundOnBurn' },
     );
     expect(result.transactions).toHaveTransaction({
       from: buyer.address,
       to: escrow.address,
-      success: true,
+      success: false,
     });
-    expect(await escrow.getState()).toBe(2n);
   });
 
-  it('should refund buyer on admin resolve_refund', async () => {
-    await escrow.send(
-      buyer.getSender(),
-      { value: AMOUNT + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    await escrow.send(
-      buyer.getSender(),
-      { value: toNano('0.05') },
-      { $$type: 'OpenDispute' },
-    );
-
-    const buyerBalanceBefore = await buyer.getBalance();
+  it('rejects RefundOnBurn when not funded', async () => {
     const result = await escrow.send(
-      treasury.getSender(),
+      outsider.getSender(),
       { value: toNano('0.05') },
-      { $$type: 'ResolveRefund' },
+      { $$type: 'RefundOnBurn' },
     );
     expect(result.transactions).toHaveTransaction({
-      from: escrow.address,
-      to: buyer.address,
-      success: true,
+      from: outsider.address,
+      to: escrow.address,
+      success: false,
     });
-    const buyerBalanceAfter = await buyer.getBalance();
-    expect(buyerBalanceAfter).toBeGreaterThan(buyerBalanceBefore);
-  });
-
-  // ─── Dispute → admin release ────────────────────────────────────
-
-  it('should release to seller on admin resolve_release', async () => {
-    await escrow.send(
-      buyer.getSender(),
-      { value: AMOUNT + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    await escrow.send(
-      buyer.getSender(),
-      { value: toNano('0.05') },
-      { $$type: 'OpenDispute' },
-    );
-
-    const sellerBalanceBefore = await seller.getBalance();
-    await escrow.send(
-      treasury.getSender(),
-      { value: toNano('0.05') },
-      { $$type: 'ResolveRelease' },
-    );
-    const sellerBalanceAfter = await seller.getBalance();
-    expect(sellerBalanceAfter).toBeGreaterThan(sellerBalanceBefore);
   });
 
   // ─── Timeout release ───────────────────────────────────────────
 
-  it('should allow timeout release after dispute window', async () => {
+  it('should allow timeout release after trial window', async () => {
     await escrow.send(
       buyer.getSender(),
       { value: AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
 
-    blockchain.now = blockchain.now! + Number(DISPUTE_WINDOW) + 1;
+    blockchain.now = blockchain.now! + Number(TRIAL_WINDOW) + 1;
 
     const sellerBalanceBefore = await seller.getBalance();
     await escrow.send(
@@ -260,66 +285,6 @@ describe('Escrow Contract', () => {
     );
     expect(result.transactions).toHaveTransaction({
       from: buyer.address,
-      to: escrow.address,
-      success: false,
-    });
-  });
-
-  it('should reject dispute from non-buyer', async () => {
-    await escrow.send(
-      buyer.getSender(),
-      { value: AMOUNT + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    const result = await escrow.send(
-      outsider.getSender(),
-      { value: toNano('0.05') },
-      { $$type: 'OpenDispute' },
-    );
-    expect(result.transactions).toHaveTransaction({
-      from: outsider.address,
-      to: escrow.address,
-      success: false,
-    });
-  });
-
-  it('should reject dispute after window', async () => {
-    await escrow.send(
-      buyer.getSender(),
-      { value: AMOUNT + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    blockchain.now = blockchain.now! + Number(DISPUTE_WINDOW) + 1;
-    const result = await escrow.send(
-      buyer.getSender(),
-      { value: toNano('0.05') },
-      { $$type: 'OpenDispute' },
-    );
-    expect(result.transactions).toHaveTransaction({
-      from: buyer.address,
-      to: escrow.address,
-      success: false,
-    });
-  });
-
-  it('should reject resolve from non-admin', async () => {
-    await escrow.send(
-      buyer.getSender(),
-      { value: AMOUNT + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    await escrow.send(
-      buyer.getSender(),
-      { value: toNano('0.05') },
-      { $$type: 'OpenDispute' },
-    );
-    const result = await escrow.send(
-      outsider.getSender(),
-      { value: toNano('0.05') },
-      { $$type: 'ResolveRefund' },
-    );
-    expect(result.transactions).toHaveTransaction({
-      from: outsider.address,
       to: escrow.address,
       success: false,
     });

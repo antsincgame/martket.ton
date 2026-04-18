@@ -16,7 +16,6 @@ import type { TonForgeArtifactScan, TonForgeDeveloperWorkspace } from '../../../
 import { fetchDeveloperWorkspace } from '../../../services/tonforgeApi';
 import ListingsTab from './ListingsTab';
 import OrdersTab from './OrdersTab';
-import DisputesTab from './DisputesTab';
 import PublishingTab from './PublishingTab';
 
 interface TabDef {
@@ -29,7 +28,6 @@ interface TabDef {
 const TABS: TabDef[] = [
   { id: 'listings', path: 'listings', label: 'Listings', description: 'Published products and their status' },
   { id: 'orders', path: 'orders', label: 'Orders', description: 'Purchases of your products on the TON blockchain' },
-  { id: 'disputes', path: 'disputes', label: 'Disputes', description: 'Open disputes from buyers' },
   { id: 'publishing', path: 'publishing', label: 'Publishing', description: 'KYC, Artifact Scan, and new app release' },
 ];
 
@@ -116,7 +114,6 @@ export default function CommerceSection() {
           }
         />
         <Route path="orders" element={<OrdersTab wallet={wallet} />} />
-        <Route path="disputes" element={<DisputesTab wallet={wallet} />} />
         <Route
           path="publishing"
           element={
@@ -143,7 +140,7 @@ function Header({ sellerBadge, kycStatus }: { sellerBadge: string | null; kycSta
       </div>
       <div className="min-w-0">
         <h1 className="text-2xl sm:text-3xl font-display font-bold text-white tracking-wide">Commerce</h1>
-        <p className="text-sm text-[#888]">Listings, orders, disputes, and publishing — unified publisher console.</p>
+        <p className="text-sm text-[#888]">Listings, orders, and publishing — unified publisher console.</p>
       </div>
       <div className="flex flex-wrap gap-2 ml-auto">
         {sellerBadge && (
@@ -233,7 +230,7 @@ function ConnectWalletEmptyState(): ReactNode {
         <h2 className="font-semibold">Connect a TON wallet</h2>
       </div>
       <p className="text-sm mb-4">
-        Commerce operations (listings, orders, disputes, publishing) are tied to the seller's TON wallet.
+        Commerce operations (listings, orders, publishing) are tied to the seller's TON wallet.
       </p>
       <Link
         to="/profile/wallet"

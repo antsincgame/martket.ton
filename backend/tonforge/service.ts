@@ -2,12 +2,18 @@ import { createHash, randomUUID } from 'crypto';
 import { createDemoState } from './demoData.js';
 import { contractMetadata, onChainFields } from './contractMetadata.js';
 import { logger } from '../logger.js';
+import {
+  loadOnchainConfig,
+  mintLicense,
+  pollItemDeployed,
+  verifyLicenseOwner,
+  type OwnershipResult,
+} from './onchain/index.js';
 import type {
   TonForgeState,
   TonForgeApp,
   License,
   PurchaseSession,
-  Dispute,
   UserProfile,
   DeveloperProfile,
   ScanResult,
@@ -15,7 +21,6 @@ import type {
   TonAddress,
   LicenseId,
   PurchaseSessionId,
-  DisputeId,
 } from '../domain/types.js';
 
 function buildTonAddress(prefix: string, id: string): string {
@@ -45,10 +50,12 @@ export interface TonForgeService {
   createPurchaseSession(payload: { appId: string; buyerWallet: string }): { app: TonForgeApp; session: PurchaseSession };
   confirmPurchaseSession(payload: { purchaseSessionId: string; buyerWallet: string; txHash?: string }): { session: PurchaseSession; license: License; app: TonForgeApp | undefined };
   listWalletLicenses(wallet: string): License[];
-  activateLicenseDevice(payload: { licenseId: string; buyerWallet: string; deviceId: string }): { license: License; app: TonForgeApp | undefined };
-  openDispute(payload: { licenseId: string; buyerWallet: string; reason: string }): Dispute;
+  getLicenseById(licenseId: string): License | undefined;
+  activateLicenseDevice(payload: { licenseId: string; buyerWallet: string; deviceId: string }): Promise<{ license: License; app: TonForgeApp | undefined; verify?: OwnershipResult }>;
+  verifyLicenseOnchain(licenseId: string): Promise<OwnershipResult>;
+  setAppCollectionAddress(appId: string, collectionAddress: string, metadataUriPrefix?: string): TonForgeApp;
   getDeveloperWorkspace(wallet: string): { developer: DeveloperProfile; apps: TonForgeApp[]; recentScans: ScanResult[] };
-  getWalletProfile(wallet: string): { profile: UserProfile; licenses: License[]; disputes: Dispute[]; stats: Record<string, number> };
+  getWalletProfile(wallet: string): { profile: UserProfile; licenses: License[]; stats: Record<string, number> };
   getContractOverview(): Record<string, unknown>;
   getState(): TonForgeState;
 }
@@ -179,7 +186,6 @@ export function createTonForgeService(
       trust: {
         sellerBadge: developer.sellerBadge,
         kycStatus: developer.kycStatus,
-        disputeRate: 0,
         refundRate: 0,
         rating: 0,
         reviewCount: 0,
@@ -224,11 +230,14 @@ export function createTonForgeService(
       totalSpentTon: 0,
       totalLicenses: 0,
       devicesBound: 0,
-      disputesOpened: 0,
     };
     state.userProfiles.push(profile);
     schedulePersist();
     return profile;
+  }
+
+  function nextLicenseIndex(appId: string): number {
+    return state.licenses.filter((l) => l.appId === appId).length;
   }
 
   function confirmPurchaseSession(payload: { purchaseSessionId: string; buyerWallet: string; txHash?: string }) {
@@ -237,18 +246,26 @@ export function createTonForgeService(
     if (session.buyerWallet !== payload.buyerWallet) throw new Error('BUYER_WALLET_MISMATCH');
     if (session.state !== 'awaiting_wallet_payment') throw new Error('SESSION_ALREADY_CONFIRMED');
     const app = getAppById(session.appId);
+    const onchain = loadOnchainConfig();
+    const canMintOnchain = Boolean(onchain.enabled && app?.collectionAddress);
+    const collectionIndex = nextLicenseIndex(session.appId);
+
     const license: License = {
       licenseId: `lic_${randomUUID()}` as LicenseId,
       nftAddress: buildTonAddress('License', session.purchaseSessionId),
-      collectionAddress: buildTonAddress('Collection', session.appId),
+      collectionAddress: app?.collectionAddress || buildTonAddress('Collection', session.appId),
       escrowAddress: session.escrowAddress,
       appId: session.appId,
       buyerWallet: session.buyerWallet,
-      state: 'trial_active',
+      state: canMintOnchain ? 'mint_pending' : 'trial_active',
       purchaseSessionId: session.purchaseSessionId,
       activatedDevices: [],
       trialEndsAt: session.trialEndsAt,
       purchaseTxHash: payload.txHash?.trim() || `simulated_${randomUUID().slice(0, 8)}`,
+      collectionIndex,
+      mintTxHash: null,
+      burnTxHash: null,
+      mintError: null,
     };
     session.state = 'trial_active';
     state.licenses.unshift(license);
@@ -257,18 +274,94 @@ export function createTonForgeService(
     user.totalSpentTon += session.amountTon;
     user.totalLicenses += 1;
     schedulePersist();
+
+    if (canMintOnchain && app) {
+      void mintLicenseAsync(license, app, session).catch((err: unknown) => {
+        logger.error('[tonforge.confirm] mint kickoff failed:', err);
+      });
+    }
+
     return { session, license, app };
+  }
+
+  async function mintLicenseAsync(
+    license: License,
+    app: TonForgeApp,
+    session: PurchaseSession,
+  ): Promise<void> {
+    if (!app.collectionAddress) {
+      logger.warn(`[tonforge.mint] app ${app.appId} has no collectionAddress, skipping mint`);
+      return;
+    }
+    const metadataUri =
+      (app.metadataUriPrefix || `https://cdn.tonforge.org/license-metadata/${app.appId}/`) +
+      `${license.collectionIndex}.json`;
+    try {
+      const trialEndMs = new Date(session.trialEndsAt).getTime();
+      const burnDeadline = Math.floor(trialEndMs / 1000);
+      const result = await mintLicense({
+        collectionAddress: app.collectionAddress,
+        buyerWallet: session.buyerWallet,
+        escrowAddress: license.escrowAddress,
+        index: BigInt(license.collectionIndex ?? 0),
+        metadataUri,
+        transferLimit: app.license.transferLimit ?? 0,
+        burnDeadline,
+      });
+      license.nftAddress = result.itemAddress;
+      license.mintTxHash = String(result.txQueryId);
+      schedulePersist();
+      logger.info(
+        `[tonforge.mint] queued mint license=${license.licenseId} item=${result.itemAddress} queryId=${result.txQueryId}`,
+      );
+      const ok = await pollItemDeployed({ itemAddress: result.itemAddress });
+      if (ok) {
+        license.state = 'trial_active';
+        license.mintError = null;
+        logger.info(`[tonforge.mint] license ${license.licenseId} active on-chain`);
+      } else {
+        license.state = 'mint_failed';
+        license.mintError = 'POLL_TIMEOUT';
+        logger.warn(`[tonforge.mint] poll timeout for license ${license.licenseId}`);
+      }
+      schedulePersist();
+    } catch (err: unknown) {
+      license.state = 'mint_failed';
+      license.mintError = err instanceof Error ? err.message : String(err);
+      schedulePersist();
+      logger.error(`[tonforge.mint] mint failed for license ${license.licenseId}:`, err);
+    }
   }
 
   function listWalletLicenses(wallet: string): License[] {
     return state.licenses.filter((l) => l.buyerWallet === wallet);
   }
 
-  function activateLicenseDevice(payload: { licenseId: string; buyerWallet: string; deviceId: string }) {
+  function getLicenseById(licenseId: string): License | undefined {
+    return state.licenses.find((l) => l.licenseId === licenseId);
+  }
+
+  async function activateLicenseDevice(payload: { licenseId: string; buyerWallet: string; deviceId: string }) {
     const license = state.licenses.find((l) => l.licenseId === payload.licenseId);
     if (!license) throw new Error('LICENSE_NOT_FOUND');
     if (license.buyerWallet !== payload.buyerWallet) throw new Error('LICENSE_ACCESS_DENIED');
+    if (license.state === 'revoked' || license.state === 'refunded') {
+      throw new Error('LICENSE_REVOKED');
+    }
     const app = getAppById(license.appId);
+
+    let verify: OwnershipResult | undefined;
+    const onchain = loadOnchainConfig();
+    if (onchain.enabled && license.state !== 'mint_pending' && license.state !== 'mint_failed') {
+      verify = await verifyLicenseOwner(license.nftAddress, payload.buyerWallet);
+      if (!verify.ok) {
+        logger.warn(
+          `[tonforge.activate] on-chain verify failed for license ${license.licenseId}: ${verify.reason}`,
+        );
+        throw new Error('LICENSE_ONCHAIN_VERIFY_FAILED');
+      }
+    }
+
     const normalizedDeviceId = payload.deviceId.trim();
     const alreadyBound = license.activatedDevices.some((d) => d.deviceId === normalizedDeviceId);
     if (!alreadyBound) {
@@ -278,25 +371,32 @@ export function createTonForgeService(
     const user = ensureUserProfile(payload.buyerWallet);
     user.devicesBound = listWalletLicenses(payload.buyerWallet).reduce((sum, l) => sum + l.activatedDevices.length, 0);
     schedulePersist();
-    return { license, app };
+    return { license, app, verify };
   }
 
-  function openDispute(payload: { licenseId: string; buyerWallet: string; reason: string }): Dispute {
-    const license = state.licenses.find((l) => l.licenseId === payload.licenseId);
+  async function verifyLicenseOnchain(licenseId: string): Promise<OwnershipResult> {
+    const license = state.licenses.find((l) => l.licenseId === licenseId);
     if (!license) throw new Error('LICENSE_NOT_FOUND');
-    const dispute: Dispute = {
-      disputeId: `dispute_${randomUUID()}` as DisputeId,
-      licenseId: payload.licenseId as LicenseId,
-      buyerWallet: payload.buyerWallet.trim() as TonAddress,
-      reason: payload.reason.trim(),
-      state: 'open',
-      createdAt: nowIso(),
-    };
-    state.disputes.unshift(dispute);
-    const user = ensureUserProfile(payload.buyerWallet);
-    user.disputesOpened += 1;
+    const onchain = loadOnchainConfig();
+    if (!onchain.enabled) {
+      return {
+        ok: false,
+        reason: 'ONCHAIN_DISABLED',
+        ownerOnchain: undefined,
+        ownerExpected: license.buyerWallet,
+      };
+    }
+    return verifyLicenseOwner(license.nftAddress, license.buyerWallet);
+  }
+
+  function setAppCollectionAddress(appId: string, collectionAddress: string, metadataUriPrefix?: string): TonForgeApp {
+    const app = getAppById(appId);
+    if (!app) throw new Error('APP_NOT_FOUND');
+    app.collectionAddress = collectionAddress.trim();
+    if (metadataUriPrefix) app.metadataUriPrefix = metadataUriPrefix.trim();
+    app.license.contractStatus = 'collection_ready';
     schedulePersist();
-    return dispute;
+    return app;
   }
 
   function getDeveloperWorkspace(wallet: string) {
@@ -312,7 +412,6 @@ export function createTonForgeService(
     return {
       profile,
       licenses,
-      disputes: state.disputes.filter((d) => d.buyerWallet === wallet),
       stats: {
         totalSpentTon: profile.totalSpentTon,
         totalLicenses: profile.totalLicenses,
@@ -341,8 +440,10 @@ export function createTonForgeService(
     createPurchaseSession,
     confirmPurchaseSession,
     listWalletLicenses,
+    getLicenseById,
     activateLicenseDevice,
-    openDispute,
+    verifyLicenseOnchain,
+    setAppCollectionAddress,
     getDeveloperWorkspace,
     getWalletProfile,
     getContractOverview,
