@@ -6,7 +6,7 @@ const STATE = 'Delaware';
 const DOMAIN = 'tonforge.org';
 const DMCA_CONTACT = `dmca@${DOMAIN}`;
 const LEGAL_CONTACT = `legal@${DOMAIN}`;
-const DISPUTE_WINDOW_HOURS = 24;
+const DISPUTE_WINDOW_HOURS = 72;
 
 export default function RefundPolicy() {
   return (

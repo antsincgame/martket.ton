@@ -83,6 +83,13 @@ export default function TermsOfService() {
             <li>Not contain malware, spyware, or undisclosed data collection mechanisms</li>
             <li>Not infringe third-party intellectual property rights</li>
           </ul>
+          <p><strong>Identity Verification (KYC/KYB).</strong> To list products on the Platform, Publishers are required to undergo Identity Verification through a reputable third-party provider based in the United States. Depending on the Publisher&apos;s legal structure, this may include Know Your Customer (KYC) verification for individual developers or Know Your Business (KYB) verification for corporate entities. The Company reserves the right to:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Withhold payouts, suspend listing privileges, or terminate Publisher accounts if Identity Verification is failed, refused, or if submitted information is found to be fraudulent;</li>
+            <li>Require periodic re-verification to maintain compliance with applicable anti-money laundering (AML) regulations;</li>
+            <li>Share verification status (but not underlying personal documents) with applicable regulatory authorities upon lawful request.</li>
+          </ul>
+          <p>Personal information collected during Identity Verification is processed by the third-party verification provider and is subject to both their privacy policy and our <Link to="/privacy" className="text-[#8B5CF6] hover:underline">Privacy Policy</Link>.</p>
           <p>The Company reserves the right to remove any product and suspend any publisher account at its sole discretion, with or without prior notice.</p>
         </section>
 
@@ -98,12 +105,22 @@ export default function TermsOfService() {
           </ul>
           <p>A platform commission of {FEE} is deducted at the contract level. The remaining amount is settled directly to the seller. Blockchain transaction fees (gas) are borne by the party initiating the transaction.</p>
           <p><strong>Irreversibility:</strong> Blockchain transactions are final and irreversible. The Company cannot reverse, cancel, or modify any on-chain transaction.</p>
+          <p><strong>Tax Obligations.</strong> All transactions on the Platform are denominated and settled exclusively in TON (Toncoin), a digital asset. The Company does not convert, exchange, or facilitate conversion of digital assets to fiat currency. Publishers and Buyers are solely responsible for determining, calculating, collecting, reporting, and remitting any applicable taxes — including but not limited to income tax, capital gains tax, value-added tax (VAT), goods and services tax (GST), and sales tax — arising from their transactions on the Platform. The Company does not provide tax advice and makes no representations regarding the tax treatment of digital asset transactions in any jurisdiction.</p>
+          <p>The Company may request tax documentation from Publishers if required by U.S. law, including but not limited to: IRS Form W-9 (for U.S. persons), IRS Form W-8BEN or W-8BEN-E (for non-U.S. persons and entities). Failure to provide requested tax documentation may result in withholding of payouts or suspension of Publisher privileges until documentation is received. The Company may report transaction information to the Internal Revenue Service (IRS) or other tax authorities as required by applicable law, including compliance with any future IRS reporting requirements for digital asset transactions under the Infrastructure Investment and Jobs Act (2021) or subsequent legislation.</p>
         </section>
 
         <section>
-          <h2 className="text-xl font-semibold text-white">7. Disputes &amp; Dispute Window</h2>
-          <p>Buyers may open a dispute within twenty-four (24) hours after payment confirmation (&quot;Dispute Window&quot;). Disputes must be submitted through the Platform&apos;s dispute mechanism on the Orders page.</p>
-          <p>The Company will review disputes and issue a non-binding recommendation. Because transactions occur on-chain, the Company&apos;s ability to enforce refunds depends entirely on the smart-contract terms governing the specific transaction. The Company is not liable for losses arising from the inherent limitations of blockchain settlement.</p>
+          <h2 className="text-xl font-semibold text-white">7. Disputes, Escrow Mechanism &amp; Dispute Window</h2>
+          <p><strong>Dispute Window.</strong> Buyers may open a dispute within seventy-two (72) hours after payment confirmation (&quot;Dispute Window&quot;). Disputes must be submitted through the Platform&apos;s dispute mechanism on the Orders page. After the Dispute Window closes, funds are automatically released to the Seller by the smart contract, and no further disputes may be initiated for that transaction.</p>
+          <p><strong>Escrow Smart Contract &amp; Oracle Role.</strong> Funds from each purchase are held in a non-custodial Escrow Smart Contract deployed on the TON blockchain. <strong>The Company does not custody these funds at any time.</strong> During the 72-hour Dispute Window, the funds remain locked in the smart contract and are not accessible to either party. The Company acts solely as a <strong>technical oracle</strong> (&quot;Platform Oracle&quot;) for the Escrow Smart Contract. Based on the outcome of the dispute resolution process, the Platform Oracle may broadcast a cryptographic signature allowing the smart contract to execute one of the following outcomes:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li><strong>Refund:</strong> the smart contract returns the full purchase amount (minus gas fees) to the Buyer&apos;s wallet;</li>
+            <li><strong>Release:</strong> the smart contract releases the funds (minus the {FEE} platform commission) to the Seller&apos;s wallet;</li>
+            <li><strong>Partial refund:</strong> in cases where both parties agree, the smart contract may split the funds according to the agreed proportion.</li>
+          </ul>
+          <p>The Company&apos;s oracle function is limited to signing the dispute outcome. The Company does not have unilateral access to the escrowed funds and cannot move, redirect, or appropriate them. If the Company fails to sign within 14 calendar days after a dispute is opened, the smart contract automatically releases funds to the Seller.</p>
+          <p><strong>Dispute Review Process.</strong> The Company will review submitted evidence (screenshots, logs, product functionality reports) from both parties and render a decision within five (5) business days. The Company&apos;s decision determines which cryptographic signature the Platform Oracle broadcasts. This decision is final with respect to the smart-contract outcome, subject to the arbitration provisions in Section 18.</p>
+          <p><strong>European Economic Area &amp; United Kingdom — Waiver of Withdrawal Right.</strong> For Users located in the European Economic Area (EEA) or the United Kingdom: by initiating a download, accessing, or activating a digital product purchased on the Platform, you expressly consent to the immediate performance of the contract and expressly acknowledge that you thereby lose your right of withdrawal (cooling-off period) under Directive 2011/83/EU (Consumer Rights Directive), Article 16(m), and the UK Consumer Contracts (Information, Cancellation and Additional Charges) Regulations 2013, Regulation 37. This waiver is presented to you at the point of purchase and your acceptance is recorded.</p>
         </section>
 
         <section>
