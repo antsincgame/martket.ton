@@ -45,3 +45,38 @@ export const confirmOrderSchema = z.object({
 export const orderStateSchema = z.object({
   state: z.enum(['pending_payment', 'paid', 'fulfilled', 'refunded', 'cancelled']),
 });
+
+// ── BYOS Storage credentials ──────────────────────────────────────
+export const setStorageSchema = z.object({
+  wallet: z.string().min(1),
+  provider: z.enum(['cloudflare-r2', 's3', 'b2']),
+  accountId: z.string().min(1).max(128),
+  bucket: z.string().min(1).max(128).regex(/^[a-z0-9][a-z0-9.-]{1,62}$/i, 'Invalid bucket name'),
+  endpoint: z.string().url().max(255).optional(),
+  accessKeyId: z.string().min(1).max(255),
+  secretAccessKey: z.string().min(1).max(255),
+  publicBaseUrl: z.string().url().max(255).optional(),
+});
+
+// ── Distribution manifest ──────────────────────────────────────────
+export const setDistributionSchema = z.object({
+  wallet: z.string().min(1),
+  manifest: z.discriminatedUnion('kind', [
+    z.object({
+      kind: z.literal('r2'),
+      bucket: z.string().min(1).max(128),
+      key: z.string().min(1).max(1024),
+      sha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
+      filename: z.string().max(255).optional(),
+    }),
+    z.object({
+      kind: z.literal('github'),
+      repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/),
+      tag: z.string().min(1).max(128),
+      asset: z.string().min(1).max(255),
+      sha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
+      filename: z.string().max(255).optional(),
+    }),
+  ]),
+  ttlSec: z.number().int().min(60).max(21600).optional(),
+});

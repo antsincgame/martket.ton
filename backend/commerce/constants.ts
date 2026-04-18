@@ -5,6 +5,7 @@ export const COL_LISTING_SECRETS = 'listing_secrets';
 export const COL_ORDERS = 'orders';
 export const COL_ENTITLEMENTS = 'entitlements';
 export const COL_AUDIT = 'commerce_audit_logs';
+export const COL_DOWNLOAD_AUDIT = 'download_audit';
 export const BUCKET_ASSETS = 'commerce_assets';
 
 export const ORDER_STATE = {

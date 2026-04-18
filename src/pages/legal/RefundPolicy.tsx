@@ -123,6 +123,27 @@ export default function RefundPolicy() {
         </section>
 
         <section>
+          <h2 className="text-xl font-semibold text-white">6.4. No-Source Refund (Distribution SLA)</h2>
+          <p>
+            The Platform follows a <strong>Bring Your Own Storage (BYOS)</strong> model: builds are hosted by
+            the Seller on third-party storage. If a Buyer cannot download a purchased product because the
+            Seller&apos;s source location is unreachable for more than <strong>24 consecutive hours</strong>,
+            the Buyer is entitled to a refund regardless of trial-window status.
+          </p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Buyer reports unavailability via the support ticket system, attaching at least two failed download timestamps.</li>
+            <li>The Platform verifies via independent health-check that the source returns 4xx/5xx for ≥24h.</li>
+            <li>If confirmed, the Platform triggers a buyer-initiated burn on behalf of the Buyer (exception to the trial window) and the Escrow contract refunds automatically.</li>
+            <li>Repeated SLA violations by the same Seller trigger the escalation matrix in <Link to="/terms" className="text-[#FFD700] hover:underline">Terms § 5A</Link>: warning → 7-day suspension → permanent ban + mandatory refund of all impacted Buyers from the Seller&apos;s accrued earnings.</li>
+          </ul>
+          <p>
+            Buyers should attempt to download purchased products promptly after purchase. Saving the file locally
+            after the first successful download is recommended — the Platform makes no guarantee of perpetual
+            re-downloadability beyond the SLA window.
+          </p>
+        </section>
+
+        <section>
           <h2 className="text-xl font-semibold text-white">6.5. Refund Abuse &amp; Fraud Protection</h2>
           <p>
             The Company takes refund abuse seriously. The following conduct may result in account

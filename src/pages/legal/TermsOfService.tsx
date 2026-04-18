@@ -94,6 +94,27 @@ export default function TermsOfService() {
         </section>
 
         <section>
+          <h2 className="text-xl font-semibold text-white">5A. Distribution SLA — Bring Your Own Storage</h2>
+          <p>The Platform follows a <strong>BYOS (Bring Your Own Storage)</strong> model: each Publisher hosts their own build files on third-party storage of their choice (Cloudflare R2, AWS S3, Backblaze B2, GitHub Releases, or other supported sources). The Platform stores only a <em>distribution manifest</em> (locator + SHA256 hash) and does not host, mirror, or cache the build itself.</p>
+          <p>By submitting a product for listing, Publisher agrees to the following <strong>Distribution Service Level</strong>:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li><strong>File availability.</strong> Publisher must keep the registered build accessible at the declared source location for the entire lifetime of any active license, plus a grace period of <strong>30 days</strong> after the trial window of the latest sale expires.</li>
+            <li><strong>Hash integrity.</strong> The file hosted at the source location must match the SHA256 hash registered in the manifest. Replacing, modifying, or hot-swapping the file without re-registering the manifest constitutes a <em>manifest drift</em> violation. The Platform automatically detects drift on health-checks and unlists the product without notice.</li>
+            <li><strong>Minimum uptime.</strong> The Publisher's source must achieve at least <strong>99% uptime</strong> measured over a rolling 30-day window via Platform health-checks (every 6 hours).</li>
+            <li><strong>No file deletion.</strong> Publisher must not delete, move, or restrict access to the file while active licenses exist. Deletion is treated as a material breach of these Terms.</li>
+            <li><strong>Source change notification.</strong> Publisher must notify the Platform at least <strong>30 days</strong> in advance before changing the storage provider or migrating the file, and must register the new manifest before the old one becomes inaccessible.</li>
+          </ul>
+          <p><strong>Escalation matrix for Distribution SLA violations:</strong></p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li><strong>First violation:</strong> formal warning + 7-day cure period.</li>
+            <li><strong>Second violation:</strong> temporary suspension of listing privileges (7 days).</li>
+            <li><strong>Third violation:</strong> permanent ban + the Company will, at its discretion, refund affected buyers from the Publisher's accrued unpaid earnings (or, if insufficient, from the Publisher's posted security deposit, where applicable).</li>
+          </ul>
+          <p>Buyers who cannot download a purchased product due to Publisher's source unavailability for more than 24 consecutive hours are entitled to a refund per the <Link to="/refund-policy" className="text-[#00FF88] hover:underline">Refund Policy</Link>, regardless of trial-window status.</p>
+          <p>The Platform offers no fallback hosting. Choosing a reliable storage provider with sufficient capacity, bandwidth, and durability guarantees is the Publisher's sole responsibility.</p>
+        </section>
+
+        <section>
           <h2 className="text-xl font-semibold text-white">6. Payments &amp; On-Chain Settlement</h2>
           <p>All payments are denominated and settled in TON (Toncoin) on the TON blockchain. Transactions are peer-to-peer between the buyer&apos;s wallet and the designated treasury/seller contract. The Company:</p>
           <ul className="list-disc pl-6 space-y-1">

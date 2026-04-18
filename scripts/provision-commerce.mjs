@@ -16,6 +16,7 @@ const COL_LISTING_SECRETS = 'listing_secrets';
 const COL_ORDERS = 'orders';
 const COL_ENTITLEMENTS = 'entitlements';
 const COL_AUDIT = 'commerce_audit_logs';
+const COL_DOWNLOAD_AUDIT = 'download_audit';
 const BUCKET_ASSETS = 'commerce_assets';
 
 const READ_ANY = [Permission.read(Role.any())];
@@ -75,6 +76,31 @@ async function setupSellerProfiles(databases) {
   );
   await waitForAttribute(databases, COL_SELLER_PROFILES, 'bio');
   await idx(databases, COL_SELLER_PROFILES, 'uniq_wallet', IndexType.Unique, ['wallet']);
+
+  // ── BYOS storage fields (encrypted credentials for per-developer R2/S3) ──
+  // All optional: a seller without storage cannot publish, but can register.
+  const storageCols = [
+    ['storage_provider', 32, false],            // 'cloudflare-r2' | 's3' | 'b2' | 'none'
+    ['storage_account_id', 128, false],
+    ['storage_bucket', 128, false],
+    ['storage_endpoint', 255, false],
+    ['storage_creds_iv', 64, false],            // hex
+    ['storage_creds_tag', 64, false],           // hex
+    ['storage_creds_ciphertext', 4000, false],  // hex
+    ['storage_status', 32, false],              // 'connected' | 'error' | 'revoked' | 'unconfigured'
+    ['storage_last_error', 1000, false],
+    ['storage_public_base_url', 255, false],
+  ];
+  for (const [k, size, req] of storageCols) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, COL_SELLER_PROFILES, k, size, req)
+    );
+    await waitForAttribute(databases, COL_SELLER_PROFILES, k);
+  }
+  await ignoreConflict(() =>
+    databases.createDatetimeAttribute(DATABASE_ID, COL_SELLER_PROFILES, 'storage_last_check_at', false)
+  );
+  await waitForAttribute(databases, COL_SELLER_PROFILES, 'storage_last_check_at');
 }
 
 async function setupListings(databases) {
@@ -109,6 +135,73 @@ async function setupListings(databases) {
     'catalogProductId',
     'status',
   ]);
+
+  // ── Distribution manifest fields (BYOS: R2 / GitHub Releases) ──
+  const distCols = [
+    ['distribution_kind', 16, false],          // 'r2' | 'github' | 'none'
+    ['distribution_locator', 2048, false],     // JSON: {bucket,key} | {repo,tag,asset}
+    ['distribution_sha256', 64, false],
+    ['distribution_filename', 255, false],
+    ['distribution_state', 32, false],         // draft|verified|manifest_drift|source_unavailable
+    ['distribution_health_status', 16, false], // ok|degraded|down
+    ['scan_id', 128, false],
+    ['scan_status', 32, false],                // idle|scanning|clean|suspicious|malicious|oversize_skip|error
+    ['scan_report_url', 255, false],
+    ['scan_sha256', 64, false],
+  ];
+  for (const [k, size, req] of distCols) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, COL_LISTINGS, k, size, req)
+    );
+    await waitForAttribute(databases, COL_LISTINGS, k);
+  }
+  const distInts = [
+    ['distribution_size', false],
+    ['distribution_ttl_sec', false],
+  ];
+  for (const [k, req] of distInts) {
+    await ignoreConflict(() =>
+      databases.createIntegerAttribute(DATABASE_ID, COL_LISTINGS, k, req)
+    );
+    await waitForAttribute(databases, COL_LISTINGS, k);
+  }
+  const distDates = [
+    'distribution_verified_at',
+    'distribution_health_at',
+    'scan_at',
+  ];
+  for (const k of distDates) {
+    await ignoreConflict(() =>
+      databases.createDatetimeAttribute(DATABASE_ID, COL_LISTINGS, k, false)
+    );
+    await waitForAttribute(databases, COL_LISTINGS, k);
+  }
+}
+
+async function setupDownloadAudit(databases) {
+  await ensureCollection(databases, COL_DOWNLOAD_AUDIT, 'Download audit', SERVER_ONLY);
+  const cols = [
+    ['license_id', 64, true],
+    ['buyer_wallet', 128, true],
+    ['ip_hash', 64, false],
+    ['source_kind', 16, true],
+  ];
+  for (const [k, size, req] of cols) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, COL_DOWNLOAD_AUDIT, k, size, req)
+    );
+    await waitForAttribute(databases, COL_DOWNLOAD_AUDIT, k);
+  }
+  await ignoreConflict(() =>
+    databases.createIntegerAttribute(DATABASE_ID, COL_DOWNLOAD_AUDIT, 'ttl_sec', false)
+  );
+  await waitForAttribute(databases, COL_DOWNLOAD_AUDIT, 'ttl_sec');
+  await ignoreConflict(() =>
+    databases.createDatetimeAttribute(DATABASE_ID, COL_DOWNLOAD_AUDIT, 'issued_at', true)
+  );
+  await waitForAttribute(databases, COL_DOWNLOAD_AUDIT, 'issued_at');
+  await idx(databases, COL_DOWNLOAD_AUDIT, 'idx_license_issued', IndexType.Key, ['license_id', 'issued_at']);
+  await idx(databases, COL_DOWNLOAD_AUDIT, 'idx_buyer', IndexType.Key, ['buyer_wallet']);
 }
 
 async function setupListingSecrets(databases) {
@@ -218,9 +311,10 @@ async function main() {
   await setupOrders(databases);
   await setupEntitlements(databases);
   await setupAudit(databases);
+  await setupDownloadAudit(databases);
   await ensureBucket(storage);
 
-  console.log('[commerce] Готово. Запуск: backend с TREASURY_WALLET_ADDRESS, APPWRITE_*');
+  console.log('[commerce] Готово. Запуск: backend с TREASURY_WALLET_ADDRESS, APPWRITE_*, STORAGE_ENCRYPTION_KEY');
 }
 
 main().catch((e) => {

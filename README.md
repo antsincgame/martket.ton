@@ -148,8 +148,14 @@ npm run test:e2e
 
 - `GET /api/health` — healthcheck
 - `GET/PATCH /api/session/*` — библиотека, продукты, профиль, stats, payouts, transactions
-- `POST /api/r2/upload/image` — загрузка изображений
+- `POST /api/r2/upload/image` — загрузка изображений (avatars/banners на платформенный R2)
 - Префикс commerce на отдельном сервисе/порту: `GET /api/v1/commerce/...` (база задаётся `VITE_COMMERCE_API_URL`)
+- **BYOS Distribution** (см. [docs/byos-distribution.md](docs/byos-distribution.md)):
+  - `POST /api/v1/commerce/storage` — подключить свой R2/S3 bucket
+  - `PUT  /api/v1/commerce/listings/:id/distribution` — задать manifest (R2 / GitHub Release)
+  - `POST /api/v1/commerce/listings/:id/distribution/verify` — стрим + SHA256 проверка
+  - `GET  /api/v1/commerce/listings/:id/download` — 302 redirect на источник (наш egress = 0)
+  - `POST /api/v1/commerce/listings/:id/scan` — модератор запускает VirusTotal scan
 
 Детальные таблицы и схема — в [docs/PROJECT.md](docs/PROJECT.md).
 

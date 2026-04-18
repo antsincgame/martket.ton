@@ -11,6 +11,7 @@ import { fetchDeveloperWorkspace } from '../../../services/tonforgeApi';
 import ListingsTab from './ListingsTab';
 import OrdersTab from './OrdersTab';
 import PublishingTab from './PublishingTab';
+import StorageSettings from './StorageSettings';
 
 interface TabDef {
   id: string;
@@ -23,6 +24,7 @@ const TABS: TabDef[] = [
   { id: 'listings', path: 'listings', label: 'Listings', description: 'Published products and their status' },
   { id: 'orders', path: 'orders', label: 'Orders', description: 'Purchases of your products on the TON blockchain' },
   { id: 'publishing', path: 'publishing', label: 'Publishing', description: 'KYC, Artifact Scan, and new app release' },
+  { id: 'storage', path: 'storage', label: 'Storage', description: 'Bring Your Own R2/S3 — host builds on your bucket' },
 ];
 
 interface FlashState {
@@ -114,6 +116,7 @@ export default function CommerceSection() {
             />
           }
         />
+        <Route path="storage" element={<StorageSettings wallet={wallet} />} />
         <Route path="*" element={<Navigate to="listings" replace />} />
       </Routes>
     </div>
