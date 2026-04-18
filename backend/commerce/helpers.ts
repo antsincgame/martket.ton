@@ -57,6 +57,11 @@ export function mapListingPublic(doc: AppwriteDoc) {
       doc['currency'] === CURRENCY.TON
         ? nanoRawToTonHuman(doc['priceAmountRaw'] as string)
         : undefined,
+    distributionKind: (doc['distribution_kind'] as string) || 'none',
+    distributionState: (doc['distribution_state'] as string) || null,
+    distributionSha256: (doc['distribution_sha256'] as string) || null,
+    distributionSize: (doc['distribution_size'] as number) || null,
+    scanStatus: (doc['scan_status'] as string) || 'idle',
   };
 }
 

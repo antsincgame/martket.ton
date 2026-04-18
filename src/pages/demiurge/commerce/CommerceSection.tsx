@@ -3,7 +3,7 @@
 // Internal state (workspace, scan, success/error) is lifted here so
 // sub-tabs can share the last artifact scan across sessions.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, NavLink, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Link, NavLink, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { useTonAddress } from '@tonconnect/ui-react';
 import { ShoppingBag, Wallet as WalletIcon } from 'lucide-react';
 import type { TonForgeArtifactScan, TonForgeDeveloperWorkspace } from '../../../domain/tonforge/types';
@@ -12,6 +12,7 @@ import ListingsTab from './ListingsTab';
 import OrdersTab from './OrdersTab';
 import PublishingTab from './PublishingTab';
 import StorageSettings from './StorageSettings';
+import DistributionEditor from './DistributionEditor';
 
 interface TabDef {
   id: string;
@@ -117,6 +118,7 @@ export default function CommerceSection() {
           }
         />
         <Route path="storage" element={<StorageSettings wallet={wallet} />} />
+        <Route path="listings/:listingId/distribution" element={<DistributionRoute wallet={wallet} />} />
         <Route path="*" element={<Navigate to="listings" replace />} />
       </Routes>
     </div>
@@ -211,6 +213,12 @@ function Banner({
       )}
     </div>
   );
+}
+
+function DistributionRoute({ wallet }: { wallet: string }) {
+  const { listingId } = useParams<{ listingId: string }>();
+  if (!listingId) return <Navigate to="/profile/commerce/listings" replace />;
+  return <DistributionEditor listingId={listingId} wallet={wallet} />;
 }
 
 function ConnectWalletEmptyState(): ReactNode {

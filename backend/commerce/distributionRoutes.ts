@@ -319,8 +319,14 @@ router.get('/listings/:id/download', apiRequireAuth(), async (req: Request, res:
     const ttlSec = Math.min(21600, Math.max(60, doc.distribution_ttl_sec || 3600));
     const url = await getAdapter(parsed.manifest.kind).getDownloadUrl(parsed.manifest, { sellerId }, ttlSec);
 
-    // Audit (best-effort, don't block)
+    // Audit (best-effort, don't block). Key must match the rate-limit query above.
     if (!isStaff) {
+      const { documents: entDocs } = await databases().listDocuments(DATABASE_ID, COL_ENTITLEMENTS, [
+        Query.equal('buyerWallet', [wallet]),
+        Query.equal('listingId', [doc.$id]),
+        Query.limit(1),
+      ]);
+      const entitlementId = entDocs[0]?.$id || doc.$id;
       const ipHash = crypto
         .createHash('sha256')
         .update((req.ip || '') + (process.env.STORAGE_ENCRYPTION_KEY || ''))
@@ -328,7 +334,7 @@ router.get('/listings/:id/download', apiRequireAuth(), async (req: Request, res:
         .slice(0, 32);
       databases()
         .createDocument(DATABASE_ID, COL_DOWNLOAD_AUDIT, ID.unique(), {
-          license_id: String(doc.$id),
+          license_id: entitlementId,
           buyer_wallet: wallet,
           ip_hash: ipHash,
           ttl_sec: ttlSec,

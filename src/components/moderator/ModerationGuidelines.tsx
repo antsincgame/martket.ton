@@ -37,7 +37,7 @@ const ModerationGuidelines: FC = () => (
         <Li>Price is reasonable for the product type</Li>
         <Li>Images correspond to the actual product</Li>
         <Li>No signs of plagiarism or copyright violation</Li>
-        <Li>No malicious code indicators (manual check; VirusTotal in future)</Li>
+        <Li>VirusTotal scan passed (use the &quot;Run VT Scan&quot; button in moderation queue)</Li>
         <Li>Version field is properly filled</Li>
       </ul>
     </Section>
@@ -78,13 +78,22 @@ const ModerationGuidelines: FC = () => (
       </ul>
     </Section>
 
-    <Section title="Future: Automated Scanning" icon={Shield}>
-      <p className="text-sm text-[#999999]">
-        VirusTotal integration is planned for automated malware scanning of uploaded files.
-        Until then, moderators should manually verify file integrity and check for known
-        malware signatures. Flag suspicious files with <span className="text-yellow-400 font-mono">suspended</span> status
-        and note your findings in the rejection reason.
-      </p>
+    <Section title="VirusTotal Scanning" icon={Shield}>
+      <div className="text-sm text-[#999999] space-y-2">
+        <p>
+          VirusTotal multi-engine scanning is integrated. In the moderation queue, click <span className="text-[#00F5FF] font-mono">Run VT Scan</span> to
+          submit the build file for analysis. The scan streams from the publisher&apos;s own storage (BYOS) — no platform file hosting required.
+        </p>
+        <p>
+          <span className="text-[#00FF88] font-mono">clean</span> — all engines pass; safe to approve.{' '}
+          <span className="text-yellow-400 font-mono">suspicious</span> — some engines flagged; review VT report link before deciding.{' '}
+          <span className="text-[#FF4444] font-mono">malicious</span> — reject immediately, escalate to admin.{' '}
+          <span className="text-[#888] font-mono">oversize_skip</span> — file exceeds 32 MB free-tier limit; download and inspect locally.
+        </p>
+        <p>
+          Scan results are cached by SHA256. If the publisher updates the build (hash changes), the scan badge resets and a new scan is required.
+        </p>
+      </div>
     </Section>
   </div>
 );
