@@ -155,7 +155,7 @@ npm run test:e2e
 
 ## TON Connect
 
-Для продакшена задайте корректный публичный URL в `public/tonconnect-manifest.json` или используйте `VITE_TONCONNECT_MANIFEST_URL`.
+Для продакшена задайте корректный публичный URL в `public/tonconnect-manifest.json`.
 
 ## Лицензия
 
