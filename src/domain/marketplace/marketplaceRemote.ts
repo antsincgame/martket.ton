@@ -57,17 +57,27 @@ function seedFallback(): MarketplaceInventoryLoad {
   return buildFromProducts(CATALOG_LISTING_PRODUCTS, 'seed');
 }
 
+function mergeWithSeed(appwriteProducts: CatalogListingProduct[]): CatalogListingProduct[] {
+  const existingIds = new Set(appwriteProducts.map((p) => p.id));
+  const seedExtras = CATALOG_LISTING_PRODUCTS.filter((p) => !existingIds.has(p.id));
+  if (seedExtras.length > 0) {
+    logger.info(`[marketplace] Merged ${seedExtras.length} seed products with ${appwriteProducts.length} Appwrite products`);
+  }
+  return [...appwriteProducts, ...seedExtras];
+}
+
 async function loadMarketplaceInventory(): Promise<MarketplaceInventoryLoad> {
   if (!isAppwriteConfigured) {
     logger.warn('[marketplace] Appwrite not configured — falling back to seed data');
     return seedFallback();
   }
   try {
-    const products = await fetchListingProducts();
-    if (products.length === 0) {
-      return seedFallback();
+    const appwriteProducts = await fetchListingProducts();
+    const merged = mergeWithSeed(appwriteProducts);
+    if (merged.length === 0) {
+      return { products: [], categorySummaries: [], spotlight: [], source: 'empty' };
     }
-    return buildFromProducts(products, 'appwrite');
+    return buildFromProducts(merged, appwriteProducts.length > 0 ? 'appwrite' : 'seed');
   } catch (err) {
     logger.warn('[marketplace] Failed to load from Appwrite, using seed fallback:', err);
     return seedFallback();
