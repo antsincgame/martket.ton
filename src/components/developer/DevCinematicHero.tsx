@@ -7,6 +7,7 @@ import {
 import type { PublicDeveloperProfile } from '../../domain/marketplace/types';
 import { formatDownloads, formatDate } from '../../domain/marketplace/platformIcons';
 import { buildAchievements } from './achievements';
+import AchievementChip from './AchievementChip';
 import GlitchText from './GlitchText';
 import HexRuneAvatar from './HexRuneAvatar';
 import HeroManifesto from './HeroManifesto';
@@ -262,7 +263,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
             ))}
           </motion.div>
 
-          {/* Row 5: achievement chips — inline version of DevSacredTimeline. */}
+          {/* Row 5: achievement chips with interactive tooltips. */}
           {achievements.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
@@ -273,21 +274,7 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
               aria-label="Achievements"
             >
               {achievements.map((ach) => (
-                <span
-                  key={ach.id}
-                  role="listitem"
-                  title={ach.description}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/50 backdrop-blur-md border text-[9.5px] font-bold uppercase tracking-[0.18em]"
-                  style={{
-                    borderColor: `${ach.color}40`,
-                    color: ach.color,
-                    textShadow: `0 0 6px ${ach.color}55`,
-                    boxShadow: `inset 0 0 12px ${ach.color}10`,
-                  }}
-                >
-                  <ach.icon className="w-3 h-3" style={{ color: ach.color }} />
-                  {ach.title}
-                </span>
+                <AchievementChip key={ach.id} achievement={ach} compact />
               ))}
             </motion.div>
           )}
@@ -410,6 +397,22 @@ const DevCinematicHero = memo(({ profile, isTopDev }: DevCinematicHeroProps) => 
                   </motion.a>
                 ))}
               </div>
+            )}
+
+            {/* Achievement chips (mobile/tablet) with tap-to-reveal tooltips */}
+            {achievements.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.7, duration: 0.5 }}
+                className="flex flex-wrap gap-2 mt-4"
+                role="list"
+                aria-label="Achievements"
+              >
+                {achievements.map((ach) => (
+                  <AchievementChip key={ach.id} achievement={ach} />
+                ))}
+              </motion.div>
             )}
           </motion.div>
         </div>
