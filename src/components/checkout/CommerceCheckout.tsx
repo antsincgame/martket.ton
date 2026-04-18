@@ -137,7 +137,6 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
         {buyerWallet && (
           <LicenseMintIndicator
             buyerWallet={buyerWallet}
-            appId={catalogProductId}
             network={resolveTonNetwork()}
           />
         )}

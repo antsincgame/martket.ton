@@ -6,6 +6,7 @@ import {
   loadOnchainConfig,
   mintLicense,
   pollItemDeployed,
+  registerLicense,
   verifyLicenseOwner,
   type OwnershipResult,
 } from './onchain/index.js';
@@ -322,6 +323,17 @@ export function createTonForgeService(
         license.state = 'trial_active';
         license.mintError = null;
         logger.info(`[tonforge.mint] license ${license.licenseId} active on-chain`);
+        if (license.escrowAddress) {
+          try {
+            await registerLicense({
+              escrowAddress: license.escrowAddress,
+              licenseAddress: result.itemAddress,
+            });
+            logger.info(`[tonforge.mint] registered license on escrow for ${license.licenseId}`);
+          } catch (regErr) {
+            logger.error(`[tonforge.mint] registerLicense failed for ${license.licenseId}:`, regErr);
+          }
+        }
       } else {
         license.state = 'mint_failed';
         license.mintError = 'POLL_TIMEOUT';
@@ -351,11 +363,14 @@ export function createTonForgeService(
     if (license.state === 'revoked' || license.state === 'refunded') {
       throw new Error('LICENSE_REVOKED');
     }
+    if (license.state === 'mint_failed' || license.state === 'burn_pending') {
+      throw new Error('LICENSE_NOT_READY');
+    }
     const app = getAppById(license.appId);
 
     let verify: OwnershipResult | undefined;
     const onchain = loadOnchainConfig();
-    if (onchain.enabled && license.state !== 'mint_pending' && license.state !== 'mint_failed') {
+    if (onchain.enabled && license.state !== 'mint_pending') {
       verify = await verifyLicenseOwner(license.nftAddress, payload.buyerWallet);
       if (!verify.ok) {
         logger.warn(
