@@ -17,14 +17,27 @@ import { queryClient } from './lib/queryClient';
 import CookieConsent from './components/CookieConsent';
 import ScrollToTop from './components/ScrollToTop';
 
-/** Lazy with automatic retry — retries chunk loading on network errors (mobile, offline). */
+/**
+ * Lazy with chunk-reload recovery.
+ * On first failure: retry the same URL (covers transient network blips).
+ * On second failure: hard-reload the page so the browser fetches a fresh
+ * index.html with updated chunk hashes (covers post-deploy cache mismatch).
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function lazyRetry(factory: () => Promise<{ default: React.ComponentType<any> }>, retries = 2, delayMs = 1500) {
+function lazyRetry(factory: () => Promise<{ default: React.ComponentType<any> }>) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return lazy((): Promise<{ default: React.ComponentType<any> }> =>
-    factory().catch((err: unknown) => {
-      if (retries <= 0) throw err;
-      return new Promise((resolve) => setTimeout(() => resolve(factory()), delayMs));
+    factory().catch(() =>
+      new Promise<{ default: React.ComponentType<any> }>((resolve) =>
+        setTimeout(() => resolve(factory()), 1500),
+      ),
+    ).catch(() => {
+      const reloaded = sessionStorage.getItem('chunk_reload');
+      if (reloaded !== window.location.pathname) {
+        sessionStorage.setItem('chunk_reload', window.location.pathname);
+        window.location.reload();
+      }
+      return { default: (() => null) as React.ComponentType<any> };
     }),
   );
 }

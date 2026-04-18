@@ -87,6 +87,11 @@ class ErrorBoundary extends Component<Props, State> {
   };
 
   handleRetry = () => {
+    const msg = this.state.error?.message ?? '';
+    if (msg.includes('dynamically imported module') || msg.includes('Failed to fetch')) {
+      window.location.reload();
+      return;
+    }
     this.setState({ hasError: false, error: undefined, errorInfo: undefined, copied: false, errorId: null });
   };
 
