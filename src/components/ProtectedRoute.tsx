@@ -17,7 +17,7 @@ interface ProtectedRouteProps {
  * - Logged in but missing role → access-denied screen
  */
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole }) => {
-  const { isAuthenticated, providerSignedIn, hasRole, isLoading, user, fetchProfile } = useAuth();
+  const { isAuthenticated, providerSignedIn, hasRole, isLoading, user, fetchProfile, error } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -35,8 +35,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredRole 
       return (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center max-w-sm">
-            <div className="w-16 h-16 border-4 border-[#FFD700]/30 border-t-[#FFD700] rounded-full animate-spin mx-auto mb-4" />
-            <p className="text-[#999] text-sm mb-4">Setting up your profile...</p>
+            {!error && (
+              <div className="w-16 h-16 border-4 border-[#FFD700]/30 border-t-[#FFD700] rounded-full animate-spin mx-auto mb-4" />
+            )}
+            {error ? (
+              <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+                <Shield className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                <p className="text-red-300 text-sm">{error}</p>
+              </div>
+            ) : (
+              <p className="text-[#999] text-sm mb-4">Setting up your profile...</p>
+            )}
             <button
               onClick={() => fetchProfile()}
               className="inline-flex items-center gap-2 text-[#FFD700] text-sm hover:text-[#FFE066] transition-colors"

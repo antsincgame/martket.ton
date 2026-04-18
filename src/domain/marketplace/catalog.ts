@@ -4,8 +4,6 @@ import type {
   CategorySlug,
   HomeCategorySlug,
   HomeCategorySummary,
-  ProductDetail,
-  ProductReview,
 } from './types';
 
 const HOME_SPOTLIGHT_IDS = ['1', '4', '7', '10', '12', '15', '17', '5'];
@@ -163,11 +161,6 @@ export function getHomeSpotlightProductsForProducts(
   return inventory.slice(0, 8);
 }
 
-/** @deprecated Use getHomeSpotlightProductsForProducts with real data. Returns empty for clean site. */
-export function getHomeSpotlightProducts(): CatalogListingProduct[] {
-  return [];
-}
-
 export function getHomeCategorySummariesForProducts(
   inventory: CatalogListingProduct[]
 ): HomeCategorySummary[] {
@@ -246,12 +239,3 @@ export function sortListingProducts(
   }
 }
 
-/** @deprecated Seed fallback removed. Returns null — real products come from Appwrite API. */
-export function getProductDetail(_productId: string | undefined): ProductDetail | null {
-  return null;
-}
-
-/** @deprecated Seed fallback removed. Returns [] — real reviews come from Appwrite API. */
-export function getProductReviews(_productId: string): ProductReview[] {
-  return [];
-}

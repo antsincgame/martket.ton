@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { getJwt } from './appwriteAuth';
 import type {
   CommerceConfigResponse,
   CommerceListingPublic,
@@ -24,6 +25,11 @@ function networkHeader(): Record<string, string> {
   return {};
 }
 
+async function authHeader(): Promise<Record<string, string>> {
+  const jwt = await getJwt();
+  return jwt ? { Authorization: `Bearer ${jwt}` } : {};
+}
+
 async function parseJson<T>(
   response: Response
 ): Promise<{ ok: true; data: T } | { ok: false; error: string; code?: string }> {
@@ -40,6 +46,40 @@ async function parseJson<T>(
   }
   return { ok: true, data: body as T };
 }
+
+interface CommerceError {
+  message: string;
+  code?: string;
+}
+
+class CommerceApiError extends Error {
+  code?: string;
+  constructor({ message, code }: CommerceError) {
+    super(code ? `${message} (${code})` : message);
+    this.name = 'CommerceApiError';
+    this.code = code;
+  }
+}
+
+async function commerceAuthFetch<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const auth = await authHeader();
+  const headers: Record<string, string> = { ...networkHeader(), ...auth };
+  if (init.body && typeof init.body === 'string') {
+    headers['Content-Type'] = 'application/json';
+  }
+  const existingHeaders = init.headers as Record<string, string> | undefined;
+  if (existingHeaders) Object.assign(headers, existingHeaders);
+
+  const res = await fetch(commerceUrl(path), { ...init, headers });
+  const parsed = await parseJson<T>(res);
+  if (!parsed.ok) throw new CommerceApiError({ message: parsed.error, code: parsed.code });
+  return parsed.data;
+}
+
+// ─── Public (unauthenticated) ────────────────────────────────────────
 
 export async function fetchCommerceConfig(): Promise<CommerceConfigResponse | null> {
   try {
@@ -63,23 +103,28 @@ export async function fetchListingsForCatalog(
   const parsed = await parseJson<{
     data: { listings: CommerceListingPublic[]; primary: CommerceListingPublic | null };
   }>(res);
-  if (!parsed.ok) throw new Error(parsed.error);
+  if (!parsed.ok) throw new CommerceApiError({ message: parsed.error });
   return parsed.data.data;
 }
+
+export async function fetchSellerListings(wallet: string): Promise<CommerceListingPublic[]> {
+  const res = await fetch(commerceUrl(`/sellers/${encodeURIComponent(wallet)}/listings`));
+  const parsed = await parseJson<{ data: { listings: CommerceListingPublic[] } }>(res);
+  if (!parsed.ok) throw new CommerceApiError({ message: parsed.error });
+  return parsed.data.data.listings;
+}
+
+// ─── Authenticated (JWT via commerceAuthFetch) ───────────────────────
 
 export async function createCommerceOrder(
   listingId: string,
   buyerWallet: string
 ): Promise<CreateOrderResponse> {
-  const res = await fetch(commerceUrl('/orders'), {
+  const result = await commerceAuthFetch<{ data: CreateOrderResponse }>('/orders', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...networkHeader() },
-    credentials: 'include',
     body: JSON.stringify({ listingId, buyerWallet }),
   });
-  const parsed = await parseJson<{ data: CreateOrderResponse }>(res);
-  if (!parsed.ok) throw new Error(parsed.code ? `${parsed.error} (${parsed.code})` : parsed.error);
-  return parsed.data.data;
+  return result.data;
 }
 
 export async function confirmCommerceOrder(
@@ -87,17 +132,13 @@ export async function confirmCommerceOrder(
   buyerWallet: string,
   txHash: string
 ): Promise<{ state: string; entitlement?: { deliveryPayload: string } }> {
-  const res = await fetch(commerceUrl(`/orders/${encodeURIComponent(orderId)}/confirm`), {
+  const result = await commerceAuthFetch<{
+    data: { state: string; entitlement?: { deliveryPayload: string } };
+  }>(`/orders/${encodeURIComponent(orderId)}/confirm`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...networkHeader() },
-    credentials: 'include',
     body: JSON.stringify({ buyerWallet, txHash }),
   });
-  const parsed = await parseJson<{
-    data: { state: string; entitlement?: { deliveryPayload: string } };
-  }>(res);
-  if (!parsed.ok) throw new Error(parsed.code ? `${parsed.error} (${parsed.code})` : parsed.error);
-  return parsed.data.data;
+  return result.data;
 }
 
 export async function fetchCommerceOrder(
@@ -105,10 +146,10 @@ export async function fetchCommerceOrder(
   buyerWallet: string
 ): Promise<OrderStatusResponse> {
   const q = new URLSearchParams({ buyerWallet });
-  const res = await fetch(`${commerceUrl(`/orders/${encodeURIComponent(orderId)}`)}?${q}`);
-  const parsed = await parseJson<{ data: OrderStatusResponse }>(res);
-  if (!parsed.ok) throw new Error(parsed.error);
-  return parsed.data.data;
+  const result = await commerceAuthFetch<{ data: OrderStatusResponse }>(
+    `/orders/${encodeURIComponent(orderId)}?${q}`,
+  );
+  return result.data;
 }
 
 export async function openCommerceDispute(
@@ -116,41 +157,25 @@ export async function openCommerceDispute(
   openedByWallet: string,
   reason: string
 ): Promise<void> {
-  const res = await fetch(commerceUrl('/disputes'), {
+  await commerceAuthFetch<unknown>('/disputes', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ orderId, openedByWallet, reason }),
   });
-  const parsed = await parseJson<unknown>(res);
-  if (!parsed.ok) throw new Error(parsed.error);
 }
 
 export async function registerSeller(wallet: string, displayName: string, bio?: string): Promise<void> {
-  const res = await fetch(commerceUrl('/sellers/register'), {
+  await commerceAuthFetch<unknown>('/sellers/register', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ wallet, displayName, bio }),
   });
-  const parsed = await parseJson<unknown>(res);
-  if (!parsed.ok) throw new Error(parsed.error);
 }
 
 export async function createListing(body: Record<string, unknown>): Promise<CommerceListingPublic> {
-  const res = await fetch(commerceUrl('/listings'), {
+  const result = await commerceAuthFetch<{ data: { listing: CommerceListingPublic } }>('/listings', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const parsed = await parseJson<{ data: { listing: CommerceListingPublic } }>(res);
-  if (!parsed.ok) throw new Error(parsed.error);
-  return parsed.data.data.listing;
-}
-
-export async function fetchSellerListings(wallet: string): Promise<CommerceListingPublic[]> {
-  const res = await fetch(commerceUrl(`/sellers/${encodeURIComponent(wallet)}/listings`));
-  const parsed = await parseJson<{ data: { listings: CommerceListingPublic[] } }>(res);
-  if (!parsed.ok) throw new Error(parsed.error);
-  return parsed.data.data.listings;
+  return result.data.listing;
 }
 
 export interface SellerOrderRow {
@@ -168,15 +193,21 @@ export interface SellerOrderRow {
 
 export async function fetchSellerOrders(
   wallet: string,
-  authHeader?: string,
+  explicitAuth?: string,
   limit = 100,
 ): Promise<SellerOrderRow[]> {
-  const res = await fetch(commerceUrl(`/sellers/${encodeURIComponent(wallet)}/orders?limit=${limit}`), {
-    headers: authHeader ? { Authorization: authHeader } : undefined,
-  });
-  const parsed = await parseJson<{ data: { orders: SellerOrderRow[] } }>(res);
-  if (!parsed.ok) throw new Error(parsed.error);
-  return parsed.data.data.orders;
+  if (explicitAuth) {
+    const res = await fetch(commerceUrl(`/sellers/${encodeURIComponent(wallet)}/orders?limit=${limit}`), {
+      headers: { Authorization: explicitAuth },
+    });
+    const parsed = await parseJson<{ data: { orders: SellerOrderRow[] } }>(res);
+    if (!parsed.ok) throw new CommerceApiError({ message: parsed.error });
+    return parsed.data.data.orders;
+  }
+  const result = await commerceAuthFetch<{ data: { orders: SellerOrderRow[] } }>(
+    `/sellers/${encodeURIComponent(wallet)}/orders?limit=${limit}`,
+  );
+  return result.data.orders;
 }
 
 export interface SellerDisputeRow {
@@ -197,14 +228,20 @@ export interface SellerDisputeRow {
 
 export async function fetchSellerDisputes(
   wallet: string,
-  authHeader?: string,
+  explicitAuth?: string,
 ): Promise<SellerDisputeRow[]> {
-  const res = await fetch(commerceUrl(`/sellers/${encodeURIComponent(wallet)}/disputes`), {
-    headers: authHeader ? { Authorization: authHeader } : undefined,
-  });
-  const parsed = await parseJson<{ data: { disputes: SellerDisputeRow[] } }>(res);
-  if (!parsed.ok) throw new Error(parsed.error);
-  return parsed.data.data.disputes;
+  if (explicitAuth) {
+    const res = await fetch(commerceUrl(`/sellers/${encodeURIComponent(wallet)}/disputes`), {
+      headers: { Authorization: explicitAuth },
+    });
+    const parsed = await parseJson<{ data: { disputes: SellerDisputeRow[] } }>(res);
+    if (!parsed.ok) throw new CommerceApiError({ message: parsed.error });
+    return parsed.data.data.disputes;
+  }
+  const result = await commerceAuthFetch<{ data: { disputes: SellerDisputeRow[] } }>(
+    `/sellers/${encodeURIComponent(wallet)}/disputes`,
+  );
+  return result.data.disputes;
 }
 
 export async function uploadListingAsset(
@@ -212,16 +249,35 @@ export async function uploadListingAsset(
   sellerWallet: string,
   file: File
 ): Promise<{ fileId: string; bucketId: string }> {
+  const auth = await authHeader();
   const body = new FormData();
   body.append('sellerWallet', sellerWallet);
   body.append('file', file);
   const res = await fetch(commerceUrl(`/listings/${encodeURIComponent(listingId)}/asset`), {
     method: 'POST',
+    headers: { ...auth },
     body,
   });
   const parsed = await parseJson<{ data: { fileId: string; bucketId: string } }>(res);
-  if (!parsed.ok) throw new Error(parsed.error);
+  if (!parsed.ok) throw new CommerceApiError({ message: parsed.error });
   return parsed.data.data;
+}
+
+export interface BuyerOrderRow {
+  id: string;
+  listingId: string;
+  listingTitle: string | null;
+  state: string;
+  amountRaw: string;
+  currency: string;
+  memo: string;
+  tonTxHash: string | null;
+  createdAt: string;
+}
+
+export async function fetchBuyerOrders(): Promise<BuyerOrderRow[]> {
+  const result = await commerceAuthFetch<{ data: { orders: BuyerOrderRow[] } }>('/buyers/me/orders');
+  return result.data.orders;
 }
 
 /** Админ: заголовок X-Commerce-Admin-Secret задаётся вручную (оператор). */
@@ -244,7 +300,9 @@ export async function adminCommerceFetch(
   }
   if (!res.ok) {
     const err = typeof json.error === 'string' ? json.error : 'Admin request failed';
-    throw new Error(err);
+    throw new CommerceApiError({ message: err });
   }
   return json;
 }
+
+export { CommerceApiError };

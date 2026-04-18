@@ -220,6 +220,67 @@ function originGuard(
 
 app.use(originGuard);
 
+// ─── Client error reporting (pre-auth, rate-limited) ────────────────
+
+const clientErrorLimiter = rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
+
+app.post('/api/client-errors', clientErrorLimiter, async (req, res) => {
+  const { message, stack, componentStack, pathname, userAgent, viewport, resetKey, timestamp } = req.body as Record<string, unknown>;
+  const errorId = `ce_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  logger.error(`[client-error] ${errorId}: ${message}`, {
+    stack, componentStack, pathname, userAgent, viewport, resetKey, timestamp,
+    ip: req.ip,
+  });
+  if (isCoreConfigured()) {
+    try {
+      const repoMod = await import('./core/repository.js');
+      const { generateId: genId } = await import('./core/generateId.js');
+      await repoMod.insertAuditLog({
+        id: genId(),
+        user_id: 'system',
+        action: 'client_error',
+        resource: 'frontend',
+        resource_id: errorId,
+        result: 'error',
+        metadata: JSON.stringify({ message, pathname, stack, viewport, userAgent, resetKey }),
+        ip_address: req.ip ?? null,
+        user_agent: typeof userAgent === 'string' ? userAgent : (req.get('user-agent') || ''),
+      });
+    } catch { /* audit DB unavailable */ }
+  }
+  res.json({ success: true, errorId });
+});
+
+// ─── TON/USD price (cached, CoinGecko) ──────────────────────────────
+
+let tonPriceCache: { usd: number; updatedAt: string } | null = null;
+let tonPriceFetchedAt = 0;
+const TON_PRICE_TTL_MS = 5 * 60 * 1000;
+
+app.get('/api/ton-price', async (_req, res) => {
+  const now = Date.now();
+  if (tonPriceCache && now - tonPriceFetchedAt < TON_PRICE_TTL_MS) {
+    res.json({ success: true, data: tonPriceCache });
+    return;
+  }
+  try {
+    const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd');
+    if (!cgRes.ok) throw new Error(`CoinGecko ${cgRes.status}`);
+    const data = (await cgRes.json()) as { 'the-open-network'?: { usd?: number } };
+    const usd = data['the-open-network']?.usd ?? 0;
+    tonPriceCache = { usd, updatedAt: new Date().toISOString() };
+    tonPriceFetchedAt = now;
+    res.json({ success: true, data: tonPriceCache });
+  } catch (err) {
+    logger.warn('[ton-price] CoinGecko fetch failed:', err instanceof Error ? err.message : err);
+    if (tonPriceCache) {
+      res.json({ success: true, data: tonPriceCache, stale: true });
+    } else {
+      res.status(503).json({ success: false, message: 'Price data unavailable' });
+    }
+  }
+});
+
 // ─── Route modules ──────────────────────────────────────────────────
 
 app.use('/api', profileRoutes);
@@ -234,24 +295,52 @@ app.use('/api/tonforge', tonForgeRouter);
 
 // ─── Optional sub-routers (JS — loaded dynamically) ─────────────────
 
+const failedRouters: Array<{ mount: string; module: string; error: string; timestamp: string }> = [];
+
 async function mountOptionalRouters(): Promise<void> {
-  const optional: Array<[string, string]> = [
-    ['/api/og', './og/handler.js'],
-    ['/api/v1/commerce', './commerce/routes.js'],
-    ['/api/admin/resend', './resend/routes.js'],
-    ['/api/r2', './r2/routes.js'],
+  const optional: Array<[string, string, boolean]> = [
+    ['/api/og', './og/handler.js', false],
+    ['/api/v1/commerce', './commerce/routes.js', true],
+    ['/api/admin/resend', './resend/routes.js', false],
+    ['/api/r2', './r2/routes.js', true],
   ];
-  for (const [mount, mod] of optional) {
+  for (const [mount, mod, critical] of optional) {
     try {
       const m = await import(mod);
       const router = m.default ?? m;
       app.use(mount, router);
+      logger.info(`Router ${mount} loaded successfully`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'unknown';
-      logger.warn(`Optional router ${mount} not loaded: ${msg}`);
+      const entry = { mount, module: mod, error: msg, timestamp: new Date().toISOString() };
+      failedRouters.push(entry);
+      if (critical) {
+        logger.error(`CRITICAL: Router ${mount} failed to load: ${msg}`);
+      } else {
+        logger.warn(`Optional router ${mount} not loaded: ${msg}`);
+      }
     }
   }
+  if (failedRouters.length > 0) {
+    logger.error(`[mount-alert] ${failedRouters.length} router(s) failed to load: ${failedRouters.map(r => r.mount).join(', ')}`);
+  }
 }
+
+app.get('/api/admin/router-status', (req, res) => {
+  const token = (process.env.HEALTH_DETAIL_TOKEN || '').trim();
+  if (token && req.get('x-health-token') !== token) {
+    res.status(403).json({ success: false, message: 'Forbidden' });
+    return;
+  }
+  res.json({
+    success: true,
+    data: {
+      failed: failedRouters,
+      failedCount: failedRouters.length,
+      healthy: failedRouters.length === 0,
+    },
+  });
+});
 
 // ─── Error handler ──────────────────────────────────────────────────
 

@@ -219,7 +219,10 @@ router.patch(
         return;
       }
       const requiresCleanScan = target === 'published' || target === 'pending_review';
-      if (requiresCleanScan && product.scanStatus !== 'clean') {
+      const hasNoBuild = !product.buildR2Key && !product.quarantineKey;
+      const staffOverride = isAdmin || isMod;
+      const scanExempt = hasNoBuild || staffOverride;
+      if (requiresCleanScan && product.scanStatus !== 'clean' && !scanExempt) {
         res.status(409).json({
           success: false,
           message: `Cannot move to "${target}" until the build passes virus scan (current scan_status=${product.scanStatus})`,

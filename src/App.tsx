@@ -15,6 +15,7 @@ import { SearchProvider } from './contexts/SearchContext';
 import { NetworkProvider } from './contexts/NetworkContext';
 import { queryClient } from './lib/queryClient';
 import CookieConsent from './components/CookieConsent';
+import ScrollToTop from './components/ScrollToTop';
 
 /** Lazy with automatic retry — retries chunk loading on network errors (mobile, offline). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,6 +81,7 @@ function App() {
         <ToastProvider>
         <SearchProvider>
           <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <ScrollToTop />
             <div className="min-h-screen bg-gradient-to-br from-ton-900 to-cosmic-900 text-white">
               <Header />
               <main className="container mx-auto px-4 py-8">

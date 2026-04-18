@@ -99,11 +99,92 @@ body {
   animation: gold-shimmer 6s ease-in-out infinite;
 }
 
+/* ═══ Neon Demo UI badge ═══ */
+
+@keyframes neon-border-spin {
+  0% { --angle: 0deg; }
+  100% { --angle: 360deg; }
+}
+
+@keyframes neon-pulse-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 4px rgba(0, 245, 255, 0.3),
+      0 0 12px rgba(0, 245, 255, 0.15),
+      inset 0 0 8px rgba(0, 245, 255, 0.05);
+  }
+  50% {
+    box-shadow:
+      0 0 8px rgba(0, 245, 255, 0.5),
+      0 0 24px rgba(0, 245, 255, 0.25),
+      inset 0 0 12px rgba(0, 245, 255, 0.1);
+  }
+}
+
+@keyframes neon-text-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    text-shadow:
+      0 0 4px rgba(0, 245, 255, 0.6),
+      0 0 11px rgba(0, 245, 255, 0.3),
+      0 0 19px rgba(0, 245, 255, 0.15);
+    opacity: 1;
+  }
+  20%, 24%, 55% {
+    text-shadow: none;
+    opacity: 0.8;
+  }
+}
+
+@keyframes gold-orbit {
+  0% { transform: rotate(0deg) translateX(12px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(12px) rotate(-360deg); }
+}
+
+.animate-neon-glow {
+  animation: neon-pulse-glow 2.5s ease-in-out infinite;
+}
+
+.animate-neon-flicker {
+  animation: neon-text-flicker 4s linear infinite;
+}
+
+.animate-gold-orbit {
+  animation: gold-orbit 8s linear infinite;
+}
+
+/* Product page neon card enhancements */
+.neon-card-gold {
+  background: linear-gradient(145deg, rgba(20, 20, 35, 0.95), rgba(10, 10, 20, 0.98));
+  border: 1px solid rgba(255, 215, 0, 0.12);
+  box-shadow: 0 0 40px rgba(255, 215, 0, 0.04);
+  transition: border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+.neon-card-gold:hover {
+  border-color: rgba(255, 215, 0, 0.25);
+  box-shadow: 0 0 60px rgba(255, 215, 0, 0.08);
+}
+
+.neon-card-cyan {
+  background: linear-gradient(145deg, rgba(15, 20, 35, 0.95), rgba(10, 12, 25, 0.98));
+  border: 1px solid rgba(0, 245, 255, 0.1);
+  box-shadow: 0 0 30px rgba(0, 245, 255, 0.03);
+  transition: border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+.neon-card-cyan:hover {
+  border-color: rgba(0, 245, 255, 0.2);
+  box-shadow: 0 0 50px rgba(0, 245, 255, 0.06);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-float,
   .animate-pulse-slow,
   .animate-sparkle,
   .animate-aura-pulse,
+  .animate-neon-glow,
+  .animate-neon-flicker,
+  .animate-gold-orbit,
   .gold-shimmer-text {
     animation: none !important;
   }

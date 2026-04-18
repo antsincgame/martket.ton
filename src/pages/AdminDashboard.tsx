@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock, Coins, Mail, Folder, MessageCircle, ShieldCheck } from 'lucide-react';
+import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock, Coins, Mail, Folder, MessageCircle, ShieldCheck, Bug } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import SecurityMonitor from '../components/SecurityMonitor';
 import RealUserManagement from '../components/RealUserManagement';
@@ -12,6 +12,7 @@ import AnalyticsDashboard from '../components/admin/AnalyticsDashboard';
 import SystemConfig from '../components/admin/SystemConfig';
 import SupportTickets from '../components/admin/SupportTickets';
 import VerifiedDemiurges from '../components/admin/VerifiedDemiurges';
+import ClientErrorsPanel from '../components/admin/ClientErrorsPanel';
 
 const AdminDashboard = () => {
   const { user, hasPermission, getSecurityLevel, hasRole, isAuthenticated, isLoading } = useAuth();
@@ -127,6 +128,13 @@ const AdminDashboard = () => {
       icon: MessageCircle,
       component: () => <SupportTickets isAdminView />,
       requiredPermission: { resource: '*', action: 'read' },
+    },
+    {
+      id: 'errors',
+      label: 'Errors',
+      icon: Bug,
+      component: ClientErrorsPanel,
+      requiredPermission: { resource: 'audit_logs', action: 'read' },
     },
     {
       id: 'system',

@@ -1,21 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, ExternalLink, Clock, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
-import { commerceUrl } from '../lib/commerceApi';
+import { Package, ExternalLink, Clock, CheckCircle, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
+import { fetchBuyerOrders, type BuyerOrderRow } from '../lib/commerceApi';
 import { logger } from '../lib/logger';
 import DisputeButton from '../components/order/DisputeButton';
-
-interface BuyerOrder {
-  id: string;
-  listingId: string;
-  listingTitle: string | null;
-  state: string;
-  amountRaw: string;
-  currency: string;
-  memo: string;
-  tonTxHash: string | null;
-  createdAt: string;
-}
 
 function rawToHuman(raw: string): string {
   if (!raw || raw === '0') return '0';
@@ -35,21 +23,26 @@ const stateConfig: Record<string, { label: string; icon: typeof Clock; className
 };
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<BuyerOrder[]>([]);
+  const [orders, setOrders] = useState<BuyerOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchOrders = () => {
+  const loadOrders = useCallback(async () => {
     setLoading(true);
-    fetch(commerceUrl('/buyers/me/orders'), { credentials: 'include' })
-      .then((r) => r.json())
-      .then((body: { data?: { orders: BuyerOrder[] } }) => {
-        setOrders(body.data?.orders ?? []);
-      })
-      .catch((err: unknown) => logger.warn('[orders]', err))
-      .finally(() => setLoading(false));
-  };
+    setError(null);
+    try {
+      const data = await fetchBuyerOrders();
+      setOrders(data);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to load orders';
+      logger.warn('[orders]', err);
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => { fetchOrders(); }, []);
+  useEffect(() => { loadOrders(); }, [loadOrders]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -62,7 +55,22 @@ export default function OrdersPage() {
         <div className="text-center py-12 text-gray-400">Loading orders…</div>
       )}
 
-      {!loading && orders.length === 0 && (
+      {!loading && error && (
+        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center space-y-3">
+          <AlertTriangle className="w-8 h-8 text-red-400 mx-auto" />
+          <p className="text-red-300 text-sm">{error}</p>
+          <button
+            type="button"
+            onClick={loadOrders}
+            className="inline-flex items-center gap-1.5 text-sm text-[#00F5FF] hover:underline"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && orders.length === 0 && (
         <div className="text-center py-12 space-y-2">
           <p className="text-gray-400">No orders yet.</p>
           <Link to="/" className="text-[#00F5FF] hover:underline text-sm">Browse products</Link>
@@ -107,7 +115,7 @@ export default function OrdersPage() {
                     </a>
                   )}
                   {(order.state === 'paid' || order.state === 'fulfilled') && (
-                    <DisputeButton orderId={order.id} onDisputeOpened={fetchOrders} />
+                    <DisputeButton orderId={order.id} onDisputeOpened={loadOrders} />
                   )}
                 </div>
               </div>

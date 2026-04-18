@@ -183,6 +183,54 @@ Production CSP:
 - `style-src 'self' 'unsafe-inline'` (required for TonConnect UI)
 - `upgrade-insecure-requests`
 
+## TON/USD Price Endpoint
+
+### `GET /api/ton-price`
+Returns the current TON/USD exchange rate from CoinGecko, cached for 5 minutes.
+
+```bash
+curl -s http://localhost:8081/api/ton-price | jq .
+# { "success": true, "data": { "usd": 3.42, "updatedAt": "2026-04-18T..." } }
+```
+
+No API key is required for CoinGecko's public endpoint (rate limit: 10-30 req/min).
+If CoinGecko is down, returns the last cached value with `"stale": true`.
+
+### Coolify Deployment Instructions
+
+The `/api/ton-price` endpoint requires **no additional env vars**. It works
+out of the box via the public CoinGecko API.
+
+If you want to use CoinGecko's paid tier for higher rate limits:
+1. Get a CoinGecko API key at https://www.coingecko.com/en/api/pricing
+2. Add `COINGECKO_API_KEY` to your Coolify env vars
+3. The endpoint currently uses the public API — to switch to pro, update
+   the fetch URL in `backend/server.ts` to `https://pro-api.coingecko.com/...`
+   with the `x-cg-pro-api-key` header.
+
+For self-hosted price caching, deploy a cron job that writes to a Redis key
+and have the backend read from Redis instead of CoinGecko directly.
+
+## Client Error Reporting
+
+### `POST /api/client-errors`
+Frontend ErrorBoundary sends crash details (message, stack, path, viewport)
+to this endpoint. Errors are:
+1. Logged to stdout with a unique `ce_*` error ID
+2. Saved to the `api_audit_logs` collection with `action: "client_error"`
+3. Visible in Admin Dashboard → Errors tab
+
+Rate limited to 10 requests/minute per IP.
+
+### `GET /api/admin/router-status`
+Returns the list of optional routers that failed to load at startup.
+Requires `X-Health-Token` header (same as detailed health).
+
+```bash
+curl -s -H "X-Health-Token: $HEALTH_DETAIL_TOKEN" \
+  http://localhost:8081/api/admin/router-status | jq .
+```
+
 ## Monitoring Recommendations
 
 ### Mandatory (implemented)
@@ -201,3 +249,6 @@ Production CSP:
   - Error rate > 5% over 5 minutes
   - P99 latency > 5 seconds
   - Disk usage > 80%
+  - `CRITICAL: Router` in logs (optional router failed to load)
+  - `[client-error]` in logs (frontend crash reported)
+  - `/api/admin/router-status` returning `healthy: false`

@@ -6,6 +6,7 @@ import { resolvePublicDeveloperProfile } from '../domain/marketplace/marketplace
 import { slugify } from '../utils/slugify';
 import LoadingScreen from '../components/LoadingScreen';
 import Breadcrumbs from '../components/Breadcrumbs';
+import DemoUiBadge from '../components/DemoUiBadge';
 import DevSacredBackground from '../components/developer/DevSacredBackground';
 import DevCinematicHero from '../components/developer/DevCinematicHero';
 import DevStatsConstellation from '../components/developer/DevStatsConstellation';
@@ -123,14 +124,17 @@ const DeveloperPage = () => {
     <div className="relative max-w-7xl mx-auto pb-16">
       <DevSacredBackground />
 
+      <DemoUiBadge variant="floating" tint="gold" label="Demo UI" />
+
       <div className="relative space-y-10 sm:space-y-14">
-        <div className="px-6 sm:px-10">
+        <div className="px-6 sm:px-10 flex items-center justify-between">
           <Breadcrumbs
             items={[
               { label: 'Developers' },
               { label: profile.displayName },
             ]}
           />
+          <DemoUiBadge variant="inline" tint="magenta" label="Demiurge" className="hidden sm:inline-flex" />
         </div>
 
         <DevCinematicHero profile={profile} isTopDev={isTopDev} />

@@ -104,7 +104,8 @@ export async function fetchUsers(token: string): Promise<UserProfile[]> {
 // ─── TON balance ────────────────────────────────────────────────────
 
 export async function fetchTonBalance(address: string): Promise<string> {
-  const base = 'https://tonapi.io';
+  const isTestnet = (() => { try { return localStorage.getItem('ton_network') === 'testnet'; } catch { return false; } })();
+  const base = isTestnet ? 'https://testnet.tonapi.io' : 'https://tonapi.io';
   const res = await fetch(`${base}/v2/accounts/${encodeURIComponent(address)}`);
   if (!res.ok) return '0';
   const data = await res.json() as { balance?: string | number };

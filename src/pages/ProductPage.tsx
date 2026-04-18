@@ -1,13 +1,14 @@
-// Product page updated with TonForge terminology so the purchase card explains escrow/NFT/device flow instead of legacy promises.
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { Star, Download, Heart, Share2, Shield, Zap, User, Calendar, Gem, Sparkles, ThumbsUp, RefreshCw } from 'lucide-react';
+import { Star, Download, Share2, Shield, Zap, User, Calendar, Gem, Sparkles, ThumbsUp, RefreshCw, ExternalLink } from 'lucide-react';
 import { slugify } from '../utils/slugify';
 import LoadingScreen from '../components/LoadingScreen';
 import Breadcrumbs from '../components/Breadcrumbs';
+import DemoUiBadge from '../components/DemoUiBadge';
 import CommerceCheckout from '../components/checkout/CommerceCheckout';
 import { resolveProductDetail, resolveProductReviews } from '../domain/marketplace/marketplaceRemote';
 import { categoryLabelToSlug } from '../domain/marketplace/catalog';
+import { useTonPrice } from '../hooks/useTonPrice';
 import { logger } from '../lib/logger';
 import type { ProductDetail, ProductReview } from '../domain/marketplace/types';
 
@@ -18,7 +19,9 @@ const ProductPage = () => {
   const [product, setProduct] = useState<ProductDetail | null | undefined>(undefined);
   const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const { data: tonPrice } = useTonPrice();
   const [retryNonce, setRetryNonce] = useState(0);
+  const [shareConfirm, setShareConfirm] = useState(false);
 
   useEffect(() => {
     if (!slug) {
@@ -52,7 +55,6 @@ const ProductPage = () => {
     };
   }, [slug, retryNonce]);
 
-  // Canonical URL: if the user arrived via id or a non-canonical slug, silently replace with the pretty URL.
   useEffect(() => {
     if (!product || !slug) return;
     const canonical = slugify(product.name);
@@ -77,17 +79,20 @@ const ProductPage = () => {
   if (!product) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
-        <h1 className="text-2xl font-bold text-white mb-4">
-          {loadError ? 'Loading error' : 'Product not found'}
+        <div className="w-24 h-24 rounded-full bg-[#FFD700]/5 border border-[#FFD700]/15 flex items-center justify-center mb-8 animate-aura-pulse">
+          <Gem className="w-10 h-10 text-[#FFD700]/40" />
+        </div>
+        <h1 className="text-3xl font-display font-bold uppercase tracking-widest text-white mb-4">
+          {loadError ? 'Signal Lost' : 'Void Echo'}
         </h1>
-        <p className="text-gray-400 mb-6">
-          {loadError ?? 'Check the link or return to the catalog.'}
+        <p className="text-gray-500 mb-8 max-w-sm">
+          {loadError ?? 'This product does not exist in the forge. Check the link or return to the catalog.'}
         </p>
         <div className="flex gap-3">
           {loadError && (
             <button
               onClick={() => setRetryNonce((n) => n + 1)}
-              className="bg-white/10 hover:bg-white/20 text-white font-semibold px-6 py-3 rounded-full flex items-center gap-2 transition-colors"
+              className="bg-white/5 hover:bg-white/10 text-white font-semibold px-6 py-3 rounded-xl border border-white/10 flex items-center gap-2 transition-all duration-300 hover:border-[#00F5FF]/30 hover:shadow-[0_0_20px_rgba(0,245,255,0.1)]"
             >
               <RefreshCw className="w-4 h-4" />
               Retry
@@ -95,72 +100,107 @@ const ProductPage = () => {
           )}
           <Link
             to="/"
-            className="bg-ton-gradient text-white font-semibold px-6 py-3 rounded-full"
+            className="bg-gradient-to-r from-[#FFD700]/10 to-[#FFD700]/5 border border-[#FFD700]/30 text-[#FFD700] font-bold uppercase tracking-widest text-xs px-6 py-3 rounded-xl transition-all duration-300 hover:from-[#FFD700]/20 hover:shadow-[0_0_30px_rgba(255,215,0,0.15)]"
           >
-            Browse catalog
+            Browse Catalog
           </Link>
         </div>
       </div>
     );
   }
 
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({ title: product.name, url: window.location.href }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        setShareConfirm(true);
+        setTimeout(() => setShareConfirm(false), 2000);
+      }).catch(() => {});
+    }
+  };
+
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="max-w-7xl mx-auto">
         <Breadcrumbs
           items={[
-            {
-              label: product.category,
-              to: `/category/${categorySlug ?? 'apps'}`,
-            },
+            { label: product.category, to: `/category/${categorySlug ?? 'apps'}` },
             { label: product.name },
           ]}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2">
-            {/* Product Images */}
-            <div className="mb-8">
-              <div className="aspect-video bg-gradient-to-br from-purple-500/20 to-blue-500/20 rounded-2xl overflow-hidden mb-4">
-                <img
-                  src={product.images[selectedImage]}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
+          {/* ─── Main Content ─── */}
+          <div className="lg:col-span-2 space-y-8">
+
+            {/* Hero Image */}
+            <div className="relative">
+              <DemoUiBadge variant="corner" tint="cyan" />
+              <div className="aspect-video rounded-2xl overflow-hidden bg-gradient-to-br from-[#0D0D1A] to-[#12121F] border border-white/5">
+                {product.images.length > 0 ? (
+                  <img
+                    src={product.images[selectedImage]}
+                    alt={product.name}
+                    className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="relative">
+                      <Gem className="w-20 h-20 text-[#FFD700]/15" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-full bg-[#FFD700]/10 animate-aura-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="absolute inset-0 pointer-events-none rounded-2xl ring-1 ring-inset ring-white/5" />
               </div>
-              <div className="flex space-x-4 overflow-x-auto">
-                {product.images.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                      selectedImage === index
-                        ? 'border-ton-500 scale-105'
-                        : 'border-white/20 hover:border-white/40'
-                    }`}
-                  >
-                    <img src={image} alt={`Screenshot ${index + 1}`} className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
+              {product.images.length > 1 && (
+                <div className="flex gap-3 mt-4 overflow-x-auto scrollbar-hide">
+                  {product.images.map((image, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedImage(index)}
+                      className={`flex-shrink-0 w-20 h-14 rounded-lg overflow-hidden border-2 transition-all duration-300 ${
+                        selectedImage === index
+                          ? 'border-[#FFD700]/60 shadow-[0_0_15px_rgba(255,215,0,0.2)] scale-105'
+                          : 'border-white/10 hover:border-white/25 opacity-60 hover:opacity-100'
+                      }`}
+                    >
+                      <img src={image} alt={`View ${index + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Product Info */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 mb-8">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h1 className="text-3xl font-display font-bold text-white mb-2 flex items-center">
-                    {product.name}
+            {/* Product Info Card */}
+            <div className="neon-card-gold rounded-2xl p-6 backdrop-blur-sm">
+              <div className="flex items-start justify-between mb-5">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h1 className="text-2xl sm:text-3xl font-display font-bold text-white uppercase tracking-tight">
+                      {product.name}
+                    </h1>
                     {product.isFeatured && (
-                      <Gem className="w-6 h-6 ml-3 text-purple-400 animate-sparkle" />
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#8B5CF6]/10 border border-[#8B5CF6]/25 text-[10px] font-bold uppercase tracking-widest text-[#8B5CF6]">
+                        <Gem className="w-3 h-3" />
+                        Featured
+                      </span>
                     )}
-                  </h1>
-                  <p className="text-purple-400 font-medium flex items-center">
-                    by <Link to={`/developer/${slugify(product.developer)}`} className="ml-1 underline decoration-purple-700 underline-offset-2 hover:text-purple-300 transition-colors">{product.developer}</Link>
+                  </div>
+                  <p className="text-gray-400 text-sm flex items-center gap-1">
+                    by
+                    <Link
+                      to={`/developer/${slugify(product.developer)}`}
+                      className="text-[#FFD700] hover:text-[#FFE066] transition-colors font-medium"
+                    >
+                      {product.developer}
+                    </Link>
                     {(product.donationAmount ?? 0) > 0 && (
-                      <span className="ml-4 bg-yellow-500/20 border border-yellow-500/30 px-2 py-1 rounded-full text-xs text-yellow-400 flex items-center">
-                        <Heart className="w-3 h-3 mr-1" />
+                      <span className="ml-3 inline-flex items-center gap-1 bg-[#FFD700]/5 border border-[#FFD700]/15 px-2.5 py-0.5 rounded-full text-[10px] font-semibold text-[#FFD700]">
+                        <Sparkles className="w-3 h-3" />
                         {product.donationAmount} TON blessed
                       </span>
                     )}
@@ -168,205 +208,206 @@ const ProductPage = () => {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-6 mb-6">
-                <div className="flex items-center space-x-1">
+              {/* Stats Row */}
+              <div className="flex items-center gap-6 mb-6 py-3 px-4 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="flex items-center gap-1.5">
                   <div className="flex items-center">
                     {[...Array(5)].map((_, i) => (
                       <Star
                         key={i}
-                        className={`w-5 h-5 ${
+                        className={`w-4 h-4 ${
                           i < Math.floor(product.rating)
-                            ? 'text-yellow-400 fill-current'
-                            : 'text-gray-600'
+                            ? 'text-[#FFD700] fill-current'
+                            : 'text-white/10'
                         }`}
                       />
                     ))}
                   </div>
-                  <span className="text-yellow-400 font-semibold ml-2">{product.rating}</span>
-                  <span className="text-gray-400">({product.reviewStatsCount} reviews)</span>
+                  <span className="text-[#FFD700] font-bold text-sm">{product.rating}</span>
+                  <span className="text-gray-600 text-xs">({product.reviewStatsCount})</span>
                 </div>
-                <div className="flex items-center space-x-1 text-gray-400">
-                  <Download className="w-5 h-5" />
-                  <span>{product.downloads.toLocaleString()} downloads</span>
+                <div className="w-px h-4 bg-white/10" />
+                <div className="flex items-center gap-1.5 text-gray-400 text-xs">
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{product.downloads.toLocaleString()}</span>
                 </div>
               </div>
 
-              <p className="text-gray-300 mb-6 leading-relaxed">
-                {product.description}
-              </p>
+              <p className="text-gray-300 leading-relaxed mb-6">{product.description}</p>
 
               {/* Tags */}
-              <div className="flex flex-wrap gap-2 mb-6">
-                {product.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="bg-ton-500/20 text-ton-400 px-3 py-1 rounded-full text-sm border border-ton-500/30"
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
+              {product.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {product.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="bg-[#00F5FF]/5 text-[#00F5FF] px-3 py-1 rounded-full text-xs border border-[#00F5FF]/15 font-medium"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               <div id="checkout-section">
                 <CommerceCheckout catalogProductId={product.id} />
               </div>
 
-              {/* Actions */}
-              <div className="flex flex-col sm:flex-row gap-4 mt-6">
+              {/* Share */}
+              <div className="mt-6 flex items-center gap-3">
                 <button
                   type="button"
-                  className="bg-white/10 hover:bg-white/20 text-white font-semibold py-4 px-6 rounded-full transition-all duration-300 border border-white/20 flex items-center justify-center space-x-2"
+                  onClick={handleShare}
+                  className="group flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-gray-400 text-sm transition-all duration-300 hover:border-[#00F5FF]/30 hover:text-[#00F5FF] hover:shadow-[0_0_20px_rgba(0,245,255,0.08)]"
                 >
-                  <Heart className="w-5 h-5" />
-                  <span>Wishlist</span>
-                </button>
-                <button
-                  type="button"
-                  className="bg-white/10 hover:bg-white/20 text-white font-semibold py-4 px-6 rounded-full transition-all duration-300 border border-white/20 flex items-center justify-center space-x-2"
-                >
-                  <Share2 className="w-5 h-5" />
-                  <span>Share</span>
+                  <Share2 className="w-4 h-4" />
+                  {shareConfirm ? 'Copied!' : 'Share'}
                 </button>
               </div>
             </div>
 
-            {/* Description */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 mb-8">
-              <h2 className="text-2xl font-display font-bold text-white mb-4 flex items-center">
-                <Sparkles className="w-6 h-6 mr-3 text-purple-400" />
-                Sacred Description
-              </h2>
-              <div className="text-gray-300 leading-relaxed whitespace-pre-line">
-                {product.longDescription}
+            {/* Long Description */}
+            {product.longDescription && (
+              <div className="neon-card-cyan rounded-2xl p-6 backdrop-blur-sm">
+                <h2 className="text-xl font-display font-bold text-white uppercase tracking-wider mb-5 flex items-center gap-3">
+                  <Sparkles className="w-5 h-5 text-[#8B5CF6]" />
+                  Description
+                </h2>
+                <div className="text-gray-300 leading-relaxed whitespace-pre-line text-sm">
+                  {product.longDescription}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Reviews */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-              <h2 className="text-2xl font-display font-bold text-white mb-6 flex items-center">
-                <Star className="w-6 h-6 mr-3 text-yellow-400" />
-                Sacred Reviews
-              </h2>
-              <div className="space-y-6">
-                {reviews.map((review) => (
-                  <div key={review.id} className="border-b border-white/10 pb-6 last:border-b-0">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                          <User className="w-5 h-5 text-white" />
+            {reviews.length > 0 && (
+              <div className="neon-card-gold rounded-2xl p-6 backdrop-blur-sm">
+                <h2 className="text-xl font-display font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-3">
+                  <Star className="w-5 h-5 text-[#FFD700]" />
+                  Reviews
+                  <span className="text-gray-600 text-xs font-sans normal-case tracking-normal font-normal">
+                    ({reviews.length})
+                  </span>
+                </h2>
+                <div className="space-y-5">
+                  {reviews.map((review) => (
+                    <div key={review.id} className="border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CF6]/30 to-[#FF00FF]/20 border border-[#8B5CF6]/20 flex items-center justify-center flex-shrink-0">
+                          <User className="w-4 h-4 text-[#8B5CF6]" />
                         </div>
-                        <div>
-                          <div className="font-semibold text-white">{review.author}</div>
-                          <div className="flex items-center space-x-2">
-                            <div className="flex items-center">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={`w-4 h-4 ${
-                                    i < review.rating
-                                      ? 'text-yellow-400 fill-current'
-                                      : 'text-gray-600'
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                            <span className="text-gray-400 text-sm">{review.date}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="font-semibold text-white text-sm">{review.author}</span>
+                            <span className="text-gray-600 text-xs">{review.date}</span>
+                          </div>
+                          <div className="flex items-center">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`w-3 h-3 ${
+                                  i < review.rating ? 'text-[#FFD700] fill-current' : 'text-white/10'
+                                }`}
+                              />
+                            ))}
                           </div>
                         </div>
                       </div>
+                      <p className="text-gray-400 text-sm leading-relaxed ml-12">{review.comment}</p>
+                      {review.helpful > 0 && (
+                        <div className="ml-12 mt-2 text-xs text-gray-600 flex items-center gap-1">
+                          <ThumbsUp className="w-3 h-3" />
+                          {review.helpful} found helpful
+                        </div>
+                      )}
                     </div>
-                    <p className="text-gray-300 mb-3">{review.comment}</p>
-                    <div className="flex items-center space-x-4 text-sm text-gray-400">
-                      <button className="hover:text-white transition-colors">
-                        <ThumbsUp className="w-3.5 h-3.5 inline mr-1" /> Helpful ({review.helpful})
-                      </button>
-                      <button className="hover:text-white transition-colors">Reply</button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
+          {/* ─── Sidebar ─── */}
+          <div className="lg:col-span-1 space-y-6">
+
             {/* Purchase Card */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 mb-6 sticky top-24">
-              <div className="text-center mb-6">
-                <div className="text-3xl font-display font-bold text-ton-400 mb-2 flex items-center justify-center">
-                  <Zap className="w-6 h-6 mr-2" />
-                  {product.price} TON
+            <div className="relative sticky top-24 neon-card-gold rounded-2xl p-6 backdrop-blur-sm overflow-hidden">
+              <DemoUiBadge variant="corner" tint="gold" label="Demo UI" />
+
+              {/* Sacred glow behind price */}
+              <div className="absolute top-8 left-1/2 -translate-x-1/2 w-32 h-32 rounded-full bg-[#FFD700]/5 blur-3xl pointer-events-none" />
+
+              <div className="relative text-center mb-6 pt-2">
+                <div className="text-3xl font-display font-black text-white mb-1 flex items-center justify-center gap-2">
+                  <Zap className="w-6 h-6 text-[#FFD700]" />
+                  <span className="gold-shimmer-text">{product.price} TON</span>
                 </div>
-                <p className="text-gray-400 text-sm">≈ ${(product.price * 2.3).toFixed(2)} USD</p>
+                {tonPrice ? (
+                  <p className="text-gray-500 text-sm font-medium">
+                    ≈ <span className="text-gray-400">${(product.price * tonPrice).toFixed(2)}</span> USD
+                  </p>
+                ) : (
+                  <p className="text-gray-600 text-xs">on-chain settlement via TON</p>
+                )}
               </div>
 
               <button
                 type="button"
                 onClick={() => document.getElementById('checkout-section')?.scrollIntoView({ behavior: 'smooth' })}
-                className="w-full bg-ton-gradient hover:scale-105 text-white font-semibold py-4 px-6 rounded-full transition-all duration-300 shadow-lg hover:shadow-ton-500/50 mb-4"
+                className="relative w-full py-4 px-6 rounded-xl font-bold text-sm uppercase tracking-[0.2em] text-[#0A0A0A] bg-[#FFD700] transition-all duration-300 hover:shadow-[0_0_40px_rgba(255,215,0,0.3)] hover:scale-[1.02] active:scale-[0.98] mb-6"
               >
                 Purchase Now
               </button>
 
               <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">Category:</span>
-                  <span className="text-white">{product.category}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">Version:</span>
-                  <span className="text-white">{product.version}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">Size:</span>
-                  <span className="text-white">{product.size}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">Updated:</span>
-                  <span className="text-white">{product.lastUpdated}</span>
-                </div>
+                {[
+                  ['Category', product.category],
+                  ['Version', product.version],
+                  ['Size', product.size],
+                  ['Updated', product.lastUpdated],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">{label}</span>
+                    <span className="text-gray-300 font-medium">{value}</span>
+                  </div>
+                ))}
               </div>
 
-              <div className="mt-6 pt-6 border-t border-white/10">
-                <h4 className="font-semibold text-white mb-3 flex items-center">
-                  <Shield className="w-5 h-5 mr-2 text-green-400" />
+              <div className="mt-6 pt-6 border-t border-white/5">
+                <h4 className="font-display text-xs font-bold uppercase tracking-widest text-white mb-4 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-[#00FF88]" />
                   TonForge Guarantees
                 </h4>
-                <div className="space-y-2 text-sm text-gray-400">
-                  <div className="flex items-center">
-                    <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-                    72h escrow and dispute window
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-                    SHA-256 and malware verification
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-                    NFT-based lifetime entitlement
-                  </div>
-                  <div className="flex items-center">
-                    <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-                    Device activation and runtime checks
-                  </div>
+                <div className="space-y-2.5">
+                  {[
+                    '72h escrow and dispute window',
+                    'SHA-256 and malware verification',
+                    'NFT-based lifetime entitlement',
+                    'Device activation and runtime checks',
+                  ].map((text) => (
+                    <div key={text} className="flex items-start gap-2.5 text-sm">
+                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#00FF88] shadow-[0_0_6px_rgba(0,255,136,0.5)] flex-shrink-0" />
+                      <span className="text-gray-400">{text}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
 
             {/* System Requirements */}
-            <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-              <h3 className="font-semibold text-white mb-4 flex items-center">
-                <Calendar className="w-5 h-5 mr-2 text-purple-400" />
+            <div className="neon-card-cyan rounded-2xl p-6 backdrop-blur-sm">
+              <h3 className="font-display text-xs font-bold uppercase tracking-widest text-white mb-4 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-[#8B5CF6]" />
                 System Requirements
               </h3>
-              <div className="space-y-3 text-sm">
+              <div className="space-y-4 text-sm">
                 <div>
-                  <div className="text-gray-400 mb-1">Platforms:</div>
+                  <div className="text-gray-600 text-xs uppercase tracking-wider mb-2">Platforms</div>
                   <div className="flex flex-wrap gap-2">
                     {product.platforms.map((platform) => (
                       <span
                         key={platform}
-                        className="bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-xs border border-purple-500/30"
+                        className="bg-[#8B5CF6]/10 text-[#8B5CF6] px-2.5 py-1 rounded-lg text-xs border border-[#8B5CF6]/20 font-medium"
                       >
                         {platform}
                       </span>
@@ -374,11 +415,26 @@ const ProductPage = () => {
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-400 mb-1">Requirements:</div>
-                  <div className="text-white text-xs">{product.requirements}</div>
+                  <div className="text-gray-600 text-xs uppercase tracking-wider mb-1">Requirements</div>
+                  <div className="text-gray-400 text-xs">{product.requirements}</div>
                 </div>
               </div>
             </div>
+
+            {/* Developer Link */}
+            <Link
+              to={`/developer/${slugify(product.developer)}`}
+              className="group flex items-center gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-[#FFD700]/20 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,215,0,0.05)]"
+            >
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FFD700]/15 to-[#FF00FF]/10 border border-[#FFD700]/15 flex items-center justify-center">
+                <User className="w-5 h-5 text-[#FFD700]/60" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-semibold truncate">{product.developer}</p>
+                <p className="text-gray-600 text-xs">View demiurge profile</p>
+              </div>
+              <ExternalLink className="w-4 h-4 text-gray-600 group-hover:text-[#FFD700] transition-colors" />
+            </Link>
           </div>
         </div>
       </div>
