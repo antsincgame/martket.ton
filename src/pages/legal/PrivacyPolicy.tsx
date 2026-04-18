@@ -43,6 +43,8 @@ export default function PrivacyPolicy() {
             <li><strong>Account data:</strong> email address (via OTP authentication) or GitHub profile information (via OAuth)</li>
             <li><strong>Profile data:</strong> display name, biography, social links, avatar (optional)</li>
             <li><strong>Publisher data:</strong> product listings, descriptions, uploaded build files</li>
+            <li><strong>Identity verification (KYC/KYB) data:</strong> when required, Publishers submit identity documents (government-issued ID, proof of address, corporate registration) through a third-party verification provider. The Company receives only the verification status (pass/fail) and a verification reference ID — <strong>not</strong> copies of identity documents</li>
+            <li><strong>Tax documentation:</strong> IRS Forms W-9, W-8BEN, or W-8BEN-E submitted by Publishers for tax compliance purposes</li>
             <li><strong>Support communications:</strong> emails sent to our support addresses</li>
           </ul>
 
@@ -81,6 +83,9 @@ export default function PrivacyPolicy() {
             <li>Communicating order confirmations, disputes, and support responses</li>
             <li>Detecting and preventing fraud, abuse, and Terms violations</li>
             <li>Enforcing rate limits and security protections</li>
+            <li>Processing Publisher identity verification (KYC/KYB) through third-party providers to comply with anti-money laundering (AML) regulations</li>
+            <li>Collecting and retaining tax documentation (W-9, W-8BEN, W-8BEN-E) as required by U.S. tax law</li>
+            <li>Reporting transaction information to the IRS or other tax authorities when required by applicable law</li>
             <li>Complying with legal obligations</li>
           </ul>
         </section>
@@ -102,6 +107,8 @@ export default function PrivacyPolicy() {
               <tr className="border-b border-white/5"><td className="p-2">VirusTotal</td><td className="p-2">Security scanning</td><td className="p-2">Uploaded build files (hashes)</td></tr>
               <tr className="border-b border-white/5"><td className="p-2">Resend</td><td className="p-2">Email delivery</td><td className="p-2">Email address, message content</td></tr>
               <tr className="border-b border-white/5"><td className="p-2">TON Blockchain</td><td className="p-2">Payment settlement</td><td className="p-2">Public wallet address, tx hashes</td></tr>
+              <tr className="border-b border-white/5"><td className="p-2">KYC/KYB Provider (U.S.-based)</td><td className="p-2">Identity verification</td><td className="p-2">Government ID, proof of address (submitted directly to provider)</td></tr>
+              <tr className="border-b border-white/5"><td className="p-2">IRS / Tax Authorities</td><td className="p-2">Tax compliance reporting</td><td className="p-2">Tax forms (W-9, W-8BEN), transaction volumes (when legally required)</td></tr>
             </tbody>
           </table>
         </section>

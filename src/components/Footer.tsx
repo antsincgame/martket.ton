@@ -205,7 +205,7 @@ const Footer = () => {
             </div>
             <div className="flex items-start gap-1.5">
               <span className="mt-0.5 block h-1.5 w-1.5 shrink-0 rounded-full bg-[#FFD700]" />
-              <span><strong className="text-gray-300">Commission only.</strong> Platform fee of 2.5% deducted at contract level.</span>
+              <span><strong className="text-gray-300">Commission only.</strong> Platform fee of 15% deducted at contract level.</span>
             </div>
             <div className="flex items-start gap-1.5">
               <span className="mt-0.5 block h-1.5 w-1.5 shrink-0 rounded-full bg-[#8B5CF6]" />

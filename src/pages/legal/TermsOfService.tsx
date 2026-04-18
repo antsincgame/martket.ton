@@ -5,7 +5,7 @@ const E = 'TonForge LLC';
 const ST = 'Delaware';
 const D = 'tonforge.org';
 const C = `legal@${D}`;
-const FEE = '2.5%';
+const FEE = '15%';
 
 export default function TermsOfService() {
   return (
@@ -105,8 +105,36 @@ export default function TermsOfService() {
           </ul>
           <p>A platform commission of {FEE} is deducted at the contract level. The remaining amount is settled directly to the seller. Blockchain transaction fees (gas) are borne by the party initiating the transaction.</p>
           <p><strong>Irreversibility:</strong> Blockchain transactions are final and irreversible. The Company cannot reverse, cancel, or modify any on-chain transaction.</p>
-          <p><strong>Tax Obligations.</strong> All transactions on the Platform are denominated and settled exclusively in TON (Toncoin), a digital asset. The Company does not convert, exchange, or facilitate conversion of digital assets to fiat currency. Publishers and Buyers are solely responsible for determining, calculating, collecting, reporting, and remitting any applicable taxes — including but not limited to income tax, capital gains tax, value-added tax (VAT), goods and services tax (GST), and sales tax — arising from their transactions on the Platform. The Company does not provide tax advice and makes no representations regarding the tax treatment of digital asset transactions in any jurisdiction.</p>
-          <p>The Company may request tax documentation from Publishers if required by U.S. law, including but not limited to: IRS Form W-9 (for U.S. persons), IRS Form W-8BEN or W-8BEN-E (for non-U.S. persons and entities). Failure to provide requested tax documentation may result in withholding of payouts or suspension of Publisher privileges until documentation is received. The Company may report transaction information to the Internal Revenue Service (IRS) or other tax authorities as required by applicable law, including compliance with any future IRS reporting requirements for digital asset transactions under the Infrastructure Investment and Jobs Act (2021) or subsequent legislation.</p>
+          <p><strong>Tax Obligations — General.</strong> All transactions on the Platform are denominated and settled exclusively in TON (Toncoin), a digital asset classified as property by the U.S. Internal Revenue Service (IRS Notice 2014-21). The Company does not convert, exchange, or facilitate conversion of digital assets to fiat currency. The Company does not provide tax advice and makes no representations regarding the tax treatment of digital asset transactions in any jurisdiction. <strong>Users should consult a qualified tax professional.</strong></p>
+
+          <p><strong>User Tax Responsibility.</strong> Publishers and Buyers are solely responsible for determining, calculating, collecting, reporting, and remitting any applicable taxes — including but not limited to federal income tax, state income tax, capital gains tax, self-employment tax, value-added tax (VAT), goods and services tax (GST), and sales tax — arising from their transactions on the Platform.</p>
+
+          <p><strong>Platform Operator Tax Position — State of {ST}.</strong> The Company is organized as a limited liability company in the State of {ST}, United States. As such, the Company is subject to:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li><strong>{ST} Annual Franchise Tax:</strong> a flat fee of $300 per year, payable by June 1, applicable to all LLCs registered in {ST} regardless of revenue (Title 6, Chapter 18, &sect; 18-1107 of the {ST} Code);</li>
+            <li><strong>{ST} Gross Receipts Tax:</strong> a tax on total business receipts at rates ranging from 0.0945% to 0.7468% for service and digital activities (Title 30, Chapter 51 of the {ST} Code). The Company reports and remits this tax on its commission revenue. This tax is <em>not</em> passed through to Users — it is an operating expense of the Company;</li>
+            <li><strong>No State Sales Tax:</strong> {ST} does not impose a state sales tax on any goods or services, including digital products and SaaS. Accordingly, no state sales tax is collected on Platform transactions.</li>
+          </ul>
+
+          <p><strong>Federal Tax — IRS Digital Asset Treatment.</strong> Under current IRS guidance (Notice 2014-21, Rev. Rul. 2019-24, and the Infrastructure Investment and Jobs Act of 2021 as amended), digital assets including TON are treated as <strong>property</strong> for federal tax purposes. Key implications for Users:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li>Receiving TON as payment for goods or services constitutes <strong>ordinary income</strong>, valued at the fair market value of the TON at the time of receipt;</li>
+            <li>Disposing of TON (including spending it on the Platform) triggers a <strong>capital gain or loss</strong> calculated as the difference between the fair market value at disposal and your cost basis;</li>
+            <li>Publishers who receive TON as sales proceeds must report this as <strong>business income</strong> on the applicable tax return (e.g., Schedule C for sole proprietors, Form 1065 for partnerships, or Form 1120 for corporations);</li>
+            <li>The platform commission of {FEE} retained by the Company may be deductible as an ordinary and necessary business expense under IRC &sect; 162 for Publishers engaged in a trade or business.</li>
+          </ul>
+
+          <p><strong>IRS Form 1099-DA &amp; Broker Reporting.</strong> Beginning with tax year 2025, the IRS requires certain digital asset brokers to file Form 1099-DA reporting gross proceeds (and, from tax year 2026, cost basis) from digital asset transactions. Under the final regulations issued by Treasury (TD 10000 and TD 10021), <strong>non-custodial platforms that do not take possession of users&apos; digital assets are not classified as brokers</strong> for Form 1099-DA purposes. The Company operates as a non-custodial interface and does not take possession, custody, or control of User digital assets at any time. Accordingly, the Company is not currently required to file Form 1099-DA. <strong>This position is subject to change</strong> if future legislation or regulatory guidance expands the definition of &quot;broker&quot; to include non-custodial marketplace operators. The Company will comply with any such future requirements and will notify affected Users.</p>
+
+          <p><strong>Tax Documentation Requests.</strong> Notwithstanding the above, the Company may request tax documentation from Publishers as a condition of continued Platform access, including but not limited to:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li><strong>IRS Form W-9</strong> — for U.S. persons (citizens, residents, and domestic entities);</li>
+            <li><strong>IRS Form W-8BEN</strong> — for non-U.S. individuals;</li>
+            <li><strong>IRS Form W-8BEN-E</strong> — for non-U.S. entities.</li>
+          </ul>
+          <p>Failure to provide requested tax documentation may result in withholding of payouts, suspension of listing privileges, or account termination until documentation is received and verified. If backup withholding requirements apply under IRC &sect; 3406, the Company reserves the right to withhold the applicable percentage (currently 24%) from any payments subject to reporting.</p>
+
+          <p><strong>No Tax Advice Disclaimer.</strong> NOTHING IN THESE TERMS, ON THE PLATFORM, OR IN ANY COMMUNICATION FROM THE COMPANY CONSTITUTES TAX, LEGAL, OR FINANCIAL ADVICE. TAX LAWS VARY BY JURISDICTION AND CHANGE FREQUENTLY. YOU ARE SOLELY RESPONSIBLE FOR YOUR TAX COMPLIANCE AND SHOULD CONSULT A QUALIFIED TAX PROFESSIONAL REGARDING YOUR SPECIFIC SITUATION.</p>
         </section>
 
         <section>

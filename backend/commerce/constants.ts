@@ -33,4 +33,4 @@ export const CURRENCY = {
   JETTON: 'JETTON',
 } as const;
 
-export const DEFAULT_PLATFORM_FEE_BPS = parseInt(process.env.PLATFORM_FEE_BPS || '250', 10);
+export const DEFAULT_PLATFORM_FEE_BPS = parseInt(process.env.PLATFORM_FEE_BPS || '1500', 10);
