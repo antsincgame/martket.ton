@@ -3,6 +3,9 @@ import { nanoRawToTonHuman } from './money.js';
 import { CURRENCY } from './constants.js';
 import type { AppwriteDoc } from '../domain/appwrite-helpers.js';
 import { str } from '../utils/params.js';
+import { resolveProfile } from '../middleware/auth.js';
+import { addressesEqual } from './tonVerify.js';
+import type { Profile } from '../domain/types.js';
 
 export function commerceAdmin(req: Request, res: Response, next: () => void): void {
   const got = str(req.headers['x-commerce-admin-secret']);
@@ -12,6 +15,27 @@ export function commerceAdmin(req: Request, res: Response, next: () => void): vo
     return;
   }
   next();
+}
+
+/**
+ * Resolves the caller's profile and verifies that the given wallet belongs
+ * to them. Returns the profile on success or sends a 403 and returns null.
+ */
+export async function requireWalletOwner(
+  req: Request,
+  res: Response,
+  wallet: string,
+): Promise<Profile | null> {
+  const profile = await resolveProfile(req);
+  if (!profile || !profile.tonAddress) {
+    res.status(403).json({ error: 'Wallet not linked to your profile', code: 'NO_WALLET' });
+    return null;
+  }
+  if (!addressesEqual(profile.tonAddress, wallet)) {
+    res.status(403).json({ error: 'Wallet does not belong to your account', code: 'WALLET_MISMATCH' });
+    return null;
+  }
+  return profile;
 }
 
 export function mapListingPublic(doc: AppwriteDoc) {

@@ -22,7 +22,7 @@ import { apiRequireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
 import { sellerRegisterSchema, createListingSchema, patchListingSchema } from './validation.js';
-import { mapListingPublic, appwriteCodeOrZero } from './helpers.js';
+import { mapListingPublic, appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
 
 const router = express.Router();
 const upload = multer({
@@ -54,6 +54,8 @@ router.post('/sellers/register', apiRequireAuth(), validateBody(sellerRegisterSc
       displayName: string;
       bio: string;
     };
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
     const db = databases();
     const { documents } = await db.listDocuments(DATABASE_ID, COL_SELLER_PROFILES, [
       Query.equal('wallet', wallet),
@@ -90,6 +92,8 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
       res.status(400).json({ error: 'Missing required fields', code: 'VALIDATION' });
       return;
     }
+    const owner = await requireWalletOwner(req, res, String(sellerWallet));
+    if (!owner) return;
     const decimals =
       currency === CURRENCY.TON ? 9 : Math.min(18, Math.max(0, parseInt(String(decIn), 10) || 9));
 
@@ -129,6 +133,8 @@ router.patch('/listings/:id', apiRequireAuth(), validateBody(patchListingSchema)
     const rawHeader = req.headers['x-seller-wallet'];
     const sellerWallet = (req.body as Record<string, string>).sellerWallet || str(rawHeader);
     if (!sellerWallet) { res.status(400).json({ error: 'sellerWallet is required', code: 'VALIDATION' }); return; }
+    const owner = await requireWalletOwner(req, res, sellerWallet);
+    if (!owner) return;
     const db = databases();
     const existingRaw = await db.getDocument(DATABASE_ID, COL_LISTINGS, listingId);
     const existing = asDoc(existingRaw);
@@ -174,6 +180,8 @@ router.post('/listings/:id/asset', apiRequireAuth(), upload.single('file'), asyn
     const listingId = str(req.params.id);
     const sellerWallet = (req.body as Record<string, string>).sellerWallet;
     if (!sellerWallet || !req.file) { res.status(400).json({ error: 'sellerWallet and file are required', code: 'VALIDATION' }); return; }
+    const owner = await requireWalletOwner(req, res, sellerWallet);
+    if (!owner) return;
     const origName = (req.file.originalname || '').toLowerCase();
     const dotIdx = origName.lastIndexOf('.');
     const ext = dotIdx >= 0 ? origName.slice(dotIdx) : '';

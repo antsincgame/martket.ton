@@ -120,12 +120,12 @@ async function setupProfiles(databases) {
     else throw e;
   }
   try {
-    await databases.createIndex(DATABASE_ID, 'profiles', 'idx_appwrite_user', IndexType.Key, [
+    await databases.createIndex(DATABASE_ID, 'profiles', 'idx_appwrite_user', IndexType.Unique, [
       'appwrite_user_id',
     ]);
-    console.log('[core] Индекс profiles.appwrite_user_id');
+    console.log('[core] Unique index profiles.appwrite_user_id');
   } catch (e) {
-    if (e.code === 409) console.log('[core] Индекс appwrite_user_id уже есть');
+    if (e.code === 409) console.log('[core] Index appwrite_user_id already exists');
     else throw e;
   }
   try {

@@ -11,7 +11,7 @@ import { apiRequireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
 import { createDisputeSchema, resolveDisputeSchema, orderStateSchema } from './validation.js';
-import { commerceAdmin } from './helpers.js';
+import { commerceAdmin, requireWalletOwner } from './helpers.js';
 
 const router = express.Router();
 
@@ -20,6 +20,8 @@ router.post('/disputes', apiRequireAuth(), validateBody(createDisputeSchema), as
     const { orderId, openedByWallet, reason } = req.body as {
       orderId: string; openedByWallet: string; reason: string;
     };
+    const owner = await requireWalletOwner(req, res, openedByWallet);
+    if (!owner) return;
     const db = databases();
     const order = await db.getDocument(DATABASE_ID, COL_ORDERS, orderId);
     if (!addressesEqual(order['buyerWallet'] as string, openedByWallet)) {
@@ -44,6 +46,8 @@ router.get('/sellers/:wallet/disputes', apiRequireAuth(), async (req: Request, r
   try {
     const wallet = str(req.params.wallet);
     if (!wallet) { res.status(400).json({ error: 'wallet param required', code: 'VALIDATION' }); return; }
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
     const db = databases();
 
     const { documents: sellerListings } = await db.listDocuments(DATABASE_ID, COL_LISTINGS, [

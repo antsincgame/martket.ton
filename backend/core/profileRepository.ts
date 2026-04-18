@@ -151,47 +151,60 @@ interface UpsertPayload {
  * Find-or-create a profile for an Appwrite Account user.
  *
  * GoD principle: one email = one profile. If a profile already exists for
- * this email (from a different auth method, e.g. magic-link vs GitHub OAuth),
+ * this email (from a different auth method, e.g. OTP vs GitHub OAuth),
  * we merge by updating the existing document with the new `appwrite_user_id`.
  * This prevents duplicate accounts and preserves purchases, trust_score, etc.
+ *
+ * Race-condition safety: if two concurrent requests both try to create a
+ * profile for the same user, the unique index on `appwrite_user_id` causes
+ * the second insert to fail. We catch that and retry the lookup.
  */
 export async function upsertProfileForAppwriteUser(
   appwriteUserId: string,
   payload: UpsertPayload,
 ): Promise<Profile | null> {
-  // Priority 1: profile already bound to this Appwrite account.
-  const byAccount = await findUserByAppwriteId(appwriteUserId);
-  // Priority 2: profile bound to this email (any or no provider).
-  const byEmail = payload.email ? await findUserByEmail(payload.email) : null;
+  const doUpsert = async (): Promise<Profile | null> => {
+    const byAccount = await findUserByAppwriteId(appwriteUserId);
+    const byEmail = payload.email ? await findUserByEmail(payload.email) : null;
+    const existing = byAccount ?? byEmail ?? null;
 
-  // Merge strategy: prefer byAccount; fall back to byEmail regardless of
-  // its current appwrite_user_id — the latest authenticated provider wins.
-  // This handles GitHub-OAuth → magic-link (or vice-versa) for the same email.
-  const existing = byAccount ?? byEmail ?? null;
+    const data: Record<string, unknown> = {
+      appwrite_user_id: appwriteUserId,
+      email: payload.email ?? existing?.email ?? null,
+      ton_address: payload.ton_address ?? existing?.tonAddress ?? null,
+      name: payload.name ?? existing?.name ?? 'Demiurge',
+      display_name:
+        payload.display_name ??
+        existing?.displayName ??
+        payload.name ??
+        existing?.name ??
+        'Demiurge',
+      role: normalizeLegacyRole(payload.role ?? existing?.role ?? 'demiurge'),
+      avatar: payload.avatar ?? existing?.avatar ?? null,
+      bio: payload.bio ?? existing?.bio ?? null,
+      security_level: payload.security_level ?? existing?.securityLevel ?? 'low',
+      is_active: payload.is_active !== false,
+    };
 
-  const data: Record<string, unknown> = {
-    appwrite_user_id: appwriteUserId,
-    email: payload.email ?? existing?.email ?? null,
-    ton_address: payload.ton_address ?? existing?.tonAddress ?? null,
-    name: payload.name ?? existing?.name ?? 'Demiurge',
-    display_name:
-      payload.display_name ??
-      existing?.displayName ??
-      payload.name ??
-      existing?.name ??
-      'Demiurge',
-    role: normalizeLegacyRole(payload.role ?? existing?.role ?? 'demiurge'),
-    avatar: payload.avatar ?? existing?.avatar ?? null,
-    bio: payload.bio ?? existing?.bio ?? null,
-    security_level: payload.security_level ?? existing?.securityLevel ?? 'low',
-    is_active: payload.is_active !== false,
+    if (existing) {
+      await databases().updateDocument(CORE_DATABASE_ID, COL_PROFILES, existing.id, data);
+      return findUserById(existing.id);
+    }
+    const id = generateId();
+    await databases().createDocument(CORE_DATABASE_ID, COL_PROFILES, id, data);
+    return findUserById(id);
   };
 
-  if (existing) {
-    await databases().updateDocument(CORE_DATABASE_ID, COL_PROFILES, existing.id, data);
-    return findUserById(existing.id);
+  try {
+    return await doUpsert();
+  } catch (e: unknown) {
+    const code = typeof e === 'object' && e !== null && 'code' in e ? (e as { code: number }).code : 0;
+    if (code === 409) {
+      // Unique constraint hit — another request won the race. Retry the
+      // lookup so we return the already-created profile instead of failing.
+      const retried = await findUserByAppwriteId(appwriteUserId);
+      if (retried) return retried;
+    }
+    throw e;
   }
-  const id = generateId();
-  await databases().createDocument(CORE_DATABASE_ID, COL_PROFILES, id, data);
-  return findUserById(id);
 }

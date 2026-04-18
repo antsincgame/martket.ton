@@ -17,7 +17,7 @@ import { apiRequireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
 import { createOrderSchema, confirmOrderSchema } from './validation.js';
-import { appwriteCodeOrZero } from './helpers.js';
+import { appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
 import { resolveProfile } from '../middleware/auth.js';
 import { insertPurchase } from '../core/purchaseRepository.js';
 
@@ -30,6 +30,8 @@ const limitCreateOrder = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, standard
 router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOrderSchema), async (req: Request, res: Response) => {
   try {
     const { listingId, buyerWallet } = req.body as { listingId: string; buyerWallet: string };
+    const owner = await requireWalletOwner(req, res, buyerWallet);
+    if (!owner) return;
     const netCfg = resolveNetworkConfig(req);
     const treasury = netCfg.treasuryAddress;
     if (!treasury) { res.status(503).json({ error: 'TREASURY_WALLET_ADDRESS not configured', code: 'CONFIG' }); return; }
@@ -97,6 +99,8 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
   try {
     const orderId = str(req.params.id);
     const { buyerWallet } = req.body as { txHash: string; buyerWallet: string };
+    const owner = await requireWalletOwner(req, res, buyerWallet);
+    if (!owner) return;
     const netCfg = resolveNetworkConfig(req);
     const treasury = netCfg.treasuryAddress;
     if (!treasury) { res.status(503).json({ error: 'Treasury not configured', code: 'CONFIG' }); return; }
@@ -160,6 +164,8 @@ router.get('/sellers/:wallet/orders', apiRequireAuth(), async (req: Request, res
   try {
     const wallet = str(req.params.wallet);
     if (!wallet) { res.status(400).json({ error: 'wallet param required', code: 'VALIDATION' }); return; }
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
     const db = databases();
     const limitRaw = typeof req.query.limit === 'string' ? req.query.limit : '100';
     const limit = Math.min(parseInt(limitRaw, 10) || 100, 500);
