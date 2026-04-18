@@ -14,7 +14,19 @@ export default function PrivacyPolicy() {
       </Link>
 
       <h1 className="text-3xl font-bold text-white mb-2">Privacy Policy</h1>
-      <p className="text-gray-500 text-sm mb-8">Effective: April 18, 2026 · Last updated: April 18, 2026</p>
+      <p className="text-gray-500 text-sm mb-4">Effective: April 18, 2026 · Last updated: April 18, 2026</p>
+
+      <div className="mb-8 rounded-xl border border-[#8B5CF6]/25 bg-gradient-to-r from-[#8B5CF6]/[0.06] to-transparent p-5">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-[#8B5CF6] mb-2">
+          Your Data, Your Rights
+        </h2>
+        <p className="text-sm text-gray-300 leading-relaxed">
+          This Privacy Policy is part of the{' '}
+          <Link to="/terms" className="text-[#FFD700] hover:underline">Terms of Service</Link> and
+          constitutes a binding agreement regarding how {E} handles your data.
+          <strong className="text-white"> We are non-custodial — we never hold your funds, passwords, or private keys.</strong>
+        </p>
+      </div>
 
       <div className="prose prose-invert prose-sm max-w-none space-y-6 text-gray-300">
 

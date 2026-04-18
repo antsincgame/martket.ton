@@ -6,6 +6,8 @@ import rateLimit from 'express-rate-limit';
 import { logger } from './logger.js';
 import { isCoreConfigured } from './core/appwriteServer.js';
 import { mahakalaHeaders, logShieldStatus } from './middleware/mahakala.js';
+import { requestIdMiddleware } from './middleware/requestId.js';
+import { requestLogger } from './middleware/requestLogger.js';
 import { createTonForgeService, setTonForgeService } from './tonforge/service.js';
 import { createDemoState } from './tonforge/demoData.js';
 import { loadTonForgeStateJson, saveTonForgeStateJson } from './tonforge/persistAppwrite.js';
@@ -24,6 +26,8 @@ const app = express();
 const PORT = process.env.PORT || 8081;
 
 app.set('trust proxy', 1);
+app.use(requestIdMiddleware);
+app.use(requestLogger);
 
 if (!isCoreConfigured()) {
   logger.warn('Appwrite core not configured — auth & database endpoints will fail');
@@ -32,33 +36,30 @@ if (!isCoreConfigured()) {
 // ─── Security middleware ────────────────────────────────────────────
 
 /**
- * Content Security Policy.
+ * Content Security Policy — hardened.
  *
- * NOTE: 'unsafe-inline' is currently required for `scriptSrc` and `styleSrc`
- *   - Vite legacy plugin and TonConnect inject small inline init scripts.
- *   - Tailwind / CSS-in-JS components inline some styles at runtime.
- * Removing it requires nonce-based CSP plumbing through index.html — tracked
- * as a follow-up. The current policy still blocks foreign script origins
- * and remote stylesheets, which is the highest-impact protection.
+ * script-src: NO 'unsafe-inline'. Vite production builds use module scripts
+ * loaded via `src` attributes, not inline code. This blocks XSS injection.
+ *
+ * style-src: 'unsafe-inline' retained — TonConnect UI injects `<style>`
+ * elements for its modal, and framer-motion sets element.style via JS.
+ * Style injection cannot steal cookies or execute code, so the risk is low.
  */
 app.use(helmet({
   contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'https:'],
       connectSrc: ["'self'", 'https://tonapi.io', 'https://testnet.tonapi.io', 'https://*.appwrite.io', 'https://cloud.appwrite.io', process.env.CORS_ORIGIN || ''].filter(Boolean),
       fontSrc: ["'self'", 'data:'],
       frameSrc: ["'self'"],
-      // Block <object>, <embed>, <applet> — major XSS vectors.
       objectSrc: ["'none'"],
-      // Disallow `<base href>` injection redirecting relative URLs.
       baseUri: ["'self'"],
-      // Forbid forms posting to other origins.
       formAction: ["'self'"],
-      // Prevent clickjacking by external iframes embedding our pages.
       frameAncestors: ["'self'"],
+      upgradeInsecureRequests: [],
     },
   } : false,
   crossOriginEmbedderPolicy: false,
@@ -136,6 +137,18 @@ app.get('/api/health', async (req, res) => {
     model: 'demiurge',
     storage: isR2 ? 'r2' : 'not_configured',
     scan,
+  });
+});
+
+/**
+ * Readiness endpoint — returns 503 if critical subsystems are down.
+ * Use this for load balancer health checks (vs /api/health for liveness).
+ */
+app.get('/api/ready', (_req, res) => {
+  const ready = isCoreConfigured();
+  res.status(ready ? 200 : 503).json({
+    ready,
+    appwrite: isCoreConfigured() ? 'ok' : 'not_configured',
   });
 });
 
@@ -243,8 +256,8 @@ async function mountOptionalRouters(): Promise<void> {
 // ─── Error handler ──────────────────────────────────────────────────
 
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error(`Unhandled error on ${req.method} ${req.path}:`, err.message, err.stack);
-  res.status(500).json({ success: false, message: 'Internal server error' });
+  logger.error(`Unhandled error on ${req.method} ${req.path} [${req.requestId || '-'}]:`, err.message, err.stack);
+  res.status(500).json({ success: false, message: 'Internal server error', requestId: req.requestId });
 });
 
 // ─── Bootstrap ──────────────────────────────────────────────────────

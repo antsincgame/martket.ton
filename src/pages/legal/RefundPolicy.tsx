@@ -16,9 +16,21 @@ export default function RefundPolicy() {
       </Link>
 
       <h1 className="text-3xl font-bold text-white mb-2">Refund &amp; DMCA Policy</h1>
-      <p className="text-gray-500 text-sm mb-8">
+      <p className="text-gray-500 text-sm mb-4">
         Effective date: April 18, 2026 · Last updated: April 18, 2026
       </p>
+
+      <div className="mb-8 rounded-xl border border-[#00FF88]/25 bg-gradient-to-r from-[#00FF88]/[0.06] to-transparent p-5">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-[#00FF88] mb-2">
+          Buyer &amp; Seller Protection
+        </h2>
+        <p className="text-sm text-gray-300 leading-relaxed">
+          This policy is part of the{' '}
+          <Link to="/terms" className="text-[#FFD700] hover:underline">Terms of Service</Link> and
+          governs refund eligibility, dispute resolution, and DMCA copyright takedown procedures.
+          <strong className="text-white"> All transactions are on-chain and irreversible after the dispute window closes.</strong>
+        </p>
+      </div>
 
       <div className="prose prose-invert prose-sm max-w-none space-y-6 text-gray-300">
 

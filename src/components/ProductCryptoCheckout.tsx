@@ -203,7 +203,7 @@ const ProductCryptoCheckout: FC<ProductCryptoCheckoutProps> = ({ catalogProductI
         <div className="grid gap-2 text-sm text-gray-300">
           <div className="flex items-center gap-2">
             <BadgeCheck className="h-4 w-4 text-green-400" />
-            <span>{app.trust.sellerBadge} · KYC {app.trust.kycStatus}</span>
+            <span>{app.trust.sellerBadge} · KYC {app.trust.kycStatus === 'approved' ? 'Verified' : 'Coming Soon (MVP)'}</span>
           </div>
           <div className="flex items-center gap-2">
             <ScrollText className="h-4 w-4 text-cyan-300" />

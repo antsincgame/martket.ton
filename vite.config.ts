@@ -28,7 +28,7 @@ export default defineConfig({
     }
   },
   preview: {
-    port: 4173, // PREVIEW на отдельном порту
+    port: 4173,
     strictPort: true,
     host: true
   },

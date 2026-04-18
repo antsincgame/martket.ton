@@ -15,14 +15,32 @@ export default function TermsOfService() {
       </Link>
 
       <h1 className="text-3xl font-bold text-white mb-2">Terms of Service</h1>
-      <p className="text-gray-500 text-sm mb-8">Effective: April 18, 2026 · Last updated: April 18, 2026</p>
+      <p className="text-gray-500 text-sm mb-4">Effective: April 18, 2026 · Last updated: April 18, 2026</p>
+
+      <div className="mb-8 rounded-xl border border-[#FFD700]/25 bg-gradient-to-r from-[#FFD700]/[0.06] to-transparent p-5">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-[#FFD700] mb-2">
+          Binding Legal Agreement
+        </h2>
+        <p className="text-sm text-gray-300 leading-relaxed mb-3">
+          This document is a <strong className="text-white">legally binding contract</strong> (User Agreement)
+          between you and {E}, a {ST} limited liability company. Under United States law,
+          your use of the Platform constitutes acceptance of all terms below.
+        </p>
+        <p className="text-sm text-gray-300 leading-relaxed">
+          This agreement also incorporates our{' '}
+          <Link to="/privacy" className="text-[#8B5CF6] hover:underline">Privacy Policy</Link> and{' '}
+          <Link to="/refund-policy" className="text-[#00FF88] hover:underline">Refund &amp; DMCA Policy</Link>.
+          If you do not agree to any part of these terms, <strong className="text-white">you must not use the Platform</strong>.
+        </p>
+      </div>
 
       <div className="prose prose-invert prose-sm max-w-none space-y-6 text-gray-300">
 
         <section>
           <h2 className="text-xl font-semibold text-white">1. Parties &amp; Acceptance</h2>
-          <p>These Terms of Service (&quot;Terms&quot;) constitute a legally binding agreement between you (&quot;User&quot;, &quot;you&quot;) and <strong>{E}</strong>, a limited liability company organized under the laws of the State of {ST}, United States (&quot;Company&quot;, &quot;we&quot;, &quot;us&quot;), operating the digital marketplace at <a href={`https://${D}`} className="text-[#00F5FF] hover:underline">{D}</a> (&quot;Platform&quot;).</p>
-          <p>By accessing or using the Platform, you agree to be bound by these Terms and our <Link to="/privacy" className="text-[#8B5CF6] hover:underline">Privacy Policy</Link>. If you do not agree, do not use the Platform.</p>
+          <p>These Terms of Service (&quot;Terms&quot;, &quot;Agreement&quot;, &quot;User Agreement&quot;) constitute a legally binding agreement between you (&quot;User&quot;, &quot;you&quot;, &quot;Buyer&quot;, &quot;Seller&quot;, &quot;Publisher&quot;) and <strong>{E}</strong>, a limited liability company organized under the laws of the State of {ST}, United States (&quot;Company&quot;, &quot;we&quot;, &quot;us&quot;, &quot;Platform Operator&quot;), operating the digital marketplace at <a href={`https://${D}`} className="text-[#00F5FF] hover:underline">{D}</a> (&quot;Platform&quot;).</p>
+          <p>By accessing, browsing, registering on, or using the Platform in any manner, you acknowledge that you have read, understood, and agree to be bound by these Terms, our <Link to="/privacy" className="text-[#8B5CF6] hover:underline">Privacy Policy</Link>, and our <Link to="/refund-policy" className="text-[#00FF88] hover:underline">Refund &amp; DMCA Policy</Link>. If you do not agree, you must immediately cease all use of the Platform.</p>
+          <p><strong>Electronic agreement.</strong> In accordance with the Electronic Signatures in Global and National Commerce Act (E-SIGN Act, 15 U.S.C. &sect;&sect; 7001-7031), your electronic acceptance of these Terms has the same legal force and effect as a handwritten signature on a paper contract. Your continued use of the Platform after posting of updated Terms constitutes your electronic acceptance of the modified Agreement.</p>
         </section>
 
         <section>

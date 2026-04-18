@@ -181,26 +181,59 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col items-stretch justify-between gap-6 border-t border-white/10 pt-8 md:flex-row md:items-center">
+        {/* ─── Legal Notice ─────────────────────────────────────────── */}
+        <div className="mt-10 rounded-xl border border-white/[0.08] bg-gradient-to-r from-white/[0.02] to-transparent p-5">
+          <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-[#FFD700]/80">
+            Legal &amp; User Protection
+          </h4>
+          <p className="mb-3 text-xs leading-relaxed text-gray-400">
+            By accessing or using <span className="text-white">tonforge.org</span> you agree to be
+            bound by our{' '}
+            <Link to="/terms" className="text-[#00F5FF] hover:underline">Terms of Service</Link>,{' '}
+            <Link to="/privacy" className="text-[#8B5CF6] hover:underline">Privacy Policy</Link>, and{' '}
+            <Link to="/refund-policy" className="text-[#00FF88] hover:underline">Refund &amp; DMCA Policy</Link>.
+            These documents constitute a legally binding agreement between you and TonForge LLC.
+          </p>
+          <div className="grid grid-cols-1 gap-2 text-[11px] text-gray-500 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="flex items-start gap-1.5">
+              <span className="mt-0.5 block h-1.5 w-1.5 shrink-0 rounded-full bg-[#00FF88]" />
+              <span><strong className="text-gray-300">Non-custodial.</strong> We never hold, store, or transmit your funds.</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <span className="mt-0.5 block h-1.5 w-1.5 shrink-0 rounded-full bg-[#00F5FF]" />
+              <span><strong className="text-gray-300">On-chain settlement.</strong> All payments are TON blockchain peer-to-peer.</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <span className="mt-0.5 block h-1.5 w-1.5 shrink-0 rounded-full bg-[#FFD700]" />
+              <span><strong className="text-gray-300">Commission only.</strong> Platform fee of 2.5% deducted at contract level.</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <span className="mt-0.5 block h-1.5 w-1.5 shrink-0 rounded-full bg-[#8B5CF6]" />
+              <span><strong className="text-gray-300">Delaware LLC.</strong> Subject to US federal &amp; state law.</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col items-stretch justify-between gap-6 border-t border-white/10 pt-6 md:flex-row md:items-center">
           <div className="text-center text-sm text-gray-500 md:text-left">
             &copy; {new Date().getFullYear()} TonForge LLC. Delaware, USA. All rights reserved.
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
             <Link
               to="/docs"
               className="inline-flex items-center gap-1.5 font-medium text-[#FFD700]/80 transition-colors hover:text-[#FFD700]"
             >
               <BookOpen className="h-3.5 w-3.5" aria-hidden />
-              Manifest / Docs
+              Docs
             </Link>
             <span className="hidden h-4 w-px bg-white/15 sm:inline" aria-hidden />
-            <Link to="/privacy" className="text-gray-400 transition-colors hover:text-white">
-              Privacy
+            <Link to="/terms" className="font-medium text-white/80 transition-colors hover:text-white">
+              Terms of Service
             </Link>
-            <Link to="/terms" className="text-gray-400 transition-colors hover:text-white">
-              Terms
+            <Link to="/privacy" className="font-medium text-white/80 transition-colors hover:text-white">
+              Privacy Policy
             </Link>
-            <Link to="/refund-policy" className="text-gray-400 transition-colors hover:text-white">
+            <Link to="/refund-policy" className="font-medium text-white/80 transition-colors hover:text-white">
               Refund &amp; DMCA
             </Link>
           </div>

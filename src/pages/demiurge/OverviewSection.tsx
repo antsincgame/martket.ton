@@ -1,6 +1,7 @@
 import { Package, ArrowRight, UserCheck, ExternalLink, Sparkles, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Skeleton } from '../../components/ui/Skeleton';
+import MvpBadge from '../../components/MvpBadge';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSessionStatsQuery } from '../../queries/sessionQueries';
 import CabinetHero, { type CabinetHeroKpi } from './components/CabinetHero';
@@ -72,6 +73,14 @@ export default function OverviewSection({
         publicSlug={user?.profile?.slug ?? null}
         kpis={kpis}
       />
+
+      <div className="rounded-xl border border-[#FFD700]/20 bg-gradient-to-r from-[#FFD700]/[0.04] to-transparent p-4 flex items-center gap-3">
+        <MvpBadge label="MVP Version" />
+        <p className="text-xs text-[#aaa] leading-relaxed">
+          Welcome to the TonForge MVP. Products and developer profiles shown are
+          demonstration data for investor review. Full marketplace launch coming soon.
+        </p>
+      </div>
 
       {dataError && <ErrorBanner message={dataError} />}
       {statsQuery.error && <ErrorBanner message={statsQuery.error.message} />}

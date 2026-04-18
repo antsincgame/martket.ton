@@ -64,11 +64,19 @@ export default function KycCard({ wallet, workspace, onSubmitted, setFlash }: Ky
   const badge = workspace?.developer.sellerBadge;
 
   return (
-    <section className="rounded-2xl border border-white/[0.08] bg-black/30 p-5">
+    <section className="relative rounded-2xl border border-white/[0.08] bg-black/30 p-5 overflow-hidden">
+      <div className="absolute top-3 right-3 rounded-full bg-gradient-to-r from-[#FFD700]/20 to-[#FFA500]/20 border border-[#FFD700]/30 px-3 py-1">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#FFD700]">Coming Soon &middot; MVP</span>
+      </div>
       <header className="mb-4 flex items-center gap-2">
         <ShieldCheck className="w-5 h-5 text-[#00FF88]" aria-hidden />
         <h2 className="text-base font-semibold text-white">Developer KYC</h2>
       </header>
+      <p className="mb-4 text-xs text-[#888] leading-relaxed">
+        KYC verification is under development. In the MVP phase, sellers can submit
+        their details for future review. Full automated identity verification will
+        be available in the next release.
+      </p>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
         <Field label="Display name" error={form.formState.errors.displayName?.message}>
