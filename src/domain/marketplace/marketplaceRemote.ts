@@ -10,6 +10,7 @@ import {
   getHomeCategorySummariesForProducts,
   getHomeSpotlightProductsForProducts,
 } from './catalog';
+import { CATALOG_LISTING_PRODUCTS, getSeedDetailOrNull } from './seed';
 import { slugify } from '../../utils/slugify';
 import type {
   CatalogListingProduct,
@@ -24,39 +25,52 @@ export interface MarketplaceInventoryLoad {
   products: CatalogListingProduct[];
   categorySummaries: HomeCategorySummary[];
   spotlight: CatalogListingProduct[];
-  source: 'appwrite' | 'empty';
+  source: 'appwrite' | 'seed' | 'empty';
 }
 
 let inventoryOnce: Promise<MarketplaceInventoryLoad> | null = null;
 
 export function getMarketplaceInventoryOnce(): Promise<MarketplaceInventoryLoad> {
-  if (!inventoryOnce) inventoryOnce = loadMarketplaceInventory();
+  if (!inventoryOnce) {
+    inventoryOnce = loadMarketplaceInventory().then((result) => {
+      if (result.source !== 'appwrite') inventoryOnce = null;
+      return result;
+    });
+  }
   return inventoryOnce;
 }
 
-const EMPTY_INVENTORY: MarketplaceInventoryLoad = {
-  products: [],
-  categorySummaries: [],
-  spotlight: [],
-  source: 'empty',
-};
+function buildFromProducts(
+  products: CatalogListingProduct[],
+  source: 'appwrite' | 'seed',
+): MarketplaceInventoryLoad {
+  const categorySummaries = getHomeCategorySummariesForProducts(products);
+  const spotlight = getHomeSpotlightProductsForProducts(products);
+  return { products, categorySummaries, spotlight, source };
+}
+
+function seedFallback(): MarketplaceInventoryLoad {
+  if (CATALOG_LISTING_PRODUCTS.length === 0) {
+    return { products: [], categorySummaries: [], spotlight: [], source: 'empty' };
+  }
+  logger.info('[marketplace] Using seed demo data for storefront');
+  return buildFromProducts(CATALOG_LISTING_PRODUCTS, 'seed');
+}
 
 async function loadMarketplaceInventory(): Promise<MarketplaceInventoryLoad> {
   if (!isAppwriteConfigured) {
-    logger.warn('[marketplace] Appwrite not configured — storefront is empty');
-    return EMPTY_INVENTORY;
+    logger.warn('[marketplace] Appwrite not configured — falling back to seed data');
+    return seedFallback();
   }
   try {
     const products = await fetchListingProducts();
     if (products.length === 0) {
-      return EMPTY_INVENTORY;
+      return seedFallback();
     }
-    const categorySummaries = getHomeCategorySummariesForProducts(products);
-    const spotlight = getHomeSpotlightProductsForProducts(products);
-    return { products, categorySummaries, spotlight, source: 'appwrite' };
+    return buildFromProducts(products, 'appwrite');
   } catch (err) {
-    logger.warn('[marketplace] Failed to load storefront from Appwrite:', err);
-    return EMPTY_INVENTORY;
+    logger.warn('[marketplace] Failed to load from Appwrite, using seed fallback:', err);
+    return seedFallback();
   }
 }
 
@@ -75,12 +89,15 @@ export function productSlug(product: CatalogListingProduct): string {
 export async function resolveProductDetail(slugOrId: string | undefined): Promise<ProductDetail | null> {
   if (!slugOrId) return null;
   const id = await resolveIdFromSlug(slugOrId);
-  if (!isAppwriteConfigured) return null;
+  if (!isAppwriteConfigured) {
+    return getSeedDetailOrNull(id);
+  }
   try {
-    return await fetchProductDetailById(id);
+    const detail = await fetchProductDetailById(id);
+    return detail ?? getSeedDetailOrNull(id);
   } catch (err) {
     logger.warn('[marketplace] Failed to load product from Appwrite:', err);
-    return null;
+    return getSeedDetailOrNull(id);
   }
 }
 
