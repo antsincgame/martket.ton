@@ -163,7 +163,7 @@ export async function submitFile(buffer: Buffer, filename: string, contentType?:
     : `${VT_BASE}/files`;
 
   const fd = new FormData();
-  const blob = new Blob([buffer], { type: contentType || 'application/octet-stream' });
+  const blob = new Blob([new Uint8Array(buffer)], { type: contentType || 'application/octet-stream' });
   fd.append('file', blob, filename);
 
   const res = await vtCall(url, {

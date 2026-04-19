@@ -27,6 +27,18 @@ jobs:
       - name: Install root dependencies
         run: npm ci
 
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install contract dependencies
+        working-directory: contracts
+        run: npm ci
+
+      - name: Build Tact contracts (needed by backend typecheck)
+        working-directory: contracts
+        run: npx tact --config tact.config.json
+
       - name: Typecheck frontend (tsc --noEmit)
         run: npm run typecheck
 
