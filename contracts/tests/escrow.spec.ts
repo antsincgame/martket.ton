@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Blockchain, type SandboxContract, type TreasuryContract } from '@ton/sandbox';
-import { Address, beginCell, toNano } from '@ton/core';
+import { beginCell, toNano } from '@ton/core';
 import '@ton/test-utils';
 import { Escrow } from '../build/Escrow_Escrow';
 
@@ -103,24 +103,38 @@ describe('Escrow v4 Contract (auto-mint)', () => {
     expect(spec.transferLimit).toBe(TRANSFER_LIMIT);
   });
 
-  // ─── Invariant: init fails if amount split is wrong ───────
+  // ─── Invariant: deploy fails if amount split is wrong ───────────
+  //
+  // Tact-autogen не валидирует init в JS — проверка require() срабатывает
+  // только в run-time при deploy. Поэтому fromInit сам по себе проходит,
+  // но deploy-транзакция должна reject'иться.
 
-  it('init fails if seller + fee != amount', async () => {
-    await expect(
-      Escrow.fromInit(
-        ORDER_ID,
-        buyer.address,
-        seller.address,
-        treasury.address,
-        TOTAL_AMOUNT,
-        SELLER_AMOUNT,
-        FEE_AMOUNT + 1n,  // invariant violated
-        TRIAL_WINDOW,
-        fakeCollection.address,
-        TRANSFER_LIMIT,
-        LICENSE_CONTENT,
-      ),
-    ).rejects.toThrow();
+  it('deploy fails if seller + fee != amount', async () => {
+    const badEscrow = await Escrow.fromInit(
+      ORDER_ID,
+      buyer.address,
+      seller.address,
+      treasury.address,
+      TOTAL_AMOUNT,
+      SELLER_AMOUNT,
+      FEE_AMOUNT + 1n,  // invariant violated: seller + fee != amount
+      TRIAL_WINDOW,
+      fakeCollection.address,
+      TRANSFER_LIMIT,
+      LICENSE_CONTENT,
+    );
+    const opened = blockchain.openContract(badEscrow);
+
+    const deployResult = await opened.send(
+      buyer.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'Deploy', queryId: 0n },
+    );
+    expect(deployResult.transactions).toHaveTransaction({
+      from: buyer.address,
+      to: opened.address,
+      success: false,
+    });
   });
 
   // ─── PayEscrow → FUNDED + auto-mint attempt ─────────────────────
