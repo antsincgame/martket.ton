@@ -1,35 +1,43 @@
 /**
- * Escrow v3 contract sandbox tests.
+ * Escrow v4 contract sandbox tests.
  *
- * v3: amountNano split into sellerAmountNano + feeNano (fee поверх цены seller),
- * RefundIfNotMinted страховка, bounced<ReleaseSeller> откат в FUNDED.
+ * v4 (auto-mint):
+ *  - amountNano split into sellerAmountNano + feeNano (fee поверх цены seller)
+ *  - Escrow.init получает collectionAddress + transferLimit + licenseContent
+ *  - receive(PayEscrow) автоматически шлёт MintLicense в Collection
+ *  - RefundIfNotMinted страховка на случай сбоя mint-цепочки
+ *  - bounced handlers для ReleaseSeller и MintLicense
  *
- * Новая семантика fee: buyer платит amount = seller's listed price + 15% fee.
- * Seller получает sellerAmountNano, treasury получает feeNano.
+ * В этом файле тестируем ТОЛЬКО escrow-only поведение. Интеграционные тесты
+ * с Collection + LicenseItem — в licenseLifecycle.spec.ts.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Blockchain, type SandboxContract, type TreasuryContract } from '@ton/sandbox';
-import { toNano } from '@ton/core';
+import { Address, beginCell, toNano } from '@ton/core';
 import '@ton/test-utils';
 import { Escrow } from '../build/Escrow_Escrow';
 
-describe('Escrow v3 Contract', () => {
+describe('Escrow v4 Contract (auto-mint)', () => {
   let blockchain: Blockchain;
   let buyer: SandboxContract<TreasuryContract>;
   let seller: SandboxContract<TreasuryContract>;
   let treasury: SandboxContract<TreasuryContract>;
   let outsider: SandboxContract<TreasuryContract>;
+  // Fake collection — просто treasury address чтобы mint message улетал «в никуда»
+  // (sandbox-безопасно, контракт не развернут там, сообщение просто теряется).
+  let fakeCollection: SandboxContract<TreasuryContract>;
   let escrow: SandboxContract<Escrow>;
 
   const ORDER_ID = 1n;
-  // Пример: seller хочет $50 → при курсе $4/TON = 12.5 TON
-  // platform fee 15% = 1.875 TON
-  // buyer платит 14.375 TON total
+  // $50 seller + 15% fee = $57.50 buyer total at $4/TON
   const SELLER_AMOUNT = toNano('12.5');
   const FEE_AMOUNT    = toNano('1.875');
   const TOTAL_AMOUNT  = SELLER_AMOUNT + FEE_AMOUNT; // 14.375 TON
   const TRIAL_WINDOW  = 3600n;
+  const MINT_FORWARD  = toNano('0.4');
+  const TRANSFER_LIMIT = 0n;
+  const LICENSE_CONTENT = beginCell().storeStringTail('ipfs://QmTestHash').endCell();
 
   beforeEach(async () => {
     blockchain = await Blockchain.create();
@@ -38,6 +46,7 @@ describe('Escrow v3 Contract', () => {
     seller = await blockchain.treasury('seller');
     treasury = await blockchain.treasury('treasury');
     outsider = await blockchain.treasury('outsider');
+    fakeCollection = await blockchain.treasury('fakeCollection');
 
     const contract = await Escrow.fromInit(
       ORDER_ID,
@@ -48,6 +57,9 @@ describe('Escrow v3 Contract', () => {
       SELLER_AMOUNT,
       FEE_AMOUNT,
       TRIAL_WINDOW,
+      fakeCollection.address,
+      TRANSFER_LIMIT,
+      LICENSE_CONTENT,
     );
     escrow = blockchain.openContract(contract);
 
@@ -85,28 +97,38 @@ describe('Escrow v3 Contract', () => {
     expect(parties.treasury.equals(treasury.address)).toBe(true);
   });
 
-  // ─── Invariant check: init fails if amount split is wrong ───────
-
-  it('init fails if seller + fee != amount', async () => {
-    const badInit = Escrow.fromInit(
-      ORDER_ID,
-      buyer.address,
-      seller.address,
-      treasury.address,
-      TOTAL_AMOUNT,
-      SELLER_AMOUNT,
-      FEE_AMOUNT + 1n, // +1 nano ломает инвариант
-      TRIAL_WINDOW,
-    );
-    await expect(badInit).rejects.toThrow();
+  it('stores license spec', async () => {
+    const spec = await escrow.getLicenseSpec();
+    expect(spec.collectionAddress.equals(fakeCollection.address)).toBe(true);
+    expect(spec.transferLimit).toBe(TRANSFER_LIMIT);
   });
 
-  // ─── Happy path: pay → confirm → release ────────────────────────
+  // ─── Invariant: init fails if amount split is wrong ───────
 
-  it('accepts payment from buyer', async () => {
+  it('init fails if seller + fee != amount', async () => {
+    await expect(
+      Escrow.fromInit(
+        ORDER_ID,
+        buyer.address,
+        seller.address,
+        treasury.address,
+        TOTAL_AMOUNT,
+        SELLER_AMOUNT,
+        FEE_AMOUNT + 1n,  // invariant violated
+        TRIAL_WINDOW,
+        fakeCollection.address,
+        TRANSFER_LIMIT,
+        LICENSE_CONTENT,
+      ),
+    ).rejects.toThrow();
+  });
+
+  // ─── PayEscrow → FUNDED + auto-mint attempt ─────────────────────
+
+  it('accepts payment from buyer and transitions to FUNDED', async () => {
     const result = await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     expect(result.transactions).toHaveTransaction({
@@ -117,50 +139,117 @@ describe('Escrow v3 Contract', () => {
     expect(await escrow.getState()).toBe(1n);
   });
 
+  it('sends MintLicense to collection after payment', async () => {
+    const result = await escrow.send(
+      buyer.getSender(),
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    // Второе сообщение в цепочке — исходящий MintLicense от escrow к collection
+    expect(result.transactions).toHaveTransaction({
+      from: escrow.address,
+      to: fakeCollection.address,
+    });
+  });
+
+  it('rejects payment without mint gas buffer', async () => {
+    // Ровно amount — не хватит на forward mint
+    const result = await escrow.send(
+      buyer.getSender(),
+      { value: TOTAL_AMOUNT },
+      { $$type: 'PayEscrow' },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: buyer.address,
+      to: escrow.address,
+      success: false,
+    });
+  });
+
+  it('rejects payment from non-buyer', async () => {
+    const result = await escrow.send(
+      outsider.getSender(),
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: outsider.address,
+      to: escrow.address,
+      success: false,
+    });
+  });
+
+  it('rejects double payment', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    const result = await escrow.send(
+      buyer.getSender(),
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: buyer.address,
+      to: escrow.address,
+      success: false,
+    });
+  });
+
+  // ─── ConfirmDelivery → seller + treasury get paid ────────────────
+
   it('releases funds on buyer confirm — seller gets sellerAmount, treasury gets fee', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
 
     const sellerBalanceBefore = await seller.getBalance();
     const treasuryBalanceBefore = await treasury.getBalance();
 
-    const result = await escrow.send(
+    await escrow.send(
       buyer.getSender(),
       { value: toNano('0.05') },
       { $$type: 'ConfirmDelivery' },
     );
 
-    expect(result.transactions).toHaveTransaction({
-      from: escrow.address,
-      to: seller.address,
-      success: true,
-    });
-    expect(result.transactions).toHaveTransaction({
-      from: escrow.address,
-      to: treasury.address,
-      success: true,
-    });
-
     const sellerDiff = (await seller.getBalance()) - sellerBalanceBefore;
     const treasuryDiff = (await treasury.getBalance()) - treasuryBalanceBefore;
 
-    // Seller получил ровно sellerAmount минус gas для его send
+    // Seller получил ≈ SELLER_AMOUNT (минус газ за release tx)
     expect(sellerDiff).toBeGreaterThan(SELLER_AMOUNT - toNano('0.02'));
     expect(sellerDiff).toBeLessThanOrEqual(SELLER_AMOUNT);
 
-    // Treasury получил fee + сдача балaнса escrow (self-destruct)
+    // Treasury получил ≈ FEE_AMOUNT + некоторые остатки газа
     expect(treasuryDiff).toBeGreaterThan(FEE_AMOUNT - toNano('0.02'));
   });
 
-  // ─── Timeout release ───────────────────────────────────────────
+  it('rejects confirm from non-buyer', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    const result = await escrow.send(
+      outsider.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'ConfirmDelivery' },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: outsider.address,
+      to: escrow.address,
+      success: false,
+    });
+  });
+
+  // ─── TimeoutRelease ─────────────────────────────────────────────
 
   it('allows timeout release after trial window', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
 
@@ -179,7 +268,7 @@ describe('Escrow v3 Contract', () => {
   it('rejects timeout release during window', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     const result = await escrow.send(
@@ -194,16 +283,16 @@ describe('Escrow v3 Contract', () => {
     });
   });
 
-  // ─── RefundIfNotMinted (новое, v3) ─────────────────────────────
+  // ─── RefundIfNotMinted ─────────────────────────────────────────
 
-  it('buyer can refund if license not minted within grace period', async () => {
+  it('buyer can refund if license not registered within grace period', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
 
-    // Ждём grace + 1 секунда (в escrow.tact MINT_GRACE_SEC = 600 = 10 мин)
+    // Грейс 10 минут + 1 секунда
     blockchain.now = blockchain.now! + 601;
 
     const buyerBalanceBefore = await buyer.getBalance();
@@ -223,10 +312,9 @@ describe('Escrow v3 Contract', () => {
   it('rejects RefundIfNotMinted before grace period', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
-    // grace не прошёл
     const result = await escrow.send(
       buyer.getSender(),
       { value: toNano('0.05') },
@@ -242,7 +330,7 @@ describe('Escrow v3 Contract', () => {
   it('rejects RefundIfNotMinted from non-buyer', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     blockchain.now = blockchain.now! + 601;
@@ -258,7 +346,7 @@ describe('Escrow v3 Contract', () => {
     });
   });
 
-  it('rejects RefundIfNotMinted if not funded', async () => {
+  it('rejects RefundIfNotMinted if escrow not in FUNDED state', async () => {
     blockchain.now = blockchain.now! + 601;
     const result = await escrow.send(
       buyer.getSender(),
@@ -272,15 +360,80 @@ describe('Escrow v3 Contract', () => {
     });
   });
 
-  // ─── RefundOnBurn ─────────────────────────────────────────────────
+  // ─── RegisterLicense (self-registration) ─────────────────────────
 
-  it('rejects RefundOnBurn from non-registered license address', async () => {
+  it('accepts RegisterLicense only when sender matches licenseAddress', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
-    // license не зарегистрирован — нельзя вернуть
+
+    const result = await escrow.send(
+      outsider.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: outsider.address },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: outsider.address,
+      to: escrow.address,
+      success: true,
+    });
+
+    const lic = await escrow.getLicenseAddress();
+    expect(lic.equals(outsider.address)).toBe(true);
+  });
+
+  it('rejects RegisterLicense when sender != licenseAddress (spoofing)', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    const result = await escrow.send(
+      outsider.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: buyer.address },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: outsider.address,
+      to: escrow.address,
+      success: false,
+    });
+  });
+
+  it('rejects double RegisterLicense', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    await escrow.send(
+      outsider.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: outsider.address },
+    );
+    const second = await escrow.send(
+      buyer.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: buyer.address },
+    );
+    expect(second.transactions).toHaveTransaction({
+      from: buyer.address,
+      to: escrow.address,
+      success: false,
+    });
+  });
+
+  // ─── RefundOnBurn (только от зарегистрированного license) ────────
+
+  it('rejects RefundOnBurn from non-registered sender', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    // registerLicense не вызывали — licenseAddress = zero
     const result = await escrow.send(
       outsider.getSender(),
       { value: toNano('0.05') },
@@ -306,138 +459,30 @@ describe('Escrow v3 Contract', () => {
     });
   });
 
-  // ─── RegisterLicense (self-registration by license) ─────────────
-  //
-  // Новая семантика: sender должен совпадать с licenseAddress в сообщении.
-  // Это означает что только сама лицензия может себя зарегистрировать —
-  // атакующий не может зарегистрировать произвольный адрес как "license".
-
-  it('accepts RegisterLicense only when sender matches licenseAddress', async () => {
+  it('accepts RefundOnBurn from registered license', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
+      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
-
-    // outsider пытается зарегистрировать себя как license от имени себя → ок по новой логике,
-    // но это именно outsider, не реальный mint flow. Тест того что логика sender==licenseAddress работает.
-    const result = await escrow.send(
+    // Симулируем регистрацию лицензии (outsider представляет лицензию)
+    await escrow.send(
       outsider.getSender(),
       { value: toNano('0.05') },
       { $$type: 'RegisterLicense', licenseAddress: outsider.address },
     );
+
+    const buyerBalanceBefore = await buyer.getBalance();
+    const result = await escrow.send(
+      outsider.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RefundOnBurn' },
+    );
     expect(result.transactions).toHaveTransaction({
-      from: outsider.address,
-      to: escrow.address,
+      from: escrow.address,
+      to: buyer.address,
       success: true,
     });
-
-    const lic = await escrow.getLicenseAddress();
-    expect(lic.equals(outsider.address)).toBe(true);
-  });
-
-  it('rejects RegisterLicense when sender != licenseAddress', async () => {
-    await escrow.send(
-      buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    const result = await escrow.send(
-      outsider.getSender(),
-      { value: toNano('0.05') },
-      { $$type: 'RegisterLicense', licenseAddress: buyer.address },
-    );
-    expect(result.transactions).toHaveTransaction({
-      from: outsider.address,
-      to: escrow.address,
-      success: false,
-    });
-  });
-
-  it('rejects RegisterLicense if already registered (no double-register)', async () => {
-    await escrow.send(
-      buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    await escrow.send(
-      outsider.getSender(),
-      { value: toNano('0.05') },
-      { $$type: 'RegisterLicense', licenseAddress: outsider.address },
-    );
-    const secondAttempt = await escrow.send(
-      buyer.getSender(),
-      { value: toNano('0.05') },
-      { $$type: 'RegisterLicense', licenseAddress: buyer.address },
-    );
-    expect(secondAttempt.transactions).toHaveTransaction({
-      from: buyer.address,
-      to: escrow.address,
-      success: false,
-    });
-  });
-
-  // ─── Rejections ─────────────────────────────────────────────────
-
-  it('rejects payment from non-buyer', async () => {
-    const result = await escrow.send(
-      outsider.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    expect(result.transactions).toHaveTransaction({
-      from: outsider.address,
-      to: escrow.address,
-      success: false,
-    });
-  });
-
-  it('rejects double payment', async () => {
-    await escrow.send(
-      buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    const result = await escrow.send(
-      buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    expect(result.transactions).toHaveTransaction({
-      from: buyer.address,
-      to: escrow.address,
-      success: false,
-    });
-  });
-
-  it('rejects insufficient payment', async () => {
-    const result = await escrow.send(
-      buyer.getSender(),
-      { value: TOTAL_AMOUNT / 2n },
-      { $$type: 'PayEscrow' },
-    );
-    expect(result.transactions).toHaveTransaction({
-      from: buyer.address,
-      to: escrow.address,
-      success: false,
-    });
-  });
-
-  it('rejects confirm from non-buyer', async () => {
-    await escrow.send(
-      buyer.getSender(),
-      { value: TOTAL_AMOUNT + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    const result = await escrow.send(
-      outsider.getSender(),
-      { value: toNano('0.05') },
-      { $$type: 'ConfirmDelivery' },
-    );
-    expect(result.transactions).toHaveTransaction({
-      from: outsider.address,
-      to: escrow.address,
-      success: false,
-    });
+    expect(await buyer.getBalance()).toBeGreaterThan(buyerBalanceBefore);
   });
 });
