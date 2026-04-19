@@ -23,17 +23,15 @@ import ScrollToTop from './components/ScrollToTop';
  * On second failure: hard-reload the page so the browser fetches a fresh
  * index.html with updated chunk hashes (covers post-deploy cache mismatch).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function lazyRetry(factory: () => Promise<{ default: React.ComponentType<any> }>) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return lazy((): Promise<{ default: React.ComponentType<any> }> =>
+function lazyRetry(factory: () => Promise<{ default: React.ComponentType<unknown> }>) {
+  return lazy((): Promise<{ default: React.ComponentType<unknown> }> =>
     factory()
       .then((mod) => {
         sessionStorage.removeItem('chunk_reload');
         return mod;
       })
       .catch(() =>
-        new Promise<{ default: React.ComponentType<any> }>((resolve) =>
+        new Promise<{ default: React.ComponentType<unknown> }>((resolve) =>
           setTimeout(() => resolve(factory()), 1500),
         ),
       )
@@ -43,7 +41,7 @@ function lazyRetry(factory: () => Promise<{ default: React.ComponentType<any> }>
           sessionStorage.setItem('chunk_reload', window.location.pathname);
           window.location.reload();
         }
-        return { default: (() => null) as React.ComponentType<any> };
+        return { default: (() => null) as React.ComponentType<unknown> };
       }),
   );
 }
@@ -153,7 +151,7 @@ function App() {
                   />
                   <Route path="/admin" element={<RouteSuspense><ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
                   <Route path="/admin-dashboard" element={<RouteSuspense><ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
-                  <Route path="/moderator" element={<RouteSuspense><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></RouteSuspense>} />
+                  <Route path="/moderator" element={<RouteSuspense><ProtectedRoute requiredRole="moderator"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
                 </Routes>
               </main>
               <Footer />

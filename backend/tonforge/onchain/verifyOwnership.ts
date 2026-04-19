@@ -25,7 +25,7 @@ export async function verifyLicenseOwner(
   try {
     nftAddr = Address.parse(nftAddress);
     expectedAddr = Address.parse(expectedOwner);
-  } catch (err) {
+  } catch {
     return { ok: false, reason: 'INVALID_ADDRESS' };
   }
 
