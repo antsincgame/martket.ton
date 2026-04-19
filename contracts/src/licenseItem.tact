@@ -3,7 +3,7 @@ import "@stdlib/deploy";
 // ─── Messages ────────────────────────────────────────────────────────
 //
 // Item-side: TEP-62 transfer + Burn from collection + BuyerBurn.
-// Soulbound is enforced by transferLimit = 0 in standard mint flow.
+// Soulbound по умолчанию — transferLimit = 0 в стандартном mint flow.
 
 message(0x5fcc3d14) Transfer {
     queryId:    Int as uint64;
@@ -44,9 +44,15 @@ message(0x7a1b3c5d) BuyerBurn {
     queryId: Int as uint64;
 }
 
+// LicenseItem регистрирует свой адрес в Escrow при init.
+// opcode совпадает с RegisterLicense в escrow.tact (0x70e30189).
+message(0x70e30189) RegisterLicense {
+    licenseAddress: Address;
+}
+
 // Sent from LicenseItem to Escrow when buyer burns.
-// Escrow verifies sender == registered license address.
-message RefundOnBurn {}
+// opcode совпадает с RefundOnBurn в escrow.tact (0x9b3c2d45).
+message(0x9b3c2d45) RefundOnBurn {}
 
 // ─── Contract ────────────────────────────────────────────────────────
 
@@ -59,6 +65,7 @@ contract LicenseItem with Deployable {
     transfers:     Int as uint8;
     content:       Cell;
     burnDeadline:  Int as uint32;
+    registered:    Bool;
 
     init(
         index:         Int,
@@ -77,6 +84,31 @@ contract LicenseItem with Deployable {
         self.transfers     = 0;
         self.content       = content;
         self.burnDeadline  = burnDeadline;
+        self.registered    = false;
+    }
+
+    // ─── Self-register в Escrow после deploy ─────────────────────────
+    //
+    // Первое сообщение, которое LicenseItem получает после deploy —
+    // это "License minted" от Collection. Здесь мы шлём RegisterLicense
+    // обратно в Escrow, замыкая on-chain петлю "escrow знает свой license".
+    //
+    // В Escrow проверяется sender() == msg.licenseAddress, что гарантирует:
+    // регистрация может произойти только от самой лицензии, не от атакующего.
+
+    receive() {
+        // Empty body receive — срабатывает на "License minted".asComment()
+        // от Collection (комментарий это внутреннее слово без opcode).
+        if (!self.registered && sender() == self.collection) {
+            self.registered = true;
+            send(SendParameters{
+                to: self.escrowAddress,
+                value: ton("0.02"),
+                mode: SendPayGasSeparately,
+                bounce: false,
+                body: RegisterLicense{ licenseAddress: myAddress() }.toCell(),
+            });
+        }
     }
 
     // ─── TEP-62 Transfer ─────────────────────────────────────────────
@@ -127,17 +159,12 @@ contract LicenseItem with Deployable {
     }
 
     // ─── BuyerBurn: owner burns NFT → escrow auto-refund ─────────────
-    //
-    // The buyer (ownerAddress) can burn their own license within the
-    // trial window. This sends RefundOnBurn to the escrow, which
-    // validates sender == registered license and returns funds to buyer.
-    // Then the license self-destructs.
 
     receive(msg: BuyerBurn) {
         require(sender() == self.ownerAddress, "Only owner can burn");
         require(now() <= self.burnDeadline, "Trial window closed");
 
-        // Step 1: tell escrow to refund buyer
+        // Шаг 1: сказать эскроу вернуть buyer'у средства.
         send(SendParameters{
             to: self.escrowAddress,
             value: 0,
@@ -146,8 +173,8 @@ contract LicenseItem with Deployable {
             body: RefundOnBurn{}.toCell(),
         });
 
-        // Step 2: self-destruct (remaining balance → 0 after forwarding)
-        // The refund comes from escrow, not from this contract's balance.
+        // Шаг 2: самоуничтожение (после forwarding баланс → 0).
+        // Refund приходит из эскроу, не с нашего баланса.
     }
 
     // ─── TEP-62 GetStaticData ────────────────────────────────────────
@@ -166,7 +193,7 @@ contract LicenseItem with Deployable {
         });
     }
 
-    // ─── TEP-64 Getter ───────────────────────────────────────────────
+    // ─── TEP-62 Getter ───────────────────────────────────────────────
 
     get fun get_nft_data(): NftData {
         return NftData{
@@ -191,6 +218,10 @@ contract LicenseItem with Deployable {
 
     get fun burn_deadline(): Int {
         return self.burnDeadline;
+    }
+
+    get fun is_registered(): Bool {
+        return self.registered;
     }
 }
 
