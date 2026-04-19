@@ -4,17 +4,11 @@ import "./escrow.tact";
 
 // ─── Messages ────────────────────────────────────────────────────────
 //
-// Trustless mint: Escrow-контракт сам триггерит MintLicense после получения
-// оплаты от buyer. Collection проверяет что sender — это legitimate Escrow,
-// пересобирая его init-hash с параметрами из сообщения и сверяясь с sender().
-//
-// Параметр ownerAddress остаётся только для административных операций
-// (BurnLicense, ChangeOwner) и НЕ гейтит mint.
+// MintLicense opcode и поля ДОЛЖНЫ совпадать с outgoing message в escrow.tact.
+// Если меняешь здесь — меняй там же.
 
 message(0x6a3aaa14) MintLicense {
     queryId:           Int as uint64;
-
-    // Параметры, по которым вычисляется init-hash Escrow → проверяется sender
     orderId:           Int as uint256;
     buyerAddress:      Address;
     sellerAddress:     Address;
@@ -23,8 +17,6 @@ message(0x6a3aaa14) MintLicense {
     sellerAmountNano:  Int as coins;
     feeNano:           Int as coins;
     trialWindowSec:    Int as uint32;
-
-    // Параметры самой лицензии
     transferLimit:     Int as uint8;
     individualContent: Cell;
     burnDeadline:      Int as uint32;
@@ -62,16 +54,19 @@ contract AppCollection with Deployable {
         self.commonContent     = commonContent;
     }
 
-    // ─── Mint: triggered by legitimate Escrow ────────────────────────
+    // ─── Mint: triggered by legitimate Escrow only ───────────────────
     //
-    // Никакого whitelist адресов — sender проверяется по init-hash.
-    // Любой Escrow с валидными параметрами может триггерить mint,
-    // при этом параметры такого Escrow жёстко привязаны к конкретному
-    // buyer/seller (они в init), поэтому атакующий не может "переиспользовать"
-    // чужой Escrow для своей лицензии.
+    // Collection пересобирает initOf Escrow с параметрами из сообщения,
+    // вычисляет ожидаемый адрес и сверяет с sender(). Если совпало —
+    // это реальный Escrow с реальной оплатой (state = FUNDED к моменту
+    // отправки этого сообщения в Escrow.receive(PayEscrow)).
+    //
+    // Атакующий не может подделать: если он задеплоит свой Escrow
+    // с другими параметрами — у него будет другой адрес; если возьмёт
+    // честные параметры — его адрес не совпадёт с адресом deploy'ом
+    // атакующего.
 
     receive(msg: MintLicense) {
-        // Пересобираем initOf Escrow с параметрами из сообщения
         let escrowInit: StateInit = initOf Escrow(
             msg.orderId,
             msg.buyerAddress,
@@ -81,11 +76,12 @@ contract AppCollection with Deployable {
             msg.sellerAmountNano,
             msg.feeNano,
             msg.trialWindowSec,
+            myAddress(),              // Escrow должен ссылаться на НАС как collection
+            msg.transferLimit,
+            msg.individualContent,
         );
         let expectedEscrow: Address = contractAddress(escrowInit);
         require(sender() == expectedEscrow, "Sender is not a legitimate Escrow");
-
-        require(context().value >= ton("0.1"), "Insufficient gas for mint");
 
         let index: Int = self.nextItemIndex;
 
@@ -93,7 +89,7 @@ contract AppCollection with Deployable {
             index,
             myAddress(),          // collection
             msg.buyerAddress,     // owner
-            expectedEscrow,       // escrow (знаем точно — свой только что проверили)
+            expectedEscrow,       // escrow (already verified)
             msg.transferLimit,
             msg.individualContent,
             msg.burnDeadline,
@@ -114,11 +110,7 @@ contract AppCollection with Deployable {
         self.nextItemIndex = index + 1;
     }
 
-    // ─── Burn: owner может инициировать collection-mediated burn ─────
-    //
-    // Нужно только для edge-cases (например DMCA takedown когда нужно
-    // принудительно burn лицензию на нарушающий контент). Не для refund —
-    // refund идёт через BuyerBurn напрямую на LicenseItem.
+    // ─── Admin burn (только для DMCA/edge cases) ─────────────────────
 
     receive(msg: BurnLicense) {
         require(sender() == self.ownerAddress, "Only collection owner can burn");
@@ -131,8 +123,6 @@ contract AppCollection with Deployable {
             body: Burn{ queryId: msg.queryId }.toCell(),
         });
     }
-
-    // ─── Owner rotation ──────────────────────────────────────────────
 
     receive(msg: ChangeOwner) {
         require(sender() == self.ownerAddress, "Only current owner can rotate");
@@ -149,17 +139,9 @@ contract AppCollection with Deployable {
         };
     }
 
-    // TEP-62 требует этот геттер для индексеров (TonAPI, TonViewer, Getgems).
-    // ВАЖНО: в нашем случае init LicenseItem зависит от parameters сделки
-    // (buyer, escrow, transferLimit, content, burnDeadline), которые у нас
-    // нет в storage коллекции. Индексеры вызывают этот геттер с index,
-    // не зная остальных параметров — в такой схеме честный TEP-62 lookup
-    // невозможен.
-    //
-    // Возвращаем newAddress(0, 0) как маркер "unavailable". Индексеры
-    // должны использовать off-chain данные (наш API) для перечисления NFT.
-    // Альтернатива — хранить map<index, itemAddress> в storage, но это
-    // растит storage fee пропорционально числу проданных лицензий.
+    // TEP-62 требует геттер, но вычислить address-by-index без parameters
+    // конкретной сделки невозможно в нашей схеме. Индексеры должны
+    // использовать off-chain API (наш backend) для перечисления NFT.
     get fun get_nft_address_by_index(index: Int): Address {
         return newAddress(0, 0);
     }
@@ -172,8 +154,6 @@ contract AppCollection with Deployable {
         return self.appId;
     }
 }
-
-// ─── Getter return types ─────────────────────────────────────────────
 
 struct CollectionData {
     nextItemIndex:     Int as uint64;
