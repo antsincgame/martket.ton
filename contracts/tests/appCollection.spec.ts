@@ -1,5 +1,12 @@
 /**
- * AppCollection v2 contract tests (TEP-62 mint + RegisterLicense to escrow).
+ * AppCollection v4 contract tests — init-hash trustless mint protection.
+ *
+ * Ключевая новая семантика: Mint больше НЕ гейтится через ownerAddress.
+ * Legitimacy sender проверяется через пересборку initOf Escrow с параметрами
+ * из сообщения.
+ *
+ * В этом файле тестируются isolated-кейсы Collection (без реального Escrow).
+ * Полный E2E flow — в licenseLifecycle.spec.ts.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -9,8 +16,8 @@ import '@ton/test-utils';
 import { AppCollection } from '../build/AppCollection_AppCollection';
 
 const APP_ID = 0xaa11n;
-const COLLECTION_URI = 'https://cdn.tonforge.org/collections/app_aa11.json';
-const COMMON_URI_PREFIX = 'https://cdn.tonforge.org/license-metadata/app_aa11/';
+const COLLECTION_URI = 'https://cdn.example.org/collection/app_aa11.json';
+const COMMON_URI_PREFIX = 'https://cdn.example.org/license-metadata/app_aa11/';
 
 function offchainContent(uri: string) {
   return beginCell().storeUint(0x01, 8).storeStringTail(uri).endCell();
@@ -20,21 +27,28 @@ function individualContent(index: number) {
   return beginCell().storeStringTail(`${index}.json`).endCell();
 }
 
-describe('AppCollection v2 contract', () => {
+describe('AppCollection v4 contract (trustless mint)', () => {
   let blockchain: Blockchain;
   let owner: SandboxContract<TreasuryContract>;
   let buyer: SandboxContract<TreasuryContract>;
+  let seller: SandboxContract<TreasuryContract>;
+  let treasury: SandboxContract<TreasuryContract>;
   let outsider: SandboxContract<TreasuryContract>;
-  let escrowFake: SandboxContract<TreasuryContract>;
   let collection: SandboxContract<AppCollection>;
+
+  const SELLER_AMOUNT = toNano('12.5');
+  const FEE_AMOUNT    = toNano('1.875');
+  const TOTAL_AMOUNT  = SELLER_AMOUNT + FEE_AMOUNT;
+  const TRIAL_WINDOW  = 3600n;
 
   beforeEach(async () => {
     blockchain = await Blockchain.create();
     blockchain.now = Math.floor(Date.now() / 1000);
     owner = await blockchain.treasury('owner');
     buyer = await blockchain.treasury('buyer');
+    seller = await blockchain.treasury('seller');
+    treasury = await blockchain.treasury('treasury');
     outsider = await blockchain.treasury('outsider');
-    escrowFake = await blockchain.treasury('escrow');
 
     const contract = await AppCollection.fromInit(
       APP_ID,
@@ -58,7 +72,7 @@ describe('AppCollection v2 contract', () => {
   });
 
   function burnDeadline(): bigint {
-    return BigInt(blockchain.now! + 3600);
+    return BigInt(blockchain.now! + Number(TRIAL_WINDOW));
   }
 
   // ─── Initial state ───────────────────────────────────────────────
@@ -72,42 +86,57 @@ describe('AppCollection v2 contract', () => {
     expect(appId).toBe(APP_ID);
   });
 
-  // ─── Mint by owner ───────────────────────────────────────────────
+  // ─── Mint protection: non-Escrow cannot mint ─────────────────────
+  //
+  // Это главная security гарантия v4: даже collection owner не может
+  // mint'ить напрямую, только настоящий Escrow с правильным init-hash.
 
-  it('owner can mint license, item index increments', async () => {
+  it('rejects mint from owner (no privileged mint anymore)', async () => {
     const result = await collection.send(
       owner.getSender(),
-      { value: toNano('0.3') },
+      { value: toNano('0.5') },
       {
         $$type: 'MintLicense',
         queryId: 1n,
+        orderId: 1n,
         buyerAddress: buyer.address,
-        escrowAddress: escrowFake.address,
+        sellerAddress: seller.address,
+        treasuryAddress: treasury.address,
+        amountNano: TOTAL_AMOUNT,
+        sellerAmountNano: SELLER_AMOUNT,
+        feeNano: FEE_AMOUNT,
+        trialWindowSec: TRIAL_WINDOW,
         transferLimit: 0n,
         individualContent: individualContent(0),
         burnDeadline: burnDeadline(),
       },
     );
-
+    // Owner != expectedEscrow → reject
     expect(result.transactions).toHaveTransaction({
       from: owner.address,
       to: collection.address,
-      success: true,
+      success: false,
     });
 
     const data = await collection.getGetCollectionData();
-    expect(data.nextItemIndex).toBe(1n);
+    expect(data.nextItemIndex).toBe(0n);
   });
 
-  it('rejects mint from non-owner', async () => {
+  it('rejects mint from outsider with arbitrary params', async () => {
     const result = await collection.send(
       outsider.getSender(),
-      { value: toNano('0.3') },
+      { value: toNano('0.5') },
       {
         $$type: 'MintLicense',
         queryId: 2n,
+        orderId: 42n,
         buyerAddress: buyer.address,
-        escrowAddress: escrowFake.address,
+        sellerAddress: seller.address,
+        treasuryAddress: treasury.address,
+        amountNano: TOTAL_AMOUNT,
+        sellerAmountNano: SELLER_AMOUNT,
+        feeNano: FEE_AMOUNT,
+        trialWindowSec: TRIAL_WINDOW,
         transferLimit: 0n,
         individualContent: individualContent(0),
         burnDeadline: burnDeadline(),
@@ -118,30 +147,11 @@ describe('AppCollection v2 contract', () => {
       to: collection.address,
       success: false,
     });
-    const data = await collection.getGetCollectionData();
-    expect(data.nextItemIndex).toBe(0n);
   });
 
-  it('rejects mint with insufficient gas', async () => {
-    const result = await collection.send(
-      owner.getSender(),
-      { value: toNano('0.01') },
-      {
-        $$type: 'MintLicense',
-        queryId: 3n,
-        buyerAddress: buyer.address,
-        escrowAddress: escrowFake.address,
-        transferLimit: 0n,
-        individualContent: individualContent(0),
-        burnDeadline: burnDeadline(),
-      },
-    );
-    expect(result.transactions).toHaveTransaction({
-      from: owner.address,
-      to: collection.address,
-      success: false,
-    });
-  });
+  // Note: тест legitimate mint (через реальный Escrow → успешный mint)
+  // находится в licenseLifecycle.spec.ts — он требует deploy обоих
+  // контрактов и их координации.
 
   // ─── Owner rotation ──────────────────────────────────────────────
 
@@ -167,6 +177,39 @@ describe('AppCollection v2 contract', () => {
       outsider.getSender(),
       { value: toNano('0.05') },
       { $$type: 'ChangeOwner', queryId: 5n, newOwner: newOwner.address },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: outsider.address,
+      to: collection.address,
+      success: false,
+    });
+  });
+
+  // ─── BurnLicense (admin edge-case для DMCA) ───────────────────────
+
+  it('owner can trigger BurnLicense (forwarded to item address)', async () => {
+    // Фиктивный itemAddress — в сandbox никто не развёрнут там,
+    // сообщение просто потеряется. Важно только что collection
+    // принимает команду от owner.
+    const fakeItem = await blockchain.treasury('fakeItem');
+    const result = await collection.send(
+      owner.getSender(),
+      { value: toNano('0.1') },
+      { $$type: 'BurnLicense', queryId: 6n, itemAddress: fakeItem.address },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: owner.address,
+      to: collection.address,
+      success: true,
+    });
+  });
+
+  it('non-owner cannot trigger BurnLicense', async () => {
+    const fakeItem = await blockchain.treasury('fakeItem');
+    const result = await collection.send(
+      outsider.getSender(),
+      { value: toNano('0.1') },
+      { $$type: 'BurnLicense', queryId: 7n, itemAddress: fakeItem.address },
     );
     expect(result.transactions).toHaveTransaction({
       from: outsider.address,
