@@ -5,18 +5,19 @@ import {
   Loader2,
   ShieldAlert,
   Sparkles,
-  Download,
   RefreshCcw,
   Wallet,
 } from 'lucide-react';
 import { fetchLicense } from '../../lib/commerceApi';
 import type { LicensePublic } from '../../domain/commerce/types';
+import DownloadAction from './DownloadAction';
 
 interface Props {
   licenseId: string;
   network?: 'mainnet' | 'testnet';
-  /** Direct download URL the buyer can hit once the license is minted. */
-  downloadHref?: string;
+  /** Listing the license belongs to — used to issue presigned download URL.
+   *  Without this prop the download button is hidden. */
+  listingId?: string;
 }
 
 const POLL_INTERVAL_MS = 3000;
@@ -49,7 +50,7 @@ interface ProgressView {
  *   - refunded:       funds returned to buyer; nothing to do.
  *   - burned:         buyer voluntarily burned NFT (legacy, treated as invalid).
  */
-export default function MintProgress({ licenseId, network = 'mainnet', downloadHref }: Props) {
+export default function MintProgress({ licenseId, network = 'mainnet', listingId }: Props) {
   const [view, setView] = useState<ProgressView>({ phase: 'polling', license: null });
   const cancelledRef = useRef(false);
   const startedAtRef = useRef(Date.now());
@@ -199,14 +200,7 @@ export default function MintProgress({ licenseId, network = 'mainnet', downloadH
             </div>
           )}
           <div className="flex flex-wrap gap-2">
-            {downloadHref && (
-              <a
-                href={downloadHref}
-                className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-400/20"
-              >
-                <Download className="w-3 h-3" /> Download
-              </a>
-            )}
+            {listingId && <DownloadAction listingId={listingId} variant="emerald" label="Download" />}
             {license.nftAddress && (
               <a
                 href={`${explorerBase}${license.nftAddress}`}

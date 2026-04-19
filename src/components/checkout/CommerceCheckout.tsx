@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react';
-import { Loader2, ShieldCheck, Wallet, Download, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Loader2, ShieldCheck, Wallet, AlertTriangle, CheckCircle } from 'lucide-react';
 import { beginCell, Cell } from '@ton/core';
 import {
   fetchListingsForCatalog,
   createCommerceOrder,
   confirmCommerceOrder,
-  commerceUrl,
 } from '../../lib/commerceApi';
 import type { CreateOrderResponse } from '../../domain/commerce/types';
 import type { CommerceListingPublic } from '../../domain/commerce/types';
 import { logger } from '../../lib/logger';
 import MintProgress from './MintProgress';
+import DownloadAction from './DownloadAction';
 
 function resolveTonNetwork(): 'mainnet' | 'testnet' {
   if (typeof window === 'undefined') return 'mainnet';
@@ -120,7 +120,6 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   }
 
   if (phase === 'done') {
-    const downloadHref = listing ? commerceUrl(`/listings/${listing.id}/download`) : undefined;
     return (
       <div className="space-y-4">
         <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-5 space-y-3">
@@ -133,23 +132,20 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
               ? 'Waiting for the License NFT mint to complete before unlocking download.'
               : 'The product has been added to your library.'}
           </p>
+          {/* For NFT-less listings: backend marks license as `minted` immediately
+              and the buyer can download right away. For NFT-bearing listings the
+              download button lives inside MintProgress, gated by mint state. */}
+          {!licenseId && listing && <DownloadAction listingId={listing.id} variant="emerald" label="Download" />}
+          {/* Legacy delivery payload is informational only — kept for backward compat. */}
           {!licenseId && delivery && (
-            <a
-              href={delivery}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg bg-green-500/20 border border-green-500/30 px-4 py-2 text-sm font-semibold text-green-400 hover:bg-green-500/30 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Download now
-            </a>
+            <p className="text-xs text-gray-400 break-all">{delivery}</p>
           )}
         </div>
-        {licenseId && (
+        {licenseId && listing && (
           <MintProgress
             licenseId={licenseId}
             network={resolveTonNetwork()}
-            downloadHref={downloadHref}
+            listingId={listing.id}
           />
         )}
       </div>
