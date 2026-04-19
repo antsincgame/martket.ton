@@ -4,23 +4,9 @@ import "./escrow.tact";
 
 // ─── Messages ────────────────────────────────────────────────────────
 //
-// MintLicense opcode и поля ДОЛЖНЫ совпадать с outgoing message в escrow.tact.
-// Если меняешь здесь — меняй там же.
-
-message(0x6a3aaa14) MintLicense {
-    queryId:           Int as uint64;
-    orderId:           Int as uint256;
-    buyerAddress:      Address;
-    sellerAddress:     Address;
-    treasuryAddress:   Address;
-    amountNano:        Int as coins;
-    sellerAmountNano:  Int as coins;
-    feeNano:           Int as coins;
-    trialWindowSec:    Int as uint32;
-    transferLimit:     Int as uint8;
-    individualContent: Cell;
-    burnDeadline:      Int as uint32;
-}
+// NOTE: MintLicense объявлен в escrow.tact (outgoing message от эскроу).
+// Сюда тип приходит через `import "./escrow.tact"`. Дубликат здесь
+// сломает компиляцию — Tact не допускает повторное объявление message-типа.
 
 message(0x4d8e8a14) BurnLicense {
     queryId:     Int as uint64;
