@@ -29,6 +29,7 @@ export default function VerifiedDemiurges() {
       const res = await fetch(storeApiUrl('/api/users'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = await res.json();
       setUsers((body.data || []) as DemiurgeRow[]);
     } catch (err) {

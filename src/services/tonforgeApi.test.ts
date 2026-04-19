@@ -73,14 +73,14 @@ describe('API functions construct correct URLs', () => {
     expect(url).toContain('my%20app%2F1');
   });
 
-  it('fetchWalletProfile encodes wallet address', async () => {
+  it('fetchDeveloperWorkspace encodes wallet address', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ data: {} }),
     }));
-    const { fetchWalletProfile } = await import('./tonforgeApi');
-    await fetchWalletProfile('EQ+test');
+    const { fetchDeveloperWorkspace } = await import('./tonforgeApi');
+    await fetchDeveloperWorkspace('EQ+test');
     const url = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-    expect(url).toContain('wallet=EQ%2Btest');
+    expect(url).toContain('EQ%2Btest');
   });
 });

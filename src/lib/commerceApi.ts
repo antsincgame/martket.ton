@@ -273,6 +273,59 @@ export async function fetchBuyerOrders(): Promise<BuyerOrderRow[]> {
   return result.data.orders;
 }
 
+// ─── Agent API tokens (Personal Access Tokens) ──────────────────────
+
+export type AgentScope = 'listings:read' | 'listings:write' | 'orders:read' | 'distribution:write';
+
+export interface AgentTokenSummary {
+  id: string;
+  name: string;
+  scopes: string;
+  tokenPrefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+}
+
+export interface IssuedAgentToken {
+  /** Plaintext shown to the user exactly once. */
+  token: string;
+  record: {
+    id: string;
+    wallet: string;
+    name: string;
+    scopes: string;
+    tokenPrefix: string;
+    expiresAt: string | null;
+    createdAt: string;
+  };
+}
+
+export async function listAgentTokens(): Promise<AgentTokenSummary[]> {
+  const result = await commerceAuthFetch<{ data: { tokens: AgentTokenSummary[] } }>('/agent-tokens');
+  return result.data.tokens;
+}
+
+export async function issueAgentToken(input: {
+  wallet: string;
+  name: string;
+  scopes: AgentScope[];
+  ttlDays?: number;
+}): Promise<IssuedAgentToken> {
+  const result = await commerceAuthFetch<{ data: IssuedAgentToken }>('/agent-tokens', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return result.data;
+}
+
+export async function revokeAgentTokenById(id: string): Promise<void> {
+  await commerceAuthFetch<{ data: { ok: boolean } }>(`/agent-tokens/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
 /** Админ: заголовок X-Commerce-Admin-Secret задаётся вручную (оператор). */
 export async function adminCommerceFetch(
   path: string,

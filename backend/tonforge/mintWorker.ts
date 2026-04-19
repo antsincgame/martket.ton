@@ -40,20 +40,34 @@ import { registerLicense } from './onchain/registerLicense.js';
 import { oracleRefund, pollEscrowSettled } from './onchain/oracleRefund.js';
 import { timeoutRelease, checkEscrowAlive } from './onchain/timeoutRelease.js';
 
-const TICK_INTERVAL_MS = 30_000;
-const STALE_AFTER_MS = 2 * 60 * 1000;
-const MAX_ATTEMPTS = 3;
-const POLL_TIMEOUT_MS = 60_000;
 /**
- * How long a license must dwell in `mint_failed` before we initiate the
- * automatic refund. Gives manual ops a chance to intervene (e.g. fund the
- * oracle wallet) for transient failures.
+ * Worker tunables.
+ *
+ * All values are overridable via env so ops can dial them without a deploy:
+ *   MINT_TICK_MS          — period between cycles (default 30 s)
+ *   MINT_STALE_MS         — debounce for re-attempting same record (default 2 m)
+ *   MINT_MAX_ATTEMPTS     — retries before flipping to mint_failed (default 3)
+ *   MINT_POLL_TIMEOUT_MS  — how long to wait for item deploy (default 60 s)
+ *   MINT_REFUND_AFTER_MS  — dwell time in mint_failed before auto-refund (default 1 h)
+ *   MINT_SETTLE_TIMEOUT_MS — how long to wait for escrow self-destruct (default 90 s)
  */
-const REFUND_AFTER_MS = 60 * 60 * 1000;
-const REFUND_SETTLE_TIMEOUT_MS = 90_000;
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+const TICK_INTERVAL_MS = envInt('MINT_TICK_MS', 30_000);
+const STALE_AFTER_MS = envInt('MINT_STALE_MS', 2 * 60 * 1000);
+const MAX_ATTEMPTS = envInt('MINT_MAX_ATTEMPTS', 3);
+const POLL_TIMEOUT_MS = envInt('MINT_POLL_TIMEOUT_MS', 60_000);
+const REFUND_AFTER_MS = envInt('MINT_REFUND_AFTER_MS', 60 * 60 * 1000);
+const REFUND_SETTLE_TIMEOUT_MS = envInt('MINT_SETTLE_TIMEOUT_MS', 90_000);
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
+let startupSweepDone = false;
 
 function buildMetadataUri(license: LicenseRecord, base?: string): string {
   const prefix =
@@ -82,6 +96,19 @@ async function processOne(license: LicenseRecord): Promise<void> {
   let mintTxHash = license.mintTxHash;
 
   if (!nftAddress) {
+    // Persist a queryId BEFORE broadcast so we have an audit trail even
+    // when the process dies between the broadcast and the success update.
+    // (Strict de-dup is left to the deterministic on-chain deploy: a
+    // duplicate MintLicense bounces at the destination because the item
+    // contract is already active. Oracle gas cost of a bounce ≈ 0.05 TON,
+    // which we accept in exchange for simpler resume semantics.)
+    if (!license.mintQueryId) {
+      try {
+        await updateLicense(license.$id, { mintQueryId: String(Date.now()) });
+      } catch (err) {
+        logger.warn('[mintWorker] mintQueryId persist failed (continuing):', err);
+      }
+    }
     try {
       const result = await mintLicense({
         collectionAddress: license.collectionAddress,
@@ -259,14 +286,24 @@ export async function triggerMintLoop(): Promise<void> {
     await withLock('mint-cycle', 30 * 60 * 1000, async () => {
       const candidates = await listMintCandidates(STALE_AFTER_MS, 25);
       if (candidates.length === 0) return;
+      let minted = 0;
+      let failed = 0;
       logger.info(`[mintWorker] processing ${candidates.length} pending license(s)`);
       for (const lic of candidates) {
         try {
           await processOne(lic);
+          // Re-read state to count outcomes — processOne mutates via updateLicense.
+          // We fetch a stable snapshot from the in-memory record post-update is
+          // not available here, so we trust the log line emitted inside.
+          minted += 1;
         } catch (err) {
+          failed += 1;
           logger.error(`[mintWorker] processOne crashed for ${lic.$id}:`, err);
         }
       }
+      logger.info(
+        `[mintWorker] cycle stats: candidates=${candidates.length} processed=${minted} crashed=${failed}`,
+      );
     });
   } finally {
     running = false;
@@ -339,7 +376,21 @@ export function startMintWorker(): void {
     triggerRefundLoop().catch((err) => logger.error('[mintWorker.refund] tick failed:', err));
     triggerPayoutLoop().catch((err) => logger.error('[mintWorker.payout] tick failed:', err));
   }, TICK_INTERVAL_MS);
-  logger.info(`[mintWorker] started (tick every ${TICK_INTERVAL_MS}ms, refund after ${REFUND_AFTER_MS}ms, payout after trial expiry)`);
+  logger.info(
+    `[mintWorker] started tick=${TICK_INTERVAL_MS}ms maxAttempts=${MAX_ATTEMPTS} ` +
+      `pollTimeout=${POLL_TIMEOUT_MS}ms refundAfter=${REFUND_AFTER_MS}ms ` +
+      `settleTimeout=${REFUND_SETTLE_TIMEOUT_MS}ms staleAfter=${STALE_AFTER_MS}ms`,
+  );
+
+  // Startup sweep — run all three cycles immediately, without waiting the
+  // first TICK_INTERVAL_MS. This recovers in-flight licenses quickly after
+  // a deploy or process restart.
+  if (!startupSweepDone) {
+    startupSweepDone = true;
+    Promise.allSettled([triggerMintLoop(), triggerRefundLoop(), triggerPayoutLoop()])
+      .then(() => logger.info('[mintWorker] startup sweep complete'))
+      .catch((err) => logger.error('[mintWorker] startup sweep failed:', err));
+  }
 }
 
 export function stopMintWorker(): void {

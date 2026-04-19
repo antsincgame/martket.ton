@@ -8,6 +8,7 @@ export const COL_AUDIT = 'commerce_audit_logs';
 export const COL_DOWNLOAD_AUDIT = 'download_audit';
 export const COL_LICENSES = 'licenses';
 export const COL_WORKER_LOCKS = 'worker_locks';
+export const COL_AGENT_TOKENS = 'agent_tokens';
 export const BUCKET_ASSETS = 'commerce_assets';
 
 export const ORDER_STATE = {
@@ -38,6 +39,8 @@ export const LISTING_STATUS = {
   DRAFT: 'draft',
   ACTIVE: 'active',
   PAUSED: 'paused',
+  /** Auto-suspended by ops/migration (e.g. missing collection_address after NFT-bridge). */
+  SUSPENDED: 'suspended',
 } as const;
 
 export const CURRENCY = {

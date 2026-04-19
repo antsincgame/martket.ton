@@ -1,5 +1,5 @@
 // Типы TonForge выравнивают фронт с канонической моделью apps/licenses/escrow/device activation из нового API.
-export type TonForgeKycStatus = 'draft' | 'under_review' | 'approved';
+export type TonForgeKycStatus = 'draft' | 'under_review' | 'approved' | 'rejected';
 
 export interface TonForgeArtifact {
   fileName: string;

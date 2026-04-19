@@ -46,13 +46,68 @@ function mahakalaIntegrity(): boolean {
   return check === _shieldHash;
 }
 
+/**
+ * Mahakala Dharma Shield — maximum protection level.
+ *
+ * Sets every security header recommended by OWASP, MDN, and the TON
+ * ecosystem for a non-custodial web store:
+ *
+ *   OWASP Secure Headers:
+ *     - X-Content-Type-Options: nosniff
+ *     - X-Frame-Options: DENY (strictest)
+ *     - Referrer-Policy: strict-origin-when-cross-origin
+ *     - Permissions-Policy: deny all dangerous features
+ *     - Cross-Origin-Resource-Policy: cross-origin (API consumed by SPA)
+ *     - Cross-Origin-Opener-Policy: same-origin-allow-popups (TonConnect)
+ *     - X-Permitted-Cross-Domain-Policies: none (Flash / Acrobat legacy)
+ *
+ *   Infrastructure fingerprinting:
+ *     - X-Powered-By removed by Helmet
+ *     - Server removed below
+ *
+ *   HSTS: delegated to Helmet (enabled automatically in production with
+ *         max-age=31536000 includeSubDomains). We double-set it here with
+ *         preload to ensure it lands even if Helmet is misconfigured.
+ *
+ *   Custom:
+ *     - X-Dharma-Shield: mahakala (operational marker for monitoring)
+ *     - X-Shield-Integrity: intact (runtime self-check — detect patching)
+ */
 export function mahakalaHeaders(_req: Request, res: Response, next: NextFunction): void {
+  const isProd = process.env.NODE_ENV === 'production';
+
   res.setHeader('X-Dharma-Shield', 'mahakala');
   res.setHeader('X-Shield-Integrity', mahakalaIntegrity() ? 'intact' : 'compromised');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+
+  // Core OWASP
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), serial=()',
+  );
+
+  // Cross-origin isolation. CORP=cross-origin allows the SPA (which may run
+  // on a different port/origin in dev or a different subdomain in prod) to
+  // read API responses. COOP=same-origin-allow-popups preserves TonConnect
+  // wallet popup window.postMessage compatibility.
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+
+  // HSTS with preload — only in production (avoids dev HTTPS pain).
+  if (isProd) {
+    res.setHeader(
+      'Strict-Transport-Security',
+      'max-age=63072000; includeSubDomains; preload',
+    );
+  }
+
+  // Remove server fingerprint (defence in depth — Helmet also does this).
+  res.removeHeader('Server');
+  res.removeHeader('X-Powered-By');
+
   next();
 }
 

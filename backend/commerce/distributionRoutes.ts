@@ -28,7 +28,8 @@ import { logger } from '../logger.js';
 import { setDistributionSchema } from './validation.js';
 import { requireWalletOwner } from './helpers.js';
 import { findLicenseByBuyerAndListing } from './licenseRepository.js';
-import { LICENSE_STATE } from './constants.js';
+import { decideDownloadGate } from './handlers/downloadGate.js';
+import { requireSellerKyc } from './handlers/requireSellerKyc.js';
 import { getAdapter, verifyManifest } from '../distribution/index.js';
 import {
   ManifestSchema,
@@ -142,6 +143,13 @@ router.put(
     };
     const owner = await requireWalletOwner(req, res, body.wallet);
     if (!owner) return;
+
+    const kyc = requireSellerKyc(body.wallet);
+    if (!kyc.ok) {
+      res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
+      return;
+    }
+
     const doc = await findListing(str(req.params.id));
     if (!doc) {
       res.status(404).json({ error: 'Listing not found', code: 'NO_LISTING' });
@@ -189,6 +197,13 @@ router.post(
     const wallet = str((req.body as { wallet?: string }).wallet);
     const owner = await requireWalletOwner(req, res, wallet);
     if (!owner) return;
+
+    const kyc = requireSellerKyc(wallet);
+    if (!kyc.ok) {
+      res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
+      return;
+    }
+
     const doc = await findListing(str(req.params.id));
     if (!doc) {
       res.status(404).json({ error: 'Listing not found', code: 'NO_LISTING' });
@@ -297,35 +312,23 @@ router.get('/listings/:id/download', apiRequireAuth(), async (req: Request, res:
       return;
     }
 
-    // License gate: download is open only after the on-chain mint is confirmed.
-    // mint_pending → 425 Too Early (frontend polls licenses/:id and retries).
-    // mint_failed / burned / refunded → 403 (purchase is no longer valid).
+    // License gate: download is open ONLY when:
+    //   - a license record exists for (buyer, listing)
+    //   - state == minted
+    //   - nftAddress is set (the NFT actually deployed on-chain)
+    //
+    // Anything else is a hard deny — no "legacy fallback" anymore. Without
+    // a real NFT the buyer-burn refund guarantee does not apply, so giving
+    // out the file would let a buyer keep both the product and the money.
     const license = await findLicenseByBuyerAndListing(wallet, doc.$id);
-    if (license) {
-      if (license.state === LICENSE_STATE.MINT_PENDING) {
-        res.status(425).json({
-          error: 'License NFT mint in progress',
-          code: 'MINT_PENDING',
-          licenseId: license.$id,
-        });
-        return;
-      }
-      if (
-        license.state === LICENSE_STATE.MINT_FAILED ||
-        license.state === LICENSE_STATE.REFUND_PENDING ||
-        license.state === LICENSE_STATE.BURNED ||
-        license.state === LICENSE_STATE.REFUNDED
-      ) {
-        res.status(403).json({
-          error: 'License is no longer valid',
-          code: license.state === LICENSE_STATE.MINT_FAILED ? 'MINT_FAILED' : 'LICENSE_INVALID',
-          licenseId: license.$id,
-          state: license.state,
-        });
-        return;
-      }
+    const gate = decideDownloadGate(license);
+    if (gate.kind === 'deny') {
+      const body: Record<string, unknown> = { error: gate.message, code: gate.code };
+      if (gate.licenseId) body.licenseId = gate.licenseId;
+      if (license) body.state = license.state;
+      res.status(gate.status).json(body);
+      return;
     }
-    // No license record → legacy purchase before NFT bridge: allow (no gate).
 
     // Rate limit: ≤ 20 redirects/day per (license_id|wallet)
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();

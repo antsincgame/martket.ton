@@ -119,12 +119,12 @@ function Totals({ label, value, accent }: { label: string; value: string; accent
 }
 
 function TypeBadge({ type }: { type: TransactionRow['type'] }) {
-  const meta: Record<TransactionRow['type'], { label: string; color: string }> = {
+  const meta: Record<string, { label: string; color: string }> = {
     sale: { label: 'Sale', color: '#00FF88' },
     payout: { label: 'Payout', color: '#FFD700' },
     refund: { label: 'Refund', color: '#FF6B6B' },
   };
-  const m = meta[type];
+  const m = meta[type] ?? { label: String(type), color: '#888888' };
   return (
     <span className="inline-block rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider border" style={{ color: m.color, borderColor: `${m.color}55`, backgroundColor: `${m.color}14` }}>
       {m.label}

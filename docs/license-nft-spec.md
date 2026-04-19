@@ -307,6 +307,34 @@ create table app_collections (
 create index idx_licenses_nft_address on licenses (nft_address);
 ```
 
+## 11.1 Listing requirements (NFT-mint bridge)
+
+После соединения Commerce-checkout с NFT-минтом каждое активное `listing`
+**обязано** иметь заранее задеплоенный `AppCollection`. Ограничения
+кодифицированы на трёх уровнях:
+
+1. **Schema** — `createListingSchema` (`backend/commerce/validation.ts`)
+   требует `collectionAddress` в формате TON user-friendly адреса
+   (`^[EUk0]Q[A-Za-z0-9_-]{46}$`). PATCH запрещает обнулять поле.
+2. **Route** — `PATCH /listings/:id` отказывает в переходе в
+   `status='active'`, если `collection_address` пуст (см.
+   `backend/commerce/listingRoutes.ts`).
+3. **Order confirm** — `ensureLicenseForOrder` бросает
+   `ListingNoCollectionError`, если в момент `POST /orders/:id/confirm`
+   у listing нет коллекции; `orderRoutes` отвечает 503
+   `LISTING_NO_COLLECTION`. Это страховка для legacy-данных, проскочивших
+   валидацию.
+4. **Download gate** — `distributionRoutes` (через
+   `backend/commerce/handlers/downloadGate.ts`) выдаёт файл только когда
+   `license.state === 'minted' && license.nftAddress`. Любой другой
+   статус — 425 (mint_pending) или 403 (всё остальное).
+
+**Migration legacy-листингов.** Скрипт
+[`scripts/migrate-suspend-no-collection.mjs`](../scripts/migrate-suspend-no-collection.mjs)
+переводит все ACTIVE listing'и без `collection_address` в `suspended` и
+логирует список для уведомления продавцов. Запускается с `--dry-run`
+для предпросмотра.
+
 ## 12. Acceptance checklist
 
 - [ ] `npm --prefix contracts run build` — собирает 3 контракта

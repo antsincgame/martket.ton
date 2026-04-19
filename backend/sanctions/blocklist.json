@@ -1,0 +1,5 @@
+{
+  "_comment": "Manually curated TON wallet sanctions blocklist. Sourced from OFAC SDN (treasury.gov/ofac) and EU Consolidated List entries that explicitly name TON addresses. Entries normalized to raw 0:hex form for fast lookup. Update via scripts/refresh-sanctions.mjs (TODO) or by hand when a new SDN designation lands.",
+  "_lastUpdatedAt": "2026-04-18",
+  "entries": []
+}

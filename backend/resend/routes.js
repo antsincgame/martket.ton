@@ -16,19 +16,28 @@ async function getInboundRepo() {
   return inboundRepoCache;
 }
 
+let templateRepoCache = null;
+async function getTemplateRepo() {
+  if (!templateRepoCache) {
+    templateRepoCache = await import('../core/emailTemplateRepository.js');
+    await templateRepoCache.seedDefaults();
+  }
+  return templateRepoCache;
+}
+
+let campaignRepoCache = null;
+async function getCampaignRepo() {
+  if (!campaignRepoCache) {
+    campaignRepoCache = await import('../core/emailCampaignRepository.js');
+  }
+  return campaignRepoCache;
+}
+
 function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return null;
   return new Resend(apiKey);
 }
-
-const TEMPLATES_STORE = new Map([
-  ['welcome', { id: 'welcome', name: 'Welcome', subject: 'Welcome to TON Web Store!', body: '<h1>Welcome, {{name}}!</h1><p>Thanks for joining TON Web Store.</p>' }],
-  ['order_confirmation', { id: 'order_confirmation', name: 'Order Confirmation', subject: 'Your order #{{orderId}} is confirmed', body: '<h1>Order Confirmed</h1><p>Thank you for your purchase, {{name}}.</p><p>Order: {{orderId}}</p>' }],
-  ['developer_approved', { id: 'developer_approved', name: 'Developer Approved', subject: 'Your developer application has been approved!', body: '<h1>Congratulations, {{name}}!</h1><p>You are now a verified developer on TON Web Store.</p>' }],
-]);
-
-const CAMPAIGNS_STORE = [];
 
 router.get(
   '/status',
@@ -98,7 +107,20 @@ router.get(
   apiRequireAuth(),
   requireAdminRole,
   async (_req, res) => {
-    res.json({ success: true, data: Array.from(TEMPLATES_STORE.values()) });
+    try {
+      const tmplRepo = await getTemplateRepo();
+      const templates = await tmplRepo.listTemplates();
+      const data = templates.map((t) => ({
+        id: t.templateKey,
+        name: t.name,
+        subject: t.subject,
+        body: t.body,
+      }));
+      res.json({ success: true, data });
+    } catch (err) {
+      logger.error('[resend/templates] list failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
   }
 );
 
@@ -107,18 +129,21 @@ router.put(
   apiRequireAuth(),
   requireAdminRole,
   async (req, res) => {
-    const template = TEMPLATES_STORE.get(req.params.id);
-    if (!template) {
-      return res.status(404).json({ success: false, message: 'Template not found' });
+    try {
+      const tmplRepo = await getTemplateRepo();
+      const { subject, body, name } = req.body;
+      const updated = await tmplRepo.updateTemplate(req.params.id, { subject, body, name });
+      if (!updated) {
+        return res.status(404).json({ success: false, message: 'Template not found' });
+      }
+      res.json({
+        success: true,
+        data: { id: updated.templateKey, name: updated.name, subject: updated.subject, body: updated.body },
+      });
+    } catch (err) {
+      logger.error('[resend/templates] update failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
     }
-
-    const { subject, body, name } = req.body;
-    if (subject) template.subject = subject;
-    if (body) template.body = body;
-    if (name) template.name = name;
-    TEMPLATES_STORE.set(req.params.id, template);
-
-    res.json({ success: true, data: template });
   }
 );
 
@@ -127,7 +152,26 @@ router.get(
   apiRequireAuth(),
   requireAdminRole,
   async (_req, res) => {
-    res.json({ success: true, data: CAMPAIGNS_STORE });
+    try {
+      const campRepo = await getCampaignRepo();
+      const campaigns = await campRepo.listCampaigns();
+      const data = campaigns.map((c) => ({
+        id: c.campaignId,
+        templateId: c.templateKey,
+        templateName: c.templateName,
+        audience: c.audience,
+        status: c.status,
+        recipientCount: c.recipientCount,
+        sentCount: c.sentCount,
+        scheduledAt: c.scheduledAt,
+        createdAt: c.createdAt,
+        sentAt: c.sentAt,
+      }));
+      res.json({ success: true, data });
+    } catch (err) {
+      logger.error('[resend/campaigns] list failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
   }
 );
 
@@ -139,24 +183,39 @@ router.post(
     const { templateId, audience, scheduledAt } = req.body;
     if (!templateId) return res.status(400).json({ success: false, message: 'templateId required' });
 
-    const template = TEMPLATES_STORE.get(templateId);
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    try {
+      const tmplRepo = await getTemplateRepo();
+      const template = await tmplRepo.findByKey(templateId);
+      if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
 
-    const campaign = {
-      id: `camp_${Date.now()}`,
-      templateId,
-      templateName: template.name,
-      audience: audience || 'all',
-      status: 'draft',
-      recipientCount: 0,
-      sentCount: 0,
-      scheduledAt: scheduledAt || null,
-      createdAt: new Date().toISOString(),
-      createdBy: req.profile.id,
-    };
+      const campRepo = await getCampaignRepo();
+      const campaign = await campRepo.createCampaign({
+        templateKey: templateId,
+        templateName: template.name,
+        audience: audience || 'all',
+        scheduledAt: scheduledAt || null,
+        createdBy: req.profile.id,
+      });
+      if (!campaign) return res.status(500).json({ success: false, message: 'Failed to create campaign' });
 
-    CAMPAIGNS_STORE.push(campaign);
-    res.json({ success: true, data: campaign });
+      res.json({
+        success: true,
+        data: {
+          id: campaign.campaignId,
+          templateId: campaign.templateKey,
+          templateName: campaign.templateName,
+          audience: campaign.audience,
+          status: campaign.status,
+          recipientCount: campaign.recipientCount,
+          sentCount: campaign.sentCount,
+          scheduledAt: campaign.scheduledAt,
+          createdAt: campaign.createdAt,
+        },
+      });
+    } catch (err) {
+      logger.error('[resend/campaigns] create failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
   }
 );
 
@@ -170,21 +229,22 @@ router.post(
       return res.status(400).json({ success: false, message: 'Resend not configured' });
     }
 
-    const campaign = CAMPAIGNS_STORE.find((c) => c.id === req.params.id);
-    if (!campaign) return res.status(404).json({ success: false, message: 'Campaign not found' });
-    if (campaign.status === 'sent') return res.status(400).json({ success: false, message: 'Campaign already sent' });
-
-    const template = TEMPLATES_STORE.get(campaign.templateId);
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
-
     try {
+      const campRepo = await getCampaignRepo();
+      const campaign = await campRepo.findByCampaignId(req.params.id);
+      if (!campaign) return res.status(404).json({ success: false, message: 'Campaign not found' });
+      if (campaign.status === 'sent') return res.status(400).json({ success: false, message: 'Campaign already sent' });
+
+      const tmplRepo = await getTemplateRepo();
+      const template = await tmplRepo.findByKey(campaign.templateKey);
+      if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+
       const users = await repo.listUsers();
       const recipients = users
         .filter((u) => u.is_active && u.email)
         .map((u) => u.email);
 
-      campaign.recipientCount = recipients.length;
-      campaign.status = 'sending';
+      await campRepo.updateStatus(campaign.id, 'sending', { recipientCount: recipients.length });
 
       const from = process.env.RESEND_FROM || 'TonForge <noreply@tonforge.org>';
       let sentCount = 0;
@@ -205,13 +265,28 @@ router.post(
         await Promise.all(promises);
       }
 
-      campaign.sentCount = sentCount;
-      campaign.status = 'sent';
-      campaign.sentAt = new Date().toISOString();
-
-      res.json({ success: true, data: campaign });
+      const updated = await campRepo.updateStatus(campaign.id, 'sent', {
+        sentCount,
+        sentAt: new Date().toISOString(),
+      });
+      res.json({
+        success: true,
+        data: updated
+          ? {
+              id: updated.campaignId,
+              templateId: updated.templateKey,
+              templateName: updated.templateName,
+              audience: updated.audience,
+              status: updated.status,
+              recipientCount: updated.recipientCount,
+              sentCount: updated.sentCount,
+              scheduledAt: updated.scheduledAt,
+              createdAt: updated.createdAt,
+              sentAt: updated.sentAt,
+            }
+          : null,
+      });
     } catch (err) {
-      campaign.status = 'failed';
       logger.error('Campaign send failed:', err);
       res.status(500).json({ success: false, message: err.message });
     }

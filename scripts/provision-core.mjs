@@ -346,6 +346,84 @@ async function setupInboundEmails(databases) {
   }
 }
 
+async function setupEmailTemplates(databases) {
+  await ensureCollection(databases, 'email_templates', 'Email templates (Resend)', [
+    Permission.read(Role.team('admin')),
+    Permission.create(Role.team('admin')),
+    Permission.update(Role.team('admin')),
+    Permission.delete(Role.team('admin')),
+  ]);
+  const strings = [
+    ['template_key', 64, true],
+    ['name', 256, true],
+    ['subject', 1024, true],
+    ['body', 16000, true],
+    ['variables', 4000, false],
+  ];
+  for (const [key, size, req] of strings) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, 'email_templates', key, size, req)
+    );
+    await waitForAttribute(databases, 'email_templates', key);
+  }
+
+  try {
+    await databases.createIndex(DATABASE_ID, 'email_templates', 'idx_template_key', IndexType.Unique, ['template_key']);
+    console.log('[core] Индекс email_templates.template_key (unique)');
+  } catch (e) {
+    if (e.code === 409) console.log('[core] Индекс email_templates.template_key уже есть');
+    else throw e;
+  }
+}
+
+async function setupEmailCampaigns(databases) {
+  await ensureCollection(databases, 'email_campaigns', 'Email campaigns (Resend)', [
+    Permission.read(Role.team('admin')),
+    Permission.create(Role.team('admin')),
+    Permission.update(Role.team('admin')),
+    Permission.delete(Role.team('admin')),
+  ]);
+  const strings = [
+    ['campaign_id', 64, true],
+    ['template_key', 64, true],
+    ['template_name', 256, true],
+    ['audience', 64, true],
+    ['status', 32, true],
+    ['scheduled_at', 64, false],
+    ['sent_at', 64, false],
+    ['created_by', 64, true],
+  ];
+  for (const [key, size, req] of strings) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, 'email_campaigns', key, size, req)
+    );
+    await waitForAttribute(databases, 'email_campaigns', key);
+  }
+  await ignoreConflict(() =>
+    databases.createIntegerAttribute(DATABASE_ID, 'email_campaigns', 'recipient_count', false, 0, undefined, 0)
+  );
+  await waitForAttribute(databases, 'email_campaigns', 'recipient_count');
+  await ignoreConflict(() =>
+    databases.createIntegerAttribute(DATABASE_ID, 'email_campaigns', 'sent_count', false, 0, undefined, 0)
+  );
+  await waitForAttribute(databases, 'email_campaigns', 'sent_count');
+
+  try {
+    await databases.createIndex(DATABASE_ID, 'email_campaigns', 'idx_campaign_id', IndexType.Unique, ['campaign_id']);
+    console.log('[core] Индекс email_campaigns.campaign_id (unique)');
+  } catch (e) {
+    if (e.code === 409) console.log('[core] Индекс email_campaigns.campaign_id уже есть');
+    else throw e;
+  }
+  try {
+    await databases.createIndex(DATABASE_ID, 'email_campaigns', 'idx_status', IndexType.Key, ['status']);
+    console.log('[core] Индекс email_campaigns.status');
+  } catch (e) {
+    if (e.code === 409) console.log('[core] Индекс email_campaigns.status уже есть');
+    else throw e;
+  }
+}
+
 async function setupAudit(databases) {
   await ensureCollection(databases, 'api_audit_logs', 'API audit logs', [
     Permission.create(Role.users()),
@@ -403,6 +481,8 @@ async function main() {
   await setupLegacyProducts(databases);
   await setupScanJobs(databases);
   await setupInboundEmails(databases);
+  await setupEmailTemplates(databases);
+  await setupEmailCampaigns(databases);
   await setupAudit(databases);
   await ensureBucket(storage);
 

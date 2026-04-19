@@ -1,12 +1,9 @@
-import { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
   BadgeCheck,
   Box,
   CheckCircle2,
-  Coins,
-  Copy,
   Cpu,
   ExternalLink,
   Fingerprint,
@@ -18,94 +15,6 @@ import {
   Sparkles,
   Zap,
 } from 'lucide-react';
-
-/* ═══════════════════════════════════════════════════════════════
-   MECHANICUS PROTOCOL — License NFT subsystem
-   Grammar: OMNISSIAH::HDSK_EXTRACTOR  (см. /docs)
-   IN→license_nft_subsystem  OUT→codegen_context
-   ═══════════════════════════════════════════════════════════════ */
-const LICENSE_MECH_BLOCK = `OMNISSIAH::TONFORGE_LICENSE_NFT v1
-IN→license_nft_subsystem OUT→codegen_context
-D.tags|concept;contracts;flow;authority;safety
-
-## IDENTITY
-W|A|License≡soulbound_NFT;∅transferable;∅fungible
-W|A|standard_base=TEP-62+TEP-64;soulbound_intent≡TEP-85
-W|A|owner_intent=proof_of_purchase+device_binding+refund_burn
-W|A|deploy_target=TON_mainnet;testnet_first→smoke_E2E
-
-## CONTRACTS
-A|W|AppCollection.tact≡TEP-62_collection;1_per_app
-A|W|LicenseItem.tact≡TEP-64_item;1_per_purchase
-A|W|Escrow.tact≡existing;∅change;event_source→escrow_locked
-A|W|item_address→deterministic(code,init);buyer-scoped
-
-## STORAGE: AppCollection
-A|W|appId:Int256;ownerAddress:Address;nextItemIndex:Int64
-A|W|collectionContent:Cell;commonContent:Cell
-
-## STORAGE: LicenseItem
-A|W|index:Int(uint256);collection:Address;ownerAddress:Address;escrowAddress:Address
-A|W|transferLimit:Int(uint8);transfers:Int(uint8);content:Cell
-A|W|transferLimit=0→soulbound;transferLimit>0→edition
-
-## OPCODES
-A|W|MintLicense=0x6a3aaa14;BurnLicense=0x4d8e8a14
-A|W|ChangeOwner=0x4d8b8b8b;Burn(internal)=fwd_from_collection
-
-## AUTHORITY MATRIX
-P|A|MintLicense.sender→require==self.ownerAddress(oracle)
-P|A|BuyerBurn.sender→require==self.ownerAddress(buyer);now<burnDeadline
-P|A|Burn(item).sender→require==self.collection
-P|A|Transfer(item).sender→require==self.ownerAddress;count→require<self.transferLimit
-
-## OFF-CHAIN ORACLE (backend)
-A|W|wallet=WalletV4;mnemonic=ORACLE_MNEMONIC(env)
-A|W|wallet.address≡AppCollection.ownerAddress;deploy_owner==oracle
-A|W|on_event(escrow_locked)→mintLicense(buyer,escrow,index)
-A|W|on_event(buyer_burn)→LicenseItem.BuyerBurn→Escrow.RefundOnBurn
-A|W|verifyOwner→runMethod(get_nft_data)→cmp_ownerAddress
-
-## STATE MACHINE
-A|W|license.state∈{mint_pending,minted,mint_failed,
-A|W|  refund_pending,refunded,burned}
-A|W|confirm_purchase→mint_pending→[oracle.mint]→minted
-A|W|mint_fail(3 retries)→mint_failed→[oracle.refund 1h]→refund_pending→refunded
-A|W|buyer_burn→LicenseItem.BuyerBurn→[escrow.RefundOnBurn]→burned
-
-## METADATA (TEP-64 off-chain)
-A|W|content_prefix=0x01;tail=utf8(URI)
-A|W|collection_meta=<metadataUri>/collection.json
-A|W|item_meta=<metadataUriPrefix><index>.json
-A|W|fields={name,description,image,attributes:[app_id,sha256,
-A|W|  license_type,trial_ends_at,escrow_addr]}
-
-## VERIFICATION FLOW
-X|A|frontend.activate→backend.activateDevice
-X|A|backend→runMethod(get_nft_data,licenseAddr)
-X|A|require(owner==buyerWallet)→else_throw(license_not_owned_onchain)
-X|A|tonscan_link=https://tonscan.org/nft/<addr>
-X|A|tonkeeper_link=ton://transfer/<addr>
-
-## SECURITY
-P|A|sharding→1_contract_per_NFT;∅shared_state;parallel_safe
-P|A|gas_budget→mint=0.15TON;burn=0.07TON;configurable_env
-P|A|race_safe→DB_unique(purchase_session_id)+SELECT_FOR_UPDATE
-P|A|mint_idempotent→queryId=BigInt(Date.now())+DB_unique(session_id)
-P|A|key_rotation→ChangeOwner(newOracle)→update_env→restart
-
-## CONSTRAINTS
-∅user_initiated_mint;∅bypass_escrow;∅transfer_when_limit_zero
-∅burn_without_collection_consent;∅mint_without_oracle_signature
-parity_rule→Human==AIAgent→same_NFT_lifecycle
-
-ASCII_FALLBACK::
-  buyer -> Frontend -> TonConnect -> Escrow.deploy+pay
-  Escrow.locked -> Backend.oracle -> AppCollection.MintLicense
-  AppCollection -> deploy LicenseItem -> buyer.wallet
-  refund -> buyer.BuyerBurn -> LicenseItem.selfdestruct -> Escrow.RefundOnBurn -> buyer.wallet
-
-READY@send_chunk`;
 
 /* ═══════════════════════════════════════════════════════════════
    Code samples used in the page (kept inline so they render literally,
@@ -182,7 +91,8 @@ contract AppCollection with Deployable {
     }
 }`;
 
-const TS_ORACLE_MINT = `// backend/tonforge/onchain/mintLicense.ts
+const TS_ORACLE_MINT = `// Oracle-side mint: only the wallet that owns the AppCollection
+// (i.e. the platform's oracle wallet) can produce a license.
 export async function mintLicense(args: MintArgs) {
   const collection = AppCollection.fromInit(getCollectionCode(), {
     appId: args.appId, ownerAddress: oracle.address,
@@ -211,7 +121,7 @@ export async function mintLicense(args: MintArgs) {
   return { itemAddress: item.address, txHash: args.queryId.toString(16) };
 }`;
 
-const TS_VERIFY = `// backend/tonforge/onchain/verifyOwnership.ts
+const TS_VERIFY = `// On-chain ownership verification before any privileged action.
 export async function verifyLicenseOwner(addr: Address, expected: Address) {
   const state = await client.getContractState(addr);
   if (state.state !== 'active') return { ok: false, reason: 'item_not_active' };
@@ -263,7 +173,6 @@ const TOC = [
   ['#oracle', 'Oracle'],
   ['#standards', 'TEP'],
   ['#security', 'Security'],
-  ['#mechanicus', 'LM∞'],
 ];
 
 function CodeBlock({ language, children }: { language: string; children: string }) {
@@ -303,14 +212,6 @@ function Pill({
 }
 
 export default function LicenseNftPage() {
-  const [copied, setCopied] = useState(false);
-  const onCopy = useCallback(() => {
-    void navigator.clipboard.writeText(LICENSE_MECH_BLOCK).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2200);
-    });
-  }, []);
-
   return (
     <div className="relative -mx-4 -my-8 min-h-[calc(100vh-10rem)] overflow-hidden text-[#c4c4d4]">
       {/* ── Background: void + sacred grid + scanline pulse ── */}
@@ -564,11 +465,9 @@ export default function LicenseNftPage() {
               ['refund_pending', '#8B5CF6', 'OracleRefund отправлен в Escrow. Ожидание подтверждения on-chain.'],
               ['refunded', '#FFD700', 'Средства возвращены покупателю. Escrow самоуничтожился.'],
               ['burned', '#FF2A6D', 'NFT сожжён покупателем (BuyerBurn). Escrow рефанднул средства.'],
-              ['refunded', '#FF8800', 'Средства вернулись покупателю. NFT сожжён, лицензия аннулирована.'],
-              ['mint_failed', '#FF2A6D', 'Сетевая ошибка. Мы автоматически ретраим, покупатель продолжает скачивать.'],
-            ].map(([state, color, desc]) => (
+            ].map(([state, color, desc], i) => (
               <li
-                key={state}
+                key={`${state}-${i}`}
                 className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2.5"
               >
                 <span
@@ -624,11 +523,9 @@ export default function LicenseNftPage() {
           </h2>
           <p className="mb-4 text-sm text-[#a8a8be]">
             {H([
-              { t: 'Один WalletV4 с мнемоникой в ' },
-              { t: 'ORACLE_MNEMONIC', c: 'magenta' },
-              { t: '. Адрес кошелька == ' },
+              { t: 'Платформа держит один секретно хранящийся кошелёк-оракул. Его адрес записан как ' },
               { t: 'AppCollection.ownerAddress', c: 'gold' },
-              { t: '. Поэтому только наш backend может вызывать ' },
+              { t: ' при деплое — поэтому только этот кошелёк может вызывать ' },
               { t: 'MintLicense', c: 'cyan' },
               { t: ' и ' },
               { t: 'BurnLicense', c: 'cyan' },
@@ -759,41 +656,9 @@ export default function LicenseNftPage() {
             ))}
           </div>
           <p className="mt-5 text-xs text-[#666]">
-            Полный runbook операций:{' '}
-            <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[#FFD700]">docs/license-nft-runbook.md</code>;
-            спецификация:{' '}
-            <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[#FFD700]">docs/license-nft-spec.md</code>.
+            Полные исходники контрактов — в репозитории под{' '}
+            <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[#FFD700]">contracts/src/</code>.
           </p>
-        </section>
-
-        {/* ── MECHANICUS BLOCK FOR LM∞ ── */}
-        <section
-          id="mechanicus"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#FF2A6D]/30 bg-gradient-to-br from-[#0a0008]/95 to-[#000] p-6 shadow-[0_0_60px_rgba(255,42,109,0.08)] sm:p-8"
-        >
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
-              <Coins className="h-5 w-5 text-[#FF2A6D]" aria-hidden />
-              LM∞ · Mechanicus block
-            </h2>
-            <button
-              type="button"
-              onClick={onCopy}
-              className="inline-flex items-center gap-1.5 rounded-md border border-[#FFD700]/30 bg-[#FFD700]/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider text-[#FFD700] transition-all hover:border-[#FFD700]/60 hover:bg-[#FFD700]/20"
-            >
-              <Copy className="h-3 w-3" />
-              {copied ? 'copied' : 'copy chunk'}
-            </button>
-          </div>
-          <p className="mb-4 text-xs text-[#888]">
-            Скопируйте блок ниже и вставьте в системный prompt вашего AI-агента (Claude, GPT, локальная LM-модель).
-            Грамматика та же, что в основной документации{' '}
-            <Link to="/docs#mechanicus" className="text-[#FFD700] hover:underline">/docs#mechanicus</Link>: операторы (≡, →, ⊕, ∅),
-            домены (W/X/A/P), сжатые правила. Малая модель не ошибётся в API контрактов.
-          </p>
-          <pre className="overflow-x-auto rounded-lg border border-[#FF2A6D]/20 bg-black/80 p-4 font-mono text-[11px] leading-relaxed text-[#7affb0]">
-            <code>{LICENSE_MECH_BLOCK}</code>
-          </pre>
         </section>
 
         <p className="mt-12 text-center font-mono text-[10px] uppercase tracking-[0.3em] text-[#444]">

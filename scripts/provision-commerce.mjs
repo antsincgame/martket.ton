@@ -19,6 +19,7 @@ const COL_AUDIT = 'commerce_audit_logs';
 const COL_DOWNLOAD_AUDIT = 'download_audit';
 const COL_LICENSES = 'licenses';
 const COL_WORKER_LOCKS = 'worker_locks';
+const COL_AGENT_TOKENS = 'agent_tokens';
 const BUCKET_ASSETS = 'commerce_assets';
 
 const READ_ANY = [Permission.read(Role.any())];
@@ -139,8 +140,12 @@ async function setupListings(databases) {
   ]);
 
   // ── License NFT fields (per-listing collection on TON) ──────────
-  // If `collection_address` is set, every Commerce purchase mints a LicenseItem
-  // NFT under that AppCollection. If empty, listing falls back to no-NFT mode.
+  // After the NFT-mint bridge `collection_address` is REQUIRED at application
+  // level (createListingSchema in backend/commerce/validation.ts). We keep
+  // the Appwrite attribute itself nullable so re-provisioning doesn't fail
+  // on databases that still have legacy rows; the migration script
+  // `scripts/migrate-suspend-no-collection.mjs` flips such legacy listings
+  // to status=suspended.
   // metadata_uri_prefix capped at 128 to fit Appwrite row-size budget
   // (listings collection holds many large strings: description=12000,
   //  distribution_locator=2048, etc.). 128 is enough for IPFS / R2 URL prefix.
@@ -370,6 +375,36 @@ async function setupWorkerLocks(databases) {
   await idx(databases, COL_WORKER_LOCKS, 'uniq_lockKey', IndexType.Unique, ['lockKey']);
 }
 
+async function setupAgentTokens(databases) {
+  // Personal Access Tokens for AI agents acting on behalf of a verified
+  // seller. Only the sha256 of the plaintext is stored; the plaintext is
+  // returned exactly once at issue time. Lookup keyed on tokenHash (unique).
+  await ensureCollection(databases, COL_AGENT_TOKENS, 'Agent API Personal Access Tokens', SERVER_ONLY);
+  const stringCols = [
+    ['wallet', 128, true],
+    ['tokenHash', 64, true],
+    ['tokenPrefix', 16, true],
+    ['name', 80, true],
+    // CSV scope list, e.g. "listings:read,listings:write,orders:read,distribution:write"
+    ['scopes', 255, true],
+  ];
+  for (const [k, size, req] of stringCols) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, COL_AGENT_TOKENS, k, size, req)
+    );
+    await waitForAttribute(databases, COL_AGENT_TOKENS, k);
+  }
+  const dateCols = ['lastUsedAt', 'expiresAt', 'revokedAt'];
+  for (const k of dateCols) {
+    await ignoreConflict(() =>
+      databases.createDatetimeAttribute(DATABASE_ID, COL_AGENT_TOKENS, k, false)
+    );
+    await waitForAttribute(databases, COL_AGENT_TOKENS, k);
+  }
+  await idx(databases, COL_AGENT_TOKENS, 'uniq_token_hash', IndexType.Unique, ['tokenHash']);
+  await idx(databases, COL_AGENT_TOKENS, 'idx_wallet', IndexType.Key, ['wallet']);
+}
+
 async function ensureBucket(storage) {
   try {
     await storage.createBucket(
@@ -404,6 +439,7 @@ async function main() {
   await setupEntitlements(databases);
   await setupLicenses(databases);
   await setupWorkerLocks(databases);
+  await setupAgentTokens(databases);
   await setupAudit(databases);
   await setupDownloadAudit(databases);
   await ensureBucket(storage);

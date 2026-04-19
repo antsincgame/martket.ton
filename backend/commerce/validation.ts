@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Address } from '@ton/core';
 import { CURRENCY } from './constants.js';
 
 export const sellerRegisterSchema = z.object({
@@ -6,6 +7,27 @@ export const sellerRegisterSchema = z.object({
   displayName: z.string().min(1, 'displayName is required').max(200),
   bio: z.string().max(2000).default(''),
 });
+
+/**
+ * TON user-friendly address with CRC16-CCITT checksum validation.
+ * Uses `@ton/core` `Address.parse` — rejects addresses with invalid checksums
+ * that a simple regex would let through.
+ */
+export const tonAddressSchema = z
+  .string()
+  .min(48, 'TON address must be 48 characters')
+  .max(48, 'TON address must be 48 characters')
+  .refine(
+    (val) => {
+      try {
+        Address.parse(val);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Invalid TON address (bad checksum or format). Expected EQ/UQ/kQ/0Q prefix.' },
+  );
 
 export const createListingSchema = z.object({
   sellerWallet: z.string().min(1),
@@ -21,16 +43,34 @@ export const createListingSchema = z.object({
   deliveryPayload: z.string().min(1),
   platformFeeBps: z.number().int().min(0).max(10000).optional(),
   assetFileId: z.string().default(''),
+  /**
+   * Pre-deployed AppCollection address. Mandatory after the NFT-mint bridge:
+   * every Commerce purchase mints a LicenseItem in this collection, and download
+   * is gated on the mint. Without a valid collection no download can ever open.
+   */
+  collectionAddress: tonAddressSchema,
 });
 
-export const patchListingSchema = z.object({
-  sellerWallet: z.string().optional(),
-  status: z.string().optional(),
-  title: z.string().max(200).optional(),
-  description: z.string().max(5000).optional(),
-  priceTon: z.union([z.string(), z.number()]).optional(),
-  deliveryPayload: z.string().optional(),
-});
+export const patchListingSchema = z
+  .object({
+    sellerWallet: z.string().optional(),
+    status: z.string().optional(),
+    title: z.string().max(200).optional(),
+    description: z.string().max(5000).optional(),
+    priceTon: z.union([z.string(), z.number()]).optional(),
+    deliveryPayload: z.string().optional(),
+    collectionAddress: tonAddressSchema.optional(),
+  })
+  .refine(
+    (data) => {
+      // Forbid clearing collectionAddress to empty string.
+      if ('collectionAddress' in data && data.collectionAddress !== undefined && data.collectionAddress.trim() === '') {
+        return false;
+      }
+      return true;
+    },
+    { message: 'collectionAddress cannot be empty', path: ['collectionAddress'] },
+  );
 
 export const createOrderSchema = z.object({
   listingId: z.string().min(1, 'listingId is required'),

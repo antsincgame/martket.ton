@@ -67,6 +67,24 @@
 
 Клиент: `src/lib/commerceApi.ts`. Типичные пути: листинги продавца, `GET /sellers/:wallet/orders`, KYC, публикация TonForge-приложений — см. код модуля и `backend/commerce/`.
 
+### NFT-mint bridge (политика)
+
+Каждый active commerce-listing **обязан** иметь deployed `AppCollection`
+(поле `collection_address`):
+
+- `createListingSchema` требует валидный TON-адрес, `PATCH ... status=active`
+  отказывает без него.
+- `POST /orders/:id/confirm` бросит 503 `LISTING_NO_COLLECTION`, если
+  валидация была обойдена.
+- `GET /listings/:id/download` пускает только когда
+  `license.state === 'minted'` и `license.nftAddress` непустой.
+
+Существующие listing'и без коллекции переводятся в `suspended` через
+`scripts/migrate-suspend-no-collection.mjs` (см.
+[license-nft-runbook.md](./license-nft-runbook.md), раздел 7.6).
+Обоснование политики и полная gate-matrix — в
+[license-nft-spec.md](./license-nft-spec.md), раздел 11.1.
+
 ## Соглашения по коду
 
 - TypeScript strict на фронте; бэкенд — ES-модули, `tsx` для запуска.

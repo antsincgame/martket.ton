@@ -75,10 +75,12 @@ export default function ProductModerationQueue() {
     setLoading(true);
     try {
       const res = await authFetch('/api/products/pending');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const body = await res.json();
       setProducts(body.data || []);
     } catch (err) {
       logger.error('[mod-queue]', err);
+      setProducts([]);
     } finally {
       setLoading(false);
     }

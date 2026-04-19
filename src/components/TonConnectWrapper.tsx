@@ -1,4 +1,4 @@
-import { Component, type ReactNode, type ErrorInfo } from 'react';
+import React, { Component, type ReactNode, type ErrorInfo } from 'react';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
 
 /**
@@ -52,7 +52,11 @@ class TonConnectSafeProvider extends Component<{ children: ReactNode }, Fallback
 
   render() {
     if (this.state.hasFailed) {
-      return <>{this.props.children}</>;
+      return (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center text-sm text-amber-200">
+          Wallet connection unavailable. Reload the page to try again.
+        </div>
+      );
     }
     return (
       <TonConnectUIProvider manifestUrl={getManifestUrl()}>

@@ -7,11 +7,16 @@
  * Behaviour:
  *  - If a license already exists for `order.$id` → returns it as-is.
  *  - Else → reads `listing.collection_address`, picks the next collection
- *    index, and creates a license. If a collection address is configured,
- *    the license starts in `mint_pending` and the mintWorker is nudged.
- *    If no collection (NFT-less listing) it starts in `minted`.
+ *    index, and creates a license in `mint_pending`, then nudges the
+ *    mintWorker so the on-chain mint starts immediately.
  *
- * Returns the license record. Never throws on the trigger step.
+ * Throws `LISTING_NO_COLLECTION` when `listing.collection_address` is
+ * empty. After the NFT-mint bridge every active listing must have a
+ * pre-deployed AppCollection — otherwise we cannot mint a License NFT,
+ * and without the NFT the buyer-burn refund guarantee does not apply.
+ * Caller (orderRoutes.confirm) is expected to surface this as a 5xx so
+ * payment is retried/refunded rather than silently producing a dead
+ * "minted" record without an NFT.
  */
 
 import {
@@ -37,6 +42,13 @@ export interface ListingLike {
   sellerWallet?: string;
 }
 
+export class ListingNoCollectionError extends Error {
+  code = 'LISTING_NO_COLLECTION' as const;
+  constructor(public listingId: string) {
+    super(`Listing ${listingId} has no collection_address; cannot mint License NFT.`);
+  }
+}
+
 export async function ensureLicenseForOrder(
   order: OrderLike,
   listing: ListingLike,
@@ -45,10 +57,15 @@ export async function ensureLicenseForOrder(
   const existing = await findLicenseByOrderId(order.$id);
   if (existing) return existing;
 
-  const collectionAddress = listing.collection_address || '';
-  const collectionIndex = collectionAddress
-    ? await countLicensesForCollection(collectionAddress).catch(() => 0)
-    : 0;
+  const collectionAddress = (listing.collection_address || '').trim();
+  if (!collectionAddress) {
+    // Defence in depth: createListingSchema requires it, but a legacy
+    // listing or a manual DB edit could slip through. Refuse to forge
+    // a fake "minted" license that bypasses the NFT mint gate.
+    throw new ListingNoCollectionError(order.listingId);
+  }
+
+  const collectionIndex = await countLicensesForCollection(collectionAddress).catch(() => 0);
 
   const license = await createLicense({
     orderId: order.$id,
@@ -60,14 +77,12 @@ export async function ensureLicenseForOrder(
     collectionAddress,
     trialEndsAt,
     collectionIndex,
-    initialState: collectionAddress ? LICENSE_STATE.MINT_PENDING : LICENSE_STATE.MINTED,
+    initialState: LICENSE_STATE.MINT_PENDING,
   });
 
-  if (collectionAddress) {
-    triggerMintLoop().catch((err) =>
-      logger.warn('[ensureLicense] mint trigger:', err instanceof Error ? err.message : err),
-    );
-  }
+  triggerMintLoop().catch((err) =>
+    logger.warn('[ensureLicense] mint trigger:', err instanceof Error ? err.message : err),
+  );
 
   return license;
 }

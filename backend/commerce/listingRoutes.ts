@@ -23,6 +23,7 @@ import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
 import { sellerRegisterSchema, createListingSchema, patchListingSchema } from './validation.js';
 import { mapListingPublic, appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
+import { requireSellerKyc } from './handlers/requireSellerKyc.js';
 
 const router = express.Router();
 const upload = multer({
@@ -86,14 +87,27 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
       priceTon, priceHuman, decimals: decIn,
       deliveryType, deliveryPayload,
       platformFeeBps = DEFAULT_PLATFORM_FEE_BPS, assetFileId = '',
+      collectionAddress,
     } = req.body as Record<string, string | number | undefined>;
 
     if (!sellerWallet || !catalogProductId || !title || !deliveryType || !deliveryPayload) {
       res.status(400).json({ error: 'Missing required fields', code: 'VALIDATION' });
       return;
     }
+    if (!collectionAddress || typeof collectionAddress !== 'string') {
+      // Schema-level validation should already catch this; defence in depth.
+      res.status(400).json({ error: 'collectionAddress is required', code: 'NO_COLLECTION' });
+      return;
+    }
     const owner = await requireWalletOwner(req, res, String(sellerWallet));
     if (!owner) return;
+
+    const kyc = requireSellerKyc(String(sellerWallet));
+    if (!kyc.ok) {
+      res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
+      return;
+    }
+
     const decimals =
       currency === CURRENCY.TON ? 9 : Math.min(18, Math.max(0, parseInt(String(decIn), 10) || 9));
 
@@ -115,6 +129,7 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
       currency, jettonMaster: currency === CURRENCY.JETTON ? jettonMaster : '',
       priceAmountRaw, decimals, platformFeeBps,
       status: LISTING_STATUS.ACTIVE, deliveryType, assetFileId,
+      collection_address: collectionAddress,
     });
     await db.createDocument(DATABASE_ID, COL_LISTING_SECRETS, ID.unique(), {
       listingId: listing.$id, deliveryPayload,
@@ -148,6 +163,30 @@ router.patch('/listings/:id', apiRequireAuth(), validateBody(patchListingSchema)
     if (body.description) patch.description = body.description;
     if (body.priceTon !== undefined && existing['currency'] === CURRENCY.TON) {
       patch.priceAmountRaw = tonHumanToNanoRaw(body.priceTon as string | number);
+    }
+    if (typeof body.collectionAddress === 'string' && body.collectionAddress.length > 0) {
+      patch.collection_address = body.collectionAddress;
+    }
+    // Activating a listing requires a valid collection_address — otherwise
+    // every purchase would create a license without an NFT mint, breaking
+    // the buyer-burn refund guarantee. It also requires approved KYC.
+    if (patch.status === LISTING_STATUS.ACTIVE) {
+      const effectiveCollection =
+        (patch.collection_address as string | undefined) ||
+        (existing['collection_address'] as string | undefined) ||
+        '';
+      if (!effectiveCollection) {
+        res.status(400).json({
+          error: 'Cannot activate listing without collection_address. Deploy AppCollection first.',
+          code: 'NO_COLLECTION',
+        });
+        return;
+      }
+      const kyc = requireSellerKyc(sellerWallet);
+      if (!kyc.ok) {
+        res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
+        return;
+      }
     }
     const updated = await db.updateDocument(DATABASE_ID, COL_LISTINGS, listingId, patch);
     if (body.deliveryPayload) {

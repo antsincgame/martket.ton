@@ -101,7 +101,10 @@ function canBuyerBurn(license: LicensePublic): boolean {
 }
 
 function canDownload(license: LicensePublic): boolean {
-  return license.state === 'minted';
+  // Mirror backend gate (distributionRoutes.ts): the file opens only when an
+  // NFT is actually minted on-chain. `state==='minted'` alone is not enough —
+  // legacy licenses may carry that state without `nftAddress`.
+  return license.state === 'minted' && Boolean(license.nftAddress);
 }
 
 function canConfirmDelivery(license: LicensePublic): boolean {

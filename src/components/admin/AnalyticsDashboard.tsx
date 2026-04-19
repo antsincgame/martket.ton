@@ -1,11 +1,11 @@
-import type { FC } from 'react';
+import type { CSSProperties, FC } from 'react';
 import { Users, Package, CheckCircle, Activity, RefreshCw, AlertCircle } from 'lucide-react';
 import { useAdminStats } from '../../hooks/useAdminData';
 
 interface StatCardProps {
   label: string;
   value: number;
-  icon: FC<{ className?: string; style?: React.CSSProperties }>;
+  icon: FC<{ className?: string; style?: CSSProperties }>;
   accentColor: string;
 }
 

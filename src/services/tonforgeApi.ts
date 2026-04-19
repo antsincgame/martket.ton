@@ -1,14 +1,20 @@
-// Клиент TonForge API переводит фронт на канонический backend boundary apps/licenses/escrow без слома текущего Vite приложения.
+// TonForge API client.
+//
+// SCOPE after the NFT-mint bridge:
+//   - catalog metadata (apps featured/details), developer workspace
+//   - KYC submission, artifact scan, app publish
+//
+// All buy/mint/burn flows live in `commerceApi.ts` (Appwrite-backed orders,
+// LicenseRecord, on-chain mint via the oracle wallet). The legacy in-memory
+// purchase / wallet / activation / verification helpers were removed —
+// frontend stopped calling them after MyLicensesPanel switched to commerce.
 import type {
   TonForgeApp,
   TonForgeArtifactScan,
   TonForgeContractOverview,
   TonForgeDeveloperProfile,
   TonForgeDeveloperWorkspace,
-  TonForgeLicense,
-  TonForgePurchaseSession,
   TonForgeReview,
-  TonForgeWalletProfile,
 } from '../domain/tonforge/types';
 
 type ApiEnvelope<T> = { data: T };
@@ -108,69 +114,3 @@ export async function publishTonForgeApp(payload: {
   const data = await postJson<{ app: TonForgeApp }>('/apps', payload);
   return data.app;
 }
-
-export async function createPurchaseSession(payload: {
-  appId: string;
-  buyerWallet: string;
-}): Promise<{ app: TonForgeApp; session: TonForgePurchaseSession }> {
-  return postJson<{ app: TonForgeApp; session: TonForgePurchaseSession }>('/purchase/session', payload);
-}
-
-export async function confirmPurchaseSession(payload: {
-  purchaseSessionId: string;
-  buyerWallet: string;
-  txHash?: string;
-}): Promise<{
-  app: TonForgeApp;
-  session: TonForgePurchaseSession;
-  license: TonForgeLicense;
-}> {
-  return postJson<{
-    app: TonForgeApp;
-    session: TonForgePurchaseSession;
-    license: TonForgeLicense;
-  }>('/purchase/confirm', payload);
-}
-
-export async function fetchWalletProfile(wallet: string): Promise<TonForgeWalletProfile> {
-  return getJson<TonForgeWalletProfile>(`/licenses/me?wallet=${encodeURIComponent(wallet)}`);
-}
-
-export async function activateLicenseDevice(payload: {
-  licenseId: string;
-  buyerWallet: string;
-  deviceId: string;
-}): Promise<{ app: TonForgeApp; license: TonForgeLicense }> {
-  return postJson<{ app: TonForgeApp; license: TonForgeLicense }>(
-    `/licenses/${encodeURIComponent(payload.licenseId)}/activate-device`,
-    payload
-  );
-}
-
-export interface TonForgeOnchainVerify {
-  ok: boolean;
-  reason?: string;
-  ownerOnchain?: string;
-  ownerExpected?: string;
-  index?: string;
-  collection?: string;
-}
-
-export async function fetchLicenseById(
-  licenseId: string,
-): Promise<TonForgeLicense> {
-  const data = await getJson<{ license: TonForgeLicense }>(
-    `/licenses/${encodeURIComponent(licenseId)}`,
-  );
-  return data.license;
-}
-
-export async function verifyLicenseOnchain(
-  licenseId: string,
-): Promise<TonForgeOnchainVerify> {
-  const data = await getJson<{ verify: TonForgeOnchainVerify }>(
-    `/licenses/${encodeURIComponent(licenseId)}/verify`,
-  );
-  return data.verify;
-}
-

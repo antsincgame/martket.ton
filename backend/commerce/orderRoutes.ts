@@ -21,7 +21,8 @@ import { appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
 import { resolveProfile } from '../middleware/auth.js';
 import { insertPurchase } from '../core/purchaseRepository.js';
 import { verifyOrderPayment } from './handlers/verifyOrderPayment.js';
-import { ensureLicenseForOrder } from './handlers/ensureLicenseForOrder.js';
+import { ensureLicenseForOrder, ListingNoCollectionError } from './handlers/ensureLicenseForOrder.js';
+import { screenWallet } from '../sanctions/screen.js';
 
 
 const router = express.Router();
@@ -34,6 +35,18 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
     const { listingId, buyerWallet } = req.body as { listingId: string; buyerWallet: string };
     const owner = await requireWalletOwner(req, res, buyerWallet);
     if (!owner) return;
+
+    // Sanctions screening (US OFAC SDN + EU consolidated). HTTP 451 = legally
+    // unavailable. Buyer KYC is NOT required — only their wallet's standing.
+    const screen = screenWallet(buyerWallet);
+    if (!screen.ok) {
+      res.status(451).json({
+        error: 'Wallet is on a sanctions list and cannot transact.',
+        code: screen.reason || 'SANCTIONED',
+      });
+      return;
+    }
+
     const netCfg = resolveNetworkConfig(req);
     const treasury = netCfg.treasuryAddress;
     if (!treasury) { res.status(503).json({ error: 'TREASURY_WALLET_ADDRESS not configured', code: 'CONFIG' }); return; }
@@ -125,6 +138,15 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
       res.json({ data: { state: order['state'], message: 'Order already processed' } }); return;
     }
 
+    const screen = screenWallet(buyerWallet);
+    if (!screen.ok) {
+      res.status(451).json({
+        error: 'Wallet is on a sanctions list and cannot transact.',
+        code: screen.reason || 'SANCTIONED',
+      });
+      return;
+    }
+
     // Step 1: verify the buyer actually paid (escrow path or treasury+memo).
     const payment = await verifyOrderPayment(req, treasury, {
       escrowAddress: (order['escrowAddress'] as string) || '',
@@ -210,6 +232,17 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
       },
     });
   } catch (e: unknown) {
+    if (e instanceof ListingNoCollectionError) {
+      // Listing slipped through validation without a collection_address — payment
+      // already landed, so frontend must trigger the manual refund flow.
+      logger.error('[commerce] order confirm: listing has no collection_address', e.listingId);
+      res.status(503).json({
+        error: 'Listing has no NFT collection. Contact support for refund.',
+        code: 'LISTING_NO_COLLECTION',
+        listingId: e.listingId,
+      });
+      return;
+    }
     const code = appwriteCodeOrZero(e);
     if (code === 404) { res.status(404).json({ error: 'Order not found', code: 'NOT_FOUND' }); return; }
     logger.error('[commerce] order confirm:', e instanceof Error ? e.message : e);

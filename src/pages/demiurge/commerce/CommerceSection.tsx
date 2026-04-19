@@ -13,6 +13,9 @@ import OrdersTab from './OrdersTab';
 import PublishingTab from './PublishingTab';
 import StorageSettings from './StorageSettings';
 import DistributionEditor from './DistributionEditor';
+import NoCollectionWarning from './NoCollectionWarning';
+import KycRequiredBanner from './KycRequiredBanner';
+import ApiTokensTab from './ApiTokensTab';
 
 interface TabDef {
   id: string;
@@ -26,6 +29,7 @@ const TABS: TabDef[] = [
   { id: 'orders', path: 'orders', label: 'Orders', description: 'Purchases of your products on the TON blockchain' },
   { id: 'publishing', path: 'publishing', label: 'Publishing', description: 'KYC, Artifact Scan, and new app release' },
   { id: 'storage', path: 'storage', label: 'Storage', description: 'Bring Your Own R2/S3 — host builds on your bucket' },
+  { id: 'api-tokens', path: 'api-tokens', label: 'API Tokens', description: 'Personal access tokens for AI agents (Agent API)' },
 ];
 
 interface FlashState {
@@ -88,6 +92,9 @@ export default function CommerceSection() {
       {flash.error && <Banner kind="error" message={flash.error} onDismiss={() => setFlash((f) => ({ ...f, error: null }))} />}
       {flash.success && <Banner kind="success" message={flash.success} onDismiss={() => setFlash((f) => ({ ...f, success: null }))} />}
 
+      <KycRequiredBanner workspace={workspace} />
+      <NoCollectionWarning wallet={wallet} />
+
       <Tabs activeId={activeTab.id} />
 
       <p className="text-xs text-[#666] -mt-2">{activeTab.description}</p>
@@ -118,6 +125,7 @@ export default function CommerceSection() {
           }
         />
         <Route path="storage" element={<StorageSettings wallet={wallet} />} />
+        <Route path="api-tokens" element={<ApiTokensTab workspace={workspace} />} />
         <Route path="listings/:listingId/distribution" element={<DistributionRoute wallet={wallet} />} />
         <Route path="*" element={<Navigate to="listings" replace />} />
       </Routes>

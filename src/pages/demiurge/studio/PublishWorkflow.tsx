@@ -42,7 +42,7 @@ export default function PublishWorkflow({
   const meta = getStatusMeta(status);
   const { toast } = useToast();
   const invalidator = useSessionInvalidator();
-  const isScanClean = scanStatus === 'clean' || !scanStatus;
+  const isScanClean = scanStatus === 'clean';
   const isScanInProgress = scanStatus === 'pending' || scanStatus === 'scanning';
   const isScanFailed = scanStatus === 'malicious' || scanStatus === 'suspicious' || scanStatus === 'error';
   const canSubmitForReview = hasBuild && isScanClean;

@@ -233,6 +233,38 @@ Backend при минте передаёт `individualContent = offchainContent(
   покупки на новую коллекцию (DB поле `collectionAddress`), старые лицензии
   остаются валидными.
 
+### 7.6 Migration: existing listings without `collection_address`
+
+После соединения Commerce-checkout и NFT-минта каждое active listing обязано
+иметь deployed `AppCollection`. Сценарий миграции:
+
+1. **Dry-run** для составления списка кандидатов:
+   ```bash
+   APPWRITE_ENDPOINT=... APPWRITE_PROJECT_ID=... APPWRITE_API_KEY=... \
+     node scripts/migrate-suspend-no-collection.mjs --dry-run
+   ```
+   Скрипт выведет каждый orphan-listing с `seller`, `title`, `id`. Это
+   список адресов для уведомления продавцов (email / поддержка).
+
+2. **Уведомить продавцов** заранее, дать дедлайн на деплой коллекции
+   (см. раздел 4 — деплой `AppCollection` через `deployCollection.ts`,
+   затем `PATCH /api/v1/commerce/listings/:id` с `collectionAddress`).
+
+3. **Apply** — после дедлайна запустить тот же скрипт без флага:
+   ```bash
+   APPWRITE_ENDPOINT=... APPWRITE_PROJECT_ID=... APPWRITE_API_KEY=... \
+     node scripts/migrate-suspend-no-collection.mjs
+   ```
+   Все orphan-listings уйдут в `status='suspended'`. Покупки на них
+   возвращают 400 (orderRoutes.create) либо 503 `LISTING_NO_COLLECTION`
+   на confirm — buyer'ы получают понятную ошибку, а не молчаливо
+   списывают деньги без NFT.
+
+4. **Реактивация для продавца.** После того как продавец задеплоил
+   коллекцию и обновил `collectionAddress`, оператор поддержки делает
+   `PATCH /api/v1/commerce/listings/:id` с `status='active'` —
+   route проверит `collection_address` и пропустит.
+
 ---
 
 ## 8. Полезные команды

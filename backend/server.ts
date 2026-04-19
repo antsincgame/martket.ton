@@ -146,10 +146,8 @@ app.get('/api/health', async (req, res) => {
  */
 app.get('/api/ready', (_req, res) => {
   const ready = isCoreConfigured();
-  res.status(ready ? 200 : 503).json({
-    ready,
-    appwrite: isCoreConfigured() ? 'ok' : 'not_configured',
-  });
+  // Minimal response — no infrastructure detail. Load balancers check status code only.
+  res.status(ready ? 200 : 503).json({ ready });
 });
 
 // ─── Body parsing ───────────────────────────────────────────────────
@@ -164,7 +162,7 @@ app.get('/api/ready', (_req, res) => {
  */
 app.use((req, res, next) => {
   if (req.path === '/api/admin/resend/webhook/inbound') return next();
-  return express.json()(req, res, next);
+  return express.json({ limit: '256kb' })(req, res, next);
 });
 
 function sanitizeBody(req: express.Request, _res: express.Response, next: express.NextFunction): void {
@@ -301,6 +299,7 @@ async function mountOptionalRouters(): Promise<void> {
   const optional: Array<[string, string, boolean]> = [
     ['/api/og', './og/handler.js', false],
     ['/api/v1/commerce', './commerce/routes.js', true],
+    ['/api/v1/agent', './agent/routes.js', true],
     ['/api/admin/resend', './resend/routes.js', false],
     ['/api/r2', './r2/routes.js', true],
   ];
@@ -408,6 +407,20 @@ async function startMintWorkerSafe(): Promise<void> {
   }
 }
 
+async function startSanctionsRefreshSafe(): Promise<void> {
+  try {
+    const { startSanctionsRefresh } = await import('./sanctions/screen.js');
+    startSanctionsRefresh();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'unknown';
+    if (process.env.NODE_ENV === 'production') {
+      logger.error('FATAL: Sanctions module failed to load in production:', msg);
+      process.exit(1);
+    }
+    logger.warn('Sanctions refresh bootstrap failed:', msg);
+  }
+}
+
 async function start(): Promise<void> {
   await initSentry();
   await mountOptionalRouters();
@@ -415,6 +428,7 @@ async function start(): Promise<void> {
   const ttlCronHandle = startOrderTtlCron();
   await startScanWorker();
   await startMintWorkerSafe();
+  await startSanctionsRefreshSafe();
   const server = app.listen(PORT, () => {
     logger.info(`TON Web Store API running on port ${PORT}`);
     logger.info(`Health: http://localhost:${PORT}/api/health`);

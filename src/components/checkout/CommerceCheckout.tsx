@@ -11,7 +11,6 @@ import type { CreateOrderResponse } from '../../domain/commerce/types';
 import type { CommerceListingPublic } from '../../domain/commerce/types';
 import { logger } from '../../lib/logger';
 import MintProgress from './MintProgress';
-import DownloadAction from './DownloadAction';
 
 function resolveTonNetwork(): 'mainnet' | 'testnet' {
   if (typeof window === 'undefined') return 'mainnet';
@@ -39,7 +38,6 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   const [listing, setListing] = useState<CommerceListingPublic | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [order, setOrder] = useState<CreateOrderResponse | null>(null);
-  const [delivery, setDelivery] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [licenseId, setLicenseId] = useState<string | null>(null);
 
@@ -88,15 +86,20 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
 
       setPhase('confirming');
       const confirmation = await confirmCommerceOrder(ord.orderId, buyerWallet, txHash);
-      if (confirmation.entitlement?.deliveryPayload) {
-        setDelivery(confirmation.entitlement.deliveryPayload);
-      }
       if (confirmation.license?.id) {
         setLicenseId(confirmation.license.id);
       }
       setPhase('done');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Purchase failed';
+      const raw = err instanceof Error ? err.message : 'Purchase failed';
+      // Friendlier copy for sanctions / KYC denials. The backend appends a
+      // `(CODE)` suffix to the message via commerceAuthFetch.
+      let msg = raw;
+      if (/OFAC_SDN|EU_CONSOLIDATED|SANCTIONED/.test(raw)) {
+        msg = 'This wallet is on a public sanctions list (US OFAC / EU). The purchase is legally unavailable.';
+      } else if (/KYC_REQUIRED|KYC_PENDING|KYC_REJECTED/.test(raw)) {
+        msg = 'Seller verification is incomplete. Please retry later or contact support.';
+      }
       setError(msg);
       setPhase('error');
     }
@@ -119,7 +122,46 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
     );
   }
 
+  if (phase === 'error' && !listing) {
+    return (
+      <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-5 space-y-3">
+        <div className="flex items-start gap-2 text-sm text-red-200">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>{error || 'Failed to load checkout. Please try again.'}</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="text-xs text-red-300 underline hover:text-red-200"
+        >
+          Reload page
+        </button>
+      </div>
+    );
+  }
+
   if (phase === 'done') {
+    // After the NFT-mint bridge every successful confirm MUST return a licenseId
+    // (orderRoutes.confirm calls ensureLicenseForOrder which throws otherwise).
+    // If we somehow ended up here without one, surface a hard error rather than
+    // silently letting the buyer download a product whose NFT was never minted.
+    if (!licenseId || !listing) {
+      return (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-2">
+          <div className="flex items-center gap-2 text-amber-300 font-semibold">
+            <AlertTriangle className="w-5 h-5" />
+            Mint not initiated
+          </div>
+          <p className="text-sm text-amber-100/90">
+            Payment confirmed but the License NFT mint did not start. Contact support
+            with your order ID — your funds are safe in escrow.
+          </p>
+          {order?.orderId && (
+            <p className="text-[11px] font-mono break-all text-amber-200/70">order: {order.orderId}</p>
+          )}
+        </div>
+      );
+    }
     return (
       <div className="space-y-4">
         <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-5 space-y-3">
@@ -128,39 +170,27 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
             Payment confirmed
           </div>
           <p className="text-sm text-gray-300">
-            {licenseId
-              ? 'Waiting for the License NFT mint to complete before unlocking download.'
-              : 'The product has been added to your library.'}
+            Waiting for the License NFT mint to complete before unlocking download.
           </p>
-          {/* For NFT-less listings: backend marks license as `minted` immediately
-              and the buyer can download right away. For NFT-bearing listings the
-              download button lives inside MintProgress, gated by mint state. */}
-          {!licenseId && listing && <DownloadAction listingId={listing.id} variant="emerald" label="Download" />}
-          {/* Legacy delivery payload is informational only — kept for backward compat. */}
-          {!licenseId && delivery && (
-            <p className="text-xs text-gray-400 break-all">{delivery}</p>
-          )}
         </div>
-        {licenseId && listing && (
-          <MintProgress
-            licenseId={licenseId}
-            network={resolveTonNetwork()}
-            listingId={listing.id}
-          />
-        )}
+        <MintProgress
+          licenseId={licenseId}
+          network={resolveTonNetwork()}
+          listingId={listing.id}
+        />
       </div>
     );
   }
 
   const isBusy = phase === 'creating-order' || phase === 'awaiting-wallet' || phase === 'confirming';
   const priceDisplay = listing?.priceTonHuman ?? humanFromRaw(listing?.priceAmountRaw ?? '0');
-  const willMintNft = order?.nft?.willMint ?? listing?.nftEnabled ?? false;
+  // After the NFT-mint bridge every active listing mints an NFT. We still
+  // honour the order's actual nft.willMint flag if present (covers legacy
+  // listings that haven't been migrated yet).
+  const willMintNft = order?.nft?.willMint ?? listing?.nftEnabled ?? true;
   // Static estimate before order is created (matches backend GAS_BREAKDOWN total).
-  const FALLBACK_GAS_NANO_ESCROW_ONLY = '150000000'; // 0.15 TON
   const FALLBACK_GAS_NANO_WITH_NFT = '300000000'; // 0.30 TON
-  const gasNano =
-    order?.gasBreakdown?.totalGasNano ??
-    (willMintNft ? FALLBACK_GAS_NANO_WITH_NFT : FALLBACK_GAS_NANO_ESCROW_ONLY);
+  const gasNano = order?.gasBreakdown?.totalGasNano ?? FALLBACK_GAS_NANO_WITH_NFT;
   const gasDisplay = humanFromRaw(gasNano);
   const totalDisplay = order?.escrow?.totalAmountRaw
     ? humanFromRaw(order.escrow.totalAmountRaw)

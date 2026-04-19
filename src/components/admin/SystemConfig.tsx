@@ -108,9 +108,9 @@ const SystemConfig: FC = () => {
             <div className="space-y-3">
               {([
                 ['Status', health.status === 'OK'],
-                ['Database', health.db !== 'not_configured'],
-                ['Auth (Appwrite)', !health.auth.includes('not_configured')],
-                ['Storage (R2)', health.storage !== 'not_configured'],
+                ['Database', (health.db ?? 'not_configured') !== 'not_configured'],
+                ['Auth (Appwrite)', !(health.auth ?? 'not_configured').includes('not_configured')],
+                ['Storage (R2)', (health.storage ?? 'not_configured') !== 'not_configured'],
               ] as const).map(([label, ok]) => (
                 <div key={label} className="flex items-center justify-between">
                   <span className="text-[#999999] text-sm">{label}</span>

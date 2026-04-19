@@ -53,6 +53,7 @@ const ResendSettings = () => {
   const [status, setStatus] = useState<ResendStatus | null>(null);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testEmail, setTestEmail] = useState('');
@@ -68,14 +69,16 @@ const ResendSettings = () => {
     setError(null);
     try {
       const token = await getToken();
-      const [s, t, c] = await Promise.all([
+      const [s, t, c, inbox] = await Promise.all([
         apiFetch<ResendStatus>('/api/admin/resend/status', token),
         apiFetch<EmailTemplate[]>('/api/admin/resend/templates', token),
         apiFetch<Campaign[]>('/api/admin/resend/campaigns', token),
+        apiFetch<{ items: unknown[]; unread: number }>('/api/admin/resend/inbox?limit=1', token).catch(() => null),
       ]);
       setStatus(s);
       setTemplates(t);
       setCampaigns(c);
+      if (inbox) setUnreadCount(inbox.unread);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
@@ -183,6 +186,11 @@ const ResendSettings = () => {
           >
             <st.icon className="w-4 h-4" />
             <span>{st.label}</span>
+            {st.id === 'inbox' && unreadCount > 0 && (
+              <span className="bg-blue-500/30 text-blue-200 px-1.5 py-0.5 rounded-full text-[10px] font-bold ml-1">
+                {unreadCount}
+              </span>
+            )}
           </button>
         ))}
       </div>

@@ -73,9 +73,11 @@ export default function KycCard({ wallet, workspace, onSubmitted, setFlash }: Ky
         <h2 className="text-base font-semibold text-white">Developer KYC</h2>
       </header>
       <p className="mb-4 text-xs text-[#888] leading-relaxed">
-        KYC verification is under development. In the MVP phase, sellers can submit
-        their details for future review. Full automated identity verification will
-        be available in the next release.
+        KYC is required to publish products and access the Agent API. Buyers do
+        not need KYC — they only get an automatic sanctions screening at checkout
+        (US OFAC SDN + EU consolidated list). In the MVP phase sellers submit
+        details here for manual review; full automated identity verification ships
+        in the next release.
       </p>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">

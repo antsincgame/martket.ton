@@ -13,7 +13,10 @@ export interface CommerceListingPublic {
   deliveryType: string;
   assetFileId: string;
   priceTonHuman?: string;
+  /** Always true after the NFT-mint bridge — kept for backward compat with old clients. */
   nftEnabled?: boolean;
+  /** Pre-deployed AppCollection address for License NFTs. Empty for legacy listings. */
+  collectionAddress?: string;
 }
 
 export interface CommerceConfigResponse {

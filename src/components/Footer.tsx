@@ -6,7 +6,7 @@ import {
   Sparkles,
   HelpCircle,
   BookOpen,
-  Zap,
+  Bot,
   ExternalLink,
   MessageCircle,
   ChevronRight,
@@ -27,11 +27,25 @@ type SupportItem = {
 
 const SUPPORT_LINKS: SupportItem[] = [
   {
-    to: '/docs#help',
-    label: 'Help Center',
-    icon: HelpCircle,
+    to: '/docs',
+    label: 'Documentation',
+    icon: BookOpen,
+    accent: 'group-hover:text-[#FFD700]',
+    desc: 'Buyer & publisher guide',
+  },
+  {
+    to: '/docs/license-nft',
+    label: 'License NFT',
+    icon: ShieldCheck,
+    accent: 'group-hover:text-[#FF2A6D]',
+    desc: 'Soulbound proof of purchase · TEP-62/64',
+  },
+  {
+    to: '/docs#agent-api',
+    label: 'Agent API',
+    icon: Bot,
     accent: 'group-hover:text-[#00F5FF]',
-    desc: 'First steps, account, safety',
+    desc: 'Personal access tokens for AI agents',
   },
   {
     href: TELEGRAM_URL,
@@ -40,27 +54,6 @@ const SUPPORT_LINKS: SupportItem[] = [
     icon: MessageCircle,
     accent: 'group-hover:text-[#00FF88]',
     desc: 'Telegram — news & builders',
-  },
-  {
-    to: '/docs',
-    label: 'Documentation',
-    icon: BookOpen,
-    accent: 'group-hover:text-[#FFD700]',
-    desc: 'Manifest · parity · Mechanicus',
-  },
-  {
-    to: '/docs#ton',
-    label: 'TON Integration',
-    icon: Zap,
-    accent: 'group-hover:text-[#8B5CF6]',
-    desc: 'Wallets · TonConnect · network',
-  },
-  {
-    to: '/docs/license-nft',
-    label: 'License NFT',
-    icon: ShieldCheck,
-    accent: 'group-hover:text-[#FF2A6D]',
-    desc: 'Soulbound proof of purchase · TEP-62/64/85',
   },
 ];
 
@@ -248,6 +241,13 @@ const Footer = () => {
             >
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
               License NFT
+            </Link>
+            <Link
+              to="/docs#agent-api"
+              className="inline-flex items-center gap-1.5 font-medium text-[#00F5FF]/80 transition-colors hover:text-[#00F5FF]"
+            >
+              <Bot className="h-3.5 w-3.5" aria-hidden />
+              Agent API
             </Link>
             <span className="hidden h-4 w-px bg-white/15 sm:inline" aria-hidden />
             <Link to="/terms" className="font-medium text-white/80 transition-colors hover:text-white">
