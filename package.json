@@ -26,7 +26,7 @@
     "@ton/core": "^0.63.1",
     "@tonconnect/sdk": "^3.0.5",
     "@tonconnect/ui-react": "^2.1.0",
-    "appwrite": "^16.1.0",
+    "appwrite": "^24.2.0",
     "buffer": "^6.0.3",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.344.0",
