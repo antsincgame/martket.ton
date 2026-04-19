@@ -151,7 +151,7 @@ function App() {
                   />
                   <Route path="/admin" element={<RouteSuspense><ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
                   <Route path="/admin-dashboard" element={<RouteSuspense><ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
-                  <Route path="/moderator" element={<RouteSuspense><ProtectedRoute requiredRole="moderator"><AdminDashboard /></ProtectedRoute></RouteSuspense>} />
+                  <Route path="/moderator" element={<RouteSuspense><ProtectedRoute requiredRole="moderator"><ModeratorPanel /></ProtectedRoute></RouteSuspense>} />
                 </Routes>
               </main>
               <Footer />
