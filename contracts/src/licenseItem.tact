@@ -1,9 +1,14 @@
 import "@stdlib/deploy";
+import "./escrow.tact";
 
 // ─── Messages ────────────────────────────────────────────────────────
 //
 // Item-side: TEP-62 transfer + Burn from collection + BuyerBurn.
 // Soulbound по умолчанию — transferLimit = 0 в стандартном mint flow.
+//
+// NOTE: RegisterLicense и RefundOnBurn объявлены в escrow.tact и
+// получаются через import. Дублировать здесь нельзя — Tact валит
+// компиляцию при collision'е типов с одинаковым именем.
 
 message(0x5fcc3d14) Transfer {
     queryId:    Int as uint64;
@@ -43,16 +48,6 @@ message(0xd53276db) Excesses {
 message(0x7a1b3c5d) BuyerBurn {
     queryId: Int as uint64;
 }
-
-// LicenseItem регистрирует свой адрес в Escrow при init.
-// opcode совпадает с RegisterLicense в escrow.tact (0x70e30189).
-message(0x70e30189) RegisterLicense {
-    licenseAddress: Address;
-}
-
-// Sent from LicenseItem to Escrow when buyer burns.
-// opcode совпадает с RefundOnBurn в escrow.tact (0x9b3c2d45).
-message(0x9b3c2d45) RefundOnBurn {}
 
 // ─── Contract ────────────────────────────────────────────────────────
 
