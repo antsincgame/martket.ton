@@ -23,17 +23,21 @@ import ScrollToTop from './components/ScrollToTop';
  * On second failure: hard-reload the page so the browser fetches a fresh
  * index.html with updated chunk hashes (covers post-deploy cache mismatch).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function lazyRetry(factory: () => Promise<{ default: React.ComponentType<any> }>) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return lazy((): Promise<{ default: React.ComponentType<any> }> =>
+// `any` here is unavoidable: React.lazy + dynamic import() returns
+// modules with an unknown component prop signature. Constraining the
+// generic any further breaks call sites (`<HomePage />`).
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type AnyComponent = React.ComponentType<any>;
+
+function lazyRetry(factory: () => Promise<{ default: AnyComponent }>) {
+  return lazy((): Promise<{ default: AnyComponent }> =>
     factory()
       .then((mod) => {
         sessionStorage.removeItem('chunk_reload');
         return mod;
       })
       .catch(() =>
-        new Promise<{ default: React.ComponentType<any> }>((resolve) =>
+        new Promise<{ default: AnyComponent }>((resolve) =>
           setTimeout(() => resolve(factory()), 1500),
         ),
       )
@@ -43,10 +47,20 @@ function lazyRetry(factory: () => Promise<{ default: React.ComponentType<any> }>
           sessionStorage.setItem('chunk_reload', window.location.pathname);
           window.location.reload();
         }
-        return { default: (() => null) as React.ComponentType<any> };
+        return {
+          default: (() => (
+            <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 px-4 text-center">
+              <p className="text-gray-400 text-lg">Failed to load page. Please refresh.</p>
+              <button onClick={() => window.location.reload()} className="px-4 py-2 text-sm rounded border border-gray-600 text-white hover:bg-white/10">
+                Refresh
+              </button>
+            </div>
+          )) as AnyComponent,
+        };
       }),
   );
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const HomePage = lazyRetry(() => import('./pages/HomePage'));
 const ProductPage = lazyRetry(() => import('./pages/ProductPage'));

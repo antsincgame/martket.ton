@@ -62,6 +62,7 @@ export function mapListingPublic(doc: AppwriteDoc) {
     distributionSha256: (doc['distribution_sha256'] as string) || null,
     distributionSize: (doc['distribution_size'] as number) || null,
     scanStatus: (doc['scan_status'] as string) || 'idle',
+    nftEnabled: Boolean((doc['collection_address'] as string) || ''),
   };
 }
 

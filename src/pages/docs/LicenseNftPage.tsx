@@ -67,11 +67,11 @@ A|W|on_event(buyer_burn)→LicenseItem.BuyerBurn→Escrow.RefundOnBurn
 A|W|verifyOwner→runMethod(get_nft_data)→cmp_ownerAddress
 
 ## STATE MACHINE
-A|W|license.state∈{mint_pending,mint_failed,trial_active,
-A|W|  device_bound,released,burn_pending,revoked,refunded}
-A|W|confirm_purchase→mint_pending→[oracle.mint]→trial_active
-A|W|mint_fail→mint_failed→admin_retry
-A|W|buyer_burn→burn_pending→[escrow.refund]→revoked
+A|W|license.state∈{mint_pending,minted,mint_failed,
+A|W|  refund_pending,refunded,burned}
+A|W|confirm_purchase→mint_pending→[oracle.mint]→minted
+A|W|mint_fail(3 retries)→mint_failed→[oracle.refund 1h]→refund_pending→refunded
+A|W|buyer_burn→LicenseItem.BuyerBurn→[escrow.RefundOnBurn]→burned
 
 ## METADATA (TEP-64 off-chain)
 A|W|content_prefix=0x01;tail=utf8(URI)
@@ -558,12 +558,12 @@ export default function LicenseNftPage() {
           </h2>
           <ol className="space-y-3 text-sm">
             {[
-              ['mint_pending', '#00F5FF', 'Покупатель оплатил эскроу, оракул ставит задачу минта в очередь.'],
-              ['trial_active', '#00FF88', 'NFT задеплоен. 72h trial. Покупатель видит его в Tonkeeper.'],
-              ['device_bound', '#8B5CF6', 'Backend проверил on-chain владение и записал deviceId.'],
-              ['released', '#FFD700', 'Buyer protection истёк или buyer подтвердил release. NFT остаётся.'],
-              ['burn_pending', '#FFA040', 'Покупатель инициировал BuyerBurn в trial window. NFT сжигается, escrow возвращает средства.'],
-              ['revoked', '#FF2A6D', 'NFT сожжён. Tonkeeper больше не показывает его в Collectibles.'],
+              ['mint_pending', '#00F5FF', 'Покупатель оплатил. Oracle ставит задачу минта NFT в очередь.'],
+              ['minted', '#00FF88', 'NFT задеплоен и зарегистрирован в Escrow. Скачивание разблокировано.'],
+              ['mint_failed', '#FFA040', 'Минт не удался после 3 попыток. Автоматический рефанд через 1 час.'],
+              ['refund_pending', '#8B5CF6', 'OracleRefund отправлен в Escrow. Ожидание подтверждения on-chain.'],
+              ['refunded', '#FFD700', 'Средства возвращены покупателю. Escrow самоуничтожился.'],
+              ['burned', '#FF2A6D', 'NFT сожжён покупателем (BuyerBurn). Escrow рефанднул средства.'],
               ['refunded', '#FF8800', 'Средства вернулись покупателю. NFT сожжён, лицензия аннулирована.'],
               ['mint_failed', '#FF2A6D', 'Сетевая ошибка. Мы автоматически ретраим, покупатель продолжает скачивать.'],
             ].map(([state, color, desc]) => (

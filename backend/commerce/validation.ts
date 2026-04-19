@@ -12,7 +12,7 @@ export const createListingSchema = z.object({
   catalogProductId: z.string().min(1),
   title: z.string().min(1).max(200),
   description: z.string().max(5000).default(''),
-  currency: z.enum([CURRENCY.TON, CURRENCY.JETTON]).default(CURRENCY.TON),
+  currency: z.literal(CURRENCY.TON).default(CURRENCY.TON),
   jettonMaster: z.string().default(''),
   priceTon: z.union([z.string(), z.number()]).optional(),
   priceHuman: z.union([z.string(), z.number()]).optional(),
@@ -38,7 +38,7 @@ export const createOrderSchema = z.object({
 });
 
 export const confirmOrderSchema = z.object({
-  txHash: z.string().min(1, 'txHash is required'),
+  txHash: z.string().optional(),
   buyerWallet: z.string().min(1, 'buyerWallet is required'),
 });
 

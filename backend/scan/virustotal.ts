@@ -163,7 +163,11 @@ export async function submitFile(buffer: Buffer, filename: string, contentType?:
     : `${VT_BASE}/files`;
 
   const fd = new FormData();
-  const blob = new Blob([buffer], { type: contentType || 'application/octet-stream' });
+  // Buffer ⊂ Uint8Array, but TS6's lib.dom narrowed BlobPart to
+  // Uint8Array<ArrayBuffer>. Copy into a guaranteed ArrayBuffer-backed view.
+  const ab = new ArrayBuffer(buffer.byteLength);
+  new Uint8Array(ab).set(buffer);
+  const blob = new Blob([ab], { type: contentType || 'application/octet-stream' });
   fd.append('file', blob, filename);
 
   const res = await vtCall(url, {

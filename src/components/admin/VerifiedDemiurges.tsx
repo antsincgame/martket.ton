@@ -26,7 +26,7 @@ export default function VerifiedDemiurges() {
     setLoading(true);
     try {
       const token = await getToken();
-      const res = await fetch(storeApiUrl('/api/admin/users'), {
+      const res = await fetch(storeApiUrl('/api/users'), {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const body = await res.json();
@@ -44,7 +44,7 @@ export default function VerifiedDemiurges() {
     setBusy(id);
     try {
       const token = await getToken();
-      const res = await fetch(storeApiUrl(`/api/admin/profiles/${id}/verify`), {
+      const res = await fetch(storeApiUrl(`/api/profiles/${id}/verify`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

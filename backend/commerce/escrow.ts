@@ -8,8 +8,31 @@
 
 import { Address, beginCell, type Cell, type StateInit, contractAddress, toNano } from '@ton/core';
 import { logger } from '../logger.js';
+import { getTonClient } from '../tonforge/onchain/tonClient.js';
+import {
+  buildPayEscrowPayload,
+  buildConfirmDeliveryPayload as buildConfirmDeliveryPayloadCell,
+  buildRegisterLicensePayload as buildRegisterLicensePayloadCell,
+} from '../tonforge/onchain/contractSchemas.js';
 
+/**
+ * Gas budgets paid by the buyer in a single payment transaction.
+ * The buyer signs ONE TonConnect transaction for `price + GAS_TOTAL`.
+ * Escrow keeps `ESCROW_GAS_BUFFER` for its own future operations
+ * (refund / release). The remaining gas funds the oracle's
+ * MintLicense + RegisterLicense transactions.
+ */
 const ESCROW_GAS_BUFFER = toNano('0.15');
+const MINT_GAS_BUDGET = toNano('0.10');
+const REGISTER_GAS_BUDGET = toNano('0.05');
+const TOTAL_GAS_BUFFER = ESCROW_GAS_BUFFER + MINT_GAS_BUDGET + REGISTER_GAS_BUDGET;
+
+export const GAS_BREAKDOWN = {
+  escrowGasNano: ESCROW_GAS_BUFFER.toString(),
+  mintGasNano: MINT_GAS_BUDGET.toString(),
+  registerGasNano: REGISTER_GAS_BUDGET.toString(),
+  totalGasNano: TOTAL_GAS_BUFFER.toString(),
+} as const;
 
 let _cachedCode: Cell | null = null;
 let _EscrowClass: EscrowStaticApi | null = null;
@@ -85,13 +108,11 @@ export async function computeEscrow(params: EscrowOrderParams): Promise<EscrowCo
     .storeBit(false)
     .endCell();
 
-  const OP_PAY_ESCROW = 0xd2e5b971;
-  const payloadCell = beginCell()
-    .storeUint(OP_PAY_ESCROW, 32)
-    .storeUint(0, 64)
-    .endCell();
+  // PayEscrow opcode comes from contractSchemas.ts (canonical source).
+  // Tact-generated TL-B: pay_escrow#cddea230 = PayEscrow.
+  const payloadCell = buildPayEscrowPayload();
 
-  const totalAmount = amountNano + ESCROW_GAS_BUFFER;
+  const totalAmount = amountNano + TOTAL_GAS_BUFFER;
 
   if (!_cachedCode) {
     _cachedCode = init.code;
@@ -107,17 +128,54 @@ export async function computeEscrow(params: EscrowOrderParams): Promise<EscrowCo
 }
 
 export function buildConfirmDeliveryPayload(): string {
-  const OP_CONFIRM = 0x45dfb5a1;
-  const cell = beginCell().storeUint(OP_CONFIRM, 32).storeUint(0, 64).endCell();
-  return cell.toBoc().toString('base64');
+  return buildConfirmDeliveryPayloadCell().toBoc().toString('base64');
+}
+
+export interface EscrowFundedCheck {
+  ok: boolean;
+  reason?: string;
+  state?: number;
+}
+
+/**
+ * Verify that the escrow contract at `escrowAddress` is in FUNDED state (1).
+ *
+ * The contract itself enforces `sender == buyer` and `value >= amountNano`
+ * during PayEscrow, so once `state == 1` we know the payment came from the
+ * intended buyer with sufficient amount. No additional TX scanning needed.
+ *
+ * Returns:
+ *   ok=true             — escrow exists and is FUNDED (state == 1)
+ *   ok=false ESCROW_NOT_FOUND  — contract not deployed yet (state != active and no balance)
+ *   ok=false ESCROW_NOT_FUNDED — contract deployed but PayEscrow not received yet
+ *   ok=false ESCROW_RELEASED   — already released to seller (state == 3)
+ *   ok=false ESCROW_REFUNDED   — already refunded (state == 4)
+ */
+export async function verifyEscrowFunded(escrowAddress: string): Promise<EscrowFundedCheck> {
+  try {
+    const client = getTonClient();
+    const addr = Address.parse(escrowAddress);
+    const contractState = await client.getContractState(addr);
+
+    if (contractState.state !== 'active') {
+      return { ok: false, reason: 'ESCROW_NOT_FOUND' };
+    }
+
+    const result = await client.runMethod(addr, 'state');
+    const state = Number(result.stack.readBigNumber());
+
+    if (state === 1) return { ok: true, state };
+    if (state === 0) return { ok: false, reason: 'ESCROW_NOT_FUNDED', state };
+    if (state === 3) return { ok: false, reason: 'ESCROW_RELEASED', state };
+    if (state === 4) return { ok: false, reason: 'ESCROW_REFUNDED', state };
+    return { ok: false, reason: 'ESCROW_UNKNOWN_STATE', state };
+  } catch (err) {
+    logger.warn('[escrow.verify] runMethod failed:', err instanceof Error ? err.message : err);
+    return { ok: false, reason: 'ESCROW_QUERY_FAILED' };
+  }
 }
 
 export function buildRegisterLicensePayload(licenseAddress: string): string {
-  const OP_REGISTER_LICENSE = 0x70e30189;
   const addr = Address.parse(licenseAddress);
-  const cell = beginCell()
-    .storeUint(OP_REGISTER_LICENSE, 32)
-    .storeAddress(addr)
-    .endCell();
-  return cell.toBoc().toString('base64');
+  return buildRegisterLicensePayloadCell(addr).toBoc().toString('base64');
 }

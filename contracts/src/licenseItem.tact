@@ -137,17 +137,21 @@ contract LicenseItem with Deployable {
         require(sender() == self.ownerAddress, "Only owner can burn");
         require(now() <= self.burnDeadline, "Trial window closed");
 
-        // Step 1: tell escrow to refund buyer
         send(SendParameters{
             to: self.escrowAddress,
-            value: 0,
-            mode: SendRemainingValue,
+            value: ton("0.03"),
+            mode: SendPayGasSeparately,
             bounce: false,
             body: RefundOnBurn{}.toCell(),
         });
 
-        // Step 2: self-destruct (remaining balance → 0 after forwarding)
-        // The refund comes from escrow, not from this contract's balance.
+        send(SendParameters{
+            to: self.ownerAddress,
+            value: 0,
+            mode: SendRemainingBalance | SendDestroyIfZero,
+            bounce: false,
+            body: "License burned by owner".asComment(),
+        });
     }
 
     // ─── TEP-62 GetStaticData ────────────────────────────────────────

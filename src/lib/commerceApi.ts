@@ -5,6 +5,8 @@ import type {
   CommerceListingPublic,
   CreateOrderResponse,
   OrderStatusResponse,
+  ConfirmOrderResponse,
+  LicensePublic,
 } from '../domain/commerce/types';
 
 function commerceBaseUrl(): string {
@@ -131,13 +133,49 @@ export async function confirmCommerceOrder(
   orderId: string,
   buyerWallet: string,
   txHash: string
-): Promise<{ state: string; entitlement?: { deliveryPayload: string } }> {
-  const result = await commerceAuthFetch<{
-    data: { state: string; entitlement?: { deliveryPayload: string } };
-  }>(`/orders/${encodeURIComponent(orderId)}/confirm`, {
-    method: 'POST',
-    body: JSON.stringify({ buyerWallet, txHash }),
-  });
+): Promise<ConfirmOrderResponse> {
+  const result = await commerceAuthFetch<{ data: ConfirmOrderResponse }>(
+    `/orders/${encodeURIComponent(orderId)}/confirm`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ buyerWallet, txHash }),
+    },
+  );
+  return result.data;
+}
+
+export async function fetchLicense(licenseId: string): Promise<LicensePublic> {
+  const result = await commerceAuthFetch<{ data: { license: LicensePublic } }>(
+    `/licenses/${encodeURIComponent(licenseId)}`,
+  );
+  return result.data.license;
+}
+
+export async function fetchMyLicenses(limit = 100): Promise<LicensePublic[]> {
+  const result = await commerceAuthFetch<{ data: { licenses: LicensePublic[] } }>(
+    `/buyers/me/licenses?limit=${limit}`,
+  );
+  return result.data.licenses;
+}
+
+/**
+ * Issue a short-lived presigned URL for downloading a verified build.
+ * Backend checks: entitlement + license state ('minted') + rate limit.
+ *
+ * Throws CommerceApiError with codes:
+ *   MINT_PENDING (425)        — license still being minted; user should wait
+ *   MINT_FAILED / LICENSE_INVALID (403) — purchase no longer valid
+ *   NO_ENTITLEMENT (403)      — wallet didn't buy this listing
+ *   DOWNLOAD_RATE_LIMIT (429) — over 20 downloads/day
+ *   NO_BUILD (404)            — seller hasn't published a verified build
+ */
+export async function issueDownloadUrl(
+  listingId: string,
+): Promise<{ url: string; expiresInSec: number }> {
+  const result = await commerceAuthFetch<{ data: { url: string; expiresInSec: number } }>(
+    `/listings/${encodeURIComponent(listingId)}/download`,
+    { headers: { Accept: 'application/json' } },
+  );
   return result.data;
 }
 

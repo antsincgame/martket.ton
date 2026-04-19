@@ -126,7 +126,7 @@ app.get('/api/health', async (req, res) => {
     const r2Mod = await import('./r2/client.js');
     const r2 = ((r2Mod as unknown as { default?: typeof r2Mod }).default ?? r2Mod);
     isR2 = r2.isR2Configured();
-  } catch { /* R2 not loaded */ }
+  } catch (e) { logger.debug('[health] R2 module not loaded:', e instanceof Error ? e.message : e); }
   const scan = process.env.VIRUSTOTAL_API_KEY ? 'virustotal' : 'not_configured';
   res.json({
     status: 'OK',
@@ -246,7 +246,7 @@ app.post('/api/client-errors', clientErrorLimiter, async (req, res) => {
         ip_address: req.ip ?? null,
         user_agent: typeof userAgent === 'string' ? userAgent : (req.get('user-agent') || ''),
       });
-    } catch { /* audit DB unavailable */ }
+    } catch (e) { logger.debug('[client-errors] audit write failed:', e instanceof Error ? e.message : e); }
   }
   res.json({ success: true, errorId });
 });
@@ -328,7 +328,7 @@ async function mountOptionalRouters(): Promise<void> {
 
 app.get('/api/admin/router-status', (req, res) => {
   const token = (process.env.HEALTH_DETAIL_TOKEN || '').trim();
-  if (token && req.get('x-health-token') !== token) {
+  if (!token || req.get('x-health-token') !== token) {
     res.status(403).json({ success: false, message: 'Forbidden' });
     return;
   }
@@ -366,16 +366,17 @@ async function bootstrapTonForge(): Promise<void> {
   }
 }
 
-function startOrderTtlCron(): void {
+function startOrderTtlCron(): ReturnType<typeof setInterval> {
   const INTERVAL = 10 * 60 * 1000; // 10 min
   const run = async () => {
     try {
       const { expireStalePendingOrders } = await import('./commerce/ttlOrders.js');
       await expireStalePendingOrders();
-    } catch { /* commerce DB may be unavailable */ }
+    } catch (e) { logger.debug('[ttl-orders] sweep failed:', e instanceof Error ? e.message : e); }
   };
-  setInterval(() => void run(), INTERVAL);
+  const handle = setInterval(() => void run(), INTERVAL);
   setTimeout(() => void run(), 30_000);
+  return handle;
 }
 
 async function startScanWorker(): Promise<void> {
@@ -397,12 +398,23 @@ async function startScanWorker(): Promise<void> {
   }
 }
 
+async function startMintWorkerSafe(): Promise<void> {
+  try {
+    const { startMintWorker } = await import('./tonforge/mintWorker.js');
+    startMintWorker();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'unknown';
+    logger.warn('Mint worker bootstrap failed:', msg);
+  }
+}
+
 async function start(): Promise<void> {
   await initSentry();
   await mountOptionalRouters();
   await bootstrapTonForge();
-  startOrderTtlCron();
+  const ttlCronHandle = startOrderTtlCron();
   await startScanWorker();
+  await startMintWorkerSafe();
   const server = app.listen(PORT, () => {
     logger.info(`TON Web Store API running on port ${PORT}`);
     logger.info(`Health: http://localhost:${PORT}/api/health`);
@@ -415,11 +427,18 @@ async function start(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info(`[server] ${signal} received — graceful shutdown`);
+    clearInterval(ttlCronHandle);
     try {
       const workerMod = await import('./scan/worker.js');
       await workerMod.stop();
     } catch (err: unknown) {
       logger.warn('[server] worker stop failed:', err instanceof Error ? err.message : err);
+    }
+    try {
+      const mintMod = await import('./tonforge/mintWorker.js');
+      mintMod.stopMintWorker();
+    } catch (err: unknown) {
+      logger.warn('[server] mint worker stop failed:', err instanceof Error ? err.message : err);
     }
     server.close((err) => {
       if (err) logger.error('[server] close error:', err.message);

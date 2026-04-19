@@ -1,3 +1,16 @@
+/**
+ * @deprecated In-memory TonForge state (purchaseSessions / licenses) is being
+ * phased out in favour of Appwrite-backed Commerce orders + LicenseRecord
+ * (see backend/commerce/orderRoutes.ts and backend/commerce/licenseRepository.ts).
+ *
+ * Kept temporarily to:
+ *   - serve legacy /api/tonforge endpoints used by older landing/demo pages,
+ *   - back the read-only `verifyLicenseOnchain` for licenses minted before
+ *     the migration to commerce.
+ *
+ * New buy/mint/burn flows MUST go through commerce (orderRoutes + mintWorker).
+ * Frontend MyLicensesPanel already switched to /api/v1/commerce/buyers/me/licenses.
+ */
 import { createHash, randomUUID } from 'crypto';
 import { createDemoState } from './demoData.js';
 import { contractMetadata, onChainFields } from './contractMetadata.js';
@@ -48,14 +61,19 @@ export interface TonForgeService {
   submitDeveloperKyc(payload: Record<string, string>): DeveloperProfile;
   scanArtifact(payload: Record<string, string>): ScanResult;
   publishApp(payload: Record<string, unknown>): TonForgeApp;
+  /** @deprecated Use commerce createOrder (POST /api/v1/commerce/orders) instead. */
   createPurchaseSession(payload: { appId: string; buyerWallet: string }): { app: TonForgeApp; session: PurchaseSession };
+  /** @deprecated Use commerce confirmOrder (POST /api/v1/commerce/orders/:id/confirm) instead. mintWorker handles on-chain minting. */
   confirmPurchaseSession(payload: { purchaseSessionId: string; buyerWallet: string; txHash?: string }): { session: PurchaseSession; license: License; app: TonForgeApp | undefined };
+  /** @deprecated Use GET /api/v1/commerce/buyers/me/licenses instead. */
   listWalletLicenses(wallet: string): License[];
+  /** @deprecated Use GET /api/v1/commerce/licenses/:id instead. */
   getLicenseById(licenseId: string): License | undefined;
   activateLicenseDevice(payload: { licenseId: string; buyerWallet: string; deviceId: string }): Promise<{ license: License; app: TonForgeApp | undefined; verify?: OwnershipResult }>;
   verifyLicenseOnchain(licenseId: string): Promise<OwnershipResult>;
   setAppCollectionAddress(appId: string, collectionAddress: string, metadataUriPrefix?: string): TonForgeApp;
   getDeveloperWorkspace(wallet: string): { developer: DeveloperProfile; apps: TonForgeApp[]; recentScans: ScanResult[] };
+  /** @deprecated Use GET /api/v1/commerce/buyers/me/licenses (frontend uses fetchMyLicenses). */
   getWalletProfile(wallet: string): { profile: UserProfile; licenses: License[]; stats: Record<string, number> };
   getContractOverview(): Record<string, unknown>;
   getState(): TonForgeState;
@@ -241,6 +259,12 @@ export function createTonForgeService(
     return state.licenses.filter((l) => l.appId === appId).length;
   }
 
+  /**
+   * @deprecated Legacy in-memory purchase confirmation.
+   * Real flow: commerce/orderRoutes.ts -> confirmOrder() -> licenseRepository.create({state: mint_pending})
+   *           -> mintWorker triggers mintLicense() + registerLicense() and writes nft_address back.
+   * This handler is kept only for backwards compatibility with /api/tonforge endpoints.
+   */
   function confirmPurchaseSession(payload: { purchaseSessionId: string; buyerWallet: string; txHash?: string }) {
     const session = state.purchaseSessions.find((s) => s.purchaseSessionId === payload.purchaseSessionId);
     if (!session) throw new Error('SESSION_NOT_FOUND');

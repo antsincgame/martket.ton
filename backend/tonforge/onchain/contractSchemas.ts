@@ -12,6 +12,12 @@ import { Address, beginCell, Cell, contractAddress, type StateInit } from '@ton/
 
 // ─── Opcodes ─────────────────────────────────────────────────────────
 
+// Opcodes MUST match Tact-generated TL-B prefixes in contracts/build/*.md.
+// Mismatch silently bounces the message → wasted gas + broken flow.
+// Verified against:
+//   contracts/build/Escrow_Escrow.md
+//   contracts/build/AppCollection_AppCollection.md
+//   contracts/build/LicenseItem_LicenseItem.md
 export const OP = {
   DEPLOY: 0x946a98b6,
   MINT_LICENSE: 0x6a3aaa14,
@@ -21,8 +27,12 @@ export const OP = {
   BURN: 0x595f07bc,
   GET_STATIC_DATA: 0x2fcb26a2,
   BUYER_BURN: 0x7a1b3c5d,
-  REGISTER_LICENSE: 0x70e30189,
-  REFUND_ON_BURN: 0x7e16b985,
+  PAY_ESCROW: 0xcddea230,
+  CONFIRM_DELIVERY: 0xf4a8bfa0,
+  TIMEOUT_RELEASE: 0x19c74777,
+  REGISTER_LICENSE: 0x70db9989,
+  REFUND_ON_BURN: 0x7e083215,
+  ORACLE_REFUND: 0xbf21e1ee,
 } as const;
 
 // ─── AppCollection ───────────────────────────────────────────────────
@@ -71,16 +81,11 @@ export function buildMintLicensePayload(args: {
     .endCell();
 }
 
-export function buildBurnLicensePayload(args: {
-  queryId: bigint;
-  itemAddress: Address;
-}): Cell {
-  return beginCell()
-    .storeUint(OP.BURN_LICENSE, 32)
-    .storeUint(args.queryId, 64)
-    .storeAddress(args.itemAddress)
-    .endCell();
-}
+// Note: BurnLicense (oracle → collection → item) is intentionally not
+// exported. The only burn path is BuyerBurn sent directly from the buyer's
+// wallet to the LicenseItem contract (see src/pages/demiurge/MyLicensesPanel).
+// Allowing the oracle to burn user NFTs would be a centralization risk that
+// contradicts the buyer-initiated refund design.
 
 // ─── LicenseItem ─────────────────────────────────────────────────────
 
@@ -118,6 +123,30 @@ export function buildRegisterLicensePayload(licenseAddress: Address): Cell {
     .storeUint(OP.REGISTER_LICENSE, 32)
     .storeAddress(licenseAddress)
     .endCell();
+}
+
+// ─── OracleRefund (treasury → escrow, only before RegisterLicense) ──
+
+export function buildOracleRefundPayload(): Cell {
+  return beginCell().storeUint(OP.ORACLE_REFUND, 32).endCell();
+}
+
+// ─── PayEscrow (buyer → escrow) ─────────────────────────────────────
+
+export function buildPayEscrowPayload(): Cell {
+  return beginCell().storeUint(OP.PAY_ESCROW, 32).endCell();
+}
+
+// ─── ConfirmDelivery (buyer → escrow, releases funds early to seller) ──
+
+export function buildConfirmDeliveryPayload(): Cell {
+  return beginCell().storeUint(OP.CONFIRM_DELIVERY, 32).endCell();
+}
+
+// ─── TimeoutRelease (anyone → escrow, after trial window) ───────────
+
+export function buildTimeoutReleasePayload(): Cell {
+  return beginCell().storeUint(OP.TIMEOUT_RELEASE, 32).endCell();
 }
 
 // ─── Off-chain content helper ────────────────────────────────────────

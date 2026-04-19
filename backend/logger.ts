@@ -1,4 +1,5 @@
 export interface Logger {
+  debug(...args: unknown[]): void;
   info(...args: unknown[]): void;
   warn(...args: unknown[]): void;
   error(...args: unknown[]): void;
@@ -17,7 +18,17 @@ function formatStructured(level: string, args: unknown[]): string {
   return JSON.stringify(entry);
 }
 
+const DEBUG_ENABLED = process.env.DEBUG === '1' || process.env.LOG_LEVEL === 'debug';
+
 export const logger: Logger = {
+  debug: (...args: unknown[]) => {
+    if (!DEBUG_ENABLED) return;
+    if (IS_PROD) {
+      process.stdout.write(formatStructured('debug', args) + '\n');
+    } else {
+      console.debug(`[${new Date().toISOString()}] [DEBUG]`, ...args);
+    }
+  },
   info: (...args: unknown[]) => {
     if (IS_PROD) {
       process.stdout.write(formatStructured('info', args) + '\n');

@@ -185,6 +185,34 @@ describe('Escrow v2 Contract', () => {
     });
   });
 
+  it('rejects RegisterLicense if license already registered (no overwrite)', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: AMOUNT + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    await escrow.send(
+      treasury.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: outsider.address },
+    );
+
+    const secondAddr = buyer.address;
+    const result = await escrow.send(
+      treasury.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: secondAddr },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: treasury.address,
+      to: escrow.address,
+      success: false,
+    });
+
+    const lic = await escrow.getLicenseAddress();
+    expect(lic.equals(outsider.address)).toBe(true);
+  });
+
   // ─── RefundOnBurn ─────────────────────────────────────────────────
 
   it('rejects RefundOnBurn from non-registered address', async () => {
@@ -219,6 +247,90 @@ describe('Escrow v2 Contract', () => {
     );
     expect(result.transactions).toHaveTransaction({
       from: outsider.address,
+      to: escrow.address,
+      success: false,
+    });
+  });
+
+  // ─── OracleRefund (mint never registered → refund buyer) ───────
+
+  it('treasury can OracleRefund when license never registered', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: AMOUNT + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+
+    const buyerBalanceBefore = await buyer.getBalance();
+    const result = await escrow.send(
+      treasury.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'OracleRefund' },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: treasury.address,
+      to: escrow.address,
+      success: true,
+    });
+    expect(result.transactions).toHaveTransaction({
+      from: escrow.address,
+      to: buyer.address,
+      success: true,
+    });
+    const buyerBalanceAfter = await buyer.getBalance();
+    expect(buyerBalanceAfter).toBeGreaterThan(buyerBalanceBefore);
+  });
+
+  it('rejects OracleRefund from non-treasury', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: AMOUNT + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+
+    const result = await escrow.send(
+      outsider.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'OracleRefund' },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: outsider.address,
+      to: escrow.address,
+      success: false,
+    });
+  });
+
+  it('rejects OracleRefund when not funded', async () => {
+    const result = await escrow.send(
+      treasury.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'OracleRefund' },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: treasury.address,
+      to: escrow.address,
+      success: false,
+    });
+  });
+
+  it('rejects OracleRefund after license is registered', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: AMOUNT + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    await escrow.send(
+      treasury.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: outsider.address },
+    );
+    const result = await escrow.send(
+      treasury.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'OracleRefund' },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: treasury.address,
       to: escrow.address,
       success: false,
     });

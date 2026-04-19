@@ -1,0 +1,95 @@
+name: E2E (Playwright)
+
+# Why this is a separate workflow:
+#   The smoke suite needs a running backend with real Appwrite credentials
+#   (JWT_SECRET, APPWRITE_API_KEY, etc.). Running it on every PR would either:
+#     - leak secrets if forks could trigger it, or
+#     - fail noisily if those secrets were missing.
+#
+# Trigger model:
+#   - workflow_dispatch: maintainer runs it manually before a release
+#   - push to main: catches regressions after merge (with secrets available)
+#   - pull_request from this repo (not forks) once you label PR with 'run-e2e'
+#
+# Required repository secrets (Settings → Secrets):
+#   APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY,
+#   JWT_SECRET, STORAGE_ENCRYPTION_KEY, TREASURY_WALLET_ADDRESS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'run-e2e')
+    env:
+      CI: true
+      NODE_ENV: test
+      VITE_APPWRITE_ENDPOINT: ${{ secrets.APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1' }}
+      VITE_APPWRITE_PROJECT_ID: ${{ secrets.APPWRITE_PROJECT_ID }}
+      APPWRITE_ENDPOINT: ${{ secrets.APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1' }}
+      APPWRITE_PROJECT_ID: ${{ secrets.APPWRITE_PROJECT_ID }}
+      APPWRITE_API_KEY: ${{ secrets.APPWRITE_API_KEY }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      STORAGE_ENCRYPTION_KEY: ${{ secrets.STORAGE_ENCRYPTION_KEY }}
+      TREASURY_WALLET_ADDRESS: ${{ secrets.TREASURY_WALLET_ADDRESS }}
+      ALLOWED_ORIGINS: 'http://localhost:8080'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+
+      - name: Verify required secrets are present
+        run: |
+          missing=""
+          [[ -z "${{ secrets.APPWRITE_PROJECT_ID }}" ]] && missing="$missing APPWRITE_PROJECT_ID"
+          [[ -z "${{ secrets.APPWRITE_API_KEY }}" ]] && missing="$missing APPWRITE_API_KEY"
+          [[ -z "${{ secrets.JWT_SECRET }}" ]] && missing="$missing JWT_SECRET"
+          if [[ -n "$missing" ]]; then
+            echo "::warning::Missing secrets:$missing — E2E will skip backend assertions"
+          fi
+
+      - run: npm ci --no-audit --no-fund
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --no-audit --no-fund
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: npx playwright test --reporter=html,github
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.sha }}
+          path: playwright-report/
+          retention-days: 14

@@ -58,8 +58,12 @@ export default function OrdersTab({ wallet }: OrdersTabProps) {
         </div>
       )}
 
-      {loading && orders === null ? (
-        <SkeletonTable />
+      {loading ? (
+        orders && orders.length > 0 ? (
+          <div className="opacity-60 pointer-events-none"><OrdersTable orders={orders} /></div>
+        ) : (
+          <SkeletonTable />
+        )
       ) : orders === null || orders.length === 0 ? (
         <EmptyState />
       ) : (

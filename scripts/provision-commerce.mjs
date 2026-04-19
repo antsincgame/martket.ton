@@ -17,6 +17,8 @@ const COL_ORDERS = 'orders';
 const COL_ENTITLEMENTS = 'entitlements';
 const COL_AUDIT = 'commerce_audit_logs';
 const COL_DOWNLOAD_AUDIT = 'download_audit';
+const COL_LICENSES = 'licenses';
+const COL_WORKER_LOCKS = 'worker_locks';
 const BUCKET_ASSETS = 'commerce_assets';
 
 const READ_ANY = [Permission.read(Role.any())];
@@ -136,6 +138,24 @@ async function setupListings(databases) {
     'status',
   ]);
 
+  // ── License NFT fields (per-listing collection on TON) ──────────
+  // If `collection_address` is set, every Commerce purchase mints a LicenseItem
+  // NFT under that AppCollection. If empty, listing falls back to no-NFT mode.
+  // metadata_uri_prefix capped at 128 to fit Appwrite row-size budget
+  // (listings collection holds many large strings: description=12000,
+  //  distribution_locator=2048, etc.). 128 is enough for IPFS / R2 URL prefix.
+  const nftCols = [
+    ['collection_address', 96, false],
+    ['metadata_uri_prefix', 128, false],
+    ['license_transfer_limit', 16, false], // stored as string, 0 = soulbound
+  ];
+  for (const [k, size, req] of nftCols) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, COL_LISTINGS, k, size, req)
+    );
+    await waitForAttribute(databases, COL_LISTINGS, k);
+  }
+
   // ── Distribution manifest fields (BYOS: R2 / GitHub Releases) ──
   const distCols = [
     ['distribution_kind', 16, false],          // 'r2' | 'github' | 'none'
@@ -230,6 +250,7 @@ async function setupOrders(databases) {
     ['state', 32, true],
     ['sellerNetAmountRaw', 80, true],
     ['listingSnapshotTitle', 255, false],
+    ['escrowAddress', 96, false],
   ];
   for (const [k, size, req] of cols) {
     await ignoreConflict(() =>
@@ -260,6 +281,57 @@ async function setupEntitlements(databases) {
   await idx(databases, COL_ENTITLEMENTS, 'idx_buyer', IndexType.Key, ['buyerWallet']);
 }
 
+async function setupLicenses(databases) {
+  await ensureCollection(databases, COL_LICENSES, 'License NFT records', SERVER_ONLY);
+  // Single source of truth for License NFT lifecycle.
+  // Created when Commerce order is paid. Updated by mintWorker as the
+  // on-chain state progresses (mint_pending → minted | mint_failed → burned/refunded).
+  const stringCols = [
+    ['orderId', 64, true],
+    ['listingId', 64, true],
+    ['catalogProductId', 64, false],
+    ['buyerWallet', 128, true],
+    ['sellerWallet', 128, true],
+    ['escrowAddress', 96, false],
+    ['collectionAddress', 96, false],
+    ['nftAddress', 96, false],
+    ['mintTxHash', 128, false],
+    ['burnTxHash', 128, false],
+    ['refundTxHash', 128, false],
+    ['refundReason', 255, false],
+    // Tact queryId echoed back by the oracle wallet for replay protection.
+    ['mintQueryId', 64, false],
+    ['mintError', 1000, false],
+    // mint_pending | minted | mint_failed | refund_pending | burned | refunded
+    ['state', 32, true],
+  ];
+  for (const [k, size, req] of stringCols) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, COL_LICENSES, k, size, req)
+    );
+    await waitForAttribute(databases, COL_LICENSES, k);
+  }
+  await ignoreConflict(() =>
+    databases.createIntegerAttribute(DATABASE_ID, COL_LICENSES, 'mintAttempts', false)
+  );
+  await waitForAttribute(databases, COL_LICENSES, 'mintAttempts');
+  await ignoreConflict(() =>
+    databases.createIntegerAttribute(DATABASE_ID, COL_LICENSES, 'collectionIndex', false)
+  );
+  await waitForAttribute(databases, COL_LICENSES, 'collectionIndex');
+  const dateCols = ['trialEndsAt', 'mintedAt', 'lastMintAttemptAt', 'burnedAt', 'refundedAt', 'releasedAt'];
+  for (const k of dateCols) {
+    await ignoreConflict(() =>
+      databases.createDatetimeAttribute(DATABASE_ID, COL_LICENSES, k, false)
+    );
+    await waitForAttribute(databases, COL_LICENSES, k);
+  }
+  await idx(databases, COL_LICENSES, 'uniq_order', IndexType.Unique, ['orderId']);
+  await idx(databases, COL_LICENSES, 'idx_buyer_state', IndexType.Key, ['buyerWallet', 'state']);
+  await idx(databases, COL_LICENSES, 'idx_state', IndexType.Key, ['state']);
+  await idx(databases, COL_LICENSES, 'idx_listing', IndexType.Key, ['listingId']);
+}
+
 async function setupAudit(databases) {
   await ensureCollection(databases, COL_AUDIT, 'Commerce audit', SERVER_ONLY);
   const cols = [
@@ -276,6 +348,26 @@ async function setupAudit(databases) {
     await waitForAttribute(databases, COL_AUDIT, k);
   }
   await idx(databases, COL_AUDIT, 'idx_audit_entity', IndexType.Key, ['entityType', 'entityId']);
+}
+
+async function setupWorkerLocks(databases) {
+  // Distributed mutex for the mint/refund/payout worker. Each lock is a
+  // single document (lockKey + owner + expiresAt). The unique index on
+  // lockKey is what makes it actually serialize across replicas.
+  await ensureCollection(databases, COL_WORKER_LOCKS, 'Worker Locks', SERVER_ONLY);
+  await ignoreConflict(() =>
+    databases.createStringAttribute(DATABASE_ID, COL_WORKER_LOCKS, 'lockKey', 64, true)
+  );
+  await waitForAttribute(databases, COL_WORKER_LOCKS, 'lockKey');
+  await ignoreConflict(() =>
+    databases.createStringAttribute(DATABASE_ID, COL_WORKER_LOCKS, 'owner', 64, true)
+  );
+  await waitForAttribute(databases, COL_WORKER_LOCKS, 'owner');
+  await ignoreConflict(() =>
+    databases.createDatetimeAttribute(DATABASE_ID, COL_WORKER_LOCKS, 'expiresAt', true)
+  );
+  await waitForAttribute(databases, COL_WORKER_LOCKS, 'expiresAt');
+  await idx(databases, COL_WORKER_LOCKS, 'uniq_lockKey', IndexType.Unique, ['lockKey']);
 }
 
 async function ensureBucket(storage) {
@@ -310,6 +402,8 @@ async function main() {
   await setupListingSecrets(databases);
   await setupOrders(databases);
   await setupEntitlements(databases);
+  await setupLicenses(databases);
+  await setupWorkerLocks(databases);
   await setupAudit(databases);
   await setupDownloadAudit(databases);
   await ensureBucket(storage);

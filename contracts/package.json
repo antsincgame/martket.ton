@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "tact --config tact.config.json",
+    "build": "tact --config tact.config.json && node ./scripts/postprocessBuild.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "deploy:collection": "node --import tsx scripts/deployCollection.ts"

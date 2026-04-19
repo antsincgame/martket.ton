@@ -96,7 +96,7 @@ export default function RefundPolicy() {
           <ol className="list-decimal pl-6 space-y-2">
             <li>
               <strong>Navigate to your license</strong> in the{' '}
-              <Link to="/profile" className="text-[#8B5CF6] hover:underline">My Licenses</Link>{' '}
+              <Link to="/profile/library" className="text-[#8B5CF6] hover:underline">My Licenses</Link>{' '}
               section within {TRIAL_WINDOW_HOURS} hours of purchase.
             </li>
             <li>

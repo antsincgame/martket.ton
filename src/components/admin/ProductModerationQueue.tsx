@@ -74,7 +74,7 @@ export default function ProductModerationQueue() {
   const fetchPending = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await authFetch('/api/admin/products/pending');
+      const res = await authFetch('/api/products/pending');
       const body = await res.json();
       setProducts(body.data || []);
     } catch (err) {
@@ -111,7 +111,7 @@ export default function ProductModerationQueue() {
   const handleRescan = useCallback(async (productId: string) => {
     setActionId(productId);
     try {
-      const res = await authFetch(`/api/admin/products/${productId}/rescan`, {
+      const res = await authFetch(`/api/products/${productId}/rescan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',

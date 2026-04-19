@@ -5,6 +5,7 @@ import adminRoutes from './adminRoutes.js';
 import storageRoutes from './storageRoutes.js';
 import distributionRoutes from './distributionRoutes.js';
 import scanRoutes from './scanRoutes.js';
+import licenseRoutes from './licenseRoutes.js';
 
 const router = express.Router();
 
@@ -14,5 +15,6 @@ router.use(orderRoutes);
 router.use(storageRoutes);
 router.use(distributionRoutes);
 router.use(scanRoutes);
+router.use(licenseRoutes);
 
 export default router;

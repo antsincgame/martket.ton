@@ -27,6 +27,8 @@ import { writeAudit } from './audit.js';
 import { logger } from '../logger.js';
 import { setDistributionSchema } from './validation.js';
 import { requireWalletOwner } from './helpers.js';
+import { findLicenseByBuyerAndListing } from './licenseRepository.js';
+import { LICENSE_STATE } from './constants.js';
 import { getAdapter, verifyManifest } from '../distribution/index.js';
 import {
   ManifestSchema,
@@ -295,6 +297,36 @@ router.get('/listings/:id/download', apiRequireAuth(), async (req: Request, res:
       return;
     }
 
+    // License gate: download is open only after the on-chain mint is confirmed.
+    // mint_pending → 425 Too Early (frontend polls licenses/:id and retries).
+    // mint_failed / burned / refunded → 403 (purchase is no longer valid).
+    const license = await findLicenseByBuyerAndListing(wallet, doc.$id);
+    if (license) {
+      if (license.state === LICENSE_STATE.MINT_PENDING) {
+        res.status(425).json({
+          error: 'License NFT mint in progress',
+          code: 'MINT_PENDING',
+          licenseId: license.$id,
+        });
+        return;
+      }
+      if (
+        license.state === LICENSE_STATE.MINT_FAILED ||
+        license.state === LICENSE_STATE.REFUND_PENDING ||
+        license.state === LICENSE_STATE.BURNED ||
+        license.state === LICENSE_STATE.REFUNDED
+      ) {
+        res.status(403).json({
+          error: 'License is no longer valid',
+          code: license.state === LICENSE_STATE.MINT_FAILED ? 'MINT_FAILED' : 'LICENSE_INVALID',
+          licenseId: license.$id,
+          state: license.state,
+        });
+        return;
+      }
+    }
+    // No license record → legacy purchase before NFT bridge: allow (no gate).
+
     // Rate limit: ≤ 20 redirects/day per (license_id|wallet)
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const licenseId = String(documents[0]!.$id);
@@ -348,6 +380,14 @@ router.get('/listings/:id/download', apiRequireAuth(), async (req: Request, res:
         });
     }
 
+    // Content negotiation:
+    //   Accept: application/json → return { url, expiresInSec } (SPA flow)
+    //   else                     → 302 redirect (direct browser/curl)
+    const accept = String(req.get('accept') || '').toLowerCase();
+    if (accept.includes('application/json')) {
+      res.json({ data: { url, expiresInSec: ttlSec } });
+      return;
+    }
     res.redirect(302, url);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'unknown';

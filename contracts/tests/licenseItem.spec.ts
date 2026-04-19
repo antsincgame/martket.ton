@@ -275,6 +275,20 @@ describe('LicenseItem v2 contract', () => {
     });
   });
 
+  it('BuyerBurn self-destructs the license contract', async () => {
+    const item = await deploySoulbound();
+    const result = await item.send(
+      owner.getSender(),
+      { value: toNano('0.1') },
+      { $$type: 'BuyerBurn', queryId: 1n },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: item.address, to: owner.address, success: true,
+    });
+    const contractState = await blockchain.getContract(item.address);
+    expect(contractState.accountState?.type).not.toBe('active');
+  });
+
   it('rejects BuyerBurn after deadline', async () => {
     const item = await deploySoulbound(100);
 

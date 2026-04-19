@@ -13,6 +13,7 @@ export interface CommerceListingPublic {
   deliveryType: string;
   assetFileId: string;
   priceTonHuman?: string;
+  nftEnabled?: boolean;
 }
 
 export interface CommerceConfigResponse {
@@ -31,6 +32,18 @@ export interface EscrowInfo {
   trialWindowSec: number;
 }
 
+export interface GasBreakdown {
+  escrowGasNano: string;
+  mintGasNano: string;
+  registerGasNano: string;
+  totalGasNano: string;
+}
+
+export interface NftIntent {
+  willMint: boolean;
+  collectionAddress: string | null;
+}
+
 export interface CreateOrderResponse {
   orderId: string;
   memo: string;
@@ -42,6 +55,46 @@ export interface CreateOrderResponse {
   treasuryAddress: string;
   state: string;
   escrow: EscrowInfo | null;
+  gasBreakdown?: GasBreakdown;
+  nft?: NftIntent;
+}
+
+export type LicenseState =
+  | 'mint_pending'
+  | 'minted'
+  | 'mint_failed'
+  | 'refund_pending'
+  | 'burned'
+  | 'refunded';
+
+export interface LicensePublic {
+  id: string;
+  orderId: string;
+  listingId: string;
+  catalogProductId: string | null;
+  buyerWallet: string;
+  sellerWallet: string;
+  state: LicenseState;
+  nftAddress: string | null;
+  collectionAddress: string | null;
+  escrowAddress: string | null;
+  mintTxHash: string | null;
+  burnTxHash: string | null;
+  mintError: string | null;
+  mintAttempts: number;
+  trialEndsAt: string | null;
+  mintedAt: string | null;
+  burnedAt: string | null;
+  refundedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConfirmOrderResponse {
+  state: string;
+  orderId: string;
+  entitlement?: { deliveryPayload: string };
+  license?: { id: string; state: LicenseState };
 }
 
 export interface OrderStatusResponse {

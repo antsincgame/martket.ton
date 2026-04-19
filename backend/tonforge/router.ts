@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import { getTonForgeService } from './service.js';
 import { validateBody } from '../middleware/validate.js';
-import { requireAdmin } from '../middleware/auth.js';
+import { apiRequireAuth, requireAdmin } from '../middleware/auth.js';
 import {
   kycSchema,
   scanArtifactSchema,
@@ -108,7 +108,7 @@ router.post('/purchase/confirm', validateBody(confirmPurchaseSchema), (req: Requ
   }
 });
 
-router.get('/licenses/me', (req: Request, res: Response) => {
+router.get('/licenses/me', apiRequireAuth(), (req: Request, res: Response) => {
   const wallet = String(req.query.wallet || '').trim();
   if (!wallet) {
     res.status(400).json({ error: 'WALLET_REQUIRED' });

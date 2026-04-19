@@ -246,23 +246,30 @@ router.post(
     const secret = process.env.RESEND_WEBHOOK_SECRET;
     const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
 
-    if (secret) {
-      try {
-        await resend.webhooks.verify({
-          payload: rawBody,
-          headers: {
-            id: req.get('svix-id') || '',
-            timestamp: req.get('svix-timestamp') || '',
-            signature: req.get('svix-signature') || '',
-          },
-          webhookSecret: secret,
-        });
-      } catch (err) {
-        logger.warn('[resend/inbound] webhook signature invalid:', err.message);
-        return res.status(401).json({ success: false, message: 'Invalid webhook signature' });
-      }
-    } else {
-      logger.warn('[resend/inbound] RESEND_WEBHOOK_SECRET not set — skipping signature verify');
+    // Refuse to process unsigned events. Allowing the webhook to run
+    // without a secret would let anyone spam our inbox with forged
+    // events. Operators must explicitly set RESEND_WEBHOOK_SECRET to
+    // enable inbound — otherwise the endpoint replies 503 and Resend
+    // retries (so events are not lost; they queue at Resend).
+    if (!secret) {
+      logger.error('[resend/inbound] RESEND_WEBHOOK_SECRET not set — webhook disabled');
+      return res
+        .status(503)
+        .json({ success: false, message: 'Webhook disabled (RESEND_WEBHOOK_SECRET not configured)' });
+    }
+    try {
+      await resend.webhooks.verify({
+        payload: rawBody,
+        headers: {
+          id: req.get('svix-id') || '',
+          timestamp: req.get('svix-timestamp') || '',
+          signature: req.get('svix-signature') || '',
+        },
+        webhookSecret: secret,
+      });
+    } catch (err) {
+      logger.warn('[resend/inbound] webhook signature invalid:', err.message);
+      return res.status(401).json({ success: false, message: 'Invalid webhook signature' });
     }
 
     let event;

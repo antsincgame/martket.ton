@@ -8,8 +8,8 @@ import {
 } from './constants.js';
 import { databases, ID, Query } from './appwrite.js';
 import { applyFeeBps, nanoRawToTonHuman } from './money.js';
-import { verifyPaymentByMemo, addressesEqual } from './tonVerify.js';
-import { computeEscrow } from './escrow.js';
+import { addressesEqual } from './tonVerify.js';
+import { computeEscrow, GAS_BREAKDOWN } from './escrow.js';
 import { resolveNetworkConfig } from '../config/network.js';
 import { writeAudit } from './audit.js';
 import { logger } from '../logger.js';
@@ -20,6 +20,8 @@ import { createOrderSchema, confirmOrderSchema } from './validation.js';
 import { appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
 import { resolveProfile } from '../middleware/auth.js';
 import { insertPurchase } from '../core/purchaseRepository.js';
+import { verifyOrderPayment } from './handlers/verifyOrderPayment.js';
+import { ensureLicenseForOrder } from './handlers/ensureLicenseForOrder.js';
 
 
 const router = express.Router();
@@ -66,11 +68,19 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
         feeBps,
         trialWindowSec: netCfg.trialWindowSec,
       });
+      if (escrowData?.escrowAddress) {
+        await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
+          escrowAddress: escrowData.escrowAddress,
+        }).catch((err) =>
+          logger.warn('[commerce] escrow persist:', err instanceof Error ? err.message : err),
+        );
+      }
     } catch (err) {
       logger.warn('[commerce] escrow compute fallback to treasury:', err instanceof Error ? err.message : err);
     }
 
     await writeAudit(buyerWallet, 'order_create', 'order', order.$id, { listingId, memo });
+    const collectionAddress = (listing['collection_address'] as string) || '';
     res.json({
       data: {
         orderId: order.$id, memo, amountRaw,
@@ -85,6 +95,8 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
           totalAmountRaw: escrowData.totalAmountRaw,
           trialWindowSec: netCfg.trialWindowSec,
         } : null,
+        gasBreakdown: GAS_BREAKDOWN,
+        nft: { willMint: Boolean(collectionAddress), collectionAddress: collectionAddress || null },
       },
     });
   } catch (e: unknown) {
@@ -113,25 +125,58 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
       res.json({ data: { state: order['state'], message: 'Order already processed' } }); return;
     }
 
-    const check = await verifyPaymentByMemo(treasury, {
+    // Step 1: verify the buyer actually paid (escrow path or treasury+memo).
+    const payment = await verifyOrderPayment(req, treasury, {
+      escrowAddress: (order['escrowAddress'] as string) || '',
       buyerWallet: order['buyerWallet'] as string,
       amountRaw: order['amountRaw'] as string,
       memo: order['memo'] as string,
-    }, { base: netCfg.tonapiBase, key: netCfg.tonapiKey });
-    if (!check.ok) {
-      res.status(400).json({ error: 'Payment not verified', code: 'PAYMENT_VERIFY_FAILED', reason: check.reason || 'UNKNOWN', details: check });
+    });
+    if (!payment.ok) {
+      res.status(400).json({
+        error: 'Payment not verified',
+        code: 'PAYMENT_VERIFY_FAILED',
+        reason: payment.reason,
+        details: payment.details,
+      });
       return;
     }
-    const realTxHash = check.txHash || '';
+    const realTxHash = payment.txHash;
 
+    const trialEndsAt = new Date(Date.now() + netCfg.trialWindowSec * 1000).toISOString();
+    const orderForLicense = {
+      $id: order.$id,
+      listingId: order['listingId'] as string,
+      buyerWallet: order['buyerWallet'] as string,
+      escrowAddress: (order['escrowAddress'] as string) || '',
+    };
+
+    // Step 2: idempotent path. If we already created an entitlement before
+    // (e.g. previous request crashed after entitlement but before license),
+    // recover license + return existing payload.
     const { documents: existingEnt } = await db.listDocuments(DATABASE_ID, COL_ENTITLEMENTS, [
       Query.equal('orderId', order.$id), Query.limit(1),
     ]);
     if (existingEnt.length > 0) {
-      const updated = await db.updateDocument(DATABASE_ID, COL_ORDERS, orderId, { state: ORDER_STATE.PAID, tonTxHash: realTxHash });
-      res.json({ data: { state: updated['state'], orderId: updated.$id, entitlement: { deliveryPayload: existingEnt[0]!['deliveryPayload'] } } });
+      const updated = await db.updateDocument(DATABASE_ID, COL_ORDERS, orderId, {
+        state: ORDER_STATE.PAID,
+        tonTxHash: realTxHash,
+      });
+      const listingForEnt = await db.getDocument(DATABASE_ID, COL_LISTINGS, order['listingId'] as string);
+      const license = await ensureLicenseForOrder(orderForLicense, listingForEnt as never, trialEndsAt);
+      res.json({
+        data: {
+          state: updated['state'],
+          orderId: updated.$id,
+          licenseId: license.$id,
+          entitlement: { deliveryPayload: existingEnt[0]!['deliveryPayload'] },
+        },
+      });
       return;
     }
+
+    // Step 3: fresh confirmation. Create entitlement, mark order paid,
+    // create license (with mintWorker trigger if NFT mode is on).
     const listingRow = await db.getDocument(DATABASE_ID, COL_LISTINGS, order['listingId'] as string);
     const { documents: secrets } = await db.listDocuments(DATABASE_ID, COL_LISTING_SECRETS, [
       Query.equal('listingId', order['listingId'] as string), Query.limit(1),
@@ -144,14 +189,26 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
       orderId: order.$id, buyerWallet: order['buyerWallet'],
       listingId: order['listingId'], deliveryPayload: payload,
     });
-    const updated = await db.updateDocument(DATABASE_ID, COL_ORDERS, orderId, { state: ORDER_STATE.PAID, tonTxHash: realTxHash });
+    const updated = await db.updateDocument(DATABASE_ID, COL_ORDERS, orderId, {
+      state: ORDER_STATE.PAID,
+      tonTxHash: realTxHash,
+    });
     await writeAudit(buyerWallet, 'order_paid', 'order', orderId, { txHash: realTxHash });
+
+    const license = await ensureLicenseForOrder(orderForLicense, listingRow as never, trialEndsAt);
 
     bridgePurchaseToLibrary(req, listingRow, order, realTxHash).catch((err) =>
       logger.warn('[commerce] bridge purchase:', err instanceof Error ? err.message : err),
     );
 
-    res.json({ data: { state: updated['state'], orderId: updated.$id, entitlement: { deliveryPayload: payload } } });
+    res.json({
+      data: {
+        state: updated['state'],
+        orderId: updated.$id,
+        entitlement: { deliveryPayload: payload },
+        license: { id: license.$id, state: license.state },
+      },
+    });
   } catch (e: unknown) {
     const code = appwriteCodeOrZero(e);
     if (code === 404) { res.status(404).json({ error: 'Order not found', code: 'NOT_FOUND' }); return; }

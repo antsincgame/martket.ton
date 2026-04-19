@@ -7,6 +7,9 @@ message ConfirmDelivery {}
 message TimeoutRelease {}
 message RegisterLicense { licenseAddress: Address; }
 message RefundOnBurn {}
+// Oracle-initiated refund used when license mint failed and no NFT was ever
+// registered with this escrow. Treasury-only, self-destructs the escrow.
+message OracleRefund {}
 
 // ─── Structs (getter returns) ────────────────────────────────────────
 
@@ -29,7 +32,7 @@ struct EscrowDetails {
 //   0 = INIT        — deployed, awaiting buyer payment
 //   1 = FUNDED      — buyer paid, trial window open
 //   3 = RELEASED    — seller paid, contract self-destructed
-//   4 = REFUNDED    — buyer burned NFT → auto-refund, contract self-destructed
+//   4 = REFUNDED    — buyer burned NFT or oracle refunded → contract self-destructed
 
 // ─── Contract ────────────────────────────────────────────────────────
 
@@ -89,6 +92,7 @@ contract Escrow with Deployable {
     receive(msg: RegisterLicense) {
         require(self.state == 1, "Not funded");
         require(sender() == self.treasury, "Only treasury");
+        require(self.licenseAddress == newAddress(0, 0), "License already registered");
         self.licenseAddress = msg.licenseAddress;
     }
 
@@ -108,6 +112,28 @@ contract Escrow with Deployable {
             mode: SendRemainingBalance | SendDestroyIfZero,
             bounce: false,
             body: "Escrow refund (burn)".asComment(),
+        });
+    }
+
+    // ─── Oracle refund (mint never registered → return to buyer) ─────
+    //
+    // Treasury can refund the buyer ONLY while no LicenseItem has been
+    // registered. Once `RegisterLicense` succeeds, the buyer's only way
+    // to get their funds back is to burn the NFT (RefundOnBurn).
+    // This guarantees that a registered, healthy license cannot be
+    // unilaterally voided by the platform.
+
+    receive(msg: OracleRefund) {
+        require(self.state == 1, "Not funded");
+        require(sender() == self.treasury, "Only treasury");
+        require(self.licenseAddress == newAddress(0, 0), "License already registered");
+        self.state = 4;
+        send(SendParameters{
+            to: self.buyer,
+            value: 0,
+            mode: SendRemainingBalance | SendDestroyIfZero,
+            bounce: false,
+            body: "Escrow refund (oracle)".asComment(),
         });
     }
 

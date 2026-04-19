@@ -1,0 +1,86 @@
+name: Security
+
+# Three layers of defense:
+#   1. CodeQL static analysis on JS/TS — finds injection, prototype pollution,
+#      hardcoded secrets, XSS, etc. Pushes results to the Security tab.
+#   2. npm audit at moderate level — fails on known CVEs in our dependencies.
+#      We don't autofix in CI; that's a human decision.
+#   3. Secret scanner (gitleaks) on every PR diff — catches accidental commits
+#      of API keys, mnemonics, JWT secrets before they hit main.
+#
+# Runs on PR, push to main, and weekly (catches newly-disclosed CVEs in
+# old dependencies that haven't been touched in a while).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    name: CodeQL · JavaScript/TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'
+
+  npm-audit:
+    name: npm audit · ${{ matrix.workspace }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace: [root, backend, contracts]
+        include:
+          - workspace: root
+            path: '.'
+          - workspace: backend
+            path: backend
+          - workspace: contracts
+            path: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: npm audit (${{ matrix.workspace }})
+        working-directory: ${{ matrix.path }}
+        # `--audit-level=high` so we don't fail on every minor `low` advisory
+        # in transitive dev deps. Switch to `moderate` once tree is clean.
+        run: npm audit --audit-level=high --omit=dev || npm audit --audit-level=high
+
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: 'true'

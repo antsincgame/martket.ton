@@ -1,0 +1,21 @@
+# Default reviewer for everything. Overridden by more specific entries below.
+# Replace with team handles (e.g. @antsincgame/core) once a team exists.
+*                                       @antsincgame
+
+# Smart contracts and on-chain glue — extra care, on-chain code is irreversible.
+/contracts/                             @antsincgame
+/backend/tonforge/onchain/              @antsincgame
+/backend/commerce/escrow.ts             @antsincgame
+
+# Database schema — schema drift between code and Appwrite kills the worker.
+/scripts/provision-commerce.mjs         @antsincgame
+/backend/commerce/constants.ts          @antsincgame
+/backend/commerce/licenseRepository.ts  @antsincgame
+
+# CI / deployment / secrets surface
+/.github/                               @antsincgame
+/deploy/                                @antsincgame
+/docker-compose.yml                     @antsincgame
+
+# Legal / policy pages — changes have compliance impact.
+/src/pages/legal/                       @antsincgame

@@ -28,8 +28,24 @@ import { str } from '../utils/params.js';
 
 const router = express.Router();
 
+const SSRF_BLOCKED_PATTERNS = [
+  /^https?:\/\/localhost/i,
+  /^https?:\/\/127\./,
+  /^https?:\/\/0\./,
+  /^https?:\/\/10\./,
+  /^https?:\/\/172\.(1[6-9]|2\d|3[01])\./,
+  /^https?:\/\/192\.168\./,
+  /^https?:\/\/169\.254\./,
+  /^https?:\/\/\[/,
+];
+
 function endpointFor(provider: string, accountId: string, custom?: string): string {
-  if (custom && custom.startsWith('https://')) return custom;
+  if (custom && custom.startsWith('https://')) {
+    if (SSRF_BLOCKED_PATTERNS.some((p) => p.test(custom))) {
+      throw new Error('Endpoint targets a private/reserved IP range');
+    }
+    return custom;
+  }
   if (provider === 'cloudflare-r2') return `https://${accountId}.r2.cloudflarestorage.com`;
   if (provider === 'b2') return 'https://s3.us-west-002.backblazeb2.com';
   if (provider === 's3') return `https://s3.${accountId}.amazonaws.com`;

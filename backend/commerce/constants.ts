@@ -6,6 +6,8 @@ export const COL_ORDERS = 'orders';
 export const COL_ENTITLEMENTS = 'entitlements';
 export const COL_AUDIT = 'commerce_audit_logs';
 export const COL_DOWNLOAD_AUDIT = 'download_audit';
+export const COL_LICENSES = 'licenses';
+export const COL_WORKER_LOCKS = 'worker_locks';
 export const BUCKET_ASSETS = 'commerce_assets';
 
 export const ORDER_STATE = {
@@ -15,6 +17,22 @@ export const ORDER_STATE = {
   REFUNDED: 'refunded',
   CANCELLED: 'cancelled',
 } as const;
+
+export const LICENSE_STATE = {
+  /** Order is paid; oracle hasn't confirmed mint yet. Download blocked. */
+  MINT_PENDING: 'mint_pending',
+  /** NFT is on-chain and registered with escrow. Download unlocked. */
+  MINTED: 'minted',
+  /** Mint failed after retries; eligible for refund. Download blocked. */
+  MINT_FAILED: 'mint_failed',
+  /** Refund worker has broadcast OracleRefund; awaiting on-chain settlement. */
+  REFUND_PENDING: 'refund_pending',
+  /** Buyer burned the NFT to claim a refund. */
+  BURNED: 'burned',
+  /** Funds returned to buyer (auto via OracleRefund / RefundOnBurn or manual). */
+  REFUNDED: 'refunded',
+} as const;
+export type LicenseStateValue = (typeof LICENSE_STATE)[keyof typeof LICENSE_STATE];
 
 export const LISTING_STATUS = {
   DRAFT: 'draft',
