@@ -9,7 +9,24 @@ message(0x70e30189) RegisterLicense { licenseAddress: Address; }
 message(0x9b3c2d45) RefundOnBurn {}
 message(0x5a8e1f23) RefundIfNotMinted {}
 
-// Bounceable outgoing wrapper (для bounced<>)
+// Исходящее сообщение в Collection для auto-mint после оплаты.
+// opcode совпадает с message в appCollection.tact.
+message(0x6a3aaa14) MintLicense {
+    queryId:           Int as uint64;
+    orderId:           Int as uint256;
+    buyerAddress:      Address;
+    sellerAddress:     Address;
+    treasuryAddress:   Address;
+    amountNano:        Int as coins;
+    sellerAmountNano:  Int as coins;
+    feeNano:           Int as coins;
+    trialWindowSec:    Int as uint32;
+    transferLimit:     Int as uint8;
+    individualContent: Cell;
+    burnDeadline:      Int as uint32;
+}
+
+// Bounceable wrapper для release seller'у (чтобы ловить bounce)
 message(0x01a2b3c4) ReleaseSeller { amount: Int as coins; }
 
 // ─── Structs (getter returns) ────────────────────────────────────────
@@ -30,9 +47,14 @@ struct EscrowDetails {
     paidAt:           Int as uint32;
 }
 
+struct LicenseSpec {
+    collectionAddress: Address;
+    transferLimit:     Int as uint8;
+}
+
 // ─── State constants ─────────────────────────────────────────────────
 //   0 = INIT        — deployed, awaiting buyer payment
-//   1 = FUNDED      — buyer paid, trial window open
+//   1 = FUNDED      — buyer paid, mint sent to collection, trial window open
 //   3 = RELEASED    — seller paid, contract self-destructed
 //   4 = REFUNDED    — buyer burned NFT → auto-refund, contract self-destructed
 
@@ -41,62 +63,113 @@ const STATE_FUNDED:   Int = 1;
 const STATE_RELEASED: Int = 3;
 const STATE_REFUNDED: Int = 4;
 
-// Сколько ждать до того как buyer может вытянуть деньги обратно если mint не прошёл.
-// Короткий период — достаточно чтобы on-chain mint chain (escrow → collection → item → register)
-// гарантированно завершился при нормальных условиях (~15 секунд).
-const MINT_GRACE_SEC: Int = 600; // 10 минут
+// Через сколько после оплаты buyer может вытащить деньги если license не зарегистрирован.
+// Нормальная on-chain цепочка (escrow → mint → deploy item → register) занимает <1 минуты.
+// 10 минут — с большим запасом на форк-лаги и прочие аномалии.
+const MINT_GRACE_SEC: Int = 600;
+
+// Газ, который forward-им в Collection для mint-цепочки.
+// 0.4 TON достаточно: collection deploy item (~0.15) + item register (~0.05) + excess return (~0.15).
+const MINT_FORWARD_GAS: Int = ton("0.4");
 
 // ─── Contract ────────────────────────────────────────────────────────
 
 contract Escrow with Deployable {
+    // Identity
     orderId:          Int as uint256;
     buyer:            Address;
     seller:           Address;
     treasury:         Address;
+
+    // Money
     amountNano:       Int as coins;
     sellerAmountNano: Int as coins;
     feeNano:          Int as coins;
+
+    // Trial window
     trialWindowSec:   Int as uint32;
+
+    // License spec (what Collection will mint)
+    collectionAddress: Address;
+    transferLimit:     Int as uint8;
+    licenseContent:    Cell;
+
+    // State
     state:            Int as uint8;
     paidAt:           Int as uint32;
     licenseAddress:   Address;
 
     init(
-        orderId:          Int,
-        buyer:            Address,
-        seller:           Address,
-        treasury:         Address,
-        amountNano:       Int,
-        sellerAmountNano: Int,
-        feeNano:          Int,
-        trialWindowSec:   Int,
+        orderId:           Int,
+        buyer:             Address,
+        seller:            Address,
+        treasury:          Address,
+        amountNano:        Int,
+        sellerAmountNano:  Int,
+        feeNano:           Int,
+        trialWindowSec:    Int,
+        collectionAddress: Address,
+        transferLimit:     Int,
+        licenseContent:    Cell,
     ) {
-        // Invariant: amount == seller + fee (чтобы не было "потерянной копейки")
         require(sellerAmountNano + feeNano == amountNano, "Amount split mismatch");
         require(sellerAmountNano > 0, "Seller amount must be positive");
         require(feeNano >= 0, "Fee cannot be negative");
 
-        self.orderId          = orderId;
-        self.buyer            = buyer;
-        self.seller           = seller;
-        self.treasury         = treasury;
-        self.amountNano       = amountNano;
-        self.sellerAmountNano = sellerAmountNano;
-        self.feeNano          = feeNano;
-        self.trialWindowSec   = trialWindowSec;
-        self.state            = STATE_INIT;
-        self.paidAt           = 0;
-        self.licenseAddress   = newAddress(0, 0);
+        self.orderId           = orderId;
+        self.buyer             = buyer;
+        self.seller            = seller;
+        self.treasury          = treasury;
+        self.amountNano        = amountNano;
+        self.sellerAmountNano  = sellerAmountNano;
+        self.feeNano           = feeNano;
+        self.trialWindowSec    = trialWindowSec;
+        self.collectionAddress = collectionAddress;
+        self.transferLimit     = transferLimit;
+        self.licenseContent    = licenseContent;
+        self.state             = STATE_INIT;
+        self.paidAt            = 0;
+        self.licenseAddress    = newAddress(0, 0);
     }
 
-    // ─── Buyer pays ──────────────────────────────────────────────────
+    // ─── Buyer pays → state = FUNDED → auto-send MintLicense ─────────
+    //
+    // Buyer должен положить >= amountNano + MINT_FORWARD_GAS (иначе mint
+    // не прилетит в Collection). Сдача газа возвращается в процессе
+    // цепочки (excess от item при register).
 
     receive(msg: PayEscrow) {
         require(self.state == STATE_INIT, "Already funded");
         require(sender() == self.buyer, "Only buyer");
-        require(context().value >= self.amountNano, "Insufficient payment");
+        require(context().value >= self.amountNano + MINT_FORWARD_GAS, "Insufficient payment (include mint gas)");
+
         self.state  = STATE_FUNDED;
         self.paidAt = now();
+
+        // Burn deadline = now + trialWindow. Считается on-chain, не
+        // полагаемся на off-chain значение.
+        let deadline: Int = now() + self.trialWindowSec;
+
+        send(SendParameters{
+            to: self.collectionAddress,
+            value: MINT_FORWARD_GAS,
+            mode: SendPayGasSeparately,
+            bounce: true,
+            body: MintLicense{
+                queryId:           0,
+                orderId:           self.orderId,
+                buyerAddress:      self.buyer,
+                sellerAddress:     self.seller,
+                treasuryAddress:   self.treasury,
+                amountNano:        self.amountNano,
+                sellerAmountNano:  self.sellerAmountNano,
+                feeNano:           self.feeNano,
+                trialWindowSec:    self.trialWindowSec,
+                transferLimit:     self.transferLimit,
+                individualContent: self.licenseContent,
+                burnDeadline:      deadline,
+            }.toCell(),
+        });
     }
 
     // ─── Buyer confirms delivery → release to seller ─────────────────
@@ -109,9 +182,9 @@ contract Escrow with Deployable {
 
     // ─── Register license address (called by LicenseItem on deploy) ──
     //
-    // LicenseItem.init отправляет RegisterLicense обратно в escrow чтобы
-    // замкнуть петлю "escrow знает свой license". Проверяем что sender —
-    // это legitimate адрес лицензии (по init-hash).
+    // Новоразвернутая LicenseItem отправляет RegisterLicense обратно.
+    // Проверяем что sender == msg.licenseAddress — это гарантирует что
+    // регистрация пришла от самой лицензии, а не от подделанного сендера.
 
     receive(msg: RegisterLicense) {
         require(self.state == STATE_FUNDED, "Not funded");
@@ -136,10 +209,6 @@ contract Escrow with Deployable {
     }
 
     // ─── Emergency refund: если mint не прошёл за MINT_GRACE_SEC ─────
-    //
-    // Страховка на случай когда buyer заплатил, но by какой-либо причине
-    // на-chain-цепочка mint не завершилась (collection паузнул, нет газа,
-    // race condition). Через 10 минут после оплаты buyer может вернуть деньги.
 
     receive(msg: RefundIfNotMinted) {
         require(self.state == STATE_FUNDED, "Not funded");
@@ -165,14 +234,19 @@ contract Escrow with Deployable {
         self.releaseFunds();
     }
 
-    // ─── Bounce handler для release ──────────────────────────────────
-    //
-    // Если send seller'у bounce'нул (seller wallet не принимает, уничтожен),
-    // откатываемся в FUNDED — buyer сможет либо burn, либо ждать нового timeout.
-    // Без этого escrow остался бы в RELEASED с деньгами на балансе — zombie.
+    // ─── Bounce handlers ─────────────────────────────────────────────
 
+    // Если seller wallet не принял release — откат в FUNDED чтобы можно
+    // было попробовать снова или дождаться timeout с другим развитием.
     bounced(msg: bounced<ReleaseSeller>) {
         self.state = STATE_FUNDED;
+    }
+
+    // Если Collection отверг mint (например bad params или out of gas) —
+    // помечаем что mint не случился, buyer может RefundIfNotMinted через grace.
+    // Ничего не делаем с state (он уже FUNDED), просто логируем.
+    bounced(msg: bounced<MintLicense>) {
+        // no-op: licenseAddress остаётся zero, через grace buyer вернёт средства
     }
 
     // ─── Internal: split funds between seller and treasury ───────────
@@ -181,7 +255,6 @@ contract Escrow with Deployable {
         // CEI pattern: сначала обновить state, потом внешние send'ы.
         self.state = STATE_RELEASED;
 
-        // Bounceable send seller'у. Если bounce — вернёмся в FUNDED через bounced<>.
         send(SendParameters{
             to: self.seller,
             value: self.sellerAmountNano,
@@ -190,7 +263,6 @@ contract Escrow with Deployable {
             body: ReleaseSeller{ amount: self.sellerAmountNano }.toCell(),
         });
 
-        // Остаток (fee + сдача газа) в treasury + самоуничтожение.
         send(SendParameters{
             to: self.treasury,
             value: 0,
@@ -228,5 +300,12 @@ contract Escrow with Deployable {
 
     get fun license_address(): Address {
         return self.licenseAddress;
+    }
+
+    get fun license_spec(): LicenseSpec {
+        return LicenseSpec{
+            collectionAddress: self.collectionAddress,
+            transferLimit:     self.transferLimit,
+        };
     }
 }
