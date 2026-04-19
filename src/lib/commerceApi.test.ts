@@ -29,7 +29,8 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
-  vi.restoreAllMocks();
+  // Не вызывать restoreAllMocks: в Vitest 3 это сбрасывает vi.fn из vi.mock(getJwt).
+  vi.clearAllMocks();
 });
 
 const mockFetch = () => globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
