@@ -16,7 +16,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Blockchain, type SandboxContract, type TreasuryContract } from '@ton/sandbox';
-import { Address, beginCell, toNano } from '@ton/core';
+import { Address, beginCell, Cell, toNano } from '@ton/core';
 import '@ton/test-utils';
 import { Escrow } from '../build/Escrow_Escrow';
 import { AppCollection } from '../build/AppCollection_AppCollection';
@@ -36,11 +36,11 @@ const LICENSE_CONTENT_URI = 'ipfs://QmExampleLicenseMetadata';
 const COLLECTION_URI = 'https://cdn.example.org/collection/app_aa11.json';
 const COMMON_URI     = 'https://cdn.example.org/license-metadata/app_aa11/';
 
-function offchain(uri: string) {
+function offchain(uri: string): Cell {
   return beginCell().storeUint(0x01, 8).storeStringTail(uri).endCell();
 }
 
-function licenseContent(): any {
+function licenseContent(): Cell {
   return beginCell().storeStringTail(LICENSE_CONTENT_URI).endCell();
 }
 
@@ -53,6 +53,8 @@ describe('License lifecycle v4 (trustless auto-mint)', () => {
   let outsider: SandboxContract<TreasuryContract>;
   let escrow: SandboxContract<Escrow>;
   let collection: SandboxContract<AppCollection>;
+  // Cell used at Escrow deploy — same instance used for MintLicense comparison
+  let sharedLicenseContent: Cell;
 
   beforeEach(async () => {
     blockchain = await Blockchain.create();
@@ -78,6 +80,10 @@ describe('License lifecycle v4 (trustless auto-mint)', () => {
       { $$type: 'Deploy', queryId: 0n },
     );
 
+    // Один и тот же Cell используется для init Escrow и для последующих
+    // сравнений — чтобы не было вопроса "одинаковый ли content".
+    sharedLicenseContent = licenseContent();
+
     // Escrow deployed с ссылкой на Collection
     const escrowContract = await Escrow.fromInit(
       ORDER_ID,
@@ -90,7 +96,7 @@ describe('License lifecycle v4 (trustless auto-mint)', () => {
       TRIAL_WINDOW,
       collection.address,
       TRANSFER_LIMIT,
-      licenseContent(),
+      sharedLicenseContent,
     );
     escrow = blockchain.openContract(escrowContract);
     await escrow.send(
@@ -325,7 +331,7 @@ describe('License lifecycle v4 (trustless auto-mint)', () => {
         feeNano: FEE_AMOUNT,
         trialWindowSec: TRIAL_WINDOW,
         transferLimit: TRANSFER_LIMIT,
-        individualContent: licenseContent(),
+        individualContent: sharedLicenseContent,
         burnDeadline: BigInt(blockchain.now! + Number(TRIAL_WINDOW)),
       },
     );
@@ -360,7 +366,7 @@ describe('License lifecycle v4 (trustless auto-mint)', () => {
         feeNano: FEE_AMOUNT * 2n,
         trialWindowSec: TRIAL_WINDOW,
         transferLimit: TRANSFER_LIMIT,
-        individualContent: licenseContent(),
+        individualContent: sharedLicenseContent,
         burnDeadline: BigInt(blockchain.now! + Number(TRIAL_WINDOW)),
       },
     );
@@ -373,7 +379,7 @@ describe('License lifecycle v4 (trustless auto-mint)', () => {
 
   // ─── Double-spend guard: нельзя дважды MintLicense для одного Escrow ─
 
-  it('second MintLicense for same Escrow fails (escrow already paid — no re-trigger)', async () => {
+  it('second PayEscrow for same Escrow fails (escrow already funded)', async () => {
     // Первый payment+mint проходит
     await escrow.send(
       buyer.getSender(),
@@ -393,9 +399,5 @@ describe('License lifecycle v4 (trustless auto-mint)', () => {
       to: escrow.address,
       success: false,
     });
-
-    // Попытка mint'а от escrow'а напрямую — не важно, всё равно nextItemIndex = 1
-    // (первый mint уже выполнен). Коллекция примет mint если sender == expectedEscrow,
-    // но этот vector мы уже проверили в другом тесте — пропускаем.
   });
 });
