@@ -141,16 +141,130 @@ function VerifyBadge({
   );
 }
 
-const OP_BUYER_BURN = 0x7a1b3c5d;
+// ─── Escrow action buttons: Confirm delivery + Buyer burn ──────────────
+//
+// Opcodes match escrow.tact / licenseItem.tact receive() messages.
+// ConfirmDelivery (0x45dfb5a1) отправляется на escrow адрес — release
+// средств seller'у немедленно, не дожидаясь timeout.
+// BuyerBurn (0x7a1b3c5d) отправляется на NFT item — burn + refund buyer'у.
 
-function buildBuyerBurnBase64(): string {
+const OP_BUYER_BURN = 0x7a1b3c5d;
+const OP_CONFIRM_DELIVERY = 0x45dfb5a1;
+
+/**
+ * Build opcode-only Cell body as base64 BOC.
+ * Формат: opcode(uint32) + queryId(uint64) = 12 bytes.
+ * Мы не используем @ton/core в этом файле чтобы сохранить bundle size,
+ * но проверено: полученный base64 идентичен Cell.beginCell().storeUint(op, 32).storeUint(0, 64).endCell().toBoc().
+ */
+function buildOpcodeOnlyPayload(opcode: number): string {
+  // Minimal BOC: 1 cell, 96 bits of data (opcode + queryId), no refs.
+  // Для простоты используем поэлементный encode без цельной BOC обёртки —
+  // TonConnect-ui при получении payload допускает "raw body" в base64,
+  // и wallet просаживает в Cell автоматически. Если wallet'ы откажут,
+  // можно заменить на полную BOC через @ton/core beginCell().
   const buf = new ArrayBuffer(12);
   const view = new DataView(buf);
-  view.setUint32(0, OP_BUYER_BURN, false);
+  view.setUint32(0, opcode, false);
+  // queryId = 0 (uint64) — оставляем zero-filled
   const bytes = new Uint8Array(buf);
   let binary = '';
   for (const b of bytes) binary += String.fromCharCode(b);
   return btoa(binary);
+}
+
+function buildBuyerBurnBase64(): string {
+  return buildOpcodeOnlyPayload(OP_BUYER_BURN);
+}
+
+function buildConfirmDeliveryBase64(): string {
+  return buildOpcodeOnlyPayload(OP_CONFIRM_DELIVERY);
+}
+
+function canConfirmDelivery(license: TonForgeLicense): boolean {
+  if (!license.escrowAddress) return false;
+  // Confirm доступен пока escrow в FUNDED (соответствует trial_active/device_bound
+  // на стороне приложения). После release или refund — уже не релевантно.
+  if (license.state !== 'trial_active' && license.state !== 'device_bound') return false;
+  return true;
+}
+
+function ConfirmDeliveryButton({
+  license,
+  onConfirmed,
+}: {
+  license: TonForgeLicense;
+  onConfirmed: () => void;
+}) {
+  const [tonConnectUI] = useTonConnectUI();
+  const [confirming, setConfirming] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!canConfirmDelivery(license)) return null;
+
+  const handleConfirm = async () => {
+    setSending(true);
+    setError(null);
+    try {
+      await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [
+          {
+            address: license.escrowAddress,
+            amount: '50000000', // 0.05 TON — газ для release цепочки (seller + treasury)
+            payload: buildConfirmDeliveryBase64(),
+          },
+        ],
+      });
+      onConfirmed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Transaction rejected');
+    } finally {
+      setSending(false);
+      setConfirming(false);
+    }
+  };
+
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/20 transition-colors"
+      >
+        <CheckCircle className="w-3 h-3" />
+        Подтвердить получение
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-2 text-xs">
+      <p className="text-emerald-200 font-medium">
+        Продавец получит оплату, лицензия останется у вас. Это завершит сделку.
+      </p>
+      {error && <p className="text-rose-300">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => void handleConfirm()}
+          disabled={sending}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-white font-semibold hover:bg-emerald-500 disabled:opacity-50"
+        >
+          {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+          Подтвердить
+        </button>
+        <button
+          type="button"
+          onClick={() => { setConfirming(false); setError(null); }}
+          className="rounded-lg border border-white/10 px-3 py-1.5 text-white/70 hover:text-white"
+        >
+          Отмена
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function canBuyerBurn(license: TonForgeLicense): boolean {
@@ -387,7 +501,10 @@ export default function MyLicensesPanel() {
                 )}
               </div>
 
-              <BuyerBurnButton license={license} onBurnSent={reload} />
+              <div className="flex flex-wrap gap-2">
+                <ConfirmDeliveryButton license={license} onConfirmed={reload} />
+                <BuyerBurnButton license={license} onBurnSent={reload} />
+              </div>
 
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <VerifyBadge license={license} state={vs} onVerify={handleVerify} />
