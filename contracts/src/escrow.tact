@@ -26,9 +26,6 @@ message(0x6a3aaa14) MintLicense {
     burnDeadline:      Int as uint32;
 }
 
-// Bounceable wrapper для release seller'у (чтобы ловить bounce)
-message(0x01a2b3c4) ReleaseSeller { amount: Int as coins; }
-
 // ─── Structs (getter returns) ────────────────────────────────────────
 
 struct Parties {
@@ -59,12 +56,7 @@ const STATE_FUNDED:   Int = 1;
 const STATE_RELEASED: Int = 3;
 const STATE_REFUNDED: Int = 4;
 
-// Grace period: через 10 минут после PayEscrow buyer может вернуть
-// средства если lifecycle не замкнулся (collection reject'ил mint и т.п.).
-const MINT_GRACE_SEC: Int = 600;
-
-// Газ для всей mint-цепочки (collection → item deploy → register back).
-// При SendRemainingValue этот параметр не используется — шлём всё что получили.
+const MINT_GRACE_SEC:   Int = 600;
 const MINT_FORWARD_GAS: Int = ton("0.4");
 
 // ─── Contract ────────────────────────────────────────────────────────
@@ -119,6 +111,10 @@ contract Escrow with Deployable {
     }
 
     // ─── Buyer pays → state = FUNDED → auto-send MintLicense ─────────
+    //
+    // Buyer должен положить >= amountNano + MINT_FORWARD_GAS + запас на gas.
+    // Escrow удерживает amountNano на балансе (для будущего release/refund),
+    // forward'ит MINT_FORWARD_GAS в Collection.
 
     receive(msg: PayEscrow) {
         require(self.state == STATE_INIT, "Already funded");
@@ -130,13 +126,13 @@ contract Escrow with Deployable {
 
         let deadline: Int = now() + self.trialWindowSec;
 
-        // SendRemainingValue: forward весь value этого сообщения минус compute gas.
-        // bounce: false — нам всё равно не важно bounce для этого send'а (buyer
-        // может использовать RefundIfNotMinted через grace если mint не состоялся).
+        // Явно отправляем MINT_FORWARD_GAS в Collection, оплачивая gas отдельно.
+        // Остальные средства (amountNano + mint_fee_change) остаются на balance
+        // escrow'а до ConfirmDelivery/Timeout/Burn.
         send(SendParameters{
             to: self.collectionAddress,
-            value: 0,
-            mode: SendRemainingValue,
+            value: MINT_FORWARD_GAS,
+            mode: SendPayGasSeparately,
             bounce: false,
             body: MintLicense{
                 queryId:           0,
@@ -213,21 +209,6 @@ contract Escrow with Deployable {
         self.releaseFunds();
     }
 
-    // ─── Bounce handler ──────────────────────────────────────────────
-    //
-    // Tact 1.5 допускает только один bounced handler на контракт (в отличие
-    // от обычных receive). Используем generic `bounced()` и проверяем opcode
-    // вручную.
-    //
-    // Для нас bounce важен только для ReleaseSeller: если seller wallet
-    // отклонил выплату — откатываемся в FUNDED чтобы попробовать ещё раз
-    // или дождаться timeout. Bounce от MintLicense нас не волнует
-    // (buyer вернёт средства через RefundIfNotMinted).
-
-    bounced(msg: bounced<ReleaseSeller>) {
-        self.state = STATE_FUNDED;
-    }
-
     // ─── Internal: split funds between seller and treasury ───────────
 
     fun releaseFunds() {
@@ -238,8 +219,8 @@ contract Escrow with Deployable {
             to: self.seller,
             value: self.sellerAmountNano,
             mode: SendPayGasSeparately,
-            bounce: true,
-            body: ReleaseSeller{ amount: self.sellerAmountNano }.toCell(),
+            bounce: false,
+            body: "Escrow release".asComment(),
         });
 
         send(SendParameters{
