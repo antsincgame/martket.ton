@@ -60,6 +60,34 @@ export interface CreateOrderResponse {
   escrow: EscrowInfo | null;
 }
 
+/**
+ * Ответ /orders/:id/confirm.
+ *
+ * v4 flow: если в order был escrowAddress, backend проверяет платёж на escrow.
+ *   Возвращает `mintPending: true` — order остаётся в PENDING_PAYMENT, и mint
+ *   worker позже задеплоит LicenseItem, после чего state станет PAID и
+ *   entitlement будет создан.
+ *
+ * Legacy v3 flow: backend сразу создаёт entitlement и переводит в PAID.
+ *   `entitlement.deliveryPayload` доступен немедленно.
+ */
+export interface ConfirmOrderResponse {
+  state: string;
+  orderId?: string;
+  escrowAddress?: string;
+  tonTxHash?: string;
+  /**
+   * true для v4 escrow flow: платёж верифицирован, но license NFT ещё не
+   * заминчена. UI должен показать индикатор "Minting in progress…" и
+   * поллить /orders/:id до появления deliveryPayload.
+   */
+  mintPending?: boolean;
+  entitlement?: {
+    deliveryPayload: string;
+  };
+  message?: string;
+}
+
 export interface OrderStatusResponse {
   order: {
     id: string;
@@ -69,6 +97,10 @@ export interface OrderStatusResponse {
     currency: string;
     memo: string;
     tonTxHash: string;
+    /** v4: адрес развёрнутого escrow контракта (или '' для v3 legacy) */
+    escrowAddress?: string;
+    /** v4: адрес LicenseItem после mint (или '' пока не заминчен) */
+    licenseAddress?: string;
   };
   deliveryPayload: string | null;
 }
