@@ -1,8 +1,12 @@
 /**
  * Deploy script for the AppCollection contract on TON testnet/mainnet.
  *
+ * Uses Tact-autogen wrapper from build/AppCollection_AppCollection.ts to guarantee
+ * exact state init layout matches what the contract expects (important for
+ * deterministic address calculation).
+ *
  * Usage:
- *   npx ts-node --esm scripts/deployCollection.ts \
+ *   tsx scripts/deployCollection.ts \
  *     --network testnet \
  *     --app-id 1 \
  *     --metadata-uri https://cdn.example.com/tonforge/apps/1/collection.json \
@@ -10,18 +14,19 @@
  *
  * Required env:
  *   DEPLOYER_MNEMONIC  - 24-word seed phrase of the wallet that will own the
- *                        AppCollection (this becomes the on-chain `ownerAddress`
- *                        and must match ORACLE_MNEMONIC of the backend).
+ *                        AppCollection. Backend's COLLECTION_OWNER_MNEMONIC
+ *                        must be set to the same value.
  *
  * Optional env:
  *   TON_API_KEY        - toncenter API key (recommended for non-rate-limited deploy).
  *
  * Workflow:
- *   1. Loads compiled BOC from build/AppCollection.code.boc
- *   2. Computes the deterministic AppCollection address from (code, init data).
- *   3. Funds + deploys via WalletV4 + internal message with StateInit.
- *   4. Polls until the contract reports its `get_collection_data` getter.
- *   5. Prints the address + suggested env entries for the backend / DB.
+ *   1. Run `npm run build` first to regenerate autogen wrappers.
+ *   2. This script imports AppCollection.fromInit(...) from build/.
+ *   3. Computes the deterministic contract address.
+ *   4. If not already deployed, funds + deploys via WalletV4 + Tact Deploy message.
+ *   5. Polls until the contract reports its get_collection_data getter.
+ *   6. Prints the address + suggested env entries for the backend.
  */
 
 import { promises as fs } from 'fs';
@@ -31,16 +36,10 @@ import {
   Address,
   beginCell,
   Cell,
-  internal,
-  SendMode,
   toNano,
 } from '@ton/core';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { TonClient, WalletContractV4 } from '@ton/ton';
-import {
-  AppCollection,
-  buildOffchainContent,
-} from '../src/AppCollectionWrapper';
 
 interface CliArgs {
   network: 'testnet' | 'mainnet';
@@ -85,23 +84,11 @@ function parseArgs(argv: string[]): CliArgs {
   };
 }
 
-async function loadCollectionCode(): Promise<Cell> {
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    path.resolve(here, '..', 'build', 'AppCollection_AppCollection.code.boc'),
-    path.resolve(here, '..', 'build', 'AppCollection.code.boc'),
-  ];
-  for (const candidate of candidates) {
-    try {
-      const buf = await fs.readFile(candidate);
-      return Cell.fromBoc(buf)[0];
-    } catch {
-      /* try next */
-    }
-  }
-  throw new Error(
-    `AppCollection BOC not found in build/. Tried:\n  - ${candidates.join('\n  - ')}\nRun \`npm run build\` first.`,
-  );
+/**
+ * Build TEP-64 off-chain content cell: prefix 0x01 + snake string URI.
+ */
+function buildOffchainContent(uri: string): Cell {
+  return beginCell().storeUint(0x01, 8).storeStringTail(uri).endCell();
 }
 
 function endpoint(network: 'testnet' | 'mainnet'): string {
@@ -123,12 +110,30 @@ async function waitForDeploy(
   throw new Error(`AppCollection ${address.toString()} did not become active in time`);
 }
 
+/**
+ * Verify that the build directory exists — autogen wrapper must be present
+ * before running this script.
+ */
+async function ensureBuildReady(): Promise<void> {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const buildPath = path.resolve(here, '..', 'build', 'AppCollection_AppCollection.ts');
+  try {
+    await fs.access(buildPath);
+  } catch {
+    throw new Error(
+      `Tact autogen wrapper not found at ${buildPath}\nRun "npm run build" in contracts/ first.`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
+  await ensureBuildReady();
+
   const mnemonic = process.env.DEPLOYER_MNEMONIC;
   if (!mnemonic) {
-    throw new Error('Set DEPLOYER_MNEMONIC env var (24 words). It must match ORACLE_MNEMONIC.');
+    throw new Error('Set DEPLOYER_MNEMONIC env var (24 words). It must match backend\'s COLLECTION_OWNER_MNEMONIC.');
   }
 
   const keypair = await mnemonicToPrivateKey(mnemonic.trim().split(/\s+/));
@@ -140,16 +145,28 @@ async function main(): Promise<void> {
   console.log(`Collection meta:   ${args.metadataUri}`);
   console.log(`Item base URI:     ${args.itemBaseUri}`);
 
-  const code = await loadCollectionCode();
-  const collectionContent = buildOffchainContent(args.metadataUri);
-  const commonContent = beginCell().storeStringTail(args.itemBaseUri).endCell();
+  // Dynamic import: autogen .ts files are not in tsconfig main paths
+  // (they live in contracts/build/ and are gitignored). tsx resolves them at runtime.
+  const { AppCollection } = await import('../build/AppCollection_AppCollection.js') as {
+    AppCollection: {
+      fromInit(
+        appId: bigint,
+        ownerAddress: Address,
+        collectionContent: Cell,
+        commonContent: Cell,
+      ): Promise<{ address: Address; init: { code: Cell; data: Cell } }>;
+    };
+  };
 
-  const collection = AppCollection.fromInit(code, {
-    appId: args.appId,
-    ownerAddress: wallet.address,
+  const collectionContent = buildOffchainContent(args.metadataUri);
+  const commonContent = buildOffchainContent(args.itemBaseUri);
+
+  const collection = await AppCollection.fromInit(
+    args.appId,
+    wallet.address,
     collectionContent,
     commonContent,
-  });
+  );
 
   console.log(`\nDeterministic address: ${collection.address.toString({ testOnly: args.network === 'testnet' })}`);
 
@@ -166,10 +183,15 @@ async function main(): Promise<void> {
   }
 
   const opened = client.open(wallet);
-  const seqno = await opened.getSeqno();
+  // @ts-expect-error getSeqno exists on WalletContractV4 but generic OpenedContract hides it
+  const seqno: number = await opened.getSeqno();
 
+  // Tact Deploy message opcode: 0x946a98b6
   const deployBody = beginCell().storeUint(0x946a98b6, 32).storeUint(0, 64).endCell();
 
+  const { internal, SendMode } = await import('@ton/core');
+
+  // @ts-expect-error sendTransfer exists on WalletContractV4 but generic OpenedContract hides it
   await opened.sendTransfer({
     seqno,
     secretKey: keypair.secretKey,
@@ -194,20 +216,19 @@ async function main(): Promise<void> {
 
 function printSummary(args: CliArgs, address: Address): void {
   const addr = address.toString({ testOnly: args.network === 'testnet' });
+  const envSuffix = args.network === 'testnet' ? 'TESTNET' : 'MAINNET';
   console.log('\n──────── DEPLOY SUMMARY ────────');
   console.log(`Network:            ${args.network}`);
   console.log(`AppCollection addr: ${addr}`);
   console.log(`App ID:             ${args.appId}`);
-  console.log('\nNext steps:');
-  console.log(`  1. Save to DB / config:`);
-  console.log(`     POST /api/tonforge/admin/apps/<appId>/collection`);
-  console.log(`       {`);
-  console.log(`         "appId": "<your-app-id>",`);
-  console.log(`         "address": "${addr}",`);
-  console.log(`         "metadataUriPrefix": "${args.itemBaseUri}"`);
-  console.log(`       }`);
-  console.log(`  2. Confirm backend ORACLE_MNEMONIC === DEPLOYER_MNEMONIC.`);
-  console.log(`  3. Run an end-to-end purchase to mint the first License NFT.`);
+  console.log('\n──────── ENV VARIABLES FOR BACKEND ────────');
+  console.log(`COLLECTION_ADDRESS_${envSuffix}="${addr}"`);
+  console.log(`COLLECTION_OWNER_ADDRESS_${envSuffix}="<wallet-address-from-DEPLOYER_MNEMONIC>"`);
+  console.log(`COLLECTION_OWNER_MNEMONIC_${envSuffix}="<same 24 words as DEPLOYER_MNEMONIC>"`);
+  console.log('\n──────── NEXT STEPS ────────');
+  console.log('  1. Set the above env variables on the backend server (Coolify/etc).');
+  console.log('  2. Restart backend — mint worker will auto-start.');
+  console.log('  3. Test the full flow: create listing → buy → verify mint.');
 }
 
 main().catch((err) => {
