@@ -1,15 +1,14 @@
 /**
- * Escrow v4 contract sandbox tests.
+ * Escrow v4 contract sandbox tests (Option C — backend-driven mint).
  *
- * v4 (auto-mint):
- *  - amountNano split into sellerAmountNano + feeNano (fee поверх цены seller)
- *  - Escrow.init получает collectionAddress + transferLimit + licenseContent
- *  - receive(PayEscrow) автоматически шлёт MintLicense в Collection
- *  - RefundIfNotMinted страховка на случай сбоя mint-цепочки
- *  - bounced handlers для ReleaseSeller и MintLicense
+ * Временно: auto-mint через init-hash check отложен. Backend шлёт MintLicense
+ * в Collection сам, Escrow просто поддерживает state machine и выплаты.
  *
- * В этом файле тестируем ТОЛЬКО escrow-only поведение. Интеграционные тесты
- * с Collection + LicenseItem — в licenseLifecycle.spec.ts.
+ * Сохранённая архитектура v4:
+ * - amountNano split into sellerAmountNano + feeNano (fee поверх seller price)
+ * - RefundIfNotMinted: страховка если backend не mint'нет за grace period
+ * - LicenseSpec getter (collectionAddress + transferLimit)
+ * - RegisterLicense с sender-check (anti-spoofing)
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -18,24 +17,20 @@ import { beginCell, toNano } from '@ton/core';
 import '@ton/test-utils';
 import { Escrow } from '../build/Escrow_Escrow';
 
-describe('Escrow v4 Contract (auto-mint)', () => {
+describe('Escrow v4 Contract', () => {
   let blockchain: Blockchain;
   let buyer: SandboxContract<TreasuryContract>;
   let seller: SandboxContract<TreasuryContract>;
   let treasury: SandboxContract<TreasuryContract>;
   let outsider: SandboxContract<TreasuryContract>;
-  // Fake collection — просто treasury address чтобы mint message улетал «в никуда»
-  // (sandbox-безопасно, контракт не развернут там, сообщение просто теряется).
   let fakeCollection: SandboxContract<TreasuryContract>;
   let escrow: SandboxContract<Escrow>;
 
   const ORDER_ID = 1n;
-  // $50 seller + 15% fee = $57.50 buyer total at $4/TON
   const SELLER_AMOUNT = toNano('12.5');
   const FEE_AMOUNT    = toNano('1.875');
-  const TOTAL_AMOUNT  = SELLER_AMOUNT + FEE_AMOUNT; // 14.375 TON
+  const TOTAL_AMOUNT  = SELLER_AMOUNT + FEE_AMOUNT;
   const TRIAL_WINDOW  = 3600n;
-  const MINT_FORWARD  = toNano('0.4');
   const TRANSFER_LIMIT = 0n;
   const LICENSE_CONTENT = beginCell().storeStringTail('ipfs://QmTestHash').endCell();
 
@@ -104,10 +99,6 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   });
 
   // ─── Invariant: deploy fails if amount split is wrong ───────────
-  //
-  // Tact-autogen не валидирует init в JS — проверка require() срабатывает
-  // только в run-time при deploy. Поэтому fromInit сам по себе проходит,
-  // но deploy-транзакция должна reject'иться.
 
   it('deploy fails if seller + fee != amount', async () => {
     const badEscrow = await Escrow.fromInit(
@@ -117,7 +108,7 @@ describe('Escrow v4 Contract (auto-mint)', () => {
       treasury.address,
       TOTAL_AMOUNT,
       SELLER_AMOUNT,
-      FEE_AMOUNT + 1n,  // invariant violated: seller + fee != amount
+      FEE_AMOUNT + 1n,
       TRIAL_WINDOW,
       fakeCollection.address,
       TRANSFER_LIMIT,
@@ -137,12 +128,12 @@ describe('Escrow v4 Contract (auto-mint)', () => {
     });
   });
 
-  // ─── PayEscrow → FUNDED + auto-mint attempt ─────────────────────
+  // ─── PayEscrow → FUNDED ─────────────────────────────────────────
 
   it('accepts payment from buyer and transitions to FUNDED', async () => {
     const result = await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     expect(result.transactions).toHaveTransaction({
@@ -153,24 +144,10 @@ describe('Escrow v4 Contract (auto-mint)', () => {
     expect(await escrow.getState()).toBe(1n);
   });
 
-  it('sends MintLicense to collection after payment', async () => {
+  it('rejects payment below amount', async () => {
     const result = await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
-      { $$type: 'PayEscrow' },
-    );
-    // Второе сообщение в цепочке — исходящий MintLicense от escrow к collection
-    expect(result.transactions).toHaveTransaction({
-      from: escrow.address,
-      to: fakeCollection.address,
-    });
-  });
-
-  it('rejects payment without mint gas buffer', async () => {
-    // Ровно amount — не хватит на forward mint
-    const result = await escrow.send(
-      buyer.getSender(),
-      { value: TOTAL_AMOUNT },
+      { value: TOTAL_AMOUNT / 2n },
       { $$type: 'PayEscrow' },
     );
     expect(result.transactions).toHaveTransaction({
@@ -183,7 +160,7 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('rejects payment from non-buyer', async () => {
     const result = await escrow.send(
       outsider.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     expect(result.transactions).toHaveTransaction({
@@ -196,12 +173,12 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('rejects double payment', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     const result = await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     expect(result.transactions).toHaveTransaction({
@@ -216,7 +193,7 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('releases funds on buyer confirm — seller gets sellerAmount, treasury gets fee', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
 
@@ -232,18 +209,15 @@ describe('Escrow v4 Contract (auto-mint)', () => {
     const sellerDiff = (await seller.getBalance()) - sellerBalanceBefore;
     const treasuryDiff = (await treasury.getBalance()) - treasuryBalanceBefore;
 
-    // Seller получил ≈ SELLER_AMOUNT (минус газ за release tx)
     expect(sellerDiff).toBeGreaterThan(SELLER_AMOUNT - toNano('0.02'));
     expect(sellerDiff).toBeLessThanOrEqual(SELLER_AMOUNT);
-
-    // Treasury получил ≈ FEE_AMOUNT + некоторые остатки газа
     expect(treasuryDiff).toBeGreaterThan(FEE_AMOUNT - toNano('0.02'));
   });
 
   it('rejects confirm from non-buyer', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     const result = await escrow.send(
@@ -263,7 +237,7 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('allows timeout release after trial window', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
 
@@ -282,7 +256,7 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('rejects timeout release during window', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     const result = await escrow.send(
@@ -302,11 +276,10 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('buyer can refund if license not registered within grace period', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
 
-    // Грейс 10 минут + 1 секунда
     blockchain.now = blockchain.now! + 601;
 
     const buyerBalanceBefore = await buyer.getBalance();
@@ -326,7 +299,7 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('rejects RefundIfNotMinted before grace period', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     const result = await escrow.send(
@@ -344,7 +317,7 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('rejects RefundIfNotMinted from non-buyer', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     blockchain.now = blockchain.now! + 601;
@@ -379,7 +352,7 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('accepts RegisterLicense only when sender matches licenseAddress', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
 
@@ -401,7 +374,7 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('rejects RegisterLicense when sender != licenseAddress (spoofing)', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     const result = await escrow.send(
@@ -419,7 +392,7 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('rejects double RegisterLicense', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
     await escrow.send(
@@ -444,10 +417,9 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('rejects RefundOnBurn from non-registered sender', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
-    // registerLicense не вызывали — licenseAddress = zero
     const result = await escrow.send(
       outsider.getSender(),
       { value: toNano('0.05') },
@@ -476,10 +448,9 @@ describe('Escrow v4 Contract (auto-mint)', () => {
   it('accepts RefundOnBurn from registered license', async () => {
     await escrow.send(
       buyer.getSender(),
-      { value: TOTAL_AMOUNT + MINT_FORWARD + toNano('0.1') },
+      { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
-    // Симулируем регистрацию лицензии (outsider представляет лицензию)
     await escrow.send(
       outsider.getSender(),
       { value: toNano('0.05') },
