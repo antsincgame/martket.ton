@@ -214,6 +214,72 @@ export async function verifyPaymentByMemo(
   return { ok: true, txHash: tx.hash || '' };
 }
 
+/**
+ * v4 escrow payment verification.
+ *
+ * В v4 flow buyer шлёт PayEscrow транзакцию напрямую на escrow address
+ * (вместе со stateInit если escrow ещё не развёрнут). Escrow address
+ * уникален per-order (derived from orderId + все параметры), поэтому
+ * memo/comment проверять не нужно — сам адрес служит идентификатором.
+ *
+ * Проверяет:
+ *  1. Транзакция существует на escrow адресе
+ *  2. Source транзакции == buyerWallet
+ *  3. value >= expectedAmountRaw (не строго равно: может быть amountNano + gas buffer)
+ *
+ * Polls несколько раз (TonAPI может отставать от свежих блоков).
+ */
+export async function verifyPaymentToEscrow(
+  escrowAddress: string,
+  buyerWallet: string,
+  expectedAmountRaw: string,
+  apiOverrides?: TonApiOverrides,
+): Promise<MemoVerificationResult> {
+  const base = tonapiBase(apiOverrides);
+  const headers = tonapiHeaders(apiOverrides);
+  const expected = BigInt(expectedAmountRaw);
+
+  for (let attempt = 0; attempt < MEMO_POLL_DELAYS_MS.length; attempt++) {
+    const delay = MEMO_POLL_DELAYS_MS[attempt]!;
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+
+    const url = `${base}/v2/blockchain/accounts/${encodeURIComponent(escrowAddress)}/transactions?limit=30`;
+    let res: Response;
+    try {
+      res = await fetch(url, { headers });
+    } catch (err) {
+      logger.warn(
+        `[tonVerify] escrow poll attempt ${attempt} network error:`,
+        err instanceof Error ? err.message : err,
+      );
+      continue;
+    }
+    if (!res.ok) {
+      // 404: escrow ещё не развёрнут = buyer ещё не заплатил.
+      // Продолжаем polling, не ошибка.
+      if (res.status === 404) continue;
+      logger.warn(`[tonVerify] escrow poll attempt ${attempt} status ${res.status}`);
+      continue;
+    }
+
+    const body = (await res.json()) as { transactions?: TonApiTx[] };
+    const txs = body.transactions || [];
+    for (const tx of txs) {
+      const msg = extractInMsg(tx);
+      if (!msg) continue;
+      const source = extractMsgSource(msg);
+      if (!addressesEqual(source, buyerWallet)) continue;
+      const value = extractValueNano(msg);
+      if (value === null) continue;
+      if (value < expected) continue;
+      // Нашли valid payment
+      return { ok: true, txHash: tx.hash || '' };
+    }
+  }
+
+  return { ok: false, reason: 'ESCROW_PAYMENT_NOT_FOUND' };
+}
+
 export async function verifyJettonTransfer(_params: VerifyParams): Promise<PaymentVerification> {
   const master = (process.env.COMMERCE_JETTON_MASTER || '').trim();
   if (!master) {
