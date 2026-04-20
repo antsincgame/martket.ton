@@ -29,7 +29,7 @@
     "appwrite": "^16.1.0",
     "buffer": "^6.0.3",
     "framer-motion": "^12.38.0",
-    "lucide-react": "^0.344.0",
+    "lucide-react": "^1.8.0",
     "qrcode.react": "^3.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
