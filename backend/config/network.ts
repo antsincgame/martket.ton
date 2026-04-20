@@ -19,6 +19,14 @@ export interface NetworkConfig {
    * индексации PayEscrow. Должен соответствовать ownerAddress в Collection.init.
    */
   collectionOwnerAddress: string;
+  /**
+   * Mnemonic (24 words) кошелька owner'а. Нужен для подписи MintLicense
+   * транзакций в mint worker'е. СЕКРЕТ: никогда не логировать, не возвращать
+   * в API response, хранить только в env/secrets.
+   *
+   * Формат: 24 слова через пробел, BIP39 English wordlist.
+   */
+  collectionOwnerMnemonic: string;
 }
 
 const NETWORK_HEADER = 'x-ton-network';
@@ -41,6 +49,7 @@ const configs: Record<TonNetwork, NetworkConfig> = {
     trialWindowSec: envInt('TRIAL_WINDOW_SEC', 259200),
     collectionAddress: env('COLLECTION_ADDRESS_MAINNET', env('COLLECTION_ADDRESS', '')),
     collectionOwnerAddress: env('COLLECTION_OWNER_ADDRESS_MAINNET', env('COLLECTION_OWNER_ADDRESS', '')),
+    collectionOwnerMnemonic: env('COLLECTION_OWNER_MNEMONIC_MAINNET', env('COLLECTION_OWNER_MNEMONIC', '')),
   },
   testnet: {
     network: 'testnet',
@@ -50,6 +59,7 @@ const configs: Record<TonNetwork, NetworkConfig> = {
     trialWindowSec: envInt('TRIAL_WINDOW_SEC', 259200),
     collectionAddress: env('COLLECTION_ADDRESS_TESTNET', env('COLLECTION_ADDRESS', '')),
     collectionOwnerAddress: env('COLLECTION_OWNER_ADDRESS_TESTNET', env('COLLECTION_OWNER_ADDRESS', '')),
+    collectionOwnerMnemonic: env('COLLECTION_OWNER_MNEMONIC_TESTNET', env('COLLECTION_OWNER_MNEMONIC', '')),
   },
 };
 
