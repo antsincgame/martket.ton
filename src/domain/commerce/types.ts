@@ -36,6 +36,22 @@ export interface CreateOrderResponse {
   memo: string;
   amountRaw: string;
   amountTonHuman?: string;
+  /**
+   * Что получит seller после escrow release (без fee).
+   * Заполняется backend'ом из computeOrderAmounts.
+   */
+  sellerAmountRaw?: string;
+  sellerAmountTonHuman?: string;
+  /**
+   * Platform fee (получает treasury после release).
+   * Buyer видит эту сумму для прозрачности в UI.
+   */
+  feeAmountRaw?: string;
+  feeAmountTonHuman?: string;
+  /**
+   * Applied fee in basis points (1500 = 15%).
+   */
+  feeBps?: number;
   decimals: number;
   currency: string;
   jettonMaster: string;

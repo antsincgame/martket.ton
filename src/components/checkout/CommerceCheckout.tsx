@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react';
-import { Loader2, ShieldCheck, Wallet, Download, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Loader2, ShieldCheck, Wallet, Download, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import { beginCell, Cell } from '@ton/core';
 import {
   fetchListingsForCatalog,
@@ -37,7 +37,7 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
 
   const [listing, setListing] = useState<CommerceListingPublic | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
-  const [_order, setOrder] = useState<CreateOrderResponse | null>(null);
+  const [order, setOrder] = useState<CreateOrderResponse | null>(null);
   const [delivery, setDelivery] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -145,7 +145,13 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   }
 
   const isBusy = phase === 'creating-order' || phase === 'awaiting-wallet' || phase === 'confirming';
-  const priceDisplay = listing?.priceTonHuman ?? humanFromRaw(listing?.priceAmountRaw ?? '0');
+  const sellerPriceHuman = listing?.priceTonHuman ?? humanFromRaw(listing?.priceAmountRaw ?? '0');
+  // Fee breakdown виден только когда backend вернул order с fee/sellerAmount полями.
+  // До создания order'а показываем estimate из listing.platformFeeBps.
+  const estimatedFeeBps = order?.feeBps ?? listing?.platformFeeBps ?? 1500;
+  const sellerTon = order?.sellerAmountTonHuman ?? sellerPriceHuman;
+  const feeTon = order?.feeAmountTonHuman ?? estimateFeeTonHuman(sellerPriceHuman, estimatedFeeBps);
+  const totalTon = order?.amountTonHuman ?? addTonHuman(sellerTon, feeTon);
 
   return (
     <div className="rounded-xl border border-[#FFD700]/20 bg-gradient-to-b from-[#FFD700]/5 to-transparent p-5 space-y-4">
@@ -154,7 +160,28 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
           <ShieldCheck className="w-5 h-5 text-[#FFD700]" />
           <span className="text-sm font-semibold text-white">Secure TON Payment</span>
         </div>
-        <span className="text-lg font-display font-bold text-[#FFD700]">{priceDisplay} TON</span>
+        <span className="text-lg font-display font-bold text-[#FFD700]">{totalTon} TON</span>
+      </div>
+
+      {/* Fee breakdown */}
+      <div className="rounded-lg bg-black/20 border border-white/5 p-3 space-y-1.5 text-xs">
+        <div className="flex justify-between text-gray-400">
+          <span>Seller price</span>
+          <span className="font-mono text-gray-200">{sellerTon} TON</span>
+        </div>
+        <div className="flex justify-between text-gray-400">
+          <span className="flex items-center gap-1">
+            Platform fee
+            <span title={`${(estimatedFeeBps / 100).toFixed(1)}% of seller price`}>
+              <Info className="w-3 h-3 text-gray-500" />
+            </span>
+          </span>
+          <span className="font-mono text-gray-200">+ {feeTon} TON</span>
+        </div>
+        <div className="border-t border-white/10 pt-1.5 flex justify-between font-semibold">
+          <span className="text-white">You pay</span>
+          <span className="font-mono text-[#FFD700]">{totalTon} TON</span>
+        </div>
       </div>
 
       {error && (
@@ -190,14 +217,16 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
           ) : (
             <>
               <Wallet className="w-5 h-5" />
-              Buy for {priceDisplay} TON
+              Buy for {totalTon} TON
             </>
           )}
         </button>
       )}
 
       <p className="text-[10px] text-gray-500 text-center">
-        Payment goes to a verified treasury address. On-chain verification via TonAPI.
+        {order?.escrow
+          ? 'Funds held in on-chain escrow until you confirm delivery. Auto-release after trial window.'
+          : 'Payment goes to a verified treasury address. On-chain verification via TonAPI.'}
       </p>
     </div>
   );
@@ -229,4 +258,19 @@ function humanFromRaw(raw: string): string {
   const intPart = padded.slice(0, padded.length - 9);
   const frac = padded.slice(padded.length - 9).replace(/0+$/, '');
   return frac ? `${intPart}.${frac}` : intPart;
+}
+
+/**
+ * Estimate fee for display: seller * bps / 10000. Client-side approximation;
+ * backend всё равно считает свой правильный ответ после create order.
+ */
+function estimateFeeTonHuman(sellerHuman: string, feeBps: number): string {
+  const seller = parseFloat(sellerHuman) || 0;
+  const fee = (seller * feeBps) / 10000;
+  return fee.toFixed(fee < 0.01 ? 6 : 4).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function addTonHuman(a: string, b: string): string {
+  const sum = (parseFloat(a) || 0) + (parseFloat(b) || 0);
+  return sum.toFixed(sum < 1 ? 6 : 4).replace(/0+$/, '').replace(/\.$/, '');
 }
