@@ -13,10 +13,21 @@ import { Address, beginCell, Cell, toNano } from '@ton/core';
 import type { TonNetwork } from '../config/network.js';
 import { logger } from '../logger.js';
 
+type WalletV4 = WalletContractV4;
+type OpenedWalletV4 = ReturnType<TonClient['open']> & {
+  getSeqno(): Promise<number>;
+  sendTransfer(args: {
+    seqno: number;
+    secretKey: Buffer;
+    messages: ReturnType<typeof internal>[];
+    timeout?: number;
+  }): Promise<void>;
+};
+
 interface SignerHandle {
   client: TonClient;
-  wallet: ReturnType<typeof WalletContractV4.create>;
-  openedWallet: ReturnType<TonClient['open']>;
+  wallet: WalletV4;
+  openedWallet: OpenedWalletV4;
   keyPair: Awaited<ReturnType<typeof mnemonicToPrivateKey>>;
   address: Address;
 }
@@ -57,7 +68,10 @@ export async function getSigner(
     apiKey: tonapiKey || undefined,
   });
 
-  const openedWallet = client.open(wallet);
+  // client.open() возвращает generic OpenedContract<T> который маскирует
+  // специфические методы WalletContractV4. Приводим через двойной cast
+  // к минимальному интерфейсу который мы реально используем.
+  const openedWallet = client.open(wallet) as unknown as OpenedWalletV4;
 
   const handle: SignerHandle = {
     client,
