@@ -7,7 +7,7 @@ import {
   ORDER_STATE, LISTING_STATUS, CURRENCY, DEFAULT_PLATFORM_FEE_BPS,
 } from './constants.js';
 import { databases, ID, Query } from './appwrite.js';
-import { applyFeeBps, nanoRawToTonHuman } from './money.js';
+import { computeOrderAmounts, nanoRawToTonHuman } from './money.js';
 import { verifyPaymentByMemo, addressesEqual } from './tonVerify.js';
 import { computeEscrow } from './escrow.js';
 import { resolveNetworkConfig } from '../config/network.js';
@@ -27,6 +27,15 @@ const router = express.Router();
 const limitConfirm = rateLimit({ windowMs: 15 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false });
 const limitCreateOrder = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
 
+/**
+ * v4 order creation flow:
+ *
+ * 1. listing.priceAmountRaw = seller's listed price (сколько seller хочет получить)
+ * 2. Платформа добавляет fee поверх: fee = seller_price * feeBps / 10000
+ * 3. Buyer платит total = seller_price + fee (с небольшим gas buffer)
+ * 4. Escrow deployed с split: amountNano=total, sellerAmountNano=seller, feeNano=fee
+ * 5. При ConfirmDelivery: escrow шлёт sellerAmountNano → seller, feeNano + gas change → treasury
+ */
 router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOrderSchema), async (req: Request, res: Response) => {
   try {
     const { listingId, buyerWallet } = req.body as { listingId: string; buyerWallet: string };
@@ -34,50 +43,92 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
     if (!owner) return;
     const netCfg = resolveNetworkConfig(req);
     const treasury = netCfg.treasuryAddress;
-    if (!treasury) { res.status(503).json({ error: 'TREASURY_WALLET_ADDRESS not configured', code: 'CONFIG' }); return; }
+    if (!treasury) {
+      res.status(503).json({ error: 'TREASURY_WALLET_ADDRESS not configured', code: 'CONFIG' });
+      return;
+    }
+
     const db = databases();
     const listing = await db.getDocument(DATABASE_ID, COL_LISTINGS, listingId);
     if (listing['status'] !== LISTING_STATUS.ACTIVE) {
-      res.status(400).json({ error: 'Listing is not active', code: 'LISTING_INACTIVE' }); return;
+      res.status(400).json({ error: 'Listing is not active', code: 'LISTING_INACTIVE' });
+      return;
     }
-    const memo = `cm_${crypto.randomBytes(12).toString('hex')}`;
-    const amountRaw = listing['priceAmountRaw'] as string;
+
+    const sellerPriceRaw = listing['priceAmountRaw'] as string;       // Seller's ask
     const feeBps = (listing['platformFeeBps'] as number) ?? DEFAULT_PLATFORM_FEE_BPS;
-    const sellerNetAmountRaw = applyFeeBps(amountRaw, feeBps);
+    const amounts = computeOrderAmounts(sellerPriceRaw, feeBps);       // { seller, fee, total }
     const sellerWallet = listing['sellerWallet'] as string;
+
+    const memo = `cm_${crypto.randomBytes(12).toString('hex')}`;
 
     const orderId = ID.unique();
     const order = await db.createDocument(DATABASE_ID, COL_ORDERS, orderId, {
-      listingId, buyerWallet, amountRaw,
+      listingId,
+      buyerWallet,
+      amountRaw: amounts.totalAmountNano,         // Что buyer платит (seller + fee)
+      sellerNetAmountRaw: amounts.sellerAmountNano, // Что получит seller
       currency: listing['currency'],
       jettonMaster: (listing['jettonMaster'] as string) || '',
-      memo, tonTxHash: '', state: ORDER_STATE.PENDING_PAYMENT,
-      sellerNetAmountRaw, listingSnapshotTitle: listing['title'],
+      memo,
+      tonTxHash: '',
+      state: ORDER_STATE.PENDING_PAYMENT,
+      listingSnapshotTitle: listing['title'],
     });
 
-    let escrowData: { escrowAddress: string; stateInitBase64: string; payloadBase64: string; totalAmountRaw: string } | null = null;
-    try {
-      escrowData = await computeEscrow({
-        orderId: order.$id,
-        buyer: buyerWallet,
-        seller: sellerWallet,
-        treasury,
-        amountNano: amountRaw,
-        feeBps,
-        trialWindowSec: netCfg.trialWindowSec,
-      });
-    } catch (err) {
-      logger.warn('[commerce] escrow compute fallback to treasury:', err instanceof Error ? err.message : err);
+    // Collection address берётся из config (resolveNetworkConfig) — это
+    // адрес предеплоенной AppCollection для данной платформы.
+    // licenseContentUri — TEP-64 metadata URI, либо из listing либо dynamic.
+    const collectionAddress = netCfg.collectionAddress;
+    const licenseContentUri = (listing['licenseContentUri'] as string) ||
+      `https://cdn.example.org/license/${order.$id}.json`;
+
+    let escrowData: Awaited<ReturnType<typeof computeEscrow>> | null = null;
+    if (collectionAddress) {
+      try {
+        escrowData = await computeEscrow({
+          orderId: order.$id,
+          buyer: buyerWallet,
+          seller: sellerWallet,
+          treasury,
+          amountNano: amounts.totalAmountNano,
+          sellerAmountNano: amounts.sellerAmountNano,
+          feeNano: amounts.feeNano,
+          trialWindowSec: netCfg.trialWindowSec,
+          collectionAddress,
+          transferLimit: 0,  // soulbound
+          licenseContentUri,
+        });
+      } catch (err) {
+        logger.warn('[commerce] escrow compute failed:', err instanceof Error ? err.message : err);
+      }
+    } else {
+      logger.warn('[commerce] COLLECTION_ADDRESS not configured — escrow disabled');
     }
 
     await writeAudit(buyerWallet, 'order_create', 'order', order.$id, { listingId, memo });
     res.json({
       data: {
-        orderId: order.$id, memo, amountRaw,
-        amountTonHuman: listing['currency'] === CURRENCY.TON ? nanoRawToTonHuman(amountRaw) : undefined,
-        decimals: listing['decimals'], currency: listing['currency'],
+        orderId: order.$id,
+        memo,
+        amountRaw: amounts.totalAmountNano,
+        amountTonHuman: listing['currency'] === CURRENCY.TON
+          ? nanoRawToTonHuman(amounts.totalAmountNano)
+          : undefined,
+        sellerAmountRaw: amounts.sellerAmountNano,
+        sellerAmountTonHuman: listing['currency'] === CURRENCY.TON
+          ? nanoRawToTonHuman(amounts.sellerAmountNano)
+          : undefined,
+        feeAmountRaw: amounts.feeNano,
+        feeAmountTonHuman: listing['currency'] === CURRENCY.TON
+          ? nanoRawToTonHuman(amounts.feeNano)
+          : undefined,
+        feeBps: amounts.feeBpsApplied,
+        decimals: listing['decimals'],
+        currency: listing['currency'],
         jettonMaster: (listing['jettonMaster'] as string) || '',
-        treasuryAddress: treasury, state: order['state'],
+        treasuryAddress: treasury,
+        state: order['state'],
         escrow: escrowData ? {
           address: escrowData.escrowAddress,
           stateInit: escrowData.stateInitBase64,
@@ -113,6 +164,8 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
       res.json({ data: { state: order['state'], message: 'Order already processed' } }); return;
     }
 
+    // Legacy path: verify payment to treasury by memo (fallback если escrow не использовался).
+    // v4 preferred path: verify payment to escrow address (not implemented here yet).
     const check = await verifyPaymentByMemo(treasury, {
       buyerWallet: order['buyerWallet'] as string,
       amountRaw: order['amountRaw'] as string,
@@ -195,6 +248,7 @@ router.get('/sellers/:wallet/orders', apiRequireAuth(), async (req: Request, res
           buyerWallet: o['buyerWallet'],
           state: o['state'],
           amountRaw: o['amountRaw'],
+          sellerNetAmountRaw: o['sellerNetAmountRaw'],
           currency: o['currency'],
           memo: o['memo'],
           tonTxHash: o['tonTxHash'] || null,
@@ -229,9 +283,14 @@ router.get('/orders/:id', apiRequireAuth(), async (req: Request, res: Response) 
     res.json({
       data: {
         order: {
-          id: order.$id, listingId: order['listingId'], state: order['state'],
-          amountRaw: order['amountRaw'], currency: order['currency'],
-          memo: order['memo'], tonTxHash: (order['tonTxHash'] as string) || '',
+          id: order.$id,
+          listingId: order['listingId'],
+          state: order['state'],
+          amountRaw: order['amountRaw'],
+          sellerNetAmountRaw: order['sellerNetAmountRaw'],
+          currency: order['currency'],
+          memo: order['memo'],
+          tonTxHash: (order['tonTxHash'] as string) || '',
         },
         deliveryPayload: delivery,
       },
@@ -268,6 +327,7 @@ router.get('/buyers/me/orders', apiRequireAuth(), async (req: Request, res: Resp
           listingTitle: o['listingSnapshotTitle'] ?? null,
           state: o['state'],
           amountRaw: o['amountRaw'],
+          sellerNetAmountRaw: o['sellerNetAmountRaw'],
           currency: o['currency'],
           memo: o['memo'],
           tonTxHash: o['tonTxHash'] || null,

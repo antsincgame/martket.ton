@@ -7,11 +7,69 @@ export function tonHumanToNanoRaw(human: string | number): string {
   return nano.toString();
 }
 
+/**
+ * Net-amount after deducting platform fee from a gross total.
+ *
+ * DEPRECATED: в v4 fee НЕ вычитается из seller price, а добавляется поверх
+ * (fee платит buyer). Используй addFeeBps или computeOrderAmounts вместо.
+ *
+ * Оставлена для обратной совместимости со старым кодом; эквивалентна формуле:
+ *   net = gross * (10000 - bps) / 10000
+ */
 export function applyFeeBps(amountRawStr: string, bps: number): string {
   const amount = BigInt(amountRawStr);
   const fee = Math.max(0, Math.min(10000, Number(bps)));
   const net = (amount * BigInt(10000 - fee)) / 10000n;
   return net.toString();
+}
+
+/**
+ * Compute buyer's total payment from seller's listed price + platform fee.
+ *
+ * В v4 buyer платит seller_price + fee (fee поверх). Это позволяет seller
+ * видеть чистый доход и не пересчитывать в уме.
+ *
+ * Пример: seller листит 12.5 TON, fee 1500 bps (15%)
+ *   → fee = 12.5 * 0.15 = 1.875 TON
+ *   → buyer платит 14.375 TON
+ *   → seller получает 12.5 TON
+ *   → treasury получает 1.875 TON
+ */
+export function addFeeBps(sellerPriceNanoStr: string, bps: number): string {
+  const sellerPrice = BigInt(sellerPriceNanoStr);
+  const fee = Math.max(0, Math.min(10000, Number(bps)));
+  const feeAmount = (sellerPrice * BigInt(fee)) / 10000n;
+  return (sellerPrice + feeAmount).toString();
+}
+
+/**
+ * Полный расчёт order amounts. Принимает seller's listed price,
+ * возвращает (seller_amount, fee, buyer_total).
+ *
+ * Все значения в nano-TON (строки чтобы не терять точность в JSON).
+ */
+export interface OrderAmounts {
+  sellerAmountNano: string;       // Что получит seller
+  feeNano: string;                // Что получит treasury
+  totalAmountNano: string;        // Что buyer должен заплатить
+  feeBpsApplied: number;          // Для логирования/audit
+}
+
+export function computeOrderAmounts(
+  sellerPriceNanoStr: string,
+  feeBps: number,
+): OrderAmounts {
+  const sellerPrice = BigInt(sellerPriceNanoStr);
+  const bps = Math.max(0, Math.min(10000, Number(feeBps)));
+  const fee = (sellerPrice * BigInt(bps)) / 10000n;
+  const total = sellerPrice + fee;
+
+  return {
+    sellerAmountNano: sellerPrice.toString(),
+    feeNano: fee.toString(),
+    totalAmountNano: total.toString(),
+    feeBpsApplied: bps,
+  };
 }
 
 export function nanoRawToTonHuman(amountRawStr: string): string {
