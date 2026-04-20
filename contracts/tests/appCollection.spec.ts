@@ -1,12 +1,5 @@
 /**
- * AppCollection v4 contract tests — init-hash trustless mint protection.
- *
- * Ключевая новая семантика: Mint больше НЕ гейтится через ownerAddress.
- * Legitimacy sender проверяется через пересборку initOf Escrow с параметрами
- * из сообщения.
- *
- * В этом файле тестируются isolated-кейсы Collection (без реального Escrow).
- * Полный E2E flow — в licenseLifecycle.spec.ts.
+ * AppCollection v4 contract tests (Option C — owner-driven mint).
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -27,7 +20,7 @@ function individualContent(index: number) {
   return beginCell().storeStringTail(`${index}.json`).endCell();
 }
 
-describe('AppCollection v4 contract (trustless mint)', () => {
+describe('AppCollection v4 contract', () => {
   let blockchain: Blockchain;
   let owner: SandboxContract<TreasuryContract>;
   let buyer: SandboxContract<TreasuryContract>;
@@ -75,6 +68,24 @@ describe('AppCollection v4 contract (trustless mint)', () => {
     return BigInt(blockchain.now! + Number(TRIAL_WINDOW));
   }
 
+  function mintMessage(queryId: bigint = 1n) {
+    return {
+      $$type: 'MintLicense' as const,
+      queryId,
+      orderId: 1n,
+      buyerAddress: buyer.address,
+      sellerAddress: seller.address,
+      treasuryAddress: treasury.address,
+      amountNano: TOTAL_AMOUNT,
+      sellerAmountNano: SELLER_AMOUNT,
+      feeNano: FEE_AMOUNT,
+      trialWindowSec: TRIAL_WINDOW,
+      transferLimit: 0n,
+      individualContent: individualContent(0),
+      burnDeadline: burnDeadline(),
+    };
+  }
+
   // ─── Initial state ───────────────────────────────────────────────
 
   it('stores app id and zero items at deploy', async () => {
@@ -86,72 +97,51 @@ describe('AppCollection v4 contract (trustless mint)', () => {
     expect(appId).toBe(APP_ID);
   });
 
-  // ─── Mint protection: non-Escrow cannot mint ─────────────────────
-  //
-  // Это главная security гарантия v4: даже collection owner не может
-  // mint'ить напрямую, только настоящий Escrow с правильным init-hash.
+  // ─── Mint by owner ───────────────────────────────────────────────
 
-  it('rejects mint from owner (no privileged mint anymore)', async () => {
+  it('owner can mint license, item index increments', async () => {
     const result = await collection.send(
       owner.getSender(),
       { value: toNano('0.5') },
-      {
-        $$type: 'MintLicense',
-        queryId: 1n,
-        orderId: 1n,
-        buyerAddress: buyer.address,
-        sellerAddress: seller.address,
-        treasuryAddress: treasury.address,
-        amountNano: TOTAL_AMOUNT,
-        sellerAmountNano: SELLER_AMOUNT,
-        feeNano: FEE_AMOUNT,
-        trialWindowSec: TRIAL_WINDOW,
-        transferLimit: 0n,
-        individualContent: individualContent(0),
-        burnDeadline: burnDeadline(),
-      },
+      mintMessage(1n),
     );
-    // Owner != expectedEscrow → reject
     expect(result.transactions).toHaveTransaction({
       from: owner.address,
       to: collection.address,
-      success: false,
+      success: true,
     });
 
     const data = await collection.getGetCollectionData();
-    expect(data.nextItemIndex).toBe(0n);
+    expect(data.nextItemIndex).toBe(1n);
   });
 
-  it('rejects mint from outsider with arbitrary params', async () => {
+  it('rejects mint from non-owner', async () => {
     const result = await collection.send(
       outsider.getSender(),
       { value: toNano('0.5') },
-      {
-        $$type: 'MintLicense',
-        queryId: 2n,
-        orderId: 42n,
-        buyerAddress: buyer.address,
-        sellerAddress: seller.address,
-        treasuryAddress: treasury.address,
-        amountNano: TOTAL_AMOUNT,
-        sellerAmountNano: SELLER_AMOUNT,
-        feeNano: FEE_AMOUNT,
-        trialWindowSec: TRIAL_WINDOW,
-        transferLimit: 0n,
-        individualContent: individualContent(0),
-        burnDeadline: burnDeadline(),
-      },
+      mintMessage(2n),
     );
     expect(result.transactions).toHaveTransaction({
       from: outsider.address,
       to: collection.address,
       success: false,
     });
+    const data = await collection.getGetCollectionData();
+    expect(data.nextItemIndex).toBe(0n);
   });
 
-  // Note: тест legitimate mint (через реальный Escrow → успешный mint)
-  // находится в licenseLifecycle.spec.ts — он требует deploy обоих
-  // контрактов и их координации.
+  it('rejects mint with insufficient gas', async () => {
+    const result = await collection.send(
+      owner.getSender(),
+      { value: toNano('0.01') },
+      mintMessage(3n),
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: owner.address,
+      to: collection.address,
+      success: false,
+    });
+  });
 
   // ─── Owner rotation ──────────────────────────────────────────────
 
@@ -177,39 +167,6 @@ describe('AppCollection v4 contract (trustless mint)', () => {
       outsider.getSender(),
       { value: toNano('0.05') },
       { $$type: 'ChangeOwner', queryId: 5n, newOwner: newOwner.address },
-    );
-    expect(result.transactions).toHaveTransaction({
-      from: outsider.address,
-      to: collection.address,
-      success: false,
-    });
-  });
-
-  // ─── BurnLicense (admin edge-case для DMCA) ───────────────────────
-
-  it('owner can trigger BurnLicense (forwarded to item address)', async () => {
-    // Фиктивный itemAddress — в сandbox никто не развёрнут там,
-    // сообщение просто потеряется. Важно только что collection
-    // принимает команду от owner.
-    const fakeItem = await blockchain.treasury('fakeItem');
-    const result = await collection.send(
-      owner.getSender(),
-      { value: toNano('0.1') },
-      { $$type: 'BurnLicense', queryId: 6n, itemAddress: fakeItem.address },
-    );
-    expect(result.transactions).toHaveTransaction({
-      from: owner.address,
-      to: collection.address,
-      success: true,
-    });
-  });
-
-  it('non-owner cannot trigger BurnLicense', async () => {
-    const fakeItem = await blockchain.treasury('fakeItem');
-    const result = await collection.send(
-      outsider.getSender(),
-      { value: toNano('0.1') },
-      { $$type: 'BurnLicense', queryId: 7n, itemAddress: fakeItem.address },
     );
     expect(result.transactions).toHaveTransaction({
       from: outsider.address,
