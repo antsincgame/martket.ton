@@ -19,7 +19,6 @@ import { Address, beginCell, Cell, toNano } from '@ton/core';
 import '@ton/test-utils';
 import { Escrow } from '../build/Escrow_Escrow';
 import { AppCollection } from '../build/AppCollection_AppCollection';
-import { LicenseItem } from '../build/LicenseItem_LicenseItem';
 
 const APP_ID = 0xaa11n;
 const ORDER_ID = 1n;
