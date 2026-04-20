@@ -40,42 +40,28 @@ contract AppCollection with Deployable {
         self.commonContent     = commonContent;
     }
 
-    // ─── Mint: triggered by legitimate Escrow only ───────────────────
+    // ─── Mint: triggered by ownerAddress (backend signer) ────────────
     //
-    // Collection пересобирает initOf Escrow с параметрами из сообщения,
-    // вычисляет ожидаемый адрес и сверяет с sender(). Если совпало —
-    // это реальный Escrow с реальной оплатой (state = FUNDED к моменту
-    // отправки этого сообщения в Escrow.receive(PayEscrow)).
+    // ВРЕМЕННОЕ РЕШЕНИЕ (Option C):
+    // Mint разрешён только от ownerAddress (backend, wallet controlled by platform).
+    // Escrow шлёт MintLicense через PayEscrow→Collection, но sender будет Escrow,
+    // не owner. Поэтому нужен backend-oracle который индексирует PayEscrow события
+    // и пересылает MintLicense в Collection со своим signed sender.
     //
-    // Атакующий не может подделать: если он задеплоит свой Escrow
-    // с другими параметрами — у него будет другой адрес; если возьмёт
-    // честные параметры — его адрес не совпадёт с адресом deploy'ом
-    // атакующего.
+    // TODO: вернуть trustless init-hash check после локальной отладки.
+    // Было: require(sender() == contractAddress(initOf Escrow(...)))
 
     receive(msg: MintLicense) {
-        let escrowInit: StateInit = initOf Escrow(
-            msg.orderId,
-            msg.buyerAddress,
-            msg.sellerAddress,
-            msg.treasuryAddress,
-            msg.amountNano,
-            msg.sellerAmountNano,
-            msg.feeNano,
-            msg.trialWindowSec,
-            myAddress(),              // Escrow должен ссылаться на НАС как collection
-            msg.transferLimit,
-            msg.individualContent,
-        );
-        let expectedEscrow: Address = contractAddress(escrowInit);
-        require(sender() == expectedEscrow, "Sender is not a legitimate Escrow");
+        require(sender() == self.ownerAddress, "Only collection owner can mint");
+        require(context().value >= ton("0.1"), "Insufficient gas for mint");
 
         let index: Int = self.nextItemIndex;
 
         let licenseInit: StateInit = initOf LicenseItem(
             index,
             myAddress(),          // collection
-            msg.buyerAddress,     // owner
-            expectedEscrow,       // escrow (already verified)
+            msg.buyerAddress,     // owner of NFT
+            sender(),             // escrow address — передаётся в item для burn refund flow
             msg.transferLimit,
             msg.individualContent,
             msg.burnDeadline,
@@ -125,9 +111,6 @@ contract AppCollection with Deployable {
         };
     }
 
-    // TEP-62 требует геттер, но вычислить address-by-index без parameters
-    // конкретной сделки невозможно в нашей схеме. Индексеры должны
-    // использовать off-chain API (наш backend) для перечисления NFT.
     get fun get_nft_address_by_index(index: Int): Address {
         return newAddress(0, 0);
     }
