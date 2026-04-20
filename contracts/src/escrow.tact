@@ -53,51 +53,37 @@ struct LicenseSpec {
 }
 
 // ─── State constants ─────────────────────────────────────────────────
-//   0 = INIT        — deployed, awaiting buyer payment
-//   1 = FUNDED      — buyer paid, mint sent to collection, trial window open
-//   3 = RELEASED    — seller paid, contract self-destructed
-//   4 = REFUNDED    — buyer burned NFT → auto-refund, contract self-destructed
 
 const STATE_INIT:     Int = 0;
 const STATE_FUNDED:   Int = 1;
 const STATE_RELEASED: Int = 3;
 const STATE_REFUNDED: Int = 4;
 
-// Через сколько после оплаты buyer может вытащить деньги если license не зарегистрирован.
-// Нормальная on-chain цепочка (escrow → mint → deploy item → register) занимает <1 минуты.
-// 10 минут — с большим запасом на форк-лаги и прочие аномалии.
+// Grace period: через 10 минут после PayEscrow buyer может вернуть
+// средства если lifecycle не замкнулся (collection reject'ил mint и т.п.).
 const MINT_GRACE_SEC: Int = 600;
 
-// Газ, который forward-им в Collection для mint-цепочки.
-// 0.4 TON достаточно: collection deploy item (~0.15) + item register (~0.05) + excess return (~0.15).
+// Газ для всей mint-цепочки (collection → item deploy → register back).
+// При SendRemainingValue этот параметр не используется — шлём всё что получили.
 const MINT_FORWARD_GAS: Int = ton("0.4");
 
 // ─── Contract ────────────────────────────────────────────────────────
 
 contract Escrow with Deployable {
-    // Identity
-    orderId:          Int as uint256;
-    buyer:            Address;
-    seller:           Address;
-    treasury:         Address;
-
-    // Money
-    amountNano:       Int as coins;
-    sellerAmountNano: Int as coins;
-    feeNano:          Int as coins;
-
-    // Trial window
-    trialWindowSec:   Int as uint32;
-
-    // License spec (what Collection will mint)
+    orderId:           Int as uint256;
+    buyer:             Address;
+    seller:            Address;
+    treasury:          Address;
+    amountNano:        Int as coins;
+    sellerAmountNano:  Int as coins;
+    feeNano:           Int as coins;
+    trialWindowSec:    Int as uint32;
     collectionAddress: Address;
     transferLimit:     Int as uint8;
     licenseContent:    Cell;
-
-    // State
-    state:            Int as uint8;
-    paidAt:           Int as uint32;
-    licenseAddress:   Address;
+    state:             Int as uint8;
+    paidAt:            Int as uint32;
+    licenseAddress:    Address;
 
     init(
         orderId:           Int,
@@ -133,10 +119,6 @@ contract Escrow with Deployable {
     }
 
     // ─── Buyer pays → state = FUNDED → auto-send MintLicense ─────────
-    //
-    // Buyer должен положить >= amountNano + MINT_FORWARD_GAS (иначе mint
-    // не прилетит в Collection). Сдача газа возвращается в процессе
-    // цепочки (excess от item при register).
 
     receive(msg: PayEscrow) {
         require(self.state == STATE_INIT, "Already funded");
@@ -146,15 +128,16 @@ contract Escrow with Deployable {
         self.state  = STATE_FUNDED;
         self.paidAt = now();
 
-        // Burn deadline = now + trialWindow. Считается on-chain, не
-        // полагаемся на off-chain значение.
         let deadline: Int = now() + self.trialWindowSec;
 
+        // SendRemainingValue: forward весь value этого сообщения минус compute gas.
+        // bounce: false — нам всё равно не важно bounce для этого send'а (buyer
+        // может использовать RefundIfNotMinted через grace если mint не состоялся).
         send(SendParameters{
             to: self.collectionAddress,
-            value: MINT_FORWARD_GAS,
-            mode: SendPayGasSeparately,
-            bounce: true,
+            value: 0,
+            mode: SendRemainingValue,
+            bounce: false,
             body: MintLicense{
                 queryId:           0,
                 orderId:           self.orderId,
@@ -181,10 +164,6 @@ contract Escrow with Deployable {
     }
 
     // ─── Register license address (called by LicenseItem on deploy) ──
-    //
-    // Новоразвернутая LicenseItem отправляет RegisterLicense обратно.
-    // Проверяем что sender == msg.licenseAddress — это гарантирует что
-    // регистрация пришла от самой лицензии, а не от подделанного сендера.
 
     receive(msg: RegisterLicense) {
         require(self.state == STATE_FUNDED, "Not funded");
@@ -234,19 +213,19 @@ contract Escrow with Deployable {
         self.releaseFunds();
     }
 
-    // ─── Bounce handlers ─────────────────────────────────────────────
+    // ─── Bounce handler ──────────────────────────────────────────────
+    //
+    // Tact 1.5 допускает только один bounced handler на контракт (в отличие
+    // от обычных receive). Используем generic `bounced()` и проверяем opcode
+    // вручную.
+    //
+    // Для нас bounce важен только для ReleaseSeller: если seller wallet
+    // отклонил выплату — откатываемся в FUNDED чтобы попробовать ещё раз
+    // или дождаться timeout. Bounce от MintLicense нас не волнует
+    // (buyer вернёт средства через RefundIfNotMinted).
 
-    // Если seller wallet не принял release — откат в FUNDED чтобы можно
-    // было попробовать снова или дождаться timeout с другим развитием.
     bounced(msg: bounced<ReleaseSeller>) {
         self.state = STATE_FUNDED;
-    }
-
-    // Если Collection отверг mint (например bad params или out of gas) —
-    // помечаем что mint не случился, buyer может RefundIfNotMinted через grace.
-    // Ничего не делаем с state (он уже FUNDED), просто логируем.
-    bounced(msg: bounced<MintLicense>) {
-        // no-op: licenseAddress остаётся zero, через grace buyer вернёт средства
     }
 
     // ─── Internal: split funds between seller and treasury ───────────
