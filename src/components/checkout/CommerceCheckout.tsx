@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react';
-import { Loader2, ShieldCheck, Wallet, Download, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { Loader2, ShieldCheck, Wallet, Download, AlertTriangle, CheckCircle, Info, Sparkles } from 'lucide-react';
 import { beginCell, Cell } from '@ton/core';
 import {
   fetchListingsForCatalog,
   createCommerceOrder,
   confirmCommerceOrder,
+  fetchCommerceOrder,
 } from '../../lib/commerceApi';
 import type { CreateOrderResponse } from '../../domain/commerce/types';
 import type { CommerceListingPublic } from '../../domain/commerce/types';
@@ -28,8 +29,12 @@ type Phase =
   | 'creating-order'
   | 'awaiting-wallet'
   | 'confirming'
+  | 'minting'        // v4: payment verified, license NFT being minted by worker
   | 'done'
   | 'error';
+
+const MINT_POLL_INTERVAL_MS = 5_000;
+const MINT_POLL_MAX_ATTEMPTS = 60;  // 60 * 5s = 5 min ceiling
 
 export default function CommerceCheckout({ catalogProductId }: Props) {
   const buyerWallet = useTonAddress();
@@ -40,6 +45,15 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   const [order, setOrder] = useState<CreateOrderResponse | null>(null);
   const [delivery, setDelivery] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mintProgress, setMintProgress] = useState<number>(0);  // attempts count, для UI
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup polling timer при unmount
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +72,40 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
       });
     return () => { cancelled = true; };
   }, [catalogProductId]);
+
+  /**
+   * Polls /orders/:id every 5s until either:
+   *  - state becomes PAID/FULFILLED + deliveryPayload is set → phase=done
+   *  - max attempts exceeded → phase=error (with friendly message)
+   */
+  const startMintPolling = useCallback(async (orderId: string, walletAddr: string) => {
+    let attempts = 0;
+    const poll = async () => {
+      attempts += 1;
+      setMintProgress(attempts);
+      try {
+        const status = await fetchCommerceOrder(orderId, walletAddr);
+        const isPaidOrFulfilled = status.order.state === 'paid' || status.order.state === 'fulfilled';
+        if (isPaidOrFulfilled && status.deliveryPayload) {
+          setDelivery(status.deliveryPayload);
+          setPhase('done');
+          return;
+        }
+      } catch (err) {
+        logger.warn('[checkout] mint poll error:', err instanceof Error ? err.message : err);
+        // Сетевые ошибки не считаем фатальными — продолжаем polling
+      }
+      if (attempts >= MINT_POLL_MAX_ATTEMPTS) {
+        setError(
+          'Minting taking longer than expected. Your payment is safe — license will appear in your library shortly. You can refresh the page.',
+        );
+        setPhase('error');
+        return;
+      }
+      pollTimerRef.current = setTimeout(() => void poll(), MINT_POLL_INTERVAL_MS);
+    };
+    pollTimerRef.current = setTimeout(() => void poll(), MINT_POLL_INTERVAL_MS);
+  }, []);
 
   const handleBuy = useCallback(async () => {
     if (!listing || !buyerWallet) return;
@@ -85,6 +133,18 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
 
       setPhase('confirming');
       const confirmation = await confirmCommerceOrder(ord.orderId, buyerWallet, txHash);
+
+      // v4 flow: backend подтвердил платёж, но license NFT минтится worker'ом.
+      // Опрашиваем /orders/:id до появления entitlement.
+      if (confirmation.mintPending) {
+        setPhase('minting');
+        setMintProgress(0);
+        await startMintPolling(ord.orderId, buyerWallet);
+        return;
+      }
+
+      // Legacy v3 flow или v4 у которого worker уже успел отработать —
+      // entitlement пришёл сразу.
       if (confirmation.entitlement?.deliveryPayload) {
         setDelivery(confirmation.entitlement.deliveryPayload);
       }
@@ -94,7 +154,7 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
       setError(msg);
       setPhase('error');
     }
-  }, [listing, buyerWallet, tonConnectUI]);
+  }, [listing, buyerWallet, tonConnectUI, startMintPolling]);
 
   if (phase === 'loading') {
     return (
@@ -109,6 +169,30 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
     return (
       <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-center">
         <p className="text-sm text-gray-400">This product is not available for purchase yet.</p>
+      </div>
+    );
+  }
+
+  if (phase === 'minting') {
+    const elapsed = mintProgress * (MINT_POLL_INTERVAL_MS / 1000);
+    return (
+      <div className="rounded-xl border border-[#00F5FF]/30 bg-gradient-to-b from-[#00F5FF]/10 to-transparent p-5 space-y-3">
+        <div className="flex items-center gap-2 text-[#00F5FF] font-semibold">
+          <Sparkles className="w-5 h-5 animate-pulse" />
+          Payment received — minting your license NFT…
+        </div>
+        <div className="flex items-center gap-3 text-sm text-gray-300">
+          <Loader2 className="w-4 h-4 animate-spin text-[#00F5FF]" />
+          <span>License NFT is being deployed on-chain. This usually takes 30–60 seconds.</span>
+        </div>
+        <div className="text-[10px] text-gray-500 font-mono">
+          Elapsed: {elapsed}s · Polling for license registration…
+        </div>
+        {order?.escrow && (
+          <div className="text-[10px] text-gray-500 font-mono break-all">
+            Escrow: {order.escrow.address.slice(0, 12)}…{order.escrow.address.slice(-8)}
+          </div>
+        )}
       </div>
     );
   }

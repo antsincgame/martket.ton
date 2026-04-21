@@ -1,5 +1,10 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { addressesEqual, verifyPaymentByMemo, verifyNativeTonTransfer } from './tonVerify.js';
+import {
+  addressesEqual,
+  verifyPaymentByMemo,
+  verifyNativeTonTransfer,
+  verifyPaymentToEscrow,
+} from './tonVerify.js';
 
 describe('addressesEqual', () => {
   it('returns true for identical raw strings', () => {
@@ -185,5 +190,218 @@ describe('verifyPaymentByMemo (fetch mocked)', () => {
 
     expect(result.ok).toBe(true);
     expect(result.txHash).toBe('real_hash_abc');
+  });
+});
+
+describe('verifyPaymentToEscrow (fetch mocked)', () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    globalThis.fetch = vi.fn() as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    globalThis.fetch = originalFetch;
+  });
+
+  const mockFetch = () => globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+
+  it('returns ok:true when buyer payment found on escrow (first poll)', async () => {
+    mockFetch().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          transactions: [
+            {
+              hash: 'escrow_tx_hash',
+              in_msg: {
+                source_address: 'EQBUYER',
+                destination_address: 'EQESCROW',
+                value: '14500000000',
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await verifyPaymentToEscrow(
+      'EQESCROW',
+      'EQBUYER',
+      '14375000000',
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.txHash).toBe('escrow_tx_hash');
+  });
+
+  it('returns ESCROW_PAYMENT_NOT_FOUND when no txs on escrow', async () => {
+    mockFetch().mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ transactions: [] }), { status: 200 })),
+    );
+
+    const promise = verifyPaymentToEscrow('EQESCROW', 'EQBUYER', '14375000000');
+
+    for (let i = 0; i < 5; i++) {
+      await vi.advanceTimersByTimeAsync(10_000);
+    }
+
+    const result = await promise;
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('ESCROW_PAYMENT_NOT_FOUND');
+  });
+
+  it('skips txs from other sources (not buyer)', async () => {
+    mockFetch().mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            transactions: [
+              {
+                hash: 'tx_from_other',
+                in_msg: {
+                  source_address: 'EQSOMEONE_ELSE',
+                  destination_address: 'EQESCROW',
+                  value: '14500000000',
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const promise = verifyPaymentToEscrow('EQESCROW', 'EQBUYER', '14375000000');
+
+    for (let i = 0; i < 5; i++) {
+      await vi.advanceTimersByTimeAsync(10_000);
+    }
+
+    const result = await promise;
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('ESCROW_PAYMENT_NOT_FOUND');
+  });
+
+  it('skips txs with insufficient value', async () => {
+    mockFetch().mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            transactions: [
+              {
+                hash: 'tx_cheap',
+                in_msg: {
+                  source_address: 'EQBUYER',
+                  destination_address: 'EQESCROW',
+                  value: '1000000000',
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const promise = verifyPaymentToEscrow('EQESCROW', 'EQBUYER', '14375000000');
+
+    for (let i = 0; i < 5; i++) {
+      await vi.advanceTimersByTimeAsync(10_000);
+    }
+
+    const result = await promise;
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('ESCROW_PAYMENT_NOT_FOUND');
+  });
+
+  it('handles 404 (escrow not deployed yet) and continues polling', async () => {
+    mockFetch()
+      .mockResolvedValueOnce(new Response('Not Found', { status: 404 }))
+      .mockResolvedValueOnce(new Response('Not Found', { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            transactions: [
+              {
+                hash: 'tx_deployed',
+                in_msg: {
+                  source_address: 'EQBUYER',
+                  destination_address: 'EQESCROW',
+                  value: '14500000000',
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const promise = verifyPaymentToEscrow('EQESCROW', 'EQBUYER', '14375000000');
+
+    for (let i = 0; i < 3; i++) {
+      await vi.advanceTimersByTimeAsync(10_000);
+    }
+
+    const result = await promise;
+    expect(result.ok).toBe(true);
+    expect(result.txHash).toBe('tx_deployed');
+  });
+
+  it('accepts exact expected amount (not only over)', async () => {
+    mockFetch().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          transactions: [
+            {
+              hash: 'tx_exact',
+              in_msg: {
+                source_address: 'EQBUYER',
+                destination_address: 'EQESCROW',
+                value: '14375000000',
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await verifyPaymentToEscrow('EQESCROW', 'EQBUYER', '14375000000');
+    expect(result.ok).toBe(true);
+  });
+
+  it('picks first valid tx even if followed by invalid ones', async () => {
+    mockFetch().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          transactions: [
+            {
+              hash: 'tx_valid_recent',
+              in_msg: {
+                source_address: 'EQBUYER',
+                destination_address: 'EQESCROW',
+                value: '14500000000',
+              },
+            },
+            {
+              hash: 'tx_old_wrong_source',
+              in_msg: {
+                source_address: 'EQSOMEONE_ELSE',
+                destination_address: 'EQESCROW',
+                value: '99999999999',
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await verifyPaymentToEscrow('EQESCROW', 'EQBUYER', '14375000000');
+    expect(result.ok).toBe(true);
+    expect(result.txHash).toBe('tx_valid_recent');
   });
 });

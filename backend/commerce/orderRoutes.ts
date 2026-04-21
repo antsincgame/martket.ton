@@ -8,7 +8,7 @@ import {
 } from './constants.js';
 import { databases, ID, Query } from './appwrite.js';
 import { computeOrderAmounts, nanoRawToTonHuman } from './money.js';
-import { verifyPaymentByMemo, addressesEqual } from './tonVerify.js';
+import { verifyPaymentByMemo, verifyPaymentToEscrow, addressesEqual } from './tonVerify.js';
 import { computeEscrow } from './escrow.js';
 import { resolveNetworkConfig } from '../config/network.js';
 import { writeAudit } from './audit.js';
@@ -35,6 +35,10 @@ const limitCreateOrder = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, standard
  * 3. Buyer платит total = seller_price + fee (с небольшим gas buffer)
  * 4. Escrow deployed с split: amountNano=total, sellerAmountNano=seller, feeNano=fee
  * 5. При ConfirmDelivery: escrow шлёт sellerAmountNano → seller, feeNano + gas change → treasury
+ *
+ * Все v4-специфичные поля (escrowAddress, sellerWallet, mintAttempts,
+ * licenseAddress, licenseContentUri) сохраняются в order чтобы mint worker
+ * мог автономно обработать платёж.
  */
 router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOrderSchema), async (req: Request, res: Response) => {
   try {
@@ -62,32 +66,21 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
 
     const memo = `cm_${crypto.randomBytes(12).toString('hex')}`;
 
-    const orderId = ID.unique();
-    const order = await db.createDocument(DATABASE_ID, COL_ORDERS, orderId, {
-      listingId,
-      buyerWallet,
-      amountRaw: amounts.totalAmountNano,         // Что buyer платит (seller + fee)
-      sellerNetAmountRaw: amounts.sellerAmountNano, // Что получит seller
-      currency: listing['currency'],
-      jettonMaster: (listing['jettonMaster'] as string) || '',
-      memo,
-      tonTxHash: '',
-      state: ORDER_STATE.PENDING_PAYMENT,
-      listingSnapshotTitle: listing['title'],
-    });
-
     // Collection address берётся из config (resolveNetworkConfig) — это
     // адрес предеплоенной AppCollection для данной платформы.
     // licenseContentUri — TEP-64 metadata URI, либо из listing либо dynamic.
     const collectionAddress = netCfg.collectionAddress;
+    // Temp placeholder orderId для licenseContentUri — дальше заменится на настоящий $id.
+    // Но ID.unique() даёт нам id заранее, используем его сразу.
+    const orderId = ID.unique();
     const licenseContentUri = (listing['licenseContentUri'] as string) ||
-      `https://cdn.example.org/license/${order.$id}.json`;
+      `https://cdn.example.org/license/${orderId}.json`;
 
     let escrowData: Awaited<ReturnType<typeof computeEscrow>> | null = null;
     if (collectionAddress) {
       try {
         escrowData = await computeEscrow({
-          orderId: order.$id,
+          orderId,
           buyer: buyerWallet,
           seller: sellerWallet,
           treasury,
@@ -105,6 +98,25 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
     } else {
       logger.warn('[commerce] COLLECTION_ADDRESS not configured — escrow disabled');
     }
+
+    const order = await db.createDocument(DATABASE_ID, COL_ORDERS, orderId, {
+      listingId,
+      buyerWallet,
+      sellerWallet,                                 // v4: нужен worker'у для MintLicense
+      amountRaw: amounts.totalAmountNano,           // Что buyer платит (seller + fee)
+      sellerNetAmountRaw: amounts.sellerAmountNano, // Что получит seller
+      currency: listing['currency'],
+      jettonMaster: (listing['jettonMaster'] as string) || '',
+      memo,
+      tonTxHash: '',
+      state: ORDER_STATE.PENDING_PAYMENT,
+      listingSnapshotTitle: listing['title'],
+      // v4 escrow tracking поля (нужны mint worker'у)
+      escrowAddress: escrowData?.escrowAddress || '',
+      licenseContentUri,
+      mintAttempts: 0,
+      licenseAddress: '',
+    });
 
     await writeAudit(buyerWallet, 'order_create', 'order', order.$id, { listingId, memo });
     res.json({
@@ -146,6 +158,19 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
   }
 });
 
+/**
+ * Confirm order payment.
+ *
+ * v4 preferred: если order.escrowAddress != '' — проверяем что buyer отправил
+ *   total amount на escrow address. После этого order переходит в PAID
+ *   (и mint worker подхватит для deploy LicenseItem).
+ *
+ * Legacy fallback: если escrowAddress == '' (ордер создан без escrow, либо
+ *   COLLECTION_ADDRESS не был настроен) — проверяем payment на treasury по memo.
+ *   В этом пути entitlement создаётся сразу (как в v3).
+ *
+ * В v4 пути entitlement создаётся mint worker'ом после успешного mint.
+ */
 router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(confirmOrderSchema), async (req: Request, res: Response) => {
   try {
     const orderId = str(req.params.id);
@@ -164,13 +189,60 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
       res.json({ data: { state: order['state'], message: 'Order already processed' } }); return;
     }
 
-    // Legacy path: verify payment to treasury by memo (fallback если escrow не использовался).
-    // v4 preferred path: verify payment to escrow address (not implemented here yet).
+    const escrowAddress = (order['escrowAddress'] as string) || '';
+    const apiOverrides = { base: netCfg.tonapiBase, key: netCfg.tonapiKey };
+
+    // v4 path: verify payment to escrow address
+    if (escrowAddress) {
+      const check = await verifyPaymentToEscrow(
+        escrowAddress,
+        order['buyerWallet'] as string,
+        order['amountRaw'] as string,
+        apiOverrides,
+      );
+      if (!check.ok) {
+        res.status(400).json({
+          error: 'Escrow payment not verified',
+          code: 'PAYMENT_VERIFY_FAILED',
+          reason: check.reason || 'UNKNOWN',
+          details: check,
+        });
+        return;
+      }
+      const realTxHash = check.txHash || '';
+
+      // НЕ переводим state в PAID здесь! Mint worker фильтрует по
+      // state == PENDING_PAYMENT для автоматической обработки. После успешного
+      // mint worker сам выставит state=PAID и создаст entitlement.
+      // Здесь только записываем tonTxHash (для аудита и отображения в UI).
+      const updated = await db.updateDocument(DATABASE_ID, COL_ORDERS, orderId, {
+        tonTxHash: realTxHash,
+      });
+      await writeAudit(buyerWallet, 'order_payment_verified', 'order', orderId, {
+        txHash: realTxHash,
+        flow: 'v4_escrow',
+        escrowAddress,
+      });
+
+      res.json({
+        data: {
+          state: updated['state'],         // Останется PENDING_PAYMENT
+          orderId: updated.$id,
+          escrowAddress,
+          tonTxHash: realTxHash,
+          mintPending: true,                // UI: "Payment received, minting in progress…"
+          // Entitlement.deliveryPayload появится после mint (worker создаст его и переведёт в PAID).
+        },
+      });
+      return;
+    }
+
+    // Legacy v3 path: verify payment to treasury by memo
     const check = await verifyPaymentByMemo(treasury, {
       buyerWallet: order['buyerWallet'] as string,
       amountRaw: order['amountRaw'] as string,
       memo: order['memo'] as string,
-    }, { base: netCfg.tonapiBase, key: netCfg.tonapiKey });
+    }, apiOverrides);
     if (!check.ok) {
       res.status(400).json({ error: 'Payment not verified', code: 'PAYMENT_VERIFY_FAILED', reason: check.reason || 'UNKNOWN', details: check });
       return;
@@ -198,7 +270,7 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
       listingId: order['listingId'], deliveryPayload: payload,
     });
     const updated = await db.updateDocument(DATABASE_ID, COL_ORDERS, orderId, { state: ORDER_STATE.PAID, tonTxHash: realTxHash });
-    await writeAudit(buyerWallet, 'order_paid', 'order', orderId, { txHash: realTxHash });
+    await writeAudit(buyerWallet, 'order_paid', 'order', orderId, { txHash: realTxHash, flow: 'v3_legacy' });
 
     bridgePurchaseToLibrary(req, listingRow, order, realTxHash).catch((err) =>
       logger.warn('[commerce] bridge purchase:', err instanceof Error ? err.message : err),
@@ -291,6 +363,8 @@ router.get('/orders/:id', apiRequireAuth(), async (req: Request, res: Response) 
           currency: order['currency'],
           memo: order['memo'],
           tonTxHash: (order['tonTxHash'] as string) || '',
+          escrowAddress: (order['escrowAddress'] as string) || '',
+          licenseAddress: (order['licenseAddress'] as string) || '',
         },
         deliveryPayload: delivery,
       },
