@@ -3,6 +3,7 @@ import { getJwt } from './appwriteAuth';
 import type {
   CommerceConfigResponse,
   CommerceListingPublic,
+  ConfirmOrderResponse,
   CreateOrderResponse,
   OrderStatusResponse,
 } from '../domain/commerce/types';
@@ -79,7 +80,7 @@ async function commerceAuthFetch<T>(
   return parsed.data;
 }
 
-// ─── Public (unauthenticated) ────────────────────────────────────────
+// ─── Public (unauthenticated) ───────────────────────────────────────
 
 export async function fetchCommerceConfig(): Promise<CommerceConfigResponse | null> {
   try {
@@ -114,7 +115,7 @@ export async function fetchSellerListings(wallet: string): Promise<CommerceListi
   return parsed.data.data.listings;
 }
 
-// ─── Authenticated (JWT via commerceAuthFetch) ───────────────────────
+// ─── Authenticated (JWT via commerceAuthFetch) ─────────────────────────
 
 export async function createCommerceOrder(
   listingId: string,
@@ -131,13 +132,14 @@ export async function confirmCommerceOrder(
   orderId: string,
   buyerWallet: string,
   txHash: string
-): Promise<{ state: string; entitlement?: { deliveryPayload: string } }> {
-  const result = await commerceAuthFetch<{
-    data: { state: string; entitlement?: { deliveryPayload: string } };
-  }>(`/orders/${encodeURIComponent(orderId)}/confirm`, {
-    method: 'POST',
-    body: JSON.stringify({ buyerWallet, txHash }),
-  });
+): Promise<ConfirmOrderResponse> {
+  const result = await commerceAuthFetch<{ data: ConfirmOrderResponse }>(
+    `/orders/${encodeURIComponent(orderId)}/confirm`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ buyerWallet, txHash }),
+    },
+  );
   return result.data;
 }
 
