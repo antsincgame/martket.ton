@@ -1,0 +1,48 @@
+name: Regen Lockfile
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to regenerate lockfile on'
+        required: true
+        type: string
+      workdir:
+        description: 'Directory with package.json (empty for root)'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Regenerate lockfile
+        working-directory: ${{ inputs.workdir == '' && '.' || inputs.workdir }}
+        run: |
+          rm -f package-lock.json
+          npm install --package-lock-only --include=optional --no-audit --no-fund
+      - name: Verify npm ci
+        working-directory: ${{ inputs.workdir == '' && '.' || inputs.workdir }}
+        run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -z "${{ inputs.workdir }}" ]; then
+            lockfile="package-lock.json"
+          else
+            lockfile="${{ inputs.workdir }}/package-lock.json"
+          fi
+          git add "$lockfile"
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "chore: regenerate $lockfile on Linux [skip ci]"
+          git push origin HEAD:${{ inputs.branch }}
