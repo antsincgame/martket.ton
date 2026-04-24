@@ -6,6 +6,7 @@
  *   1. Buyer отправляет PayEscrow на escrow address через TonConnect
  *   2. Escrow переходит в FUNDED (on-chain state=1)
  *   3. Этот worker polls: видит FUNDED → шлёт MintLicense от owner в Collection
+ *      с escrowAddress=escrow.address (критично для refund-петли)
  *   4. Collection deploys LicenseItem, LicenseItem шлёт RegisterLicense обратно
  *   5. Worker видит licenseAddress != zero → order.state = PAID
  *
@@ -28,7 +29,6 @@ import { getNetworkConfig, type TonNetwork } from '../config/network.js';
 import {
   getSigner,
   sendMintLicense,
-  orderIdToBigint,
   buildLicenseContent,
   type MintLicenseArgs,
 } from './mintSigner.js';
@@ -42,10 +42,6 @@ const MAX_ORDERS_PER_TICK = 20;
 let running = false;
 let currentTimer: NodeJS.Timeout | null = null;
 
-/**
- * TonAPI getter call для получения state Escrow контракта.
- * Возвращает number 0..4 или null если контракт не развёрнут/недоступен.
- */
 async function getEscrowState(
   escrowAddress: string,
   apiBase: string,
@@ -58,7 +54,7 @@ async function getEscrowState(
   try {
     const res = await fetch(url, { headers });
     if (!res.ok) {
-      if (res.status === 404) return null; // Not deployed yet
+      if (res.status === 404) return null;
       return null;
     }
     const data = (await res.json()) as { decoded?: { state?: number }; stack?: Array<{ num?: string }> };
@@ -72,10 +68,6 @@ async function getEscrowState(
   }
 }
 
-/**
- * TonAPI getter для license_address. Возвращает zero address если лицензия
- * ещё не зарегистрирована (значит mint в процессе или ещё не состоялся).
- */
 async function getEscrowLicenseAddress(
   escrowAddress: string,
   apiBase: string,
@@ -92,7 +84,6 @@ async function getEscrowLicenseAddress(
       stack?: Array<{ type?: string; cell?: string; num?: string }>;
       decoded?: Record<string, unknown>;
     };
-    // TonAPI возвращает address как cell или slice в stack
     const first = data.stack?.[0];
     if (first?.cell) {
       try {
@@ -126,26 +117,14 @@ interface PendingOrderRow extends Record<string, unknown> {
   licenseContentUri?: string;
 }
 
-/**
- * Один цикл worker'а: читает pending orders, обрабатывает каждый.
- */
 async function processTick(network: TonNetwork): Promise<void> {
   const cfg = getNetworkConfig(network);
   if (!cfg.collectionAddress || !cfg.collectionOwnerMnemonic) {
-    // Worker disabled для этой сети — выход молча.
     return;
   }
 
   const db = databases();
 
-  // Берём orders которые:
-  //  - в state PENDING_PAYMENT
-  //  - имеют escrowAddress (значит созданы через v4 flow)
-  //  - mintAttempts < MAX
-  //
-  // Appwrite Query.lessThan на int атрибут mintAttempts, но если он не
-  // существует в коллекции — игнорируем фильтр (старые orders могут не иметь
-  // поля). Fetch'аем шире и фильтруем в JS.
   const { documents } = await db.listDocuments(DATABASE_ID, COL_ORDERS, [
     Query.equal('state', ORDER_STATE.PENDING_PAYMENT),
     Query.orderAsc('$createdAt'),
@@ -170,7 +149,6 @@ async function processTick(network: TonNetwork): Promise<void> {
       await processOrder(order, network, signer, collectionAddr, cfg);
     } catch (err) {
       logger.warn(`[mintWorker] order ${order.$id} failed:`, err instanceof Error ? err.message : err);
-      // Incr mintAttempts even on errors to eventually give up
       await db
         .updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
           mintAttempts: (order.mintAttempts ?? 0) + 1,
@@ -190,16 +168,11 @@ async function processOrder(
   const db = databases();
   const escrowAddr = order.escrowAddress!;
 
-  // Шаг 1: проверить что escrow в FUNDED (buyer заплатил)
+  // Шаг 1: escrow в FUNDED?
   const state = await getEscrowState(escrowAddr, cfg.tonapiBase, cfg.tonapiKey);
-  if (state === null) {
-    // Контракт ещё не развёрнут (buyer не нажал PayEscrow). Пропуск.
-    return;
-  }
+  if (state === null) return;
   if (state !== 1) {
-    // 0 = INIT (не оплачен), 3 = RELEASED, 4 = REFUNDED. Не наш случай.
     if (state === 3 || state === 4) {
-      // Контракт уже закончил жизнь — помечаем order чтобы не опрашивать
       await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
         state: state === 3 ? ORDER_STATE.FULFILLED : ORDER_STATE.REFUNDED,
       });
@@ -207,32 +180,25 @@ async function processOrder(
     return;
   }
 
-  // Шаг 2: проверить не случился ли уже mint (licenseAddress != zero)
+  // Шаг 2: license уже замижена?
   const licenseAddr = await getEscrowLicenseAddress(escrowAddr, cfg.tonapiBase, cfg.tonapiKey);
   const isZeroAddr = !licenseAddr || licenseAddr.match(/^EQAAAAA|^UQAAAAA/) !== null;
   if (!isZeroAddr) {
-    // License уже зарегистрирована — order'у пора в PAID, создать entitlement
     await onMintConfirmed(order, licenseAddr!);
     return;
   }
 
-  // Шаг 3: escrow в FUNDED, license ещё не зарегистрирована → mint
+  // Шаг 3: mint. v4.1 — минимальный payload с escrowAddress.
   const licenseContentUri = order.licenseContentUri ||
     `https://cdn.example.org/license/${order.$id}.json`;
 
   const mintArgs: MintLicenseArgs = {
-    queryId: 0n,
-    orderId: orderIdToBigint(order.$id),
-    buyerAddress: Address.parse(order.buyerWallet),
-    sellerAddress: Address.parse(String(order.sellerWallet ?? '')),
-    treasuryAddress: Address.parse(cfg.treasuryAddress),
-    amountNano: BigInt(order.amountRaw),
-    sellerAmountNano: BigInt(order.sellerNetAmountRaw ?? order.amountRaw),
-    feeNano: BigInt(order.amountRaw) - BigInt(order.sellerNetAmountRaw ?? order.amountRaw),
-    trialWindowSec: BigInt(cfg.trialWindowSec),
-    transferLimit: 0n,
+    queryId:           BigInt(Date.now()),
+    buyerAddress:      Address.parse(order.buyerWallet),
+    escrowAddress:     Address.parse(escrowAddr),
+    transferLimit:     0n,
     individualContent: buildLicenseContent(licenseContentUri),
-    burnDeadline: BigInt(Math.floor(Date.now() / 1000) + cfg.trialWindowSec),
+    burnDeadline:      BigInt(Math.floor(Date.now() / 1000) + cfg.trialWindowSec),
   };
 
   await sendMintLicense(signer, collectionAddr, mintArgs);
@@ -249,10 +215,6 @@ async function processOrder(
   logger.info(`[mintWorker] mint triggered for order ${order.$id} (escrow=${escrowAddr})`);
 }
 
-/**
- * Вызывается когда licenseAddress зарегистрирован в escrow (mint завершён).
- * Создаёт entitlement запись и переводит order в PAID.
- */
 async function onMintConfirmed(order: PendingOrderRow, licenseAddress: string): Promise<void> {
   const db = databases();
 
@@ -261,7 +223,6 @@ async function onMintConfirmed(order: PendingOrderRow, licenseAddress: string): 
     Query.limit(1),
   ]);
   if (existingEnt.length > 0) {
-    // Entitlement уже создан — просто обновим state
     await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
       state: ORDER_STATE.PAID,
       licenseAddress,
@@ -269,7 +230,6 @@ async function onMintConfirmed(order: PendingOrderRow, licenseAddress: string): 
     return;
   }
 
-  // Создаём entitlement с delivery payload из listing
   try {
     const listing = await db.getDocument(DATABASE_ID, COL_LISTINGS, order.listingId);
     const { documents: secrets } = await db.listDocuments(DATABASE_ID, COL_LISTING_SECRETS, [
@@ -305,9 +265,6 @@ async function onMintConfirmed(order: PendingOrderRow, licenseAddress: string): 
   }
 }
 
-/**
- * Основной loop. Обрабатывает обе сети параллельно.
- */
 async function tick(): Promise<void> {
   try {
     await Promise.all([
@@ -342,7 +299,6 @@ export function startMintWorker(): void {
     `[mintWorker] started (mainnet=${mainnetEnabled}, testnet=${testnetEnabled}, poll=${POLL_INTERVAL_MS}ms)`,
   );
 
-  // Запускаем первый tick через 5 секунд чтобы сервер успел подняться
   currentTimer = setTimeout(tick, 5_000);
 }
 

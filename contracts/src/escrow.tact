@@ -9,22 +9,28 @@ message(0x70e30189) RegisterLicense { licenseAddress: Address; }
 message(0x9b3c2d45) RefundOnBurn {}
 message(0x5a8e1f23) RefundIfNotMinted {}
 
-// MintLicense — outgoing message, отправляется backend'ом oracle'ом в Collection
-// от имени ownerAddress. Объявлен здесь чтобы opcode/структура были edited в одном
-// месте (appCollection.tact импортит этот тип).
+// MintLicense — outgoing message от oracle-кошелька в Collection.
+// Объявлен здесь чтобы opcode/структура были в одном месте
+// (appCollection.tact импортирует этот тип).
 //
-// NOTE: После локальной отладки init-hash check — Escrow сам будет шлать этот
-// message при PayEscrow (trustless mint). Пока backend делает это.
+// Поля:
+//   queryId           — идемпотентность на стороне backend'а
+//   buyerAddress      — кому уйдёт soulbound NFT
+//   escrowAddress     — к какому Escrow привязать LicenseItem (для refund-петли
+//                       BuyerBurn → RefundOnBurn → Escrow). КРИТИЧНО: без этого
+//                       поля Collection подставляла бы sender() == oracle, и
+//                       refund не замкнулся бы.
+//   transferLimit     — 0 для soulbound лицензии
+//   individualContent — TEP-64 off-chain content cell
+//   burnDeadline      — unix ts после которого BuyerBurn отклоняется контрактом
+//
+// orderId / seller / treasury / amountNano / sellerAmountNano / feeNano /
+// trialWindowSec хранятся в Escrow (init params) — дублировать их в MintLicense
+// не нужно, Collection использует только то что уходит в LicenseItem storage.
 message(0x6a3aaa14) MintLicense {
     queryId:           Int as uint64;
-    orderId:           Int as uint256;
     buyerAddress:      Address;
-    sellerAddress:     Address;
-    treasuryAddress:   Address;
-    amountNano:        Int as coins;
-    sellerAmountNano:  Int as coins;
-    feeNano:           Int as coins;
-    trialWindowSec:    Int as uint32;
+    escrowAddress:     Address;
     transferLimit:     Int as uint8;
     individualContent: Cell;
     burnDeadline:      Int as uint32;
@@ -114,12 +120,6 @@ contract Escrow with Deployable {
     }
 
     // ─── Buyer pays → state = FUNDED ─────────────────────────────────
-    //
-    // Простой state transition. Backend индексирует это событие и шлёт
-    // MintLicense в Collection от имени ownerAddress.
-    //
-    // После локального debug'а init-hash check — здесь будет
-    // auto-send MintLicense в Collection.
 
     receive(msg: PayEscrow) {
         require(self.state == STATE_INIT, "Already funded");
@@ -139,10 +139,6 @@ contract Escrow with Deployable {
     }
 
     // ─── Register license address (called by LicenseItem on deploy) ──
-    //
-    // LicenseItem при init (после deploy от Collection) шлёт RegisterLicense
-    // обратно в Escrow. Проверяем что sender == msg.licenseAddress — гарантия
-    // что регистрация от самой лицензии, не от подделанного sender.
 
     receive(msg: RegisterLicense) {
         require(self.state == STATE_FUNDED, "Not funded");
@@ -167,10 +163,6 @@ contract Escrow with Deployable {
     }
 
     // ─── Emergency refund: если mint не прошёл за MINT_GRACE_SEC ─────
-    //
-    // Страховка на случай когда buyer заплатил, но backend не mint'нул
-    // лицензию (backend down, bug). Через 10 минут buyer может вернуть
-    // деньги через RefundIfNotMinted.
 
     receive(msg: RefundIfNotMinted) {
         require(self.state == STATE_FUNDED, "Not funded");
@@ -199,7 +191,6 @@ contract Escrow with Deployable {
     // ─── Internal: split funds between seller and treasury ───────────
 
     fun releaseFunds() {
-        // CEI pattern: сначала state, потом sends.
         self.state = STATE_RELEASED;
 
         send(SendParameters{

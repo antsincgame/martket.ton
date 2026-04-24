@@ -5,12 +5,16 @@
  *   1. Collection deployed (один раз, owner = backend signer)
  *   2. Buyer deploys Escrow с параметрами сделки
  *   3. Buyer sends PayEscrow → Escrow переходит в FUNDED
- *   4. [backend listens PayEscrow, sends signed MintLicense to Collection]
- *      В тестах симулируем это: owner.send(MintLicense) прямо в Collection
- *   5. Collection deploys LicenseItem → soulbound NFT у buyer'а
+ *   4. Backend шлёт MintLicense в Collection с escrowAddress=escrow.address
+ *      (в тестах симулируем: owner.send(MintLicense) прямо в Collection)
+ *   5. Collection deploys LicenseItem с правильным escrowAddress
  *   6. LicenseItem при deploy ловит "License minted" от Collection, шлёт
  *      RegisterLicense обратно в Escrow
- *   7. Далее: ConfirmDelivery / BuyerBurn / TimeoutRelease
+ *   7. Далее: ConfirmDelivery / BuyerBurn → RefundOnBurn / TimeoutRelease
+ *
+ * v4.1: MintLicense payload теперь содержит escrowAddress явным полем,
+ * Collection передаёт его в initOf LicenseItem. Refund-петля
+ * (BuyerBurn → RefundOnBurn → Escrow) теперь замыкается end-to-end.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -99,11 +103,8 @@ describe('License lifecycle v4 (Option C — backend-driven)', () => {
   });
 
   /**
-   * Full on-chain cycle step-by-step:
-   * 1. Buyer pays escrow
-   * 2. collectionOwner (backend oracle) sends MintLicense to collection
-   * 3. Collection deploys LicenseItem
-   * 4. LicenseItem receives "License minted", sends RegisterLicense to Escrow
+   * Pay + mint + self-register. Возвращает адрес LicenseItem.
+   * После этого licenseAddress в Escrow != zero.
    */
   async function payAndMint(): Promise<Address> {
     // 1. Buyer pays
@@ -114,7 +115,9 @@ describe('License lifecycle v4 (Option C — backend-driven)', () => {
     );
     expect(await escrow.getState()).toBe(1n);
 
-    // 2. Backend (simulated by collectionOwner) sends MintLicense
+    // 2. Backend (simulated by collectionOwner) шлёт MintLicense с реальным
+    //    адресом Escrow в escrowAddress — это критично, без этого LicenseItem
+    //    бы привязался к oracle'у и refund loop не работал бы.
     const burnDeadline = BigInt(blockchain.now! + Number(TRIAL_WINDOW));
     const mintResult = await collection.send(
       collectionOwner.getSender(),
@@ -122,21 +125,15 @@ describe('License lifecycle v4 (Option C — backend-driven)', () => {
       {
         $$type: 'MintLicense',
         queryId: 1n,
-        orderId: ORDER_ID,
-        buyerAddress: buyer.address,
-        sellerAddress: seller.address,
-        treasuryAddress: treasury.address,
-        amountNano: TOTAL_AMOUNT,
-        sellerAmountNano: SELLER_AMOUNT,
-        feeNano: FEE_AMOUNT,
-        trialWindowSec: TRIAL_WINDOW,
-        transferLimit: TRANSFER_LIMIT,
+        buyerAddress:      buyer.address,
+        escrowAddress:     escrow.address,
+        transferLimit:     TRANSFER_LIMIT,
         individualContent: sharedLicenseContent,
         burnDeadline,
       },
     );
 
-    // 3. Collection should have deployed LicenseItem
+    // 3. Collection должна была задеплоить LicenseItem
     const deployTx = mintResult.transactions.find(
       (tx) =>
         tx.inMessage?.info.type === 'internal' &&
@@ -146,14 +143,10 @@ describe('License lifecycle v4 (Option C — backend-driven)', () => {
     expect(deployTx).toBeTruthy();
     const itemAddress = (deployTx!.inMessage!.info as { dest: Address }).dest;
 
-    // 4. Item should have sent RegisterLicense back to Escrow
-    // Note: в Option C escrow получает MintLicense от collection's sender = owner,
-    // но LicenseItem deployed Collection'ом с escrowAddress = sender() (== owner).
-    // Для нормального flow LicenseItem нужно правильно установить escrow — это
-    // требует что Collection в MintLicense получает escrowAddress отдельно.
-    // Здесь упрощённая schema: backend-oracle является owner, escrow адрес
-    // передан в initOf LicenseItem как sender() — это неправильно.
-    // TODO: в полной версии добавить escrowAddress параметр в MintLicense.
+    // 4. LicenseItem в init получил escrow.address (не oracle!),
+    //    послал RegisterLicense обратно в Escrow → licenseAddress != zero.
+    const registered = await escrow.getLicenseAddress();
+    expect(registered.equals(itemAddress)).toBe(true);
 
     return itemAddress;
   }
@@ -163,7 +156,6 @@ describe('License lifecycle v4 (Option C — backend-driven)', () => {
   it('full flow: pay → mint → confirm → seller paid', async () => {
     await payAndMint();
 
-    // Buyer confirms → seller paid
     const sellerBalanceBefore = await seller.getBalance();
     const treasuryBalanceBefore = await treasury.getBalance();
 
@@ -182,6 +174,60 @@ describe('License lifecycle v4 (Option C — backend-driven)', () => {
     const treasuryDiff = (await treasury.getBalance()) - treasuryBalanceBefore;
     expect(sellerDiff).toBeGreaterThan(SELLER_AMOUNT - toNano('0.02'));
     expect(treasuryDiff).toBeGreaterThan(FEE_AMOUNT - toNano('0.02'));
+  });
+
+  // ─── Refund cycle: pay → mint → BuyerBurn → refund (новый в v4.1) ──
+  //
+  // Этот тест раньше был заблокирован sender()-багом: LicenseItem
+  // пытался шлать RefundOnBurn на oracle wallet вместо Escrow,
+  // и escrow отклонял (sender != licenseAddress). Теперь проходит.
+
+  it('full refund cycle: pay → mint → BuyerBurn → escrow refunds buyer', async () => {
+    const itemAddress = await payAndMint();
+
+    const buyerBalanceBefore = await buyer.getBalance();
+
+    // BuyerBurn идёт прямо в LicenseItem. Для этого нам нужен Sender
+    // объект, умеющий отправлять по адресу. В sandbox можно послать
+    // от buyer через blockchain.sendMessage, но проще — через internal
+    // message напрямую.
+    const burnRes = await blockchain.sendMessage({
+      info: {
+        type: 'internal',
+        ihrDisabled: true,
+        bounce: true,
+        bounced: false,
+        src: buyer.address,
+        dest: itemAddress,
+        value: { coins: toNano('0.2') },
+        ihrFee: 0n,
+        forwardFee: 0n,
+        createdLt: 0n,
+        createdAt: 0,
+      },
+      init: undefined,
+      body: beginCell()
+        .storeUint(0x7a1b3c5d, 32) // BuyerBurn opcode
+        .storeUint(1n, 64)
+        .endCell(),
+    });
+
+    // LicenseItem должен был послать RefundOnBurn в Escrow
+    expect(burnRes.transactions).toHaveTransaction({
+      from: itemAddress,
+      to: escrow.address,
+      success: true,
+    });
+
+    // Escrow должен был послать средства buyer'у
+    expect(burnRes.transactions).toHaveTransaction({
+      from: escrow.address,
+      to: buyer.address,
+      success: true,
+    });
+
+    expect(await escrow.getState()).toBe(4n); // REFUNDED
+    expect(await buyer.getBalance()).toBeGreaterThan(buyerBalanceBefore);
   });
 
   // ─── TimeoutRelease ──────────────────────────────────────────────
@@ -240,15 +286,9 @@ describe('License lifecycle v4 (Option C — backend-driven)', () => {
       {
         $$type: 'MintLicense',
         queryId: 1n,
-        orderId: ORDER_ID,
-        buyerAddress: buyer.address,
-        sellerAddress: seller.address,
-        treasuryAddress: treasury.address,
-        amountNano: TOTAL_AMOUNT,
-        sellerAmountNano: SELLER_AMOUNT,
-        feeNano: FEE_AMOUNT,
-        trialWindowSec: TRIAL_WINDOW,
-        transferLimit: TRANSFER_LIMIT,
+        buyerAddress:      buyer.address,
+        escrowAddress:     escrow.address,
+        transferLimit:     TRANSFER_LIMIT,
         individualContent: sharedLicenseContent,
         burnDeadline,
       },
