@@ -108,9 +108,7 @@ A|W|  license_type,trial_ends_at,escrow_addr]}
 
 ## CURRENT LIMITATIONS (Option C)
 P|A|mint_authority=oracle_only→trust_assumption_on_key
-P|A|MintLicense.escrowAddress=sender()→bug:binds_to_oracle_not_escrow
-P|A|TODO→add_escrowAddress_param_to_MintLicense_then_trustless_init_hash
-P|A|∅auto_mint_from_PayEscrow_yet;backend_index_required
+P|A|∅auto_mint_from_PayEscrow_yet;backend_index_required;TODO→trustless_init_hash_check
 
 ## SECURITY
 P|A|sharding→1_contract_per_NFT;∅shared_state;parallel_safe
@@ -216,9 +214,13 @@ contract AppCollection with Deployable {
     collectionContent: Cell;
     commonContent:     Cell;
 
-    // Option C (current): mint is gated by oracle signature.
-    // TODO: switch to trustless init-hash check from Escrow
-    //       after full E2E — see "Current limitations" below.
+    // Option C: mint gated by oracle signature. Escrow-адрес передаётся
+    // в payload (msg.escrowAddress) → LicenseItem корректно привязан к
+    // реальному Escrow, refund-петля (BuyerBurn → RefundOnBurn → Escrow)
+    // замыкается end-to-end.
+    //
+    // TODO: trustless init-hash check (Escrow сам шлёт MintLicense) после
+    // testnet E2E smoke.
     receive(msg: MintLicense) {
         require(sender() == self.ownerAddress, "Only collection owner can mint");
         require(context().value >= ton("0.1"), "Insufficient gas for mint");
@@ -226,9 +228,9 @@ contract AppCollection with Deployable {
         let index: Int = self.nextItemIndex;
         let init: StateInit = initOf LicenseItem(
             index,
-            myAddress(),          // collection
-            msg.buyerAddress,     // NFT owner = buyer
-            sender(),             // ⚠ escrowAddress = sender() (oracle, not Escrow)
+            myAddress(),            // collection
+            msg.buyerAddress,       // NFT owner = buyer wallet
+            msg.escrowAddress,      // реальный Escrow для refund-петли
             msg.transferLimit,
             msg.individualContent,
             msg.burnDeadline,
@@ -252,43 +254,37 @@ contract AppCollection with Deployable {
 
 const TS_ORACLE_MINT = `// backend/tonforge/onchain/mintLicense.ts
 export async function mintLicense(args: MintArgs) {
-  // Деплой LicenseItem детерминированный: адрес считается клиентски
-  // из (code, init) ещё до отправки транзакции.
-  // fromInit() принимает позиционные init-параметры в порядке из
-  // licenseItem.tact (7 штук). transfers и registered — не init-поля,
-  // они инициализируются внутри init() дефолтами (0 и false).
-  const item = await LicenseItem.fromInit(
-    args.index,
-    collection.address,
-    args.buyer,                              // NFT owner
-    args.escrow,                             // ⚠ в Option C сюда всё равно попадёт
-                                             //    oracle-адрес (см. Current limitations)
-    0n,                                      // transferLimit = 0 → soulbound
-    buildOffchainContent(args.metadataUri),  // TEP-64 content cell
-    args.burnDeadline,                       // unix ts = paidAt + trialWindowSec
-  );
+  // Адрес LicenseItem детерминирован: backend считает его клиентски
+  // через StateInit(code, init_data) до отправки транзакции.
+  const itemAddress = computeItemAddress(licenseItemCode, {
+    index:         args.index,
+    collection:    collection.address,
+    ownerAddress:  args.buyer,                   // NFT owner = buyer
+    escrowAddress: args.escrow,                  // реальный Escrow
+    transferLimit: 0,                            // soulbound
+    burnDeadline:  args.burnDeadline,
+    content:       buildOffchainContent(args.metadataUri),
+  });
+
+  // MintLicense payload — 6 полей. orderId / seller / treasury / amounts
+  // хранятся в Escrow init params, Collection их не использует.
+  const body = buildMintLicensePayload({
+    queryId:           args.queryId,
+    buyerAddress:      args.buyer,
+    escrowAddress:     args.escrow,              // критично: не sender()
+    transferLimit:     0,
+    individualContent: buildOffchainContent(args.metadataUri),
+    burnDeadline:      args.burnDeadline,
+  });
 
   await oracle.send(client, {
     to:    collection.address,
-    value: LICENSE_MINT_GAS_NANO,            // default 0.1 TON
-    body:  buildMintLicensePayload({
-      queryId:           args.queryId,
-      orderId:           args.orderId,
-      buyerAddress:      args.buyer,
-      sellerAddress:     args.seller,
-      treasuryAddress:   args.treasury,
-      amountNano:        args.amountNano,
-      sellerAmountNano:  args.sellerAmountNano,
-      feeNano:           args.feeNano,
-      trialWindowSec:    args.trialWindowSec,
-      transferLimit:     0n,
-      individualContent: buildOffchainContent(args.metadataUri),
-      burnDeadline:      args.burnDeadline,
-    }),
+    value: LICENSE_MINT_GAS_NANO,                // default 0.1 TON
+    body,
   });
 
-  await pollItemDeployed(client, item.address);
-  return { itemAddress: item.address, txHash: args.queryId.toString(16) };
+  await pollItemDeployed(client, itemAddress);
+  return { itemAddress: itemAddress.toString(), txHash: args.queryId.toString(16) };
 }`;
 
 const TS_VERIFY = `// backend/tonforge/onchain/verifyOwnership.ts
@@ -897,25 +893,6 @@ export default function LicenseNftPage() {
                 У нас сейчас минт разрешён только от oracle-кошелька. Скомпрометированный ключ оракула → потенциальная
                 возможность фейкового минта. Митигация: hardware wallet в проде, ротация через ChangeOwner, multisig в
                 roadmap.
-              </p>
-            </li>
-            <li className="rounded-lg border border-[#FFA040]/20 bg-black/40 p-3">
-              <p className="mb-1 font-mono text-[11px] uppercase tracking-wider text-[#FFA040]">
-                Known bug: escrowAddress в LicenseItem
-              </p>
-              <p>
-                В сообщении{' '}
-                <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#FF2A6D]">MintLicense</code>{' '}
-                нет поля{' '}
-                <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#FF2A6D]">escrowAddress</code>.
-                AppCollection использует{' '}
-                <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00F5FF]">sender()</code> как
-                escrow-адрес при деплое item-а — то есть LicenseItem привязывается к адресу oracle, а не к реальному
-                Escrow. Refund-петля (LicenseItem → RefundOnBurn → Escrow) в продакшене без патча не замкнётся.
-                Исправление — добавить{' '}
-                <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00FF88]">escrowAddress</code>{' '}
-                в payload MintLicense и передавать его в{' '}
-                <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00FF88]">initOf LicenseItem</code>.
               </p>
             </li>
             <li className="rounded-lg border border-[#FFA040]/20 bg-black/40 p-3">
