@@ -12,6 +12,7 @@ import {
   Network,
   Scale,
   Shield,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   Users,
@@ -35,13 +36,14 @@ W|X|TonForge≡hybrid_marketplace;∅fully_decentralized;∅fully_centralized
 W|X|positioning→web2_ux+web3_rails;TON→settlement_layer_only
 W|X|Human≡publisher;AIAgent≡publisher;parity→∅origin_privilege
 W|X|store_domain=tonforge.org;network=TON_mainnet
+W|X|legal_entity=TonForge_LLC(Delaware_USA)
 
 ## CONCEPT
 W|A|marketplace⊕apps,games,AI_tools,dev_utilities
 W|A|publisher_path→Studio→scan→moderate→catalog→buy→TON_settle
 W|A|buyer_path→browse→wallet_connect→pay_TON→library
 W|A|demiurge≡creator_identity;forge≡studio_metaphor
-W|A|∅fully_onchain;smart_contracts→payment+escrow_only
+W|A|∅fully_onchain;smart_contracts→escrow+license_NFT_only
 
 ## STACK
 A|W|frontend=React18+Vite5+Tailwind3+ReactRouter6+ReactQuery5
@@ -49,9 +51,8 @@ A|W|backend=Node+Express+TypeScript_tsx
 A|W|db=Appwrite_Databases;auth=Appwrite_Account
 A|W|storage=Cloudflare_R2_S3_API
 A|W|wallet=TonConnect;settlement=TON_blockchain
+A|W|contracts=Tact;lang=tact_lang;stdlib=@stdlib/deploy
 A|W|scan=VirusTotal_API_v3;quarantine=R2_quarantine_prefix
-A|W|email=Resend_SMTP+inbound_webhook
-A|W|admin_email=Resend_inbound→AppwriteDB→AdminInbox
 
 ## AUTH FLOW
 X|A|email_OTP→6digit_code→Appwrite_session→JWT
@@ -77,12 +78,14 @@ A|W|PATCH /api/session/profile→slug,bio,socials,featured
 A|W|POST /api/r2/upload/image→avatar,banner,cover
 A|W|POST /api/r2/upload/:productId→build_file→quarantine
 A|W|GET /api/products/:id/scan-status→scan_progress_poll
+A|W|GET /api/tonforge/license/:id/verify→on_chain_owner_check
 A|W|GET /api/health→liveness;?detailed=1+X-Health-Token→full_status
 
 ## COMMERCE
 A|W|TON_payment→tx_hash_verify→anti_replay_check→purchase_record
-A|W|escrow→trial_window=72h;fee_bps=1500;buyer_burn_refund
+A|W|escrow→trial_window≈72h;platform_fee=15%(1500bps);buyer_burn_refund
 A|W|commerce_api_base=VITE_COMMERCE_API_URL/api/v1/commerce
+A|W|license_NFT→TEP-62+TEP-64+soulbound;see /docs/license-nft
 
 ## SECURITY
 P|A|rate_limit=300req/15min_global;write=100req/15min
@@ -99,7 +102,7 @@ parity_rule→Human==AIAgent→same_scan,same_moderation,same_legal
 
 ASCII_FALLBACK::
   publisher(Human|AI) -> Studio -> R2_quarantine -> VT_scan -> moderate -> catalog
-  buyer -> browse -> TonConnect -> pay_TON -> tx_verify -> library
+  buyer -> browse -> TonConnect -> pay_TON -> Escrow -> oracle.mint -> License_NFT
   auth: OTP|GitHub -> Appwrite_session -> JWT -> API
   NO_privilege_by_origin ; NO_magic_link ; NO_full_decentralization
 
@@ -137,6 +140,7 @@ const TOC = [
   ['#buyers', 'Buyers'],
   ['#publishers', 'Publishers'],
   ['#ton', 'TON'],
+  ['#license-nft', 'License NFT'],
   ['#help', 'Help'],
   ['#engineers', 'Engineers'],
   ['#mechanicus', 'LM∞'],
@@ -189,7 +193,7 @@ export default function DocumentationPage() {
         {/* ── HERO ── */}
         <header id="manifesto" className="mb-14 scroll-mt-24">
           <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.38em] text-[#FF2A6D]">
-            tonforge.org · manifest · rev.2
+            tonforge.org · manifest · rev.3
           </p>
           <h1
             className="bg-gradient-to-r from-white via-[#FFD700] to-[#00F5FF] bg-clip-text font-display text-3xl font-bold uppercase tracking-[0.12em] text-transparent drop-shadow-[0_0_40px_rgba(255,215,0,0.2)] sm:text-4xl md:text-5xl"
@@ -225,7 +229,7 @@ export default function DocumentationPage() {
               ['TON settlement', '#FFD700'],
               ['Human = AI publisher', '#8B5CF6'],
               ['VirusTotal scan', '#00FF88'],
-              ['Appwrite auth + DB', '#FF2A6D'],
+              ['Soulbound License NFT', '#FF2A6D'],
             ].map(([label, color]) => (
               <span
                 key={label}
@@ -273,9 +277,9 @@ export default function DocumentationPage() {
                 { t: ' application store. "Hybrid" means we sit at the intersection — the ' },
                 { t: 'user experience is Web2', c: 'gold' },
                 { t: ' (fast browsing, email login, familiar UI), while ' },
-                { t: 'payments and settlement run on TON blockchain', c: 'emerald' },
+                { t: 'payments and proof of purchase run on TON', c: 'emerald' },
                 { t: ". We're not chasing full decentralization for its own sake. We use the blockchain where it adds real value: " },
-                { t: 'transparent, censorship-resistant money rails', c: 'gold' },
+                { t: 'transparent, censorship-resistant money rails and verifiable ownership', c: 'gold' },
                 { t: '.' },
               ])}
             </p>
@@ -378,7 +382,9 @@ export default function DocumentationPage() {
               <span>
                 {H([
                   { t: 'Connect your TON wallet', c: 'emerald' },
-                  { t: ' (TonConnect — any compatible wallet). Pay for the product. The transaction is verified on-chain before your purchase is confirmed.' },
+                  { t: ' (TonConnect — any compatible wallet). Pay into the on-chain escrow. A ' },
+                  { t: 'soulbound License NFT', c: 'magenta' },
+                  { t: ' is then minted to your wallet as a verifiable proof of purchase.' },
                 ])}
               </span>
             </li>
@@ -390,7 +396,7 @@ export default function DocumentationPage() {
                   { t: ' at ' },
                 ])}
                 <Link to="/profile/library" className="font-mono text-[#8B5CF6] hover:underline">/profile/library</Link>
-                {' — all your purchases, available for re-download any time.'}
+                {' — all your purchases, available for re-download any time. Unhappy with the product? Burn the NFT yourself within the trial window and the escrow returns your funds on-chain — no support ticket required.'}
               </span>
             </li>
           </ol>
@@ -460,11 +466,9 @@ export default function DocumentationPage() {
                 content: [
                   { t: 'Published product appears in catalog, category pages, search. Buyers pay in ' },
                   { t: 'TON', c: 'gold' as const },
-                  { t: '. You track sales, downloads, revenue in ' },
-                  { t: 'Commerce', c: 'gold' as const },
-                  { t: ' and ' },
-                  { t: 'Wallet', c: 'gold' as const },
-                  { t: ' sections.' },
+                  { t: '. Platform fee is ' },
+                  { t: '15%', c: 'gold' as const },
+                  { t: ' — deducted at contract level, the rest settles directly to your wallet after the trial window. You track sales, downloads, revenue in Commerce and Wallet.' },
                 ],
               },
             ].map(({ step, color, title, content }) => (
@@ -513,7 +517,7 @@ export default function DocumentationPage() {
             <p>
               {H([
                 { t: 'TON blockchain', c: 'gold' },
-                { t: ' is the payment layer — not the storage layer, not the identity layer. We chose it for: fast finality, low fees, native Telegram integration, and a growing ecosystem of users who already hold TON.' },
+                { t: ' is the payment and ownership layer — not the storage layer, not the identity layer. We chose it for: fast finality, low fees, native Telegram integration, and a growing ecosystem of users who already hold TON.' },
               ])}
             </p>
             <p>
@@ -526,9 +530,11 @@ export default function DocumentationPage() {
             </p>
             <p>
               {H([
-                { t: 'Each purchase is verified on-chain: ', c: 'white' },
-                { t: 'tx_hash', c: 'cyan' },
-                { t: ' → amount check → anti-replay → purchase record. No manual confirmation, no trust-the-seller middleman.' },
+                { t: 'Each purchase deploys an ', c: 'white' },
+                { t: 'Escrow', c: 'cyan' },
+                { t: ' contract. Oracle mints a soulbound ' },
+                { t: 'License NFT', c: 'magenta' },
+                { t: ' to your wallet. On buyer confirmation or trial timeout — funds are split between seller and treasury on-chain. No manual confirmation, no trust-the-seller middleman.' },
               ])}
             </p>
           </div>
@@ -536,6 +542,39 @@ export default function DocumentationPage() {
             <Wallet className="h-3.5 w-3.5" aria-hidden />
             <span>wallet connects on checkout · identity stays with Appwrite</span>
           </div>
+        </section>
+
+        {/* ── LICENSE NFT CROSSLINK ── */}
+        <section
+          id="license-nft"
+          className="mb-10 scroll-mt-24 rounded-xl border border-[#FF2A6D]/20 bg-gradient-to-br from-[#180810]/90 to-[#06060e] p-6 sm:p-8"
+        >
+          <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
+            <ShieldCheck className="h-5 w-5 text-[#FF2A6D]" aria-hidden />
+            License NFT — soulbound proof of purchase
+          </h2>
+          <p className="mb-4 text-sm leading-relaxed sm:text-base">
+            {H([
+              { t: 'Every successful purchase mints a ' },
+              { t: 'soulbound NFT', c: 'magenta' },
+              { t: ' to the buyer wallet — TEP-62 collection, TEP-64 metadata, non-transferable by design (' },
+              { t: 'transferLimit = 0', c: 'gold' },
+              { t: '). It is a proof of purchase, an entitlement key for activation, and a refund anchor — all at once.' },
+            ])}
+          </p>
+          <p className="mb-5 text-sm leading-relaxed text-[#9a9ab0]">
+            {H([
+              { t: 'Refunds are ' },
+              { t: 'on-chain and buyer-initiated', c: 'emerald' },
+              { t: '. Within the trial window the buyer burns the NFT — Escrow contract returns funds automatically. No arbitrator, no support ticket, no "funds stuck" scenarios.' },
+            ])}
+          </p>
+          <Link
+            to="/docs/license-nft"
+            className="inline-flex items-center gap-2 rounded border border-[#FF2A6D]/40 bg-[#FF2A6D]/10 px-4 py-2 font-mono text-xs uppercase tracking-wider text-[#FF2A6D] transition-all hover:bg-[#FF2A6D]/20 hover:shadow-[0_0_18px_rgba(255,42,109,0.2)]"
+          >
+            Read the License NFT codex →
+          </Link>
         </section>
 
         {/* ── HELP ── */}
@@ -567,7 +606,9 @@ export default function DocumentationPage() {
               <span className="mt-0.5 font-mono text-[#00FF88]">03</span>
               <span>
                 {'Refunds — governed by '}
-                <Link to="/refund-policy" className="text-[#8B5CF6] hover:underline">Refund & DMCA policy</Link>.
+                <Link to="/refund-policy" className="text-[#8B5CF6] hover:underline">Refund &amp; DMCA policy</Link>
+                {' and executed on-chain via '}
+                <Link to="/docs/license-nft" className="text-[#FF2A6D] hover:underline">NFT burn</Link>.
               </span>
             </li>
             <li className="flex gap-4">
@@ -613,12 +654,14 @@ export default function DocumentationPage() {
                 { t: 'Appwrite', c: 'violet' },
                 { t: ' for auth and DB; ' },
                 { t: 'Cloudflare R2', c: 'gold' },
-                { t: ' for file storage.' },
+                { t: ' for file storage; ' },
+                { t: 'Tact', c: 'emerald' },
+                { t: ' smart contracts (Escrow + License NFT collection/item).' },
               ])}
             </p>
             <p>
               {H([
-                { t: 'Security is layered: rate limiting, origin guard, path traversal protection on R2 keys, VirusTotal quarantine pipeline, JWT validation with 30s cache. Not clever — ' },
+                { t: 'Security is layered: rate limiting, origin guard, path traversal protection on R2 keys, VirusTotal quarantine pipeline, JWT validation with cache. Not clever — ' },
                 { t: 'explicit and auditable', c: 'emerald' },
                 { t: '.' },
               ])}
@@ -637,7 +680,7 @@ export default function DocumentationPage() {
                 ['POST /api/r2/upload/:id', 'build → quarantine → scan'],
                 ['GET /api/products/:id/scan-status', 'poll VirusTotal result'],
                 ['GET /api/session/library', 'buyer purchases'],
-                ['PATCH /api/session/profile', 'update public profile'],
+                ['GET /api/tonforge/license/:id/verify', 'on-chain owner check'],
               ].map(([route, desc]) => (
                 <div key={route} className="flex flex-col rounded bg-white/[0.03] px-3 py-2">
                   <span className="text-[#00F5FF]">{route}</span>
@@ -645,10 +688,21 @@ export default function DocumentationPage() {
                 </div>
               ))}
             </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs">
+              <Link
+                to="/docs/license-nft"
+                className="inline-flex items-center gap-1.5 rounded border border-[#FF2A6D]/30 px-3 py-1.5 font-mono uppercase tracking-wider text-[#FF2A6D] transition-all hover:bg-[#FF2A6D]/10"
+              >
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+                License NFT subsystem →
+              </Link>
+              <span className="text-[#555]">Tact contracts, oracle flow, threat model</span>
+            </div>
           </div>
           <p className="mt-5 flex items-center gap-2 font-mono text-xs text-[#444]">
             <Zap className="h-3.5 w-3.5 text-[#FFD700]" aria-hidden />
-            Full schema in docs/PROJECT.md · 290 unit tests · Playwright E2E
+            Full schema in docs/PROJECT.md · Vitest unit suite · Playwright E2E · sandbox contract tests
           </p>
         </section>
 
