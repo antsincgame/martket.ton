@@ -5,6 +5,10 @@
  * SECURITY: mnemonic хранится только в памяти процесса, никогда не
  * логируется и не возвращается наружу. Передаётся в worker'е через
  * getNetworkConfig(), а туда приходит из env.
+ *
+ * v4.1: MintLicense payload урезан до 6 полей + escrowAddress (см.
+ * contracts/src/escrow.tact). Поля orderId/seller/treasury/amounts
+ * живут в Escrow init params — Collection их не использует.
  */
 
 import { TonClient, WalletContractV4, internal } from '@ton/ton';
@@ -34,10 +38,6 @@ interface SignerHandle {
 
 const signerCache = new Map<TonNetwork, SignerHandle>();
 
-/**
- * Resolve или cache signer handle для данной сети.
- * Инициализация дорогая (mnemonic → keypair), но делается один раз на worker lifetime.
- */
 export async function getSigner(
   network: TonNetwork,
   mnemonic: string,
@@ -59,18 +59,12 @@ export async function getSigner(
   const keyPair = await mnemonicToPrivateKey(words);
   const wallet = WalletContractV4.create({ workchain: 0, publicKey: keyPair.publicKey });
 
-  // TonAPI v2 эндпоинт для @ton/ton client. При отсутствии прямого RPC
-  // используем TonAPI как proxy (они экспозят совместимый /v2/jsonRPC).
-  // Для production лучше использовать свой TON-ноду или orbs-network.
   const endpoint = `${tonapiBase.replace(/\/+$/, '')}/v2/jsonRPC`;
   const client = new TonClient({
     endpoint,
     apiKey: tonapiKey || undefined,
   });
 
-  // client.open() возвращает generic OpenedContract<T> который маскирует
-  // специфические методы WalletContractV4. Приводим через двойной cast
-  // к минимальному интерфейсу который мы реально используем.
   const openedWallet = client.open(wallet) as unknown as OpenedWalletV4;
 
   const handle: SignerHandle = {
@@ -87,19 +81,13 @@ export async function getSigner(
 }
 
 /**
- * Параметры MintLicense в формате контракта. Должны соответствовать
- * outgoing struct из escrow.tact (opcode 0x6a3aaa14).
+ * Параметры MintLicense. Соответствуют outgoing struct из escrow.tact
+ * (opcode 0x6a3aaa14, 6 полей + opcode/queryId).
  */
 export interface MintLicenseArgs {
   queryId: bigint;
-  orderId: bigint;
   buyerAddress: Address;
-  sellerAddress: Address;
-  treasuryAddress: Address;
-  amountNano: bigint;
-  sellerAmountNano: bigint;
-  feeNano: bigint;
-  trialWindowSec: bigint;
+  escrowAddress: Address;
   transferLimit: bigint;
   individualContent: Cell;
   burnDeadline: bigint;
@@ -108,21 +96,17 @@ export interface MintLicenseArgs {
 const OP_MINT_LICENSE = 0x6a3aaa14;
 
 /**
- * Build body Cell для MintLicense message согласно Tact serialization rules.
- * Order и размер полей должен совпадать с `message(0x6a3aaa14) MintLicense { ... }`.
+ * Build body Cell для MintLicense message. Порядок полей и кодирование
+ * должны совпадать с `message(0x6a3aaa14) MintLicense { ... }` в Tact.
+ * Tact сериализует Cell поле в ref, поэтому content идёт ПЕРЕД
+ * burnDeadline в byte layout (natural Tact order).
  */
 export function buildMintLicenseBody(args: MintLicenseArgs): Cell {
   return beginCell()
     .storeUint(OP_MINT_LICENSE, 32)
     .storeUint(args.queryId, 64)
-    .storeUint(args.orderId, 256)
     .storeAddress(args.buyerAddress)
-    .storeAddress(args.sellerAddress)
-    .storeAddress(args.treasuryAddress)
-    .storeCoins(args.amountNano)
-    .storeCoins(args.sellerAmountNano)
-    .storeCoins(args.feeNano)
-    .storeUint(args.trialWindowSec, 32)
+    .storeAddress(args.escrowAddress)
     .storeUint(args.transferLimit, 8)
     .storeRef(args.individualContent)
     .storeUint(args.burnDeadline, 32)
@@ -132,8 +116,6 @@ export function buildMintLicenseBody(args: MintLicenseArgs): Cell {
 /**
  * Шлёт MintLicense в Collection от имени signer'а.
  * Value: 0.3 TON (покрывает deploy item + register back + excess).
- *
- * Возвращает ожидаемый seqno следующей транзакции для tracking'а.
  */
 export async function sendMintLicense(
   signer: SignerHandle,
@@ -143,8 +125,6 @@ export async function sendMintLicense(
 ): Promise<{ seqno: number; msgValueNano: string }> {
   const body = buildMintLicenseBody(args);
 
-  // Получаем текущий seqno для отправки (нужен для tracking confirmation).
-  // openedWallet.getSeqno() под капотом делает runGetMethod.
   const seqno = await signer.openedWallet.getSeqno();
 
   await signer.openedWallet.sendTransfer({
@@ -160,13 +140,14 @@ export async function sendMintLicense(
     ],
   });
 
-  logger.info(`[mintSigner] MintLicense sent: orderId=${args.orderId}, seqno=${seqno}`);
+  logger.info(`[mintSigner] MintLicense sent: queryId=${args.queryId}, seqno=${seqno}`);
   return { seqno, msgValueNano: valueNano.toString() };
 }
 
 /**
  * Utility: безопасное приведение order.$id (UUID-like) в bigint orderId
- * для on-chain. Должно совпадать с computeEscrow orderIdToBigint.
+ * для on-chain. Должно совпадать с computeEscrow orderIdToBigint —
+ * используется для построения Escrow init params, НЕ для MintLicense.
  */
 export function orderIdToBigint(orderId: string): bigint {
   const hash = Buffer.from(orderId.replace(/-/g, '').padEnd(64, '0').slice(0, 64), 'hex');
