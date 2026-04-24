@@ -43,11 +43,13 @@ A|W|LicenseItem.tact≡TEP-64_item;1_per_purchase;soulbound
 A|W|item_address→deterministic(code,init);buyer-scoped
 
 ## STORAGE: Escrow
-A|W|orderId,buyer,seller,treasury:Address
+A|W|orderId:uint256;buyer,seller,treasury:Address
 A|W|amountNano,sellerAmountNano,feeNano:coins
 A|W|trialWindowSec:uint32;state:uint8;paidAt:uint32
 A|W|collectionAddress,licenseAddress:Address
+A|W|transferLimit:uint8;licenseContent:Cell
 A|W|state∈{INIT=0,FUNDED=1,RELEASED=3,REFUNDED=4}
+A|W|MINT_GRACE_SEC=600 // seconds before RefundIfNotMinted allowed
 
 ## STORAGE: AppCollection
 A|W|appId:Int256;ownerAddress:Address(oracle);nextItemIndex:Int64
@@ -250,35 +252,38 @@ contract AppCollection with Deployable {
 
 const TS_ORACLE_MINT = `// backend/tonforge/onchain/mintLicense.ts
 export async function mintLicense(args: MintArgs) {
-  // Deterministic address is computed client-side from (code, init).
-  const item = LicenseItem.fromInit({
-    index:         args.index,
-    collection:    collection.address,
-    ownerAddress:  args.buyer,
-    escrowAddress: args.escrow,
-    transferLimit: 0,                  // soulbound
-    transfers:     0,
-    content:       buildOffchainContent(args.metadataUri),
-    burnDeadline:  args.burnDeadline,  // unix ts = paidAt + trialWindowSec
-    registered:    false,
-  });
+  // Деплой LicenseItem детерминированный: адрес считается клиентски
+  // из (code, init) ещё до отправки транзакции.
+  // fromInit() принимает позиционные init-параметры в порядке из
+  // licenseItem.tact (7 штук). transfers и registered — не init-поля,
+  // они инициализируются внутри init() дефолтами (0 и false).
+  const item = await LicenseItem.fromInit(
+    args.index,
+    collection.address,
+    args.buyer,                              // NFT owner
+    args.escrow,                             // ⚠ в Option C сюда всё равно попадёт
+                                             //    oracle-адрес (см. Current limitations)
+    0n,                                      // transferLimit = 0 → soulbound
+    buildOffchainContent(args.metadataUri),  // TEP-64 content cell
+    args.burnDeadline,                       // unix ts = paidAt + trialWindowSec
+  );
 
   await oracle.send(client, {
     to:    collection.address,
-    value: LICENSE_MINT_GAS_NANO,      // default 0.1 TON
+    value: LICENSE_MINT_GAS_NANO,            // default 0.1 TON
     body:  buildMintLicensePayload({
-      queryId:         args.queryId,
-      orderId:         args.orderId,
-      buyerAddress:    args.buyer,
-      sellerAddress:   args.seller,
-      treasuryAddress: args.treasury,
-      amountNano:      args.amountNano,
-      sellerAmountNano:args.sellerAmountNano,
-      feeNano:         args.feeNano,
-      trialWindowSec:  args.trialWindowSec,
-      transferLimit:   0,
+      queryId:           args.queryId,
+      orderId:           args.orderId,
+      buyerAddress:      args.buyer,
+      sellerAddress:     args.seller,
+      treasuryAddress:   args.treasury,
+      amountNano:        args.amountNano,
+      sellerAmountNano:  args.sellerAmountNano,
+      feeNano:           args.feeNano,
+      trialWindowSec:    args.trialWindowSec,
+      transferLimit:     0n,
       individualContent: buildOffchainContent(args.metadataUri),
-      burnDeadline:    args.burnDeadline,
+      burnDeadline:      args.burnDeadline,
     }),
   });
 
