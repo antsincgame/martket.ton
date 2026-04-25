@@ -60,18 +60,49 @@ export async function verifyEmailOtp(userId: string, otp: string): Promise<void>
 
 /**
  * Completes an OAuth callback by exchanging userId+secret for a session.
+ *
+ * If a session already exists (Appwrite may auto-create one during the
+ * OAuth redirect), we delete it first and retry, or fall through if the
+ * existing session belongs to the same user.
  */
 export async function completeOAuthCallback(userId: string, secret: string): Promise<void> {
   logger.warn('[AUTH_AUDIT] completeOAuthCallback start', { userId, secretLen: secret.length });
   const account = ensureClient();
   if (!userId || !secret) throw new Error('userId and secret are required');
-  try {
+
+  const tryCreateSession = async (): Promise<void> => {
     await account.createSession(userId, secret);
     cachedJwt = null;
-    logger.warn('[AUTH_AUDIT] completeOAuthCallback session created OK');
+  };
+
+  try {
+    await tryCreateSession();
+    logger.warn('[AUTH_AUDIT] completeOAuthCallback — session created OK');
   } catch (err: unknown) {
-    logger.warn('[AUTH_AUDIT] completeOAuthCallback FAILED:', err instanceof Error ? err.message : err);
-    throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn('[AUTH_AUDIT] completeOAuthCallback — first attempt failed:', msg);
+
+    if (msg.includes('session') && msg.includes('active')) {
+      logger.warn('[AUTH_AUDIT] completeOAuthCallback — active session detected, checking if it is ours');
+      try {
+        const existing = await account.get();
+        if (existing.$id === userId) {
+          logger.warn('[AUTH_AUDIT] completeOAuthCallback — session already belongs to this user, skipping createSession');
+          cachedJwt = null;
+          return;
+        }
+        logger.warn('[AUTH_AUDIT] completeOAuthCallback — session belongs to different user, deleting and retrying');
+        await account.deleteSession('current');
+        cachedJwt = null;
+        await tryCreateSession();
+        logger.warn('[AUTH_AUDIT] completeOAuthCallback — retry succeeded');
+      } catch (retryErr: unknown) {
+        logger.warn('[AUTH_AUDIT] completeOAuthCallback — retry FAILED:', retryErr instanceof Error ? retryErr.message : retryErr);
+        throw retryErr;
+      }
+    } else {
+      throw err;
+    }
   }
 }
 

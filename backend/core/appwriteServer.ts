@@ -12,6 +12,16 @@ function getApiKey(): string {
   return process.env.APPWRITE_API_KEY || '';
 }
 
+const _loggedOnce = { done: false };
+function logConfigOnce(): void {
+  if (_loggedOnce.done) return;
+  _loggedOnce.done = true;
+  const ep = getEndpoint();
+  const pid = getProjectId();
+  const hasKey = !!getApiKey();
+  console.info(`[AUTH_AUDIT_BE] Appwrite config → endpoint=${ep || '(empty)'}, projectId=${pid || '(empty)'}, hasApiKey=${hasKey}`);
+}
+
 export function isCoreConfigured(): boolean {
   return Boolean(getEndpoint() && getProjectId() && getApiKey());
 }
@@ -27,10 +37,11 @@ export function createServerClient(): Client {
 }
 
 export function createUserContextClient(jwt: string): Client {
+  logConfigOnce();
   const endpoint = getEndpoint();
   const projectId = getProjectId();
   if (!endpoint || !projectId || !jwt) {
-    throw new Error('Appwrite session JWT is missing');
+    throw new Error(`Appwrite session JWT config missing: endpoint=${!!endpoint}, projectId=${!!projectId}, jwt=${!!jwt}`);
   }
   return new Client().setEndpoint(endpoint).setProject(projectId).setJWT(jwt);
 }

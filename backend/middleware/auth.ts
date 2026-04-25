@@ -76,16 +76,22 @@ export function extractBearerToken(req: HasGet): string | null {
 async function resolveAppwriteUser(token: string): Promise<CachedUser | null> {
   const now = Date.now();
   const cached = tokenCache.get(token);
-  if (cached && cached.expiresAt > now) return cached.user;
+  if (cached && cached.expiresAt > now) {
+    logger.info(`[AUTH_AUDIT_BE] resolveAppwriteUser — cache hit for user ${cached.user.$id}`);
+    return cached.user;
+  }
   try {
+    logger.info('[AUTH_AUDIT_BE] resolveAppwriteUser — verifying JWT with Appwrite...');
     const client = createUserContextClient(token);
     const user = await new Account(client).get();
+    logger.info(`[AUTH_AUDIT_BE] resolveAppwriteUser — JWT valid, user: ${user.$id} (${user.email})`);
     tokenCache.set(token, { user, expiresAt: now + TOKEN_CACHE_TTL_MS });
     pruneTokenCache(now);
     return user;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    logger.warn(`[appwrite-auth] token verify failed: ${msg.slice(0, 200)}`);
+    logger.warn(`[AUTH_AUDIT_BE] resolveAppwriteUser — JWT REJECTED: ${msg.slice(0, 300)}`);
+    logger.warn(`[AUTH_AUDIT_BE] token preview: ${token.slice(0, 20)}...${token.slice(-10)}`);
     return null;
   }
 }
@@ -195,19 +201,23 @@ export function apiRequireAuth() {
   return (req: Request, res: Response, next: NextFunction): void => {
     const token = extractBearerToken(req);
     if (!token) {
+      logger.warn(`[AUTH_AUDIT_BE] apiRequireAuth — no Bearer token on ${req.method} ${req.path}`);
       res.status(401).json({ success: false, message: 'Unauthorized' });
       return;
     }
+    logger.info(`[AUTH_AUDIT_BE] apiRequireAuth — validating token for ${req.method} ${req.path}`);
     resolveAppwriteUser(token)
       .then((user) => {
         if (!user) {
+          logger.warn(`[AUTH_AUDIT_BE] apiRequireAuth — 401 on ${req.method} ${req.path} (token invalid)`);
           res.status(401).json({ success: false, message: 'Authentication failed' });
           return;
         }
+        logger.info(`[AUTH_AUDIT_BE] apiRequireAuth — OK user=${user.$id} for ${req.method} ${req.path}`);
         next();
       })
       .catch((err: Error) => {
-        logger.error('apiRequireAuth error:', err.message);
+        logger.error(`[AUTH_AUDIT_BE] apiRequireAuth error on ${req.method} ${req.path}:`, err.message);
         res.status(401).json({ success: false, message: 'Authentication failed' });
       });
   };
