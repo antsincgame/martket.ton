@@ -118,6 +118,8 @@ router.post(
 
     const priceUsd = Number(product.priceUsd || 0);
     const isPaid = priceUsd > 0;
+    let cachedTonRate = 0;
+    let cachedAmountTonRaw = '0';
 
     if (isPaid) {
       if (!tx_hash || tx_hash.trim().length < 8) {
@@ -170,9 +172,10 @@ router.post(
       }
 
       try {
-        const tonRate = await getTonUsdPrice();
-        const tonHuman = usdToTonHuman(priceUsd, tonRate);
+        cachedTonRate = await getTonUsdPrice();
+        const tonHuman = usdToTonHuman(priceUsd, cachedTonRate);
         const expectedNano = tonHumanToNanoRaw(tonHuman);
+        cachedAmountTonRaw = expectedNano;
         const verification = await verifyNativeTonTransfer({
           txHash: tx_hash.trim(),
           treasuryAddress: treasury,
@@ -236,7 +239,7 @@ router.post(
       buyerWallet: profile.tonAddress ?? null,
       buyerProfileId: profile.id,
       amountUsd: priceUsd,
-      amountTonRaw: isPaid ? tonHumanToNanoRaw(usdToTonHuman(priceUsd, await getTonUsdPrice().catch(() => 0))) : '0',
+      amountTonRaw: cachedAmountTonRaw,
       txHash: tx_hash || null,
       productName: product.name,
       buyerIp: req.ip ?? null,

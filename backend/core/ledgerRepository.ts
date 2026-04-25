@@ -1,5 +1,5 @@
 import { Query, ID } from 'node-appwrite';
-import { databases } from './appwrite.js';
+import { databases } from './db.js';
 import { CORE_DATABASE_ID, COL_COMPLIANCE_LEDGER } from './constants.js';
 import type { LedgerEntry, ComplianceStatus, Jurisdiction, LedgerEntryType } from '../domain/types.js';
 
@@ -172,13 +172,33 @@ export interface LedgerAggregateStats {
   pendingReview: number;
 }
 
-export async function getAggregateStats(dateFrom?: string, dateTo?: string): Promise<LedgerAggregateStats> {
-  const queries: string[] = [Query.limit(5000)];
-  if (dateFrom) queries.push(Query.greaterThanEqual('$createdAt', dateFrom));
-  if (dateTo) queries.push(Query.lessThanEqual('$createdAt', dateTo));
+const APPWRITE_MAX_PAGE = 100;
 
-  const res = await databases().listDocuments(CORE_DATABASE_ID, COL_COMPLIANCE_LEDGER, queries);
-  const entries = res.documents.map((d) => mapEntry(asDoc(d)));
+async function fetchAllLedgerEntries(baseQueries: string[]): Promise<LedgerEntry[]> {
+  const all: LedgerEntry[] = [];
+  let offset = 0;
+
+  while (true) {
+    const pageQueries = [
+      ...baseQueries,
+      Query.limit(APPWRITE_MAX_PAGE),
+      Query.offset(offset),
+    ];
+    const res = await databases().listDocuments(CORE_DATABASE_ID, COL_COMPLIANCE_LEDGER, pageQueries);
+    const page = res.documents.map((d) => mapEntry(asDoc(d)));
+    all.push(...page);
+    if (all.length >= res.total || page.length < APPWRITE_MAX_PAGE) break;
+    offset += APPWRITE_MAX_PAGE;
+  }
+  return all;
+}
+
+export async function getAggregateStats(dateFrom?: string, dateTo?: string): Promise<LedgerAggregateStats> {
+  const baseQueries: string[] = [];
+  if (dateFrom) baseQueries.push(Query.greaterThanEqual('$createdAt', dateFrom));
+  if (dateTo) baseQueries.push(Query.lessThanEqual('$createdAt', dateTo));
+
+  const entries = await fetchAllLedgerEntries(baseQueries);
 
   const stats: LedgerAggregateStats = {
     totalEntries: entries.length,

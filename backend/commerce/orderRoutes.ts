@@ -251,21 +251,32 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
         escrowAddress,
       });
 
-      recordLedgerEntry({
-        entryType: 'escrow_fund',
-        refType: 'order',
-        refId: orderId,
-        buyerWallet,
-        sellerWallet: (order['sellerWallet'] as string) ?? null,
-        amountUsd: 0,
-        amountTonRaw: (order['amountRaw'] as string) ?? '0',
-        platformFeeTonRaw: String(BigInt(order['amountRaw'] as string || '0') - BigInt(order['sellerNetAmountRaw'] as string || '0')),
-        txHash: realTxHash,
-        escrowAddress,
-        productName: (order['listingSnapshotTitle'] as string) ?? '',
-        listingId: (order['listingId'] as string) ?? null,
-        buyerIp: req.ip ?? null,
-      }).catch((err) => logger.warn('[commerce] ledger escrow_fund:', err));
+      {
+        const amountRaw = (order['amountRaw'] as string) || '0';
+        const sellerNetRaw = (order['sellerNetAmountRaw'] as string) || '0';
+        let platformFeeTonRaw = '0';
+        try {
+          const diff = BigInt(amountRaw) - BigInt(sellerNetRaw);
+          platformFeeTonRaw = diff > 0n ? String(diff) : '0';
+        } catch {
+          platformFeeTonRaw = '0';
+        }
+        recordLedgerEntry({
+          entryType: 'escrow_fund',
+          refType: 'order',
+          refId: orderId,
+          buyerWallet,
+          sellerWallet: (order['sellerWallet'] as string) ?? null,
+          amountUsd: 0,
+          amountTonRaw: amountRaw,
+          platformFeeTonRaw,
+          txHash: realTxHash,
+          escrowAddress,
+          productName: (order['listingSnapshotTitle'] as string) ?? '',
+          listingId: (order['listingId'] as string) ?? null,
+          buyerIp: req.ip ?? null,
+        }).catch((err) => logger.warn('[commerce] ledger escrow_fund:', err));
+      }
 
       res.json({
         data: {
