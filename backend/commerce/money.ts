@@ -80,14 +80,6 @@ export function nanoRawToTonHuman(amountRawStr: string): string {
   return fracStr.length ? `${whole}.${fracStr}` : whole.toString();
 }
 
-export function jettonHumanToRaw(human: string | number, decimals: number): string {
-  const d = Math.min(18, Math.max(0, decimals || 0));
-  const s = String(human).trim();
-  if (!/^\d+(\.\d+)?$/.test(s)) throw new Error('INVALID_JETTON_PRICE');
-  const [w, frac = ''] = s.split('.');
-  const fracPad = (frac + '0'.repeat(d)).slice(0, d);
-  const whole = BigInt(w!);
-  const part = BigInt(fracPad || '0');
-  const mult = BigInt(10) ** BigInt(d);
-  return (whole * mult + part).toString();
+export function tonToNanoRaw(tonHuman: number): string {
+  return BigInt(Math.round(tonHuman * 1_000_000_000)).toString();
 }

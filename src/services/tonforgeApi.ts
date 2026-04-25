@@ -98,7 +98,7 @@ export async function publishTonForgeApp(payload: {
   category: string;
   summary: string;
   description: string;
-  priceTon: number;
+  priceUsd: number;
   fileName: string;
   version: string;
   sizeLabel: string;

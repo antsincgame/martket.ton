@@ -13,7 +13,8 @@ import {
   DEFAULT_PLATFORM_FEE_BPS,
 } from './constants.js';
 import { databases, storageClient, ID, Query } from './appwrite.js';
-import { tonHumanToNanoRaw, jettonHumanToRaw } from './money.js';
+import { tonHumanToNanoRaw } from './money.js';
+import { getTonUsdPrice, usdToTonHuman } from './tonPriceOracle.js';
 import { addressesEqual } from './tonVerify.js';
 import { writeAudit } from './audit.js';
 import { logger } from '../logger.js';
@@ -88,8 +89,7 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
   try {
     const {
       sellerWallet, catalogProductId, title, description,
-      currency = CURRENCY.TON, jettonMaster = '',
-      priceTon, priceHuman, decimals: decIn,
+      priceUsd,
       deliveryType, deliveryPayload,
       platformFeeBps = DEFAULT_PLATFORM_FEE_BPS, assetFileId = '',
       collectionAddress,
@@ -100,7 +100,6 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
       return;
     }
     if (!collectionAddress || typeof collectionAddress !== 'string') {
-      // Schema-level validation should already catch this; defence in depth.
       res.status(400).json({ error: 'collectionAddress is required', code: 'NO_COLLECTION' });
       return;
     }
@@ -113,26 +112,16 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
       return;
     }
 
-    const decimals =
-      currency === CURRENCY.TON ? 9 : Math.min(18, Math.max(0, parseInt(String(decIn), 10) || 9));
-
-    let priceAmountRaw: string;
-    if (currency === CURRENCY.TON) {
-      if (priceTon === undefined) { res.status(400).json({ error: 'priceTon is required', code: 'VALIDATION' }); return; }
-      priceAmountRaw = tonHumanToNanoRaw(priceTon);
-    } else if (currency === CURRENCY.JETTON) {
-      if (!jettonMaster) { res.status(400).json({ error: 'jettonMaster is required for JETTON currency', code: 'VALIDATION' }); return; }
-      if (priceHuman === undefined) { res.status(400).json({ error: 'priceHuman is required for jetton', code: 'VALIDATION' }); return; }
-      priceAmountRaw = jettonHumanToRaw(priceHuman, decimals);
-    } else {
-      res.status(400).json({ error: 'Unknown currency', code: 'VALIDATION' }); return;
-    }
+    const tonRate = await getTonUsdPrice();
+    const tonHuman = usdToTonHuman(Number(priceUsd), tonRate);
+    const priceAmountRaw = tonHumanToNanoRaw(tonHuman);
+    const decimals = 9;
 
     const db = databases();
     const listing = await db.createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), {
       sellerWallet, catalogProductId, title, description,
-      currency, jettonMaster: currency === CURRENCY.JETTON ? jettonMaster : '',
-      priceAmountRaw, decimals, platformFeeBps,
+      currency: CURRENCY.TON,
+      priceAmountRaw, priceUsd: String(priceUsd), decimals, platformFeeBps,
       status: LISTING_STATUS.ACTIVE, deliveryType, assetFileId,
       collection_address: collectionAddress,
     });
@@ -166,8 +155,11 @@ router.patch('/listings/:id', apiRequireAuth(), validateBody(patchListingSchema)
     if (body.status) patch.status = body.status;
     if (body.title) patch.title = body.title;
     if (body.description) patch.description = body.description;
-    if (body.priceTon !== undefined && existing['currency'] === CURRENCY.TON) {
-      patch.priceAmountRaw = tonHumanToNanoRaw(body.priceTon as string | number);
+    if (body.priceUsd !== undefined) {
+      const tonRate = await getTonUsdPrice();
+      const tonHuman = usdToTonHuman(Number(body.priceUsd), tonRate);
+      patch.priceAmountRaw = tonHumanToNanoRaw(tonHuman);
+      patch.priceUsd = String(body.priceUsd);
     }
     if (typeof body.collectionAddress === 'string' && body.collectionAddress.length > 0) {
       patch.collection_address = body.collectionAddress;

@@ -43,7 +43,7 @@ export interface TonForgeApp {
   description: string;
   sellerWallet: string;
   featured: boolean;
-  priceTon: number;
+  priceUsd: number;
   commissionBps: number;
   buyerProtectionHours: number;
   artifact: TonForgeArtifact;

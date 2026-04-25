@@ -45,7 +45,6 @@ export const LISTING_STATUS = {
 
 export const CURRENCY = {
   TON: 'TON',
-  JETTON: 'JETTON',
 } as const;
 
 export const DEFAULT_PLATFORM_FEE_BPS = parseInt(process.env.PLATFORM_FEE_BPS || '1500', 10);

@@ -280,20 +280,10 @@ export async function verifyPaymentToEscrow(
   return { ok: false, reason: 'ESCROW_PAYMENT_NOT_FOUND' };
 }
 
-export async function verifyJettonTransfer(_params: VerifyParams): Promise<PaymentVerification> {
-  const master = (process.env.COMMERCE_JETTON_MASTER || '').trim();
-  if (!master) {
-    return { ok: false, reason: 'JETTON_MASTER_NOT_CONFIGURED' };
-  }
-  return { ok: false, reason: 'JETTON_VERIFY_PENDING_IMPLEMENTATION' };
-}
-
 interface OrderLike {
-  currency?: string;
   buyerWallet: string;
   amountRaw: string;
   memo: string;
-  jettonMaster?: string;
 }
 
 export async function verifyPaymentForOrder(
@@ -301,7 +291,6 @@ export async function verifyPaymentForOrder(
   txHash: string,
   treasuryAddress: string,
 ): Promise<PaymentVerification> {
-  const currency = order.currency || 'TON';
   const params: VerifyParams = {
     txHash,
     treasuryAddress,
@@ -309,9 +298,6 @@ export async function verifyPaymentForOrder(
     expectedAmountRaw: order.amountRaw,
     expectedMemo: order.memo,
   };
-  if (currency === 'JETTON') {
-    return verifyJettonTransfer(params);
-  }
   return verifyNativeTonTransfer(params);
 }
 

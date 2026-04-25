@@ -1,6 +1,6 @@
 // statsRepository — сводная статистика для Demiurge cabinet Overview.
 // Источник данных: legacy products (downloads, status, rating, reviewsCount)
-// + purchases (как income proxy: суммируем price_ton за последние 30 дней).
+// + purchases (как income proxy: суммируем price_usd за последние 30 дней).
 //
 // Подход осознанно «честный, но скромный»: пока on-chain эскроу не интегрирован
 // сюда, мы не выдумываем revenue из ничего, а считаем по факту записанных
@@ -13,9 +13,9 @@ import { type AppwriteDoc, asDoc } from '../domain/appwrite-helpers.js';
 export interface SessionStats {
   /** Загрузки по всем опубликованным продуктам автора. */
   downloadsTotal: number;
-  /** Сумма purchase.price_ton за все продукты автора (без временного фильтра). */
+  /** Сумма purchase.price_usd за все продукты автора (без временного фильтра). */
   revenueTotal: number;
-  /** Сумма purchase.price_ton за продукты автора за последние 30 дней. */
+  /** Сумма purchase.price_usd за продукты автора за последние 30 дней. */
   revenue30d: number;
   /** Кол-во купленных в течение последних 30 дней копий. */
   sales30d: number;
@@ -62,7 +62,7 @@ function aggregateSales(sales: AppwriteDoc[]) {
   let sales30d = 0;
   let revenueTotal = 0;
   for (const sale of sales) {
-    const price = (sale['price_ton'] as number) ?? 0;
+    const price = (sale['price_usd'] as number) ?? 0;
     revenueTotal += price;
     const created = Date.parse(sale.$createdAt);
     if (Number.isFinite(created) && created >= cutoff) {

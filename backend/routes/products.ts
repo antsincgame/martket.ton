@@ -10,6 +10,8 @@ import { productToSnakeCase } from '../core/repository.js';
 import { generateId } from '../core/generateId.js';
 import { logger } from '../logger.js';
 import type { Product, Profile } from '../domain/types.js';
+import { getTonUsdPrice, usdToTonHuman } from '../commerce/tonPriceOracle.js';
+import { tonHumanToNanoRaw } from '../commerce/money.js';
 
 const router = express.Router();
 
@@ -130,7 +132,7 @@ router.post(
       res.status(403).json({ success: false, message: 'Profile not found' });
       return;
     }
-    const { name, description, short_description, price_ton, category, image, version } =
+    const { name, description, short_description, price_usd, category, image, version } =
       req.body as Record<string, unknown>;
     if (!name) {
       res.status(400).json({ success: false, message: 'name is required' });
@@ -143,7 +145,7 @@ router.post(
       name,
       description: description || null,
       short_description: short_description || null,
-      price_ton: price_ton || 0,
+      price_usd: price_usd || 0,
       category: category || 'other',
       image: image || null,
       version: version || '1.0.0',
@@ -186,7 +188,7 @@ router.patch(
       res.status(403).json({ success: false, message: 'Only the creator, moderator, or admin can edit this product' });
       return;
     }
-    const allowedFields = ['name', 'description', 'short_description', 'price_ton', 'category', 'image', 'version'];
+    const allowedFields = ['name', 'description', 'short_description', 'price_usd', 'category', 'image', 'version'];
     const body = req.body as Record<string, unknown>;
     const updates: Record<string, unknown> = {};
     for (const field of allowedFields) {
@@ -292,7 +294,9 @@ router.patch(
 
 async function autoCreateListing(product: Product, profile: Profile): Promise<void> {
   if (!profile.tonAddress) return;
-  const priceNano = String(Math.round((product.priceTon ?? 0) * 1e9));
+  const tonRate = await getTonUsdPrice();
+  const tonHuman = usdToTonHuman(product.priceUsd ?? 0, tonRate);
+  const priceNano = tonHumanToNanoRaw(tonHuman);
   if (priceNano === '0') return;
 
   try {
@@ -312,7 +316,6 @@ async function autoCreateListing(product: Product, profile: Profile): Promise<vo
       title: product.name,
       description: product.shortDescription || product.description || '',
       currency: CURRENCY.TON,
-      jettonMaster: '',
       priceAmountRaw: priceNano,
       decimals: 9,
       platformFeeBps: 500,

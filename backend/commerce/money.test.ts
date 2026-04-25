@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tonHumanToNanoRaw, applyFeeBps, nanoRawToTonHuman, jettonHumanToRaw } from './money.js';
+import { tonHumanToNanoRaw, applyFeeBps, nanoRawToTonHuman, tonToNanoRaw } from './money.js';
 
 describe('tonHumanToNanoRaw', () => {
   it('converts whole TON to nanoRaw', () => {
@@ -51,17 +51,10 @@ describe('nanoRawToTonHuman', () => {
   });
 });
 
-describe('jettonHumanToRaw', () => {
-  it('converts with 6 decimals (like USDT)', () => {
-    expect(jettonHumanToRaw('1', 6)).toBe('1000000');
-    expect(jettonHumanToRaw('1.5', 6)).toBe('1500000');
-  });
-
-  it('converts with 9 decimals (like TON)', () => {
-    expect(jettonHumanToRaw('1', 9)).toBe('1000000000');
-  });
-
-  it('throws on invalid input', () => {
-    expect(() => jettonHumanToRaw('abc', 6)).toThrow('INVALID_JETTON_PRICE');
+describe('tonToNanoRaw', () => {
+  it('converts TON amount to nano', () => {
+    expect(tonToNanoRaw(1)).toBe('1000000000');
+    expect(tonToNanoRaw(1.5)).toBe('1500000000');
+    expect(tonToNanoRaw(0)).toBe('0');
   });
 });

@@ -168,7 +168,7 @@ export function FeaturedPickerCard({ myProducts, featured, onToggle }: { myProdu
               </div>
               <div className="p-2">
                 <p className="text-xs text-white truncate font-medium">{product.name}</p>
-                <p className="text-[10px] text-gray-500">{product.price_ton} TON</p>
+                <p className="text-[10px] text-gray-500">${product.price_usd} USD</p>
               </div>
               {isSelected && (
                 <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#FFD700] flex items-center justify-center">

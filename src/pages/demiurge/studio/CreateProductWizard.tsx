@@ -37,7 +37,7 @@ export default function CreateProductWizard({ getToken, onBack }: CreateProductW
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
-  const [priceTon, setPriceTon] = useState('0');
+  const [priceUsd, setPriceUsd] = useState('0');
   const [shortDescription, setShortDescription] = useState('');
   const [description, setDescription] = useState('');
   const [version, setVersion] = useState('1.0.0');
@@ -119,7 +119,7 @@ export default function CreateProductWizard({ getToken, onBack }: CreateProductW
     const trimmed = name.trim();
     if (trimmed.length < PRODUCT_NAME_MIN) return `Name must be at least ${PRODUCT_NAME_MIN} characters`;
     if (trimmed.length > PRODUCT_NAME_MAX) return `Name must be at most ${PRODUCT_NAME_MAX} characters`;
-    const price = parseFloat(priceTon);
+    const price = parseFloat(priceUsd);
     if (Number.isNaN(price) || price < 0) return 'Price must be ≥ 0';
     return null;
   };
@@ -147,7 +147,7 @@ export default function CreateProductWizard({ getToken, onBack }: CreateProductW
         body: JSON.stringify({
           name: name.trim(),
           category: category || 'other',
-          price_ton: parseFloat(priceTon) || 0,
+          price_usd: parseFloat(priceUsd) || 0,
           short_description: shortDescription.trim() || null,
           description: description.trim() || null,
           version: version.trim() || '1.0.0',
@@ -274,13 +274,13 @@ export default function CreateProductWizard({ getToken, onBack }: CreateProductW
         </div>
 
         <div>
-          <label className={labelClass}>Price (TON)</label>
+          <label className={labelClass}>Price (USD)</label>
           <input
             type="number"
-            step="0.1"
+            step="0.01"
             min="0"
-            value={priceTon}
-            onChange={(e) => setPriceTon(e.target.value)}
+            value={priceUsd}
+            onChange={(e) => setPriceUsd(e.target.value)}
             disabled={submitting}
             className={inputClass}
           />

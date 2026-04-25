@@ -238,6 +238,7 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   }, [handleBuy]);
 
   const isBusy = phase === 'creating-order' || phase === 'awaiting-wallet' || phase === 'confirming';
+  const listingPriceUsd = (listing as Record<string, unknown> | null)?.priceUsd as number | undefined;
   const sellerPriceHuman = listing?.priceTonHuman ?? humanFromRaw(listing?.priceAmountRaw ?? '0');
   // Fee breakdown виден только когда backend вернул order с fee/sellerAmount полями.
   // До создания order'а показываем estimate из listing.platformFeeBps.
@@ -282,6 +283,12 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
           <span className="text-white">You pay</span>
           <span className="font-mono text-[#FFD700]">{totalTon} TON</span>
         </div>
+        {listingPriceUsd != null && listingPriceUsd > 0 && (
+          <div className="flex justify-between text-gray-500 text-[10px] pt-1">
+            <span>Listed price</span>
+            <span className="font-mono">${listingPriceUsd} USD</span>
+          </div>
+        )}
       </div>
 
       {error && (

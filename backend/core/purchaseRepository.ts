@@ -10,7 +10,7 @@ function mapPurchase(doc: AppwriteDoc): Purchase {
     id: doc.$id,
     userId: doc['user_id'] as ProfileId,
     productId: doc['product_id'] as ProductId,
-    priceTon: (doc['price_ton'] as number) ?? 0,
+    priceUsd: (doc['price_usd'] as number) ?? 0,
     txHash: (doc['tx_hash'] as string) ?? null,
     createdAt: doc.$createdAt,
   };
@@ -52,14 +52,14 @@ export async function insertPurchase(row: {
   id?: string;
   user_id: string;
   product_id: string;
-  price_ton?: number;
+  price_usd?: number;
   tx_hash?: string | null;
 }): Promise<Purchase | null> {
   const id = row.id || generateId();
   await databases().createDocument(CORE_DATABASE_ID, COL_PURCHASES, id, {
     user_id: row.user_id,
     product_id: row.product_id,
-    price_ton: row.price_ton ?? 0,
+    price_usd: row.price_usd ?? 0,
     tx_hash: row.tx_hash ?? null,
   });
   return findPurchase(row.user_id, row.product_id);

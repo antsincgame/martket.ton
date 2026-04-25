@@ -340,11 +340,11 @@ const ProductPage = () => {
               <div className="relative text-center mb-6 pt-2">
                 <div className="text-3xl font-display font-black text-white mb-1 flex items-center justify-center gap-2">
                   <Zap className="w-6 h-6 text-[#FFD700]" />
-                  <span className="gold-shimmer-text">{product.price} TON</span>
+                  <span className="gold-shimmer-text">${product.priceUsd ?? product.price} USD</span>
                 </div>
                 {tonPrice ? (
                   <p className="text-gray-500 text-sm font-medium">
-                    ≈ <span className="text-gray-400">${(product.price * tonPrice).toFixed(2)}</span> USD
+                    ≈ <span className="text-gray-400">{((product.priceUsd ?? product.price) / tonPrice).toFixed(2)}</span> TON
                   </p>
                 ) : (
                   <p className="text-gray-600 text-xs">on-chain settlement via TON</p>

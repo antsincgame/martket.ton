@@ -24,13 +24,13 @@ describe('patchProductSchema (status enum)', () => {
     expect(r.success).toBe(false);
   });
 
-  it('rejects negative price_ton', () => {
-    const r = patchProductSchema.safeParse({ price_ton: -1 });
+  it('rejects negative price_usd', () => {
+    const r = patchProductSchema.safeParse({ price_usd: -1 });
     expect(r.success).toBe(false);
   });
 
   it('allows partial updates with just one field', () => {
-    expect(patchProductSchema.safeParse({ price_ton: 10 }).success).toBe(true);
+    expect(patchProductSchema.safeParse({ price_usd: 10 }).success).toBe(true);
     expect(patchProductSchema.safeParse({ category: 'tools' }).success).toBe(true);
   });
 });
@@ -126,7 +126,7 @@ describe('createProductSchema (limits)', () => {
   });
 
   it('rejects negative price', () => {
-    expect(createProductSchema.safeParse({ name: 'valid', price_ton: -0.01 }).success).toBe(false);
+    expect(createProductSchema.safeParse({ name: 'valid', price_usd: -0.01 }).success).toBe(false);
   });
 
   it('defaults version to 1.0.0', () => {

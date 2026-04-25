@@ -9,6 +9,8 @@ import * as repo from '../core/repository.js';
 import { productToSnakeCase } from '../core/repository.js';
 import { generateId } from '../core/generateId.js';
 import { verifyNativeTonTransfer } from '../commerce/tonVerify.js';
+import { getTonUsdPrice, usdToTonHuman } from '../commerce/tonPriceOracle.js';
+import { tonHumanToNanoRaw } from '../commerce/money.js';
 import { logger } from '../logger.js';
 
 /**
@@ -113,8 +115,8 @@ router.post(
       return;
     }
 
-    const priceTon = Number(product.priceTon || 0);
-    const isPaid = priceTon > 0;
+    const priceUsd = Number(product.priceUsd || 0);
+    const isPaid = priceUsd > 0;
 
     if (isPaid) {
       if (!tx_hash || tx_hash.trim().length < 8) {
@@ -167,11 +169,14 @@ router.post(
       }
 
       try {
+        const tonRate = await getTonUsdPrice();
+        const tonHuman = usdToTonHuman(priceUsd, tonRate);
+        const expectedNano = tonHumanToNanoRaw(tonHuman);
         const verification = await verifyNativeTonTransfer({
           txHash: tx_hash.trim(),
           treasuryAddress: treasury,
           fromAddress: profile.tonAddress,
-          expectedAmountRaw: tonToNanoRaw(priceTon),
+          expectedAmountRaw: expectedNano,
           expectedMemo: buildPurchaseMemo(profile.id, product_id),
         });
         if (!verification.ok) {
@@ -208,7 +213,7 @@ router.post(
       id: generateId(),
       user_id: profile.id,
       product_id,
-      price_ton: priceTon,
+      price_usd: priceUsd,
       tx_hash: tx_hash || null,
     });
     await repo.insertAuditLog({
@@ -218,7 +223,7 @@ router.post(
       resource: 'product',
       resource_id: product_id,
       result: 'success',
-      metadata: JSON.stringify({ price_ton: priceTon, tx_hash, verified: isPaid }),
+      metadata: JSON.stringify({ price_usd: priceUsd, tx_hash, verified: isPaid }),
       ip_address: req.ip,
       user_agent: req.get('user-agent') || '',
     });

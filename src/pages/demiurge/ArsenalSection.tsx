@@ -71,7 +71,7 @@ function ArsenalCard({ item, onClick }: { item: PurchaseWithProduct; onClick: ()
         </h3>
         <div className="flex justify-between items-center text-xs">
           <span className="text-[#666]">{new Date(item.created_at).toLocaleDateString()}</span>
-          <span className="text-[#FFD700] font-semibold">{item.price_ton} TON</span>
+          <span className="text-[#FFD700] font-semibold">${item.price_usd} USD</span>
         </div>
       </div>
     </button>
@@ -177,7 +177,7 @@ function ArsenalDrawer({ item, onClose, getToken }: {
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-[#666]">Price</span>
-              <span className="text-[#FFD700] font-semibold">{item.price_ton} TON</span>
+              <span className="text-[#FFD700] font-semibold">${item.price_usd} USD</span>
             </div>
           </div>
 

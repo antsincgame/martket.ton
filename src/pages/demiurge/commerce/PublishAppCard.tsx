@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { TonForgeArtifactScan } from '../../../domain/tonforge/types';
 import { publishTonForgeApp } from '../../../services/tonforgeApi';
+import { useTonPrice } from '../../../hooks/useTonPrice';
 
 const publishSchema = z.object({
   catalogProductId: z.string().min(1, 'Catalog product ID required'),
@@ -15,7 +16,7 @@ const publishSchema = z.object({
   category: z.string().min(3, 'Minimum 3 characters'),
   summary: z.string().min(10, 'Minimum 10 characters').max(280, 'Maximum 280 characters'),
   description: z.string().min(20, 'Minimum 20 characters'),
-  priceTon: z.coerce.number().positive('Must be > 0'),
+  priceUsd: z.coerce.number().positive('Must be > 0'),
   version: z.string().min(1),
   sizeLabel: z.string().min(2),
   developerSignature: z.string().min(10, 'Signature too short'),
@@ -42,6 +43,7 @@ function normalizePlatforms(value: string): string[] {
 }
 
 export default function PublishAppCard({ wallet, lastScan, onPublished, setFlash }: PublishAppCardProps) {
+  const tonPrice = useTonPrice();
   const form = useForm<PublishFormValues>({
     resolver: zodResolver(publishSchema),
     defaultValues: {
@@ -51,7 +53,7 @@ export default function PublishAppCard({ wallet, lastScan, onPublished, setFlash
       category: 'developer-tools',
       summary: '',
       description: '',
-      priceTon: 1,
+      priceUsd: 5,
       version: '1.0.0',
       sizeLabel: '10 MB',
       developerSignature: '',
@@ -79,7 +81,7 @@ export default function PublishAppCard({ wallet, lastScan, onPublished, setFlash
         category: values.category,
         summary: values.summary,
         description: values.description,
-        priceTon: values.priceTon,
+        priceUsd: values.priceUsd,
         fileName: lastScan.fileName,
         version: values.version,
         sizeLabel: values.sizeLabel,
@@ -125,8 +127,11 @@ export default function PublishAppCard({ wallet, lastScan, onPublished, setFlash
         <Field label="Category" error={form.formState.errors.category?.message}>
           <input {...form.register('category')} className={inputClass} placeholder="developer-tools" />
         </Field>
-        <Field label="Price (TON)" error={form.formState.errors.priceTon?.message}>
-          <input type="number" step="0.1" min="0.1" {...form.register('priceTon')} className={inputClass} />
+        <Field label="Price (USD)" error={form.formState.errors.priceUsd?.message}>
+          <input type="number" step="0.01" min="0.01" {...form.register('priceUsd')} className={inputClass} />
+          {tonPrice.data && form.watch('priceUsd') > 0 && (
+            <span className="text-[10px] text-[#888]">≈ {(form.watch('priceUsd') / tonPrice.data).toFixed(2)} TON</span>
+          )}
         </Field>
         <Field label="Version" error={form.formState.errors.version?.message}>
           <input {...form.register('version')} className={inputClass} placeholder="1.0.0" />

@@ -52,7 +52,7 @@ export async function fetchTransactions(profileId: string, limit = DEFAULT_TX_LI
       productId: (s['product_id'] as string) ?? null,
       productName: productNameById.get((s['product_id'] as string) ?? '') ?? null,
       buyerId: (s['user_id'] as string) ?? null,
-      amountTon: (s['price_ton'] as number) ?? 0,
+      amountTon: (s['price_usd'] as number) ?? 0,
       txHash: (s['tx_hash'] as string) ?? null,
       status: 'completed',
       createdAt: s.$createdAt,

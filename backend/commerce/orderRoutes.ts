@@ -123,7 +123,6 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
       amountRaw: amounts.totalAmountNano,           // Что buyer платит (seller + fee)
       sellerNetAmountRaw: amounts.sellerAmountNano, // Что получит seller
       currency: listing['currency'],
-      jettonMaster: (listing['jettonMaster'] as string) || '',
       memo,
       tonTxHash: '',
       state: ORDER_STATE.PENDING_PAYMENT,
@@ -155,7 +154,6 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
         feeBps: amounts.feeBpsApplied,
         decimals: listing['decimals'],
         currency: listing['currency'],
-        jettonMaster: (listing['jettonMaster'] as string) || '',
         treasuryAddress: treasury,
         state: order['state'],
         escrow: escrowData ? {
@@ -300,7 +298,7 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
     const updated = await db.updateDocument(DATABASE_ID, COL_ORDERS, orderId, { state: ORDER_STATE.PAID, tonTxHash: realTxHash });
     await writeAudit(buyerWallet, 'order_paid', 'order', orderId, { txHash: realTxHash, flow: 'v3_legacy' });
 
-    bridgePurchaseToLibrary(req, listingRow, order, realTxHash).catch((err) =>
+    bridgePurchaseToLibrary(req, listingRow, realTxHash).catch((err) =>
       logger.warn('[commerce] bridge purchase:', err instanceof Error ? err.message : err),
     );
 
@@ -446,18 +444,17 @@ router.get('/buyers/me/orders', apiRequireAuth(), async (req: Request, res: Resp
 async function bridgePurchaseToLibrary(
   req: Request,
   listing: Record<string, unknown>,
-  order: Record<string, unknown>,
   txHash: string,
 ): Promise<void> {
   const catalogProductId = (listing['catalogProductId'] as string) || '';
   if (!catalogProductId) return;
   const profile = await resolveProfile(req);
   if (!profile) return;
-  const priceTon = nanoRawToTonHuman(order['amountRaw'] as string);
+  const priceUsd = parseFloat((listing['priceUsd'] as string) || '0') || 0;
   await insertPurchase({
     user_id: profile.id,
     product_id: catalogProductId,
-    price_ton: parseFloat(priceTon) || 0,
+    price_usd: priceUsd,
     tx_hash: txHash,
   });
 }

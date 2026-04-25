@@ -249,30 +249,20 @@ app.post('/api/client-errors', clientErrorLimiter, async (req, res) => {
   res.json({ success: true, errorId });
 });
 
-// ─── TON/USD price (cached, CoinGecko) ──────────────────────────────
+// ─── TON/USD price (cached, CoinGecko — 15 min TTL) ─────────────────
 
-let tonPriceCache: { usd: number; updatedAt: string } | null = null;
-let tonPriceFetchedAt = 0;
-const TON_PRICE_TTL_MS = 5 * 60 * 1000;
+import { getTonUsdPrice, getCachedTonPrice } from './commerce/tonPriceOracle.js';
 
 app.get('/api/ton-price', async (_req, res) => {
-  const now = Date.now();
-  if (tonPriceCache && now - tonPriceFetchedAt < TON_PRICE_TTL_MS) {
-    res.json({ success: true, data: tonPriceCache });
-    return;
-  }
   try {
-    const cgRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd');
-    if (!cgRes.ok) throw new Error(`CoinGecko ${cgRes.status}`);
-    const data = (await cgRes.json()) as { 'the-open-network'?: { usd?: number } };
-    const usd = data['the-open-network']?.usd ?? 0;
-    tonPriceCache = { usd, updatedAt: new Date().toISOString() };
-    tonPriceFetchedAt = now;
-    res.json({ success: true, data: tonPriceCache });
+    const usd = await getTonUsdPrice();
+    const cached = getCachedTonPrice();
+    res.json({ success: true, data: { usd, updatedAt: cached?.updatedAt ?? new Date().toISOString() } });
   } catch (err) {
     logger.warn('[ton-price] CoinGecko fetch failed:', err instanceof Error ? err.message : err);
-    if (tonPriceCache) {
-      res.json({ success: true, data: tonPriceCache, stale: true });
+    const stale = getCachedTonPrice();
+    if (stale) {
+      res.json({ success: true, data: { usd: stale.usd, updatedAt: stale.updatedAt }, stale: true });
     } else {
       res.status(503).json({ success: false, message: 'Price data unavailable' });
     }

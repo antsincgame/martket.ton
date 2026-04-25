@@ -374,7 +374,7 @@ router.get(
 
       const isCreator = product.creatorId === profile.id;
       const isAdmin = profile.role === 'admin' || profile.role === 'super_admin';
-      const isFreeProduct = product.priceTon === 0;
+      const isFreeProduct = product.priceUsd === 0;
 
       if (!isCreator && !isAdmin && !isFreeProduct) {
         const purchase = await repo.findPurchase(profile.id, product.id);

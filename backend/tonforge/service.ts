@@ -14,6 +14,8 @@
 import { createHash, randomUUID } from 'crypto';
 import { createDemoState } from './demoData.js';
 import { contractMetadata, onChainFields } from './contractMetadata.js';
+import { getTonUsdPrice, usdToTonHuman } from '../commerce/tonPriceOracle.js';
+import { tonHumanToNanoRaw } from '../commerce/money.js';
 import { logger } from '../logger.js';
 import {
   loadOnchainConfig,
@@ -62,7 +64,7 @@ export interface TonForgeService {
   scanArtifact(payload: Record<string, string>): ScanResult;
   publishApp(payload: Record<string, unknown>): TonForgeApp;
   /** @deprecated Use commerce createOrder (POST /api/v1/commerce/orders) instead. */
-  createPurchaseSession(payload: { appId: string; buyerWallet: string }): { app: TonForgeApp; session: PurchaseSession };
+  createPurchaseSession(payload: { appId: string; buyerWallet: string }): Promise<{ app: TonForgeApp; session: PurchaseSession }>;
   /** @deprecated Use commerce confirmOrder (POST /api/v1/commerce/orders/:id/confirm) instead. mintWorker handles on-chain minting. */
   confirmPurchaseSession(payload: { purchaseSessionId: string; buyerWallet: string; txHash?: string }): { session: PurchaseSession; license: License; app: TonForgeApp | undefined };
   /** @deprecated Use GET /api/v1/commerce/buyers/me/licenses instead. */
@@ -183,7 +185,7 @@ export function createTonForgeService(
       description: String(payload.description).trim(),
       sellerWallet: String(payload.sellerWallet).trim() as TonAddress,
       featured: false,
-      priceTon: Number(payload.priceTon),
+      priceUsd: Number(payload.priceUsd),
       commissionBps: 2000,
       buyerProtectionHours: 72,
       artifact: {
@@ -216,17 +218,19 @@ export function createTonForgeService(
     return app;
   }
 
-  function createPurchaseSession(payload: { appId: string; buyerWallet: string }) {
+  async function createPurchaseSession(payload: { appId: string; buyerWallet: string }) {
     const app = getAppById(payload.appId);
     if (!app) throw new Error('APP_NOT_FOUND');
     const createdAt = nowIso();
+    const tonRate = await getTonUsdPrice();
+    const tonHuman = usdToTonHuman(app.priceUsd, tonRate);
     const session: PurchaseSession = {
       purchaseSessionId: `session_${randomUUID()}` as PurchaseSessionId,
       buyerWallet: payload.buyerWallet.trim() as TonAddress,
       appId: app.appId,
       state: 'awaiting_wallet_payment',
-      amountTon: app.priceTon,
-      amountNano: String(Math.round(app.priceTon * 1_000_000_000)),
+      amountTon: parseFloat(tonHuman),
+      amountNano: tonHumanToNanoRaw(tonHuman),
       treasuryWallet: state.treasuryWallet,
       escrowAddress: buildTonAddress('Escrow', app.appId),
       memo: `forge_${randomUUID().slice(0, 8)}`,

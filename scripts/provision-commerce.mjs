@@ -152,6 +152,10 @@ async function setupListings(databases) {
     await waitForAttribute(databases, COL_LISTINGS, k);
   }
   await ignoreConflict(() =>
+    databases.createStringAttribute(DATABASE_ID, COL_LISTINGS, 'priceUsd', 32, false)
+  );
+  await waitForAttribute(databases, COL_LISTINGS, 'priceUsd');
+  await ignoreConflict(() =>
     databases.createIntegerAttribute(DATABASE_ID, COL_LISTINGS, 'decimals', true)
   );
   await waitForAttribute(databases, COL_LISTINGS, 'decimals');

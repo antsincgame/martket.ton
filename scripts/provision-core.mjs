@@ -224,8 +224,8 @@ async function setupLegacyProducts(databases) {
     );
     await waitForAttribute(databases, 'legacy_products', key);
   }
-  await ignoreConflict(() => databases.createFloatAttribute(DATABASE_ID, 'legacy_products', 'price_ton', true));
-  await waitForAttribute(databases, 'legacy_products', 'price_ton');
+  await ignoreConflict(() => databases.createFloatAttribute(DATABASE_ID, 'legacy_products', 'price_usd', true));
+  await waitForAttribute(databases, 'legacy_products', 'price_usd');
   await ignoreConflict(() => databases.createFloatAttribute(DATABASE_ID, 'legacy_products', 'rating', true));
   await waitForAttribute(databases, 'legacy_products', 'rating');
   await ignoreConflict(() => databases.createIntegerAttribute(DATABASE_ID, 'legacy_products', 'reviews_count', true));

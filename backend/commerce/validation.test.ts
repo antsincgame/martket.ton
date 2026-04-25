@@ -12,7 +12,7 @@ const VALID_BASE = {
   title: 'Test',
   deliveryType: 'download',
   deliveryPayload: 'something',
-  priceTon: '1',
+  priceUsd: 5,
 } as const;
 
 describe('tonAddressSchema', () => {

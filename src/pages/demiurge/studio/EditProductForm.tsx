@@ -20,7 +20,7 @@ interface ProductDetail {
   name: string;
   description: string | null;
   short_description: string | null;
-  price_ton: number;
+  price_usd: number;
   category: string;
   image: string | null;
   status: string;
@@ -52,7 +52,7 @@ export default function EditProductForm({ getToken }: EditProductFormProps) {
   const [name, setName] = useState('');
   const [shortDescription, setShortDescription] = useState('');
   const [description, setDescription] = useState('');
-  const [priceTon, setPriceTon] = useState('0');
+  const [priceUsd, setPriceUsd] = useState('0');
   const [category, setCategory] = useState('other');
   const [version, setVersion] = useState('1.0.0');
   const [imageUrl, setImageUrl] = useState('');
@@ -77,7 +77,7 @@ export default function EditProductForm({ getToken }: EditProductFormProps) {
         setName(data.name ?? '');
         setShortDescription(data.short_description ?? '');
         setDescription(data.description ?? '');
-        setPriceTon(String(data.price_ton ?? 0));
+        setPriceUsd(String(data.price_usd ?? 0));
         setCategory(data.category ?? 'other');
         setVersion(data.version ?? '1.0.0');
         setImageUrl(data.image ?? '');
@@ -97,17 +97,17 @@ export default function EditProductForm({ getToken }: EditProductFormProps) {
       name !== (product.name ?? '') ||
       shortDescription !== (product.short_description ?? '') ||
       description !== (product.description ?? '') ||
-      String(product.price_ton ?? 0) !== priceTon ||
+      String(product.price_usd ?? 0) !== priceUsd ||
       category !== (product.category ?? 'other') ||
       version !== (product.version ?? '1.0.0') ||
       imageUrl !== (product.image ?? '')
     );
-  }, [product, name, shortDescription, description, priceTon, category, version, imageUrl]);
+  }, [product, name, shortDescription, description, priceUsd, category, version, imageUrl]);
 
   const validate = (): string | null => {
     if (name.trim().length < PRODUCT_NAME_MIN) return `Name must be at least ${PRODUCT_NAME_MIN} characters`;
     if (name.trim().length > PRODUCT_NAME_MAX) return `Name must be at most ${PRODUCT_NAME_MAX} characters`;
-    const price = parseFloat(priceTon);
+    const price = parseFloat(priceUsd);
     if (Number.isNaN(price) || price < 0) return 'Price must be ≥ 0';
     return null;
   };
@@ -129,7 +129,7 @@ export default function EditProductForm({ getToken }: EditProductFormProps) {
           name: name.trim(),
           short_description: shortDescription.trim() || null,
           description: description.trim() || null,
-          price_ton: parseFloat(priceTon) || 0,
+          price_usd: parseFloat(priceUsd) || 0,
           category,
           version: version.trim() || '1.0.0',
           image: imageUrl.trim() || null,
@@ -155,7 +155,7 @@ export default function EditProductForm({ getToken }: EditProductFormProps) {
     setName(product.name ?? '');
     setShortDescription(product.short_description ?? '');
     setDescription(product.description ?? '');
-    setPriceTon(String(product.price_ton ?? 0));
+    setPriceUsd(String(product.price_usd ?? 0));
     setCategory(product.category ?? 'other');
     setVersion(product.version ?? '1.0.0');
     setImageUrl(product.image ?? '');
@@ -281,13 +281,13 @@ export default function EditProductForm({ getToken }: EditProductFormProps) {
         </div>
 
         <div>
-          <label className={labelClass}>Price (TON)</label>
+          <label className={labelClass}>Price (USD)</label>
           <input
             type="number"
-            step="0.1"
+            step="0.01"
             min="0"
-            value={priceTon}
-            onChange={(e) => setPriceTon(e.target.value)}
+            value={priceUsd}
+            onChange={(e) => setPriceUsd(e.target.value)}
             disabled={saving}
             className={inputClass}
           />

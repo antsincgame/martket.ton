@@ -82,10 +82,10 @@ async function createPurchases(db) {
   }
 
   await ignoreConflict(() =>
-    db.createFloatAttribute(DATABASE_ID, 'purchases', 'price_ton', false)
+    db.createFloatAttribute(DATABASE_ID, 'purchases', 'price_usd', false)
   );
-  await waitForAttribute(db, 'purchases', 'price_ton');
-  console.log('  + purchases.price_ton');
+  await waitForAttribute(db, 'purchases', 'price_usd');
+  console.log('  + purchases.price_usd');
 
   await ignoreConflict(() =>
     db.createIndex(DATABASE_ID, 'purchases', 'idx_user', IndexType.Key, ['user_id'])

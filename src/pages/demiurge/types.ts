@@ -1,7 +1,7 @@
 export interface PurchaseWithProduct {
   id: string;
   product_id: string;
-  price_ton: number;
+  price_usd: number;
   created_at: string;
   product: {
     id: string;
@@ -15,7 +15,7 @@ export interface CreatedProduct {
   id: string;
   name: string;
   description: string | null;
-  price_ton: number;
+  price_usd: number;
   category: string;
   image: string | null;
   status: string;

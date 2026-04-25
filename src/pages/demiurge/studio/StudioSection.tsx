@@ -142,7 +142,7 @@ function ProductRow({ product }: { product: CreatedProduct }) {
             )}
           </div>
           <div className="flex items-center gap-4 text-xs text-[#666] flex-wrap">
-            <span><span className="text-[#FFD700]">{product.price_ton}</span> TON</span>
+            <span><span className="text-[#FFD700]">${product.price_usd}</span> USD</span>
             <span>{product.downloads} downloads</span>
             <span>{product.category}</span>
           </div>

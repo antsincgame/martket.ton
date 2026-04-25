@@ -65,7 +65,6 @@ export type LicenseState = (typeof LicenseState)[keyof typeof LicenseState];
 
 export const Currency = {
   TON: 'TON',
-  JETTON: 'JETTON',
 } as const;
 export type Currency = (typeof Currency)[keyof typeof Currency];
 
@@ -158,7 +157,7 @@ export interface Product {
   name: string;
   description: string | null;
   shortDescription: string | null;
-  priceTon: number;
+  priceUsd: number;
   category: string;
   image: string | null;
   rating: number;
@@ -214,7 +213,6 @@ export interface Listing {
   title: string;
   description: string;
   currency: Currency;
-  jettonMaster: string;
   priceAmountRaw: string;
   decimals: number;
   platformFeeBps: number;
@@ -237,7 +235,6 @@ export interface Order {
   buyerWallet: TonAddress;
   amountRaw: string;
   currency: Currency;
-  jettonMaster: string;
   memo: string;
   tonTxHash: string;
   state: OrderState;
@@ -361,7 +358,7 @@ export interface TonForgeApp {
   description: string;
   sellerWallet: TonAddress;
   featured: boolean;
-  priceTon: number;
+  priceUsd: number;
   commissionBps: number;
   buyerProtectionHours: number;
   artifact: ArtifactInfo;
@@ -395,7 +392,7 @@ export interface Purchase {
   readonly id: string;
   userId: ProfileId;
   productId: ProductId;
-  priceTon: number;
+  priceUsd: number;
   txHash: string | null;
   readonly createdAt: string;
 }

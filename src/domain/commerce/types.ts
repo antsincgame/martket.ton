@@ -4,9 +4,9 @@ export interface CommerceListingPublic {
   catalogProductId: string;
   title: string;
   description: string;
-  currency: 'TON' | 'JETTON';
-  jettonMaster: string;
+  currency: 'TON';
   priceAmountRaw: string;
+  priceUsd?: string | null;
   decimals: number;
   platformFeeBps: number;
   status: string;
@@ -23,8 +23,6 @@ export interface CommerceConfigResponse {
   treasuryAddress: string;
   platformFeeBpsDefault: number;
   currencyTon: string;
-  currencyJetton: string;
-  jettonMasterConfigured: boolean;
 }
 
 export interface EscrowInfo {
@@ -70,7 +68,6 @@ export interface CreateOrderResponse {
   feeBps?: number;
   decimals: number;
   currency: string;
-  jettonMaster: string;
   treasuryAddress: string;
   state: string;
   escrow: EscrowInfo | null;

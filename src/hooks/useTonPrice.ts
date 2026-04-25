@@ -17,7 +17,7 @@ export function useTonPrice() {
   return useQuery({
     queryKey: ['ton-price-usd'],
     queryFn: fetchTonPrice,
-    staleTime: 5 * 60_000,
-    refetchInterval: 10 * 60_000,
+    staleTime: 15 * 60_000,
+    refetchInterval: 15 * 60_000,
   });
 }

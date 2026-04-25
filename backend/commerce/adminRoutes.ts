@@ -19,8 +19,6 @@ router.get('/config', (_req: Request, res: Response) => {
       treasuryAddress: treasury,
       platformFeeBpsDefault: DEFAULT_PLATFORM_FEE_BPS,
       currencyTon: CURRENCY.TON,
-      currencyJetton: CURRENCY.JETTON,
-      jettonMasterConfigured: Boolean((process.env.COMMERCE_JETTON_MASTER || '').trim()),
     },
   });
 });

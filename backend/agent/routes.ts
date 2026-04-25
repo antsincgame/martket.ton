@@ -23,6 +23,7 @@ import {
   LISTING_STATUS,
 } from '../commerce/constants.js';
 import { tonHumanToNanoRaw } from '../commerce/money.js';
+import { getTonUsdPrice, usdToTonHuman } from '../commerce/tonPriceOracle.js';
 import { mapListingPublic } from '../commerce/helpers.js';
 import { asDoc } from '../domain/appwrite-helpers.js';
 import { writeAudit } from '../commerce/audit.js';
@@ -71,8 +72,7 @@ router.post(
       // different address in the body, only its own wallet may receive funds.
       const {
         catalogProductId, title, description = '',
-        currency = CURRENCY.TON,
-        priceTon,
+        priceUsd,
         deliveryType, deliveryPayload,
         platformFeeBps = DEFAULT_PLATFORM_FEE_BPS,
         collectionAddress,
@@ -86,16 +86,14 @@ router.post(
         res.status(400).json({ error: 'collectionAddress is required', code: 'NO_COLLECTION' });
         return;
       }
-      if (currency !== CURRENCY.TON) {
-        res.status(400).json({ error: 'Only TON currency supported', code: 'CURRENCY' });
-        return;
-      }
-      if (priceTon === undefined) {
-        res.status(400).json({ error: 'priceTon is required', code: 'VALIDATION' });
+      if (priceUsd === undefined) {
+        res.status(400).json({ error: 'priceUsd is required', code: 'VALIDATION' });
         return;
       }
 
-      const priceAmountRaw = tonHumanToNanoRaw(priceTon);
+      const tonRate = await getTonUsdPrice();
+      const tonHuman = usdToTonHuman(Number(priceUsd), tonRate);
+      const priceAmountRaw = tonHumanToNanoRaw(tonHuman);
       const decimals = 9;
 
       const listing = await databases().createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), {
@@ -103,9 +101,9 @@ router.post(
         catalogProductId,
         title,
         description,
-        currency,
-        jettonMaster: '',
+        currency: CURRENCY.TON,
         priceAmountRaw,
+        priceUsd: String(priceUsd),
         decimals,
         platformFeeBps,
         status: LISTING_STATUS.ACTIVE,
@@ -149,8 +147,11 @@ router.patch(
       if (body.status) patch.status = body.status;
       if (body.title) patch.title = body.title;
       if (body.description) patch.description = body.description;
-      if (body.priceTon !== undefined && existing['currency'] === CURRENCY.TON) {
-        patch.priceAmountRaw = tonHumanToNanoRaw(body.priceTon as string | number);
+      if (body.priceUsd !== undefined) {
+        const tonRate = await getTonUsdPrice();
+        const tonHuman = usdToTonHuman(Number(body.priceUsd), tonRate);
+        patch.priceAmountRaw = tonHumanToNanoRaw(tonHuman);
+        patch.priceUsd = String(body.priceUsd);
       }
       if (typeof body.collectionAddress === 'string' && body.collectionAddress.length > 0) {
         patch.collection_address = body.collectionAddress;

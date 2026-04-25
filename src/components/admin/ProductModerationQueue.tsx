@@ -13,7 +13,7 @@ interface PendingProduct {
   short_description: string | null;
   category: string;
   image: string | null;
-  price_ton: number;
+  price_usd: number;
   creator_id: string;
   status: string;
   created_at: string;
@@ -189,7 +189,7 @@ export default function ProductModerationQueue() {
               </p>
               <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
                 <span>{product.category}</span>
-                <span>{product.price_ton} TON</span>
+                <span>${product.price_usd} USD</span>
                 <span>{new Date(product.created_at).toLocaleDateString()}</span>
                 {vtReportUrl(product) && (
                   <a

@@ -59,7 +59,7 @@ export default function ListingsTab({ workspace, workspaceLoading }: ListingsTab
                     )}
                   </div>
                   <p className="text-xs text-[#888] mt-0.5 truncate">
-                    {app.category} · {app.priceTon} TON · {app.license.type}
+                    {app.category} · ${app.priceUsd} · {app.license.type}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs">

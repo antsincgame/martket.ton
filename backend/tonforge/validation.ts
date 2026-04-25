@@ -23,7 +23,7 @@ export const publishAppSchema = z.object({
   category: z.string().min(1),
   summary: z.string().min(1).max(500),
   description: z.string().min(1).max(5000),
-  priceTon: z.number().min(0),
+  priceUsd: z.number().positive(),
   fileName: z.string().min(1),
   version: z.string().min(1),
   sizeLabel: z.string().min(1),
