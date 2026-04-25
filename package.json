@@ -31,7 +31,6 @@
     "framer-motion": "^12.38.0",
     "geoip-lite": "^2.0.1",
     "lucide-react": "^0.344.0",
-    "qrcode.react": "^3.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.72.1",
