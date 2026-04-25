@@ -76,9 +76,16 @@ function useAuthInternal(): AuthContextValue {
     // the Appwrite session so downstream `isAuthenticated` is correct even
     // if the caller (SignInPage / AuthCallbackPage) invokes fetchProfile()
     // right after creating the session.
-    const currentUser = await getCurrentUser();
-    if (currentUser && !controller.signal.aborted) {
-      setIsSignedIn(true);
+    try {
+      const currentUser = await Promise.race([
+        getCurrentUser(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+      ]);
+      if (currentUser && !controller.signal.aborted) {
+        setIsSignedIn(true);
+      }
+    } catch {
+      // Network issue — proceed without updating isSignedIn
     }
 
     const timeout = setTimeout(() => controller.abort(), 8000);
@@ -126,16 +133,26 @@ function useAuthInternal(): AuthContextValue {
       setSession(null);
     } finally {
       clearTimeout(timeout);
-      if (!controller.signal.aborted) setIsLoadingProfile(false);
+      // Always clear loading — even if aborted, spinner must not hang forever.
+      setIsLoadingProfile(false);
     }
   }, []);
 
   // On mount: ask Appwrite for current session and decide whether to load
-  // the backend profile.
+  // the backend profile. Race with a 6 s timeout so a slow/unreachable
+  // Appwrite never leaves the user staring at a spinner forever.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const user = await getCurrentUser();
+      let user = null;
+      try {
+        user = await Promise.race([
+          getCurrentUser(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
+        ]);
+      } catch {
+        // Network failure — treat as signed-out
+      }
       if (cancelled) return;
       const signed = !!user;
       setIsSignedIn(signed);
