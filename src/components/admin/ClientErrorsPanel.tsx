@@ -18,12 +18,27 @@ function parseMeta(raw: unknown): ErrorMeta {
   return (raw as ErrorMeta) ?? {};
 }
 
+function isStaleChunkError(message: string | undefined): boolean {
+  if (!message) return false;
+  return (
+    message.includes('dynamically imported module') ||
+    message.includes('Loading chunk') ||
+    message.includes('Importing a module script failed') ||
+    message.includes('Failed to fetch dynamically')
+  );
+}
+
 const ClientErrorsPanel = () => {
   const { data: logs = [], isLoading, error, refetch } = useAuditLogs(200);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showStale, setShowStale] = useState(false);
 
-  const clientErrors = logs.filter((l) => l.action === 'client_error');
+  const allErrors = logs.filter((l) => l.action === 'client_error');
+  const staleCount = allErrors.filter((l) => isStaleChunkError(parseMeta(l.metadata).message)).length;
+  const clientErrors = showStale
+    ? allErrors
+    : allErrors.filter((l) => !isStaleChunkError(parseMeta(l.metadata).message));
 
   if (isLoading) {
     return (
@@ -64,15 +79,30 @@ const ClientErrorsPanel = () => {
           </h2>
           <p className="text-gray-400 text-sm mt-1">
             {clientErrors.length} error{clientErrors.length !== 1 ? 's' : ''} captured from frontend
+            {staleCount > 0 && !showStale && (
+              <span className="ml-2 text-yellow-400/80 text-xs">
+                · {staleCount} stale chunk error{staleCount !== 1 ? 's' : ''} hidden
+              </span>
+            )}
           </p>
         </div>
-        <button
-          onClick={() => refetch()}
-          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors bg-white/5 px-3 py-1.5 rounded-lg"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {staleCount > 0 && (
+            <button
+              onClick={() => setShowStale((v) => !v)}
+              className="flex items-center gap-1.5 text-xs text-yellow-400 hover:text-yellow-300 transition-colors bg-yellow-500/10 border border-yellow-500/20 px-3 py-1.5 rounded-lg"
+            >
+              {showStale ? 'Hide stale' : 'Show stale'}
+            </button>
+          )}
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors bg-white/5 px-3 py-1.5 rounded-lg"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {clientErrors.length === 0 && (

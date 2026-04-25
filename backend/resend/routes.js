@@ -43,6 +43,17 @@ function getResendClient() {
   return new Resend(apiKey);
 }
 
+/**
+ * Resend SDK v6 returns domains as either `[{...}]` or `{ data: [...] }`
+ * depending on the API version. Normalise to a plain array so callers
+ * can `.find()` / `.map()` without type errors.
+ */
+function extractDomainsArray(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (raw && Array.isArray(raw.data)) return raw.data;
+  return [];
+}
+
 router.get(
   '/status',
   apiRequireAuth(),
@@ -57,15 +68,16 @@ router.get(
     }
 
     try {
-      const { data: domains } = await resend.domains.list();
-      const activeDomain = domains?.find((d) => d.status === 'verified') || domains?.[0];
+      const { data: rawDomains } = await resend.domains.list();
+      const domains = extractDomainsArray(rawDomains);
+      const activeDomain = domains.find((d) => d.status === 'verified') || domains[0];
       res.json({
         success: true,
         data: {
           connected: true,
           domain: activeDomain?.name || null,
           domainStatus: activeDomain?.status || null,
-          totalDomains: domains?.length || 0,
+          totalDomains: domains.length,
         },
       });
     } catch (err) {
@@ -586,8 +598,9 @@ router.get(
       return res.status(503).json({ success: false, message: 'Resend not configured' });
     }
     try {
-      const { data: domains } = await resend.domains.list();
-      const addresses = (domains || []).map((d) => ({
+      const { data: rawDomains } = await resend.domains.list();
+      const domains = extractDomainsArray(rawDomains);
+      const addresses = domains.map((d) => ({
         domain: d.name,
         status: d.status,
         region: d.region,
@@ -721,8 +734,9 @@ router.post(
     const resend = getResendClient();
     if (resend) {
       try {
-        const { data: domains } = await resend.domains.list();
-        const verifiedDomains = (domains || []).map((d) => d.name.toLowerCase());
+        const { data: rawDomains } = await resend.domains.list();
+        const domains = extractDomainsArray(rawDomains);
+        const verifiedDomains = domains.map((d) => d.name.toLowerCase());
         if (!verifiedDomains.includes(domainClean)) {
           return res.status(400).json({
             success: false,

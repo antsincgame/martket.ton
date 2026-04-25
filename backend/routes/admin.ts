@@ -117,6 +117,44 @@ router.post(
   }),
 );
 
+/**
+ * Admin-only detailed system health.
+ * Public /api/health intentionally hides infrastructure details (security
+ * by obscurity for unauthenticated callers); admins get the full picture.
+ */
+router.get(
+  '/system/health',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (_req, res) => {
+    const { isCoreConfigured } = await import('../core/appwriteServer.js');
+    let isR2 = false;
+    try {
+      const r2Mod = await import('../r2/client.js');
+      const r2 = ((r2Mod as unknown as { default?: typeof r2Mod }).default ?? r2Mod);
+      isR2 = r2.isR2Configured();
+    } catch { /* R2 module optional */ }
+
+    res.json({
+      success: true,
+      data: {
+        status: 'OK',
+        db: isCoreConfigured() ? 'appwrite' : 'not_configured',
+        auth: isCoreConfigured() ? 'appwrite' : 'not_configured',
+        shield: 'mahakala',
+        model: 'demiurge',
+        storage: isR2 ? 'r2' : 'not_configured',
+        scan: process.env.VIRUSTOTAL_API_KEY ? 'virustotal' : 'not_configured',
+        resend: process.env.RESEND_API_KEY ? 'configured' : 'not_configured',
+        nodeEnv: process.env.NODE_ENV || 'development',
+        nodeVersion: process.version,
+        uptimeSec: Math.floor(process.uptime()),
+        memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      },
+    });
+  }),
+);
+
 router.get(
   '/audit-logs',
   apiRequireAuth(),
@@ -129,7 +167,19 @@ router.get(
       if (log.metadata) {
         try { metaParsed = JSON.parse(log.metadata); } catch { metaParsed = log.metadata; }
       }
-      return { ...log, metadata: metaParsed };
+      // Wire format is snake_case — frontend reads `created_at`, `user_id`, etc.
+      return {
+        id: log.id,
+        user_id: log.userId,
+        action: log.action,
+        resource: log.resource,
+        resource_id: log.resourceId,
+        result: log.result,
+        metadata: metaParsed,
+        ip_address: log.ipAddress,
+        user_agent: log.userAgent,
+        created_at: log.createdAt,
+      };
     });
     res.json({ success: true, data: parsed });
   }),

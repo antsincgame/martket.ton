@@ -315,6 +315,34 @@ async function setupScanJobs(databases) {
   }
 }
 
+async function setupSupportTickets(databases) {
+  await ensureCollection(databases, 'support_tickets', 'Support tickets', CRUD_USERS);
+  const strings = [
+    ['user_id', 64, true],
+    ['subject', 200, true],
+    ['category', 32, true],
+    ['status', 32, true],
+    ['priority', 32, true],
+    ['product_id', 64, false],
+    ['assigned_to', 64, false],
+    ['messages', 50000, false],
+  ];
+  for (const [key, size, req] of strings) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, 'support_tickets', key, size, req)
+    );
+    await waitForAttribute(databases, 'support_tickets', key);
+  }
+  try {
+    await databases.createIndex(DATABASE_ID, 'support_tickets', 'idx_user_id', IndexType.Key, ['user_id']);
+    console.log('[core] Индекс support_tickets.user_id');
+  } catch (e) { if (e.code !== 409) throw e; }
+  try {
+    await databases.createIndex(DATABASE_ID, 'support_tickets', 'idx_status', IndexType.Key, ['status']);
+    console.log('[core] Индекс support_tickets.status');
+  } catch (e) { if (e.code !== 409) throw e; }
+}
+
 async function setupInboundEmails(databases) {
   await ensureCollection(databases, 'inbound_emails', 'Inbound emails (Resend)', [
     Permission.read(Role.team('admin')),
@@ -628,6 +656,7 @@ async function main() {
   await setupEmailTemplates(databases);
   await setupEmailCampaigns(databases);
   await setupEmailMailboxes(databases);
+  await setupSupportTickets(databases);
   await setupComplianceLedger(databases);
   await setupAudit(databases);
   await ensureBucket(storage);

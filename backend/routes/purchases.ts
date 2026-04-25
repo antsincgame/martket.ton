@@ -220,6 +220,11 @@ router.post(
       price_usd: priceUsd,
       tx_hash: tx_hash || null,
     });
+    if (!purchase) {
+      logger.error('[purchases] insertPurchase returned null');
+      res.status(500).json({ success: false, message: 'Failed to record purchase', code: 'PURCHASE_INSERT_FAILED' });
+      return;
+    }
     await repo.insertAuditLog({
       id: generateId(),
       user_id: profile.id,

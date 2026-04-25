@@ -31,6 +31,28 @@ class ErrorBoundary extends Component<Props, State> {
       console.error('Mahakala Guardian caught error:', error, errorInfo);
     }
     this.setState({ error, errorInfo });
+
+    // Stale-chunk recovery: a new deploy invalidated the JS chunks the
+    // current page references. Reload once to pick up the new index.html.
+    // We use sessionStorage to prevent infinite reload loops.
+    const msg = error.message || '';
+    const isChunkError = msg.includes('dynamically imported module') ||
+      msg.includes('Failed to fetch') ||
+      msg.includes('Loading chunk') ||
+      msg.includes('Importing a module script failed');
+
+    if (isChunkError) {
+      const reloadKey = '__chunk_reload_attempted';
+      if (!sessionStorage.getItem(reloadKey)) {
+        sessionStorage.setItem(reloadKey, '1');
+        window.location.reload();
+        return;
+      }
+      // Already tried — surface the error, don't pollute audit logs.
+      return;
+    }
+
+    sessionStorage.removeItem('__chunk_reload_attempted');
     this.reportToSentry(error, errorInfo);
     this.reportToBackend(error, errorInfo);
   }
