@@ -623,4 +623,142 @@ router.get(
   },
 );
 
+// ─── Corporate Mailboxes ─────────────────────────────────────────────
+
+let mailboxRepoCache = null;
+async function getMailboxRepo() {
+  if (!mailboxRepoCache) {
+    mailboxRepoCache = await import('../core/emailMailboxRepository.js');
+  }
+  return mailboxRepoCache;
+}
+
+/**
+ * GET /mailboxes — list all corporate mailboxes.
+ */
+router.get(
+  '/mailboxes',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (_req, res) => {
+    try {
+      const mboxRepo = await getMailboxRepo();
+      const mailboxes = await mboxRepo.listMailboxes();
+      res.json({ success: true, data: mailboxes });
+    } catch (err) {
+      logger.error('[resend/mailboxes] list failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
+/**
+ * POST /mailboxes — create a new corporate mailbox.
+ * Body: { name, username, domain, description? }
+ *
+ * Validates that the domain is verified in Resend before creating.
+ */
+router.post(
+  '/mailboxes',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    const { name, username, domain, description } = req.body;
+    if (!name || !username || !domain) {
+      return res.status(400).json({ success: false, message: 'name, username and domain are required' });
+    }
+
+    const usernameClean = username.toLowerCase().trim();
+    const domainClean = domain.toLowerCase().trim();
+    const usernameRe = /^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/;
+    if (!usernameRe.test(usernameClean)) {
+      return res.status(400).json({ success: false, message: 'Invalid username format' });
+    }
+
+    const resend = getResendClient();
+    if (resend) {
+      try {
+        const { data: domains } = await resend.domains.list();
+        const verifiedDomains = (domains || []).map((d) => d.name.toLowerCase());
+        if (!verifiedDomains.includes(domainClean)) {
+          return res.status(400).json({
+            success: false,
+            message: `Domain "${domainClean}" is not verified in Resend. Verify the domain first.`,
+          });
+        }
+      } catch (err) {
+        logger.warn('[resend/mailboxes] domain check failed, proceeding anyway:', err.message);
+      }
+    }
+
+    try {
+      const mboxRepo = await getMailboxRepo();
+
+      const address = `${usernameClean}@${domainClean}`;
+      const existing = await mboxRepo.findByAddress(address);
+      if (existing) {
+        return res.status(409).json({ success: false, message: `Mailbox ${address} already exists` });
+      }
+
+      const mailbox = await mboxRepo.createMailbox({
+        name: name.trim(),
+        username: usernameClean,
+        domain: domainClean,
+        description: description ? String(description).trim() : null,
+        createdBy: req.profile.id,
+      });
+      res.status(201).json({ success: true, data: mailbox });
+    } catch (err) {
+      logger.error('[resend/mailboxes] create failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
+/**
+ * PUT /mailboxes/:id — update name, description or active status.
+ */
+router.put(
+  '/mailboxes/:id',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    const { name, description, isActive } = req.body;
+    try {
+      const mboxRepo = await getMailboxRepo();
+      const updated = await mboxRepo.updateMailbox(req.params.id, {
+        ...(name !== undefined && { name: String(name) }),
+        ...(description !== undefined && { description: description ? String(description) : null }),
+        ...(isActive !== undefined && { isActive: Boolean(isActive) }),
+      });
+      if (!updated) return res.status(404).json({ success: false, message: 'Mailbox not found' });
+      res.json({ success: true, data: updated });
+    } catch (err) {
+      logger.error('[resend/mailboxes] update failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
+/**
+ * DELETE /mailboxes/:id — permanently remove a mailbox.
+ */
+router.delete(
+  '/mailboxes/:id',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    try {
+      const mboxRepo = await getMailboxRepo();
+      const existing = await mboxRepo.findById(req.params.id);
+      if (!existing) return res.status(404).json({ success: false, message: 'Mailbox not found' });
+      await mboxRepo.deleteMailbox(req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      logger.error('[resend/mailboxes] delete failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
 module.exports = router;

@@ -447,6 +447,56 @@ async function setupEmailCampaigns(databases) {
   }
 }
 
+async function setupEmailMailboxes(databases) {
+  await ensureCollection(databases, 'email_mailboxes', 'Corporate email mailboxes (Resend)', [
+    Permission.read(Role.team('admin')),
+    Permission.create(Role.team('admin')),
+    Permission.update(Role.team('admin')),
+    Permission.delete(Role.team('admin')),
+  ]);
+  const strings = [
+    ['mailbox_id', 64, true],
+    ['name', 255, true],
+    ['address', 320, true],
+    ['username', 128, true],
+    ['domain', 255, true],
+    ['description', 1024, false],
+    ['created_by', 64, true],
+  ];
+  for (const [key, size, req] of strings) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, 'email_mailboxes', key, size, req)
+    );
+    await waitForAttribute(databases, 'email_mailboxes', key);
+  }
+  await ignoreConflict(() =>
+    databases.createBooleanAttribute(DATABASE_ID, 'email_mailboxes', 'is_active', false, true)
+  );
+  await waitForAttribute(databases, 'email_mailboxes', 'is_active');
+
+  try {
+    await databases.createIndex(DATABASE_ID, 'email_mailboxes', 'idx_mailbox_id', IndexType.Unique, ['mailbox_id']);
+    console.log('[core] Индекс email_mailboxes.mailbox_id (unique)');
+  } catch (e) {
+    if (e.code === 409) console.log('[core] Индекс email_mailboxes.mailbox_id уже есть');
+    else throw e;
+  }
+  try {
+    await databases.createIndex(DATABASE_ID, 'email_mailboxes', 'idx_address', IndexType.Unique, ['address']);
+    console.log('[core] Индекс email_mailboxes.address (unique)');
+  } catch (e) {
+    if (e.code === 409) console.log('[core] Индекс email_mailboxes.address уже есть');
+    else throw e;
+  }
+  try {
+    await databases.createIndex(DATABASE_ID, 'email_mailboxes', 'idx_domain', IndexType.Key, ['domain']);
+    console.log('[core] Индекс email_mailboxes.domain');
+  } catch (e) {
+    if (e.code === 409) console.log('[core] Индекс email_mailboxes.domain уже есть');
+    else throw e;
+  }
+}
+
 async function setupAudit(databases) {
   await ensureCollection(databases, 'api_audit_logs', 'API audit logs', [
     Permission.create(Role.users()),
@@ -506,6 +556,7 @@ async function main() {
   await setupInboundEmails(databases);
   await setupEmailTemplates(databases);
   await setupEmailCampaigns(databases);
+  await setupEmailMailboxes(databases);
   await setupAudit(databases);
   await ensureBucket(storage);
 

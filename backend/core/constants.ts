@@ -8,5 +8,6 @@ export const COL_SCAN_JOBS = 'scan_jobs';
 export const COL_INBOUND_EMAILS = 'inbound_emails';
 export const COL_EMAIL_TEMPLATES = 'email_templates';
 export const COL_EMAIL_CAMPAIGNS = 'email_campaigns';
+export const COL_EMAIL_MAILBOXES = 'email_mailboxes';
 export const BUCKET_TONFORGE_STATE = 'tonforge_state';
 export const TONFORGE_STATE_FILE_ID = 'tonforge_state_json';
