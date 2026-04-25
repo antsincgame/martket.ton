@@ -23,6 +23,7 @@ import { appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
 import { resolveProfile } from '../middleware/auth.js';
 import { insertPurchase } from '../core/purchaseRepository.js';
 import { requireBuyerKycLite } from './handlers/requireBuyerKycLite.js';
+import { ensureLicenseForOrder, ListingNoCollectionError } from './handlers/ensureLicenseForOrder.js';
 
 
 const router = express.Router();
@@ -278,14 +279,34 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
         }).catch((err) => logger.warn('[commerce] ledger escrow_fund:', err));
       }
 
+      const trialWindowSec = parseInt(process.env.TRIAL_WINDOW_SEC || '259200', 10);
+      const trialEndsAt = new Date(Date.now() + trialWindowSec * 1000).toISOString();
+      const listingForLicense = await db.getDocument(DATABASE_ID, COL_LISTINGS, order['listingId'] as string).catch(() => null);
+      if (listingForLicense) {
+        ensureLicenseForOrder(
+          { $id: orderId, listingId: order['listingId'] as string, buyerWallet, escrowAddress },
+          {
+            collection_address: listingForLicense['collectionAddress'] as string | undefined,
+            catalogProductId: listingForLicense['catalogProductId'] as string | undefined,
+            sellerWallet: listingForLicense['sellerWallet'] as string | undefined,
+          },
+          trialEndsAt,
+        ).catch((err) => {
+          if (err instanceof ListingNoCollectionError) {
+            logger.warn(`[commerce] ensureLicense: ${err.message}`);
+          } else {
+            logger.warn('[commerce] ensureLicense failed:', err instanceof Error ? err.message : err);
+          }
+        });
+      }
+
       res.json({
         data: {
           state: updated['state'],         // Останется PENDING_PAYMENT
           orderId: updated.$id,
           escrowAddress,
           tonTxHash: realTxHash,
-          mintPending: true,                // UI: "Payment received, minting in progress…"
-          // Entitlement.deliveryPayload появится после mint (worker создаст его и переведёт в PAID).
+          mintPending: true,
         },
       });
       return;
@@ -325,6 +346,18 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
     });
     const updated = await db.updateDocument(DATABASE_ID, COL_ORDERS, orderId, { state: ORDER_STATE.PAID, tonTxHash: realTxHash });
     await writeAudit(buyerWallet, 'order_paid', 'order', orderId, { txHash: realTxHash, flow: 'v3_legacy' });
+
+    recordLedgerEntry({
+      entryType: 'escrow_release',
+      refType: 'order',
+      refId: orderId,
+      buyerWallet,
+      amountTonRaw: (order['amountRaw'] as string) ?? '0',
+      txHash: realTxHash,
+      productName: (listingRow['title'] as string) ?? '',
+      listingId: (order['listingId'] as string) ?? null,
+      buyerIp: req.ip ?? null,
+    }).catch((err) => logger.warn('[commerce] ledger v3 escrow_release:', err));
 
     bridgePurchaseToLibrary(req, listingRow, realTxHash).catch((err) =>
       logger.warn('[commerce] bridge purchase:', err instanceof Error ? err.message : err),

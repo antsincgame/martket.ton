@@ -34,6 +34,7 @@ import {
 } from './mintSigner.js';
 import { logger } from '../logger.js';
 import { writeAudit } from './audit.js';
+import { recordLedgerEntry } from '../core/ledgerService.js';
 
 const POLL_INTERVAL_MS = parseInt(process.env.MINT_WORKER_POLL_MS || '30000', 10);
 const MAX_MINT_ATTEMPTS = 5;
@@ -258,6 +259,18 @@ async function onMintConfirmed(order: PendingOrderRow, licenseAddress: string): 
     await writeAudit(order.buyerWallet, 'mint_confirmed', 'order', order.$id, {
       licenseAddress,
     });
+
+    recordLedgerEntry({
+      entryType: 'mint_license',
+      refType: 'order',
+      refId: order.$id,
+      buyerWallet: order.buyerWallet,
+      amountTonRaw: order.amountRaw,
+      licenseAddress,
+      listingId: order.listingId,
+      productName: order.listingSnapshotTitle ?? (listing['title'] as string) ?? '',
+      escrowAddress: order.escrowAddress ?? null,
+    }).catch((err) => logger.warn('[mintWorker] ledger mint_license:', err instanceof Error ? err.message : err));
 
     logger.info(`[mintWorker] mint confirmed for order ${order.$id}: license=${licenseAddress}`);
   } catch (err) {

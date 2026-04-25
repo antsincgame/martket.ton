@@ -55,6 +55,11 @@ router.get(
   }),
 );
 
+/**
+ * Public demiurge profile page — intentionally unauthenticated.
+ * Returns only published products of an active creator.
+ * Used by /developer/:slug page on the storefront.
+ */
 router.get(
   '/demiurge/:id',
   asyncHandler(async (req, res) => {
