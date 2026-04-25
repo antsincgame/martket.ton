@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Gem, AlertTriangle, Loader2 } from 'lucide-react';
 import AuthLayout from './AuthLayout';
@@ -15,34 +15,45 @@ export default function AuthCallbackPage() {
   const [params] = useSearchParams();
   const { fetchProfile } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const processedRef = useRef(false);
 
   useEffect(() => {
+    if (processedRef.current) {
+      logger.warn('[AUTH_AUDIT] AuthCallbackPage — skipping duplicate effect run');
+      return;
+    }
     const userId = params.get('userId') || '';
     const secret = params.get('secret') || '';
+    logger.warn('[AUTH_AUDIT] AuthCallbackPage effect fired', {
+      userId: userId || '(empty)',
+      secretLen: secret.length,
+      url: window.location.href,
+    });
     if (!userId || !secret) {
+      logger.warn('[AUTH_AUDIT] AuthCallbackPage — missing userId or secret');
       setError('Invalid sign-in link. Please request a new one.');
       return;
     }
-    let cancelled = false;
+    processedRef.current = true;
     (async () => {
       try {
+        logger.warn('[AUTH_AUDIT] step 1/4 — calling completeOAuthCallback');
         await completeOAuthCallback(userId, secret);
-        if (cancelled) return;
-        // Let the Appwrite session propagate before JWT minting.
+
+        logger.warn('[AUTH_AUDIT] step 2/4 — session created, waiting 500ms for propagation');
         await new Promise(r => setTimeout(r, 500));
-        if (cancelled) return;
+
+        logger.warn('[AUTH_AUDIT] step 3/4 — calling fetchProfile');
         await fetchProfile();
-        if (!cancelled) navigate('/', { replace: true });
+
+        logger.warn('[AUTH_AUDIT] step 4/4 — navigating to /');
+        navigate('/', { replace: true });
       } catch (err: unknown) {
-        if (cancelled) return;
         const msg = err instanceof Error ? err.message : 'Sign-in failed';
-        logger.warn('[auth/callback] OAuth callback failed:', msg);
+        logger.warn('[AUTH_AUDIT] AuthCallbackPage — FATAL error in OAuth flow:', msg);
         setError(msg);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [params, navigate, fetchProfile]);
 
   if (error) {

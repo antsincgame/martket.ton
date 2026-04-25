@@ -62,10 +62,17 @@ export async function verifyEmailOtp(userId: string, otp: string): Promise<void>
  * Completes an OAuth callback by exchanging userId+secret for a session.
  */
 export async function completeOAuthCallback(userId: string, secret: string): Promise<void> {
+  logger.warn('[AUTH_AUDIT] completeOAuthCallback start', { userId, secretLen: secret.length });
   const account = ensureClient();
   if (!userId || !secret) throw new Error('userId and secret are required');
-  await account.createSession(userId, secret);
-  cachedJwt = null;
+  try {
+    await account.createSession(userId, secret);
+    cachedJwt = null;
+    logger.warn('[AUTH_AUDIT] completeOAuthCallback session created OK');
+  } catch (err: unknown) {
+    logger.warn('[AUTH_AUDIT] completeOAuthCallback FAILED:', err instanceof Error ? err.message : err);
+    throw err;
+  }
 }
 
 /**
@@ -78,13 +85,16 @@ export async function completeOAuthCallback(userId: string, secret: string): Pro
  */
 export async function startGithubOAuth(): Promise<void> {
   const account = ensureClient();
+  logger.warn('[AUTH_AUDIT] startGithubOAuth — clearing existing session');
   try {
     await account.deleteSession('current');
     cachedJwt = null;
+    logger.warn('[AUTH_AUDIT] startGithubOAuth — old session deleted');
   } catch {
-    // No active session — that's fine, proceed.
+    logger.warn('[AUTH_AUDIT] startGithubOAuth — no active session to delete');
   }
   const callback = buildCallbackUrl();
+  logger.warn('[AUTH_AUDIT] startGithubOAuth — redirecting to GitHub, callback:', callback);
   account.createOAuth2Token(OAuthProvider.Github, callback, callback);
 }
 
@@ -92,10 +102,16 @@ export async function startGithubOAuth(): Promise<void> {
  * Returns the currently authenticated Appwrite user, or null if no session.
  */
 export async function getCurrentUser(): Promise<AppwriteUser | null> {
-  if (!isAppwriteConfigured || !appwriteAccount) return null;
+  if (!isAppwriteConfigured || !appwriteAccount) {
+    logger.warn('[AUTH_AUDIT] getCurrentUser — Appwrite not configured');
+    return null;
+  }
   try {
-    return await appwriteAccount.get();
-  } catch {
+    const user = await appwriteAccount.get();
+    logger.warn('[AUTH_AUDIT] getCurrentUser OK:', { id: user.$id, email: user.email, name: user.name });
+    return user;
+  } catch (err: unknown) {
+    logger.warn('[AUTH_AUDIT] getCurrentUser — no session:', err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -111,9 +127,10 @@ export async function getJwt(): Promise<string | null> {
   try {
     const { jwt } = await appwriteAccount.createJWT();
     cachedJwt = { token: jwt, expiresAt: now + JWT_TTL_MS };
+    logger.warn('[AUTH_AUDIT] getJwt — minted new JWT OK');
     return jwt;
   } catch (err: unknown) {
-    logger.warn('[appwriteAuth] createJWT failed:', err instanceof Error ? err.message : err);
+    logger.warn('[AUTH_AUDIT] getJwt — createJWT FAILED:', err instanceof Error ? err.message : err);
     cachedJwt = null;
     return null;
   }
