@@ -1,12 +1,12 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { Gem } from 'lucide-react';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoadingScreen from './components/LoadingScreen';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import SecretTrigger from './components/SecretTrigger';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useAuth } from './contexts/AuthContext';
 import TonConnectWrapper from './components/TonConnectWrapper';
@@ -84,11 +84,22 @@ const SacredGem: React.FC = () => {
   const { isAuthenticated, hasRole } = useAuth();
 
   const isAdmin = hasRole('admin');
+  const isSuperAdmin = hasRole('super_admin');
   const isMod = hasRole('moderator');
-  if (!isAuthenticated || (!isAdmin && !isMod)) return null;
+  if (!isAuthenticated || (!isAdmin && !isSuperAdmin && !isMod)) return null;
 
-  const target = isAdmin ? '/admin' : '/moderator';
-  return <SecretTrigger onActivate={() => navigate(target)} />;
+  const target = (isAdmin || isSuperAdmin) ? '/admin' : '/moderator';
+  const label = isSuperAdmin ? 'Super Admin' : isAdmin ? 'Admin' : 'Moderator';
+
+  return (
+    <button
+      onClick={() => navigate(target)}
+      title={`${label} panel`}
+      className="fixed bottom-5 right-5 z-[9998] flex h-11 w-11 items-center justify-center rounded-full bg-[#1a0a2e] shadow-lg shadow-purple-900/50 ring-1 ring-purple-500/40 transition-all duration-200 hover:scale-110 hover:ring-purple-400/80 hover:shadow-purple-700/60"
+    >
+      <Gem className="h-5 w-5 text-purple-300" />
+    </button>
+  );
 };
 
 /** Resets ErrorBoundary on route change — the user can navigate away from a broken page. */
