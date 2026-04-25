@@ -186,30 +186,23 @@ Production CSP:
 ## TON/USD Price Endpoint
 
 ### `GET /api/ton-price`
-Returns the current TON/USD exchange rate from CoinGecko, cached for 5 minutes.
+Returns the current TON/USD exchange rate, cached for 15 minutes.
 
 ```bash
 curl -s http://localhost:8081/api/ton-price | jq .
-# { "success": true, "data": { "usd": 3.42, "updatedAt": "2026-04-18T..." } }
+# { "success": true, "data": { "usd": 1.33, "updatedAt": "2026-04-25T..." } }
 ```
 
-No API key is required for CoinGecko's public endpoint (rate limit: 10-30 req/min).
-If CoinGecko is down, returns the last cached value with `"stale": true`.
+Price providers (cascading fallback — first success wins):
+1. **CoinCap v2** — free, no API key, 200 req/min (`api.coincap.io/v2/assets/toncoin`)
+2. **CoinMarketRate** — free, no registration (`coinmarketrate.com`)
+
+If all providers are down, returns the last cached value with `"stale": true`.
 
 ### Coolify Deployment Instructions
 
-The `/api/ton-price` endpoint requires **no additional env vars**. It works
-out of the box via the public CoinGecko API.
-
-If you want to use CoinGecko's paid tier for higher rate limits:
-1. Get a CoinGecko API key at https://www.coingecko.com/en/api/pricing
-2. Add `COINGECKO_API_KEY` to your Coolify env vars
-3. The endpoint currently uses the public API — to switch to pro, update
-   the fetch URL in `backend/server.ts` to `https://pro-api.coingecko.com/...`
-   with the `x-cg-pro-api-key` header.
-
-For self-hosted price caching, deploy a cron job that writes to a Redis key
-and have the backend read from Redis instead of CoinGecko directly.
+The `/api/ton-price` endpoint requires **no additional env vars**. Both
+CoinCap and CoinMarketRate are free public APIs that work without API keys.
 
 ## Client Error Reporting
 

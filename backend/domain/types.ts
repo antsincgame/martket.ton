@@ -397,6 +397,51 @@ export interface Purchase {
   readonly createdAt: string;
 }
 
+// ─── Compliance Ledger ──────────────────────────────────────────────
+
+export type LedgerEntryType =
+  | 'purchase'
+  | 'sale'
+  | 'escrow_fund'
+  | 'escrow_release'
+  | 'platform_fee'
+  | 'refund'
+  | 'mint_license'
+  | 'burn_license';
+
+export type ComplianceStatus = 'clean' | 'review' | 'reported' | 'flagged';
+export type Jurisdiction = 'US' | 'EU' | 'OTHER' | 'UNKNOWN';
+
+export interface LedgerEntry {
+  readonly id: string;
+  entryType: LedgerEntryType;
+  refType: 'order' | 'purchase';
+  refId: string;
+  buyerWallet: string | null;
+  sellerWallet: string | null;
+  buyerProfileId: string | null;
+  sellerProfileId: string | null;
+  amountUsd: number;
+  amountTonRaw: string;
+  tonUsdRate: number;
+  platformFeeUsd: number;
+  platformFeeTonRaw: string;
+  txHash: string | null;
+  escrowAddress: string | null;
+  licenseAddress: string | null;
+  productName: string;
+  listingId: string | null;
+  buyerCountry: string | null;
+  buyerIpCountry: string | null;
+  sellerCountry: string | null;
+  buyerIp: string | null;
+  geoKycMatch: boolean;
+  jurisdiction: Jurisdiction;
+  complianceStatus: ComplianceStatus;
+  notes: string | null;
+  readonly createdAt: string;
+}
+
 // ─── TonForge State (in-memory aggregate) ───────────────────────────
 
 export interface TonForgeState {

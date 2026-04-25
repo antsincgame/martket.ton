@@ -12,6 +12,7 @@ import { verifyNativeTonTransfer } from '../commerce/tonVerify.js';
 import { getTonUsdPrice, usdToTonHuman } from '../commerce/tonPriceOracle.js';
 import { tonHumanToNanoRaw } from '../commerce/money.js';
 import { logger } from '../logger.js';
+import { recordLedgerEntry } from '../core/ledgerService.js';
 
 /**
  * Deterministic on-chain memo for a (buyer, product) pair.
@@ -227,6 +228,21 @@ router.post(
       ip_address: req.ip,
       user_agent: req.get('user-agent') || '',
     });
+
+    recordLedgerEntry({
+      entryType: 'purchase',
+      refType: 'purchase',
+      refId: purchase.id,
+      buyerWallet: profile.tonAddress ?? null,
+      buyerProfileId: profile.id,
+      amountUsd: priceUsd,
+      amountTonRaw: isPaid ? tonHumanToNanoRaw(usdToTonHuman(priceUsd, await getTonUsdPrice().catch(() => 0))) : '0',
+      txHash: tx_hash || null,
+      productName: product.name,
+      buyerIp: req.ip ?? null,
+      buyerKycCountry: profile.kycLiteCountryCode ?? null,
+    }).catch((err) => logger.warn('[purchases] ledger write failed:', err));
+
     res.json({ success: true, data: purchase });
   }),
 );

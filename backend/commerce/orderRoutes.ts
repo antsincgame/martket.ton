@@ -14,6 +14,7 @@ import { screenWallet } from '../sanctions/screen.js';
 import { resolveNetworkConfig } from '../config/network.js';
 import { writeAudit } from './audit.js';
 import { logger } from '../logger.js';
+import { recordLedgerEntry } from '../core/ledgerService.js';
 import { apiRequireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
@@ -249,6 +250,22 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
         flow: 'v4_escrow',
         escrowAddress,
       });
+
+      recordLedgerEntry({
+        entryType: 'escrow_fund',
+        refType: 'order',
+        refId: orderId,
+        buyerWallet,
+        sellerWallet: (order['sellerWallet'] as string) ?? null,
+        amountUsd: 0,
+        amountTonRaw: (order['amountRaw'] as string) ?? '0',
+        platformFeeTonRaw: String(BigInt(order['amountRaw'] as string || '0') - BigInt(order['sellerNetAmountRaw'] as string || '0')),
+        txHash: realTxHash,
+        escrowAddress,
+        productName: (order['listingSnapshotTitle'] as string) ?? '',
+        listingId: (order['listingId'] as string) ?? null,
+        buyerIp: req.ip ?? null,
+      }).catch((err) => logger.warn('[commerce] ledger escrow_fund:', err));
 
       res.json({
         data: {

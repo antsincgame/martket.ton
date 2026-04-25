@@ -497,6 +497,77 @@ async function setupEmailMailboxes(databases) {
   }
 }
 
+async function setupComplianceLedger(databases) {
+  await ensureCollection(databases, 'compliance_ledger', 'Compliance financial ledger', [
+    Permission.read(Role.team('admin')),
+    Permission.create(Role.users()),
+    Permission.update(Role.team('admin')),
+  ]);
+  const strings = [
+    ['entry_type', 32, true],
+    ['ref_type', 16, true],
+    ['ref_id', 64, true],
+    ['buyer_wallet', 128, false],
+    ['seller_wallet', 128, false],
+    ['buyer_profile_id', 64, false],
+    ['seller_profile_id', 64, false],
+    ['amount_ton_raw', 40, false],
+    ['platform_fee_ton_raw', 40, false],
+    ['tx_hash', 128, false],
+    ['escrow_address', 128, false],
+    ['license_address', 128, false],
+    ['product_name', 255, false],
+    ['listing_id', 64, false],
+    ['buyer_country', 2, false],
+    ['buyer_ip_country', 2, false],
+    ['seller_country', 2, false],
+    ['buyer_ip', 45, false],
+    ['jurisdiction', 16, false],
+    ['compliance_status', 16, true],
+    ['notes', 1024, false],
+  ];
+  for (const [key, size, req] of strings) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, 'compliance_ledger', key, size, req)
+    );
+    await waitForAttribute(databases, 'compliance_ledger', key);
+  }
+  await ignoreConflict(() =>
+    databases.createFloatAttribute(DATABASE_ID, 'compliance_ledger', 'amount_usd', false)
+  );
+  await waitForAttribute(databases, 'compliance_ledger', 'amount_usd');
+  await ignoreConflict(() =>
+    databases.createFloatAttribute(DATABASE_ID, 'compliance_ledger', 'ton_usd_rate', false)
+  );
+  await waitForAttribute(databases, 'compliance_ledger', 'ton_usd_rate');
+  await ignoreConflict(() =>
+    databases.createFloatAttribute(DATABASE_ID, 'compliance_ledger', 'platform_fee_usd', false)
+  );
+  await waitForAttribute(databases, 'compliance_ledger', 'platform_fee_usd');
+  await ignoreConflict(() =>
+    databases.createBooleanAttribute(DATABASE_ID, 'compliance_ledger', 'geo_kyc_match', false, true)
+  );
+  await waitForAttribute(databases, 'compliance_ledger', 'geo_kyc_match');
+
+  const indexes = [
+    ['idx_entry_type', IndexType.Key, ['entry_type']],
+    ['idx_ref_id', IndexType.Key, ['ref_id']],
+    ['idx_buyer_country', IndexType.Key, ['buyer_country']],
+    ['idx_jurisdiction', IndexType.Key, ['jurisdiction']],
+    ['idx_compliance_status', IndexType.Key, ['compliance_status']],
+    ['idx_geo_kyc_match', IndexType.Key, ['geo_kyc_match']],
+  ];
+  for (const [name, type, keys] of indexes) {
+    try {
+      await databases.createIndex(DATABASE_ID, 'compliance_ledger', name, type, keys);
+      console.log(`[core] Индекс compliance_ledger.${name}`);
+    } catch (e) {
+      if (e.code === 409) console.log(`[core] Индекс ${name} уже есть`);
+      else throw e;
+    }
+  }
+}
+
 async function setupAudit(databases) {
   await ensureCollection(databases, 'api_audit_logs', 'API audit logs', [
     Permission.create(Role.users()),
@@ -557,6 +628,7 @@ async function main() {
   await setupEmailTemplates(databases);
   await setupEmailCampaigns(databases);
   await setupEmailMailboxes(databases);
+  await setupComplianceLedger(databases);
   await setupAudit(databases);
   await ensureBucket(storage);
 

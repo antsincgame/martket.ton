@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock, Coins, Mail, Folder, MessageCircle, ShieldCheck, Bug } from 'lucide-react';
+import { Shield, Users, Database, Settings, AlertTriangle, BarChart, FileText, Lock, Coins, Mail, Folder, MessageCircle, ShieldCheck, Bug, BookOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import SecurityMonitor from '../components/SecurityMonitor';
 import RealUserManagement from '../components/RealUserManagement';
@@ -13,6 +13,7 @@ import SystemConfig from '../components/admin/SystemConfig';
 import SupportTickets from '../components/admin/SupportTickets';
 import VerifiedDemiurges from '../components/admin/VerifiedDemiurges';
 import ClientErrorsPanel from '../components/admin/ClientErrorsPanel';
+import ComplianceLedger from '../components/admin/ComplianceLedger';
 
 const AdminDashboard = () => {
   const { user, hasPermission, getSecurityLevel, hasRole, isAuthenticated, isLoading } = useAuth();
@@ -107,6 +108,13 @@ const AdminDashboard = () => {
       icon: Folder,
       component: CategoryManagement,
       requiredPermission: { resource: 'categories', action: 'read' },
+    },
+    {
+      id: 'ledger',
+      label: 'Ledger',
+      icon: BookOpen,
+      component: ComplianceLedger,
+      requiredPermission: { resource: '*', action: 'read' },
     },
     {
       id: 'commerce',

@@ -249,7 +249,7 @@ app.post('/api/client-errors', clientErrorLimiter, async (req, res) => {
   res.json({ success: true, errorId });
 });
 
-// ─── TON/USD price (cached, CoinGecko — 15 min TTL) ─────────────────
+// ─── TON/USD price (cached, CoinCap → CoinMarketRate — 15 min TTL) ──
 
 import { getTonUsdPrice, getCachedTonPrice } from './commerce/tonPriceOracle.js';
 
@@ -259,7 +259,7 @@ app.get('/api/ton-price', async (_req, res) => {
     const cached = getCachedTonPrice();
     res.json({ success: true, data: { usd, updatedAt: cached?.updatedAt ?? new Date().toISOString() } });
   } catch (err) {
-    logger.warn('[ton-price] CoinGecko fetch failed:', err instanceof Error ? err.message : err);
+    logger.warn('[ton-price] price fetch failed:', err instanceof Error ? err.message : err);
     const stale = getCachedTonPrice();
     if (stale) {
       res.json({ success: true, data: { usd: stale.usd, updatedAt: stale.updatedAt }, stale: true });

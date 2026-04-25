@@ -13,9 +13,12 @@ export const ROLES: Record<string, UserRole> = {
     id: 'admin',
     name: 'admin',
     permissions: [
+      { resource: '*', actions: ['create', 'read', 'update', 'delete', 'approve'] },
       { resource: 'users', actions: ['create', 'read', 'update', 'ban'] },
       { resource: 'products', actions: ['create', 'read', 'update', 'delete', 'approve'] },
       { resource: 'categories', actions: ['create', 'read', 'update', 'delete'] },
+      { resource: 'audit_logs', actions: ['read'] },
+      { resource: 'analytics', actions: ['read'] },
       { resource: 'donations', actions: ['read', 'approve'] },
     ],
     sessionDuration: 240,

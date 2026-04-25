@@ -8,6 +8,13 @@ import * as repo from '../core/repository.js';
 import { profileToSnakeCase, updateProfile } from '../core/repository.js';
 import { generateId } from '../core/generateId.js';
 import { listAllProducts, listProductsByCategory, renameCategory } from '../core/productRepository.js';
+import {
+  listLedgerEntries,
+  getLedgerEntry,
+  updateComplianceStatus,
+  getAggregateStats,
+} from '../core/ledgerRepository.js';
+import type { ComplianceStatus } from '../domain/types.js';
 
 const router = express.Router();
 
@@ -339,7 +346,7 @@ router.patch(
 // ─── Categories ──────────────────────────────────────────────────────────────
 
 router.get(
-  '/categories',
+  '/admin/categories',
   apiRequireAuth(),
   requireAdmin,
   asyncHandler(async (_req, res) => {
@@ -357,7 +364,7 @@ router.get(
 );
 
 router.post(
-  '/categories',
+  '/admin/categories',
   apiRequireAuth(),
   requireAdmin,
   asyncHandler(async (req, res) => {
@@ -377,7 +384,7 @@ router.post(
 );
 
 router.patch(
-  '/categories/:slug',
+  '/admin/categories/:slug',
   apiRequireAuth(),
   requireAdmin,
   asyncHandler(async (req, res) => {
@@ -398,7 +405,7 @@ router.patch(
 );
 
 router.delete(
-  '/categories/:slug',
+  '/admin/categories/:slug',
   apiRequireAuth(),
   requireAdmin,
   asyncHandler(async (req, res) => {
@@ -412,6 +419,122 @@ router.delete(
       return;
     }
     res.json({ success: true, data: { slug, deleted: true } });
+  }),
+);
+
+// ─── Compliance Ledger ──────────────────────────────────────────────
+
+router.get(
+  '/admin/ledger',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const filters = {
+      entryType: req.query.entryType as string | undefined,
+      jurisdiction: req.query.jurisdiction as string | undefined,
+      complianceStatus: req.query.complianceStatus as string | undefined,
+      buyerCountry: req.query.buyerCountry as string | undefined,
+      geoKycMatch: req.query.geoKycMatch === 'false' ? false : req.query.geoKycMatch === 'true' ? true : undefined,
+      search: req.query.search as string | undefined,
+      dateFrom: req.query.dateFrom as string | undefined,
+      dateTo: req.query.dateTo as string | undefined,
+      limit: Math.min(Number(req.query.limit) || 50, 200),
+      offset: Number(req.query.offset) || 0,
+    };
+    const result = await listLedgerEntries(filters);
+    res.json({ success: true, data: result.entries, total: result.total });
+  }),
+);
+
+router.get(
+  '/admin/ledger/stats',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const dateFrom = req.query.dateFrom as string | undefined;
+    const dateTo = req.query.dateTo as string | undefined;
+    const stats = await getAggregateStats(dateFrom, dateTo);
+    res.json({ success: true, data: stats });
+  }),
+);
+
+router.get(
+  '/admin/ledger/export',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const filters = {
+      entryType: req.query.entryType as string | undefined,
+      jurisdiction: req.query.jurisdiction as string | undefined,
+      complianceStatus: req.query.complianceStatus as string | undefined,
+      dateFrom: req.query.dateFrom as string | undefined,
+      dateTo: req.query.dateTo as string | undefined,
+      limit: 5000,
+      offset: 0,
+    };
+    const { entries } = await listLedgerEntries(filters);
+
+    const format = (req.query.format as string) || 'csv';
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', 'attachment; filename="ledger-export.json"');
+      res.json(entries);
+      return;
+    }
+
+    const csvHeaders = [
+      'id', 'date', 'type', 'ref_type', 'ref_id',
+      'amount_usd', 'amount_ton', 'ton_usd_rate',
+      'platform_fee_usd', 'platform_fee_ton',
+      'buyer_wallet', 'seller_wallet', 'tx_hash',
+      'buyer_country', 'buyer_ip_country', 'seller_country',
+      'geo_kyc_match', 'jurisdiction', 'compliance_status',
+      'product_name', 'escrow_address', 'license_address', 'notes',
+    ];
+    const csvRows = entries.map((e) => [
+      e.id, e.createdAt, e.entryType, e.refType, e.refId,
+      e.amountUsd, e.amountTonRaw, e.tonUsdRate,
+      e.platformFeeUsd, e.platformFeeTonRaw,
+      e.buyerWallet ?? '', e.sellerWallet ?? '', e.txHash ?? '',
+      e.buyerCountry ?? '', e.buyerIpCountry ?? '', e.sellerCountry ?? '',
+      e.geoKycMatch, e.jurisdiction, e.complianceStatus,
+      `"${(e.productName || '').replace(/"/g, '""')}"`,
+      e.escrowAddress ?? '', e.licenseAddress ?? '', `"${(e.notes || '').replace(/"/g, '""')}"`,
+    ]);
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="ledger-export.csv"');
+    res.send([csvHeaders.join(','), ...csvRows.map((r) => r.join(','))].join('\n'));
+  }),
+);
+
+router.get(
+  '/admin/ledger/:id',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const entry = await getLedgerEntry(str(req.params.id));
+    if (!entry) {
+      res.status(404).json({ success: false, message: 'Ledger entry not found' });
+      return;
+    }
+    res.json({ success: true, data: entry });
+  }),
+);
+
+router.patch(
+  '/admin/ledger/:id/status',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const { status, notes } = req.body as { status?: string; notes?: string };
+    const validStatuses: ComplianceStatus[] = ['clean', 'review', 'reported', 'flagged'];
+    if (!status || !validStatuses.includes(status as ComplianceStatus)) {
+      res.status(400).json({ success: false, message: 'Invalid status' });
+      return;
+    }
+    const entry = await updateComplianceStatus(str(req.params.id), status as ComplianceStatus, notes);
+    res.json({ success: true, data: entry });
   }),
 );
 
