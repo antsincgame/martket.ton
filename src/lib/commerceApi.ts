@@ -351,4 +351,34 @@ export async function adminCommerceFetch(
   return json;
 }
 
+// ── Sumsub KYC (seller verification) ─────────────────────────────
+
+export interface SumsubTokenResponse {
+  token: string;
+  userId: string;
+  alreadyApproved?: boolean;
+}
+
+export async function fetchSumsubToken(wallet: string): Promise<SumsubTokenResponse> {
+  const result = await commerceAuthFetch<{ data: SumsubTokenResponse }>('/sellers/kyc/token', {
+    method: 'POST',
+    body: JSON.stringify({ wallet }),
+  });
+  return result.data;
+}
+
+export interface SellerKycStatus {
+  kycStatus: 'none' | 'pending' | 'approved' | 'rejected';
+  kycProvider: string | null;
+  kycCompletedAt: string | null;
+  kycRejectionReason: string | null;
+}
+
+export async function fetchSellerKycStatus(wallet: string): Promise<SellerKycStatus> {
+  const result = await commerceAuthFetch<{ data: SellerKycStatus }>(
+    `/sellers/${encodeURIComponent(wallet)}/kyc-status`,
+  );
+  return result.data;
+}
+
 export { CommerceApiError };

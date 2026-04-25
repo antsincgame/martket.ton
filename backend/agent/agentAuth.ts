@@ -150,7 +150,7 @@ export function apiRequireAgentToken(required: AgentScope[] = []) {
       });
       return;
     }
-    const kyc = requireSellerKyc(record.wallet);
+    const kyc = await requireSellerKyc(record.wallet);
     if (!kyc.ok) {
       res.status(kyc.status).json({ success: false, message: kyc.message, code: kyc.code });
       return;

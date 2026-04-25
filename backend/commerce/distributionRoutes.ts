@@ -144,7 +144,7 @@ router.put(
     const owner = await requireWalletOwner(req, res, body.wallet);
     if (!owner) return;
 
-    const kyc = requireSellerKyc(body.wallet);
+    const kyc = await requireSellerKyc(body.wallet);
     if (!kyc.ok) {
       res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
       return;
@@ -198,7 +198,7 @@ router.post(
     const owner = await requireWalletOwner(req, res, wallet);
     if (!owner) return;
 
-    const kyc = requireSellerKyc(wallet);
+    const kyc = await requireSellerKyc(wallet);
     if (!kyc.ok) {
       res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
       return;

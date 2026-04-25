@@ -5,6 +5,7 @@ import {
   createAuditLogSchema,
   createPurchaseSchema,
   createProductSchema,
+  kycLiteSchema,
   AUDIT_LOG_CLIENT_ACTIONS,
   SUPPORT_TICKET_STATUSES,
   SUPPORT_TICKET_PRIORITIES,
@@ -132,5 +133,74 @@ describe('createProductSchema (limits)', () => {
     const r = createProductSchema.safeParse({ name: 'valid' });
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.version).toBe('1.0.0');
+  });
+});
+
+describe('kycLiteSchema', () => {
+  const VALID = {
+    legalFirstName: 'John',
+    legalLastName: 'Doe',
+    dateOfBirth: '1990-05-15',
+    countryCode: 'US',
+    consent: true as const,
+  };
+
+  it('accepts valid Lite KYC data', () => {
+    expect(kycLiteSchema.safeParse(VALID).success).toBe(true);
+  });
+
+  it('accepts with optional city', () => {
+    expect(kycLiteSchema.safeParse({ ...VALID, city: 'New York' }).success).toBe(true);
+  });
+
+  it('rejects empty first name', () => {
+    expect(kycLiteSchema.safeParse({ ...VALID, legalFirstName: '' }).success).toBe(false);
+  });
+
+  it('rejects empty last name', () => {
+    expect(kycLiteSchema.safeParse({ ...VALID, legalLastName: '' }).success).toBe(false);
+  });
+
+  it('trims whitespace from names', () => {
+    const r = kycLiteSchema.safeParse({ ...VALID, legalFirstName: '  John  ' });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.legalFirstName).toBe('John');
+  });
+
+  it('rejects invalid date format', () => {
+    expect(kycLiteSchema.safeParse({ ...VALID, dateOfBirth: '15-05-1990' }).success).toBe(false);
+    expect(kycLiteSchema.safeParse({ ...VALID, dateOfBirth: '1990/05/15' }).success).toBe(false);
+    expect(kycLiteSchema.safeParse({ ...VALID, dateOfBirth: 'not-a-date' }).success).toBe(false);
+  });
+
+  it('rejects countryCode that is not 2 characters', () => {
+    expect(kycLiteSchema.safeParse({ ...VALID, countryCode: 'USA' }).success).toBe(false);
+    expect(kycLiteSchema.safeParse({ ...VALID, countryCode: 'U' }).success).toBe(false);
+    expect(kycLiteSchema.safeParse({ ...VALID, countryCode: '' }).success).toBe(false);
+  });
+
+  it('uppercases countryCode', () => {
+    const r = kycLiteSchema.safeParse({ ...VALID, countryCode: 'de' });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.countryCode).toBe('DE');
+  });
+
+  it('rejects consent=false', () => {
+    expect(kycLiteSchema.safeParse({ ...VALID, consent: false }).success).toBe(false);
+  });
+
+  it('rejects missing consent', () => {
+    const { consent: _, ...noConsent } = VALID;
+    void _;
+    expect(kycLiteSchema.safeParse(noConsent).success).toBe(false);
+  });
+
+  it('caps name length at 100', () => {
+    expect(kycLiteSchema.safeParse({ ...VALID, legalFirstName: 'a'.repeat(101) }).success).toBe(false);
+    expect(kycLiteSchema.safeParse({ ...VALID, legalFirstName: 'a'.repeat(100) }).success).toBe(true);
+  });
+
+  it('caps city length at 200', () => {
+    expect(kycLiteSchema.safeParse({ ...VALID, city: 'a'.repeat(201) }).success).toBe(false);
   });
 });

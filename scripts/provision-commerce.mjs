@@ -108,6 +108,25 @@ async function setupSellerProfiles(databases) {
     databases.createDatetimeAttribute(DATABASE_ID, COL_SELLER_PROFILES, 'storage_last_check_at', false)
   );
   await waitForAttribute(databases, COL_SELLER_PROFILES, 'storage_last_check_at');
+
+  // ── Full KYC fields (seller verification via Sumsub) ──
+  const kycCols = [
+    ['kyc_status', 32, false],
+    ['kyc_provider', 32, false],
+    ['kyc_applicant_id', 128, false],
+    ['kyc_rejection_reason', 500, false],
+  ];
+  for (const [k, size, req] of kycCols) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, COL_SELLER_PROFILES, k, size, req)
+    );
+    await waitForAttribute(databases, COL_SELLER_PROFILES, k);
+  }
+  await ignoreConflict(() =>
+    databases.createDatetimeAttribute(DATABASE_ID, COL_SELLER_PROFILES, 'kyc_completed_at', false)
+  );
+  await waitForAttribute(databases, COL_SELLER_PROFILES, 'kyc_completed_at');
+  await idx(databases, COL_SELLER_PROFILES, 'idx_kyc_status', IndexType.Key, ['kyc_status']);
 }
 
 async function setupListings(databases) {

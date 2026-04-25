@@ -21,6 +21,7 @@ import { createOrderSchema, confirmOrderSchema } from './validation.js';
 import { appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
 import { resolveProfile } from '../middleware/auth.js';
 import { insertPurchase } from '../core/purchaseRepository.js';
+import { requireBuyerKycLite } from './handlers/requireBuyerKycLite.js';
 
 
 const router = express.Router();
@@ -54,6 +55,13 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
       });
       return;
     }
+
+    const kycCheck = await requireBuyerKycLite(buyerWallet);
+    if (!kycCheck.ok) {
+      res.status(kycCheck.status).json({ error: kycCheck.message, code: kycCheck.code });
+      return;
+    }
+
     const netCfg = resolveNetworkConfig(req);
     const treasury = netCfg.treasuryAddress;
     if (!treasury) {

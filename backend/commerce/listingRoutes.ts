@@ -24,6 +24,11 @@ import { str } from '../utils/params.js';
 import { sellerRegisterSchema, createListingSchema, patchListingSchema } from './validation.js';
 import { mapListingPublic, appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
 import { requireSellerKyc } from './handlers/requireSellerKyc.js';
+import {
+  generateSumsubToken,
+  verifySumsubWebhookSignature,
+  handleSumsubWebhook,
+} from './handlers/sumsubIntegration.js';
 
 const router = express.Router();
 const upload = multer({
@@ -102,7 +107,7 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
     const owner = await requireWalletOwner(req, res, String(sellerWallet));
     if (!owner) return;
 
-    const kyc = requireSellerKyc(String(sellerWallet));
+    const kyc = await requireSellerKyc(String(sellerWallet));
     if (!kyc.ok) {
       res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
       return;
@@ -182,7 +187,7 @@ router.patch('/listings/:id', apiRequireAuth(), validateBody(patchListingSchema)
         });
         return;
       }
-      const kyc = requireSellerKyc(sellerWallet);
+      const kyc = await requireSellerKyc(sellerWallet);
       if (!kyc.ok) {
         res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
         return;
@@ -240,6 +245,98 @@ router.post('/listings/:id/asset', apiRequireAuth(), upload.single('file'), asyn
   } catch (e: unknown) {
     logger.error('[commerce] asset upload:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Asset upload failed', code: 'ASSET_UPLOAD' });
+  }
+});
+
+// ── Sumsub KYC: generate access token for WebSDK ──────────────────
+router.post('/sellers/kyc/token', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const { wallet } = req.body as { wallet?: string };
+    if (!wallet) {
+      res.status(400).json({ error: 'wallet is required', code: 'VALIDATION' });
+      return;
+    }
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
+
+    const db = databases();
+    const { documents } = await db.listDocuments(DATABASE_ID, COL_SELLER_PROFILES, [
+      Query.equal('wallet', wallet),
+      Query.limit(1),
+    ]);
+    if (documents.length === 0) {
+      res.status(404).json({ error: 'Register as a seller first', code: 'NOT_REGISTERED' });
+      return;
+    }
+
+    const existing = documents[0] as Record<string, unknown>;
+    if (existing['kyc_status'] === 'approved') {
+      res.json({ data: { alreadyApproved: true } });
+      return;
+    }
+
+    const result = await generateSumsubToken(wallet);
+    res.json({ data: { token: result.token, userId: result.userId } });
+  } catch (e: unknown) {
+    logger.error('[commerce] sumsub token:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to generate KYC token', code: 'SUMSUB_TOKEN' });
+  }
+});
+
+// ── Sumsub KYC: webhook receiver ──────────────────────────────────
+router.post('/sellers/kyc/webhook', express.raw({ type: '*/*' }), async (req: Request, res: Response) => {
+  try {
+    const signature = req.headers['x-payload-digest'] as string | undefined;
+    if (!signature) {
+      res.status(401).json({ error: 'Missing signature' });
+      return;
+    }
+
+    const rawBody = req.body as Buffer;
+    if (!verifySumsubWebhookSignature(rawBody, signature)) {
+      logger.warn('[sumsub] invalid webhook signature');
+      res.status(401).json({ error: 'Invalid signature' });
+      return;
+    }
+
+    const payload = JSON.parse(rawBody.toString('utf-8'));
+    const result = await handleSumsubWebhook(payload);
+    res.json({ ok: true, processed: result.processed });
+  } catch (e: unknown) {
+    logger.error('[sumsub] webhook error:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
+// ── Seller KYC status (for frontend polling) ──────────────────────
+router.get('/sellers/:wallet/kyc-status', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const wallet = str(req.params.wallet);
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
+
+    const db = databases();
+    const { documents } = await db.listDocuments(DATABASE_ID, COL_SELLER_PROFILES, [
+      Query.equal('wallet', wallet),
+      Query.limit(1),
+    ]);
+    if (documents.length === 0) {
+      res.json({ data: { kycStatus: 'none' } });
+      return;
+    }
+
+    const doc = documents[0] as Record<string, unknown>;
+    res.json({
+      data: {
+        kycStatus: doc['kyc_status'] || 'none',
+        kycProvider: doc['kyc_provider'] || null,
+        kycCompletedAt: doc['kyc_completed_at'] || null,
+        kycRejectionReason: doc['kyc_rejection_reason'] || null,
+      },
+    });
+  } catch (e: unknown) {
+    logger.error('[commerce] kyc status:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to fetch KYC status', code: 'KYC_STATUS' });
   }
 });
 

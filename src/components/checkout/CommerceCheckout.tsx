@@ -11,6 +11,7 @@ import {
 import type { CreateOrderResponse } from '../../domain/commerce/types';
 import type { CommerceListingPublic } from '../../domain/commerce/types';
 import { logger } from '../../lib/logger';
+import KycLiteModal from '../kyc/KycLiteModal';
 
 interface Props {
   catalogProductId: string;
@@ -39,7 +40,8 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   const [order, setOrder] = useState<CreateOrderResponse | null>(null);
   const [delivery, setDelivery] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [mintProgress, setMintProgress] = useState<number>(0);  // attempts count, для UI
+  const [mintProgress, setMintProgress] = useState<number>(0);
+  const [showKycLite, setShowKycLite] = useState(false);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup polling timer при unmount
@@ -145,6 +147,14 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
       setPhase('done');
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : 'Purchase failed';
+      const code = (err as { code?: string }).code;
+
+      if (code === 'KYC_LITE_REQUIRED' || /KYC_LITE_REQUIRED/.test(raw)) {
+        setPhase('ready');
+        setShowKycLite(true);
+        return;
+      }
+
       let msg = raw;
       if (/OFAC_SDN|EU_CONSOLIDATED|SANCTIONED/.test(raw)) {
         msg = 'This wallet is on a public sanctions list (US OFAC / EU). The purchase is legally unavailable.';
@@ -222,6 +232,11 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
     );
   }
 
+  const handleKycComplete = useCallback(() => {
+    setShowKycLite(false);
+    void handleBuy();
+  }, [handleBuy]);
+
   const isBusy = phase === 'creating-order' || phase === 'awaiting-wallet' || phase === 'confirming';
   const sellerPriceHuman = listing?.priceTonHuman ?? humanFromRaw(listing?.priceAmountRaw ?? '0');
   // Fee breakdown виден только когда backend вернул order с fee/sellerAmount полями.
@@ -232,6 +247,13 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   const totalTon = order?.amountTonHuman ?? addTonHuman(sellerTon, feeTon);
 
   return (
+    <>
+    {showKycLite && (
+      <KycLiteModal
+        onComplete={handleKycComplete}
+        onClose={() => setShowKycLite(false)}
+      />
+    )}
     <div className="rounded-xl border border-[#FFD700]/20 bg-gradient-to-b from-[#FFD700]/5 to-transparent p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -307,6 +329,7 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
           : 'Payment goes to a verified treasury address. On-chain verification via TonAPI.'}
       </p>
     </div>
+    </>
   );
 }
 

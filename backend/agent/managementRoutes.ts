@@ -56,7 +56,7 @@ router.post(
       const body = req.body as z.infer<typeof issueSchema>;
       const owner = await requireWalletOwner(req, res, body.wallet);
       if (!owner) return;
-      const kyc = requireSellerKyc(body.wallet);
+      const kyc = await requireSellerKyc(body.wallet);
       if (!kyc.ok) {
         res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
         return;

@@ -7,17 +7,16 @@
  *   - configure distribution (PUT /listings/:id/distribution)
  *
  * Buyers do NOT need KYC; they only get sanctions screening (see
- * `backend/sanctions/screen.ts`). This split lets us launch a low-friction
- * marketplace while staying compliant with US/EU rules: every party that
- * receives funds is identified, every party that sends funds is screened
- * against OFAC SDN / EU consolidated lists.
+ * `backend/sanctions/screen.ts`) + Lite KYC.
  *
- * The seller's KYC status lives in the legacy TonForge in-memory profile
- * (`developerProfiles[].kycStatus`). When that store is migrated to
- * Appwrite, this helper is the single switch point.
+ * The seller's KYC status now lives in Appwrite `marketplace.seller_profiles`
+ * in the `kyc_status` field. This replaces the legacy TonForge in-memory
+ * profile store.
  */
 
-import { getTonForgeService } from '../../tonforge/service.js';
+import { Query } from 'node-appwrite';
+import { databases } from '../appwrite.js';
+import { DATABASE_ID, COL_SELLER_PROFILES } from '../constants.js';
 import { screenWallet } from '../../sanctions/screen.js';
 import { logger } from '../../logger.js';
 
@@ -30,13 +29,11 @@ export type SellerGuardFail = {
 };
 export type SellerGuardResult = SellerGuardOk | SellerGuardFail;
 
-export function requireSellerKyc(wallet: string): SellerGuardResult {
+export async function requireSellerKyc(wallet: string): Promise<SellerGuardResult> {
   if (!wallet) {
     return { ok: false, status: 400, code: 'KYC_REQUIRED', message: 'wallet is required' };
   }
 
-  // Sanctions check first — a sanctioned wallet must not transact at all,
-  // even if KYC was somehow approved earlier.
   const screen = screenWallet(wallet);
   if (!screen.ok) {
     return {
@@ -47,44 +44,58 @@ export function requireSellerKyc(wallet: string): SellerGuardResult {
     };
   }
 
-  let profile;
   try {
-    const ws = getTonForgeService().getDeveloperWorkspace(wallet);
-    profile = ws.developer;
+    const db = databases();
+    const { documents } = await db.listDocuments(DATABASE_ID, COL_SELLER_PROFILES, [
+      Query.equal('wallet', wallet),
+      Query.limit(1),
+    ]);
+
+    if (documents.length === 0) {
+      return {
+        ok: false,
+        status: 403,
+        code: 'KYC_REQUIRED',
+        message: 'Register as a seller and complete identity verification before publishing.',
+      };
+    }
+
+    const doc = documents[0] as Record<string, unknown>;
+    const kycStatus = (doc['kyc_status'] as string) || 'none';
+
+    switch (kycStatus) {
+      case 'approved':
+        return { ok: true };
+      case 'pending':
+        return {
+          ok: false,
+          status: 403,
+          code: 'KYC_PENDING',
+          message: 'Identity verification is in progress. Please wait for approval before publishing.',
+        };
+      case 'rejected':
+        return {
+          ok: false,
+          status: 403,
+          code: 'KYC_REJECTED',
+          message: 'Identity verification was rejected. Contact support to appeal.',
+        };
+      case 'none':
+      default:
+        return {
+          ok: false,
+          status: 403,
+          code: 'KYC_REQUIRED',
+          message: 'Complete identity verification in the Publishing tab before publishing products.',
+        };
+    }
   } catch (err) {
-    logger.warn('[requireSellerKyc] developer lookup failed:', err);
+    logger.warn('[requireSellerKyc] Appwrite lookup failed:', err);
     return {
       ok: false,
       status: 500,
       code: 'PROFILE_ERROR',
       message: 'Could not verify seller profile.',
     };
-  }
-
-  switch (profile.kycStatus) {
-    case 'approved':
-      return { ok: true };
-    case 'under_review':
-      return {
-        ok: false,
-        status: 403,
-        code: 'KYC_PENDING',
-        message: 'KYC is under review. Please wait for approval before publishing.',
-      };
-    case 'rejected':
-      return {
-        ok: false,
-        status: 403,
-        code: 'KYC_REJECTED',
-        message: 'KYC was rejected. Contact support to appeal.',
-      };
-    case 'draft':
-    default:
-      return {
-        ok: false,
-        status: 403,
-        code: 'KYC_REQUIRED',
-        message: 'Complete KYC in the Publishing tab before publishing products.',
-      };
   }
 }

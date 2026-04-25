@@ -71,6 +71,16 @@ export const patchProfileSchema = z.object({
   featured_product_ids: z.string().max(500).nullable().optional(),
 });
 
+// ── Lite KYC (buyer verification) ─────────────────────────────────────
+export const kycLiteSchema = z.object({
+  legalFirstName: trimmed().pipe(z.string().min(1, 'First name is required').max(100)),
+  legalLastName: trimmed().pipe(z.string().min(1, 'Last name is required').max(100)),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  countryCode: z.string().length(2, 'ISO 3166-1 alpha-2 country code required').toUpperCase(),
+  city: trimmed().pipe(z.string().max(200)).optional(),
+  consent: z.literal(true, { error: 'Consent is required' }),
+});
+
 /**
  * Whitelist of actions that an external admin/UI is allowed to insert into
  * the audit log. Internal repository writes (`repo.insertAuditLog`) are not

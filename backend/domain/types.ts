@@ -136,6 +136,16 @@ export interface Profile {
   trustScore: number;
   publishedCount: number;
   rejectionCount: number;
+
+  // ── Lite KYC (buyer verification) ──
+  kycLiteFirstName: string | null;
+  kycLiteLastName: string | null;
+  kycLiteDateOfBirth: string | null;
+  kycLiteCountryCode: string | null;
+  kycLiteCity: string | null;
+  kycLiteConsentAt: string | null;
+  kycLiteCompletedAt: string | null;
+
   readonly createdAt: string;
   readonly updatedAt: string;
 }

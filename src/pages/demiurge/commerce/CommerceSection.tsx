@@ -2,12 +2,13 @@
 // Tabs: Listings, Orders, Publishing (URL-driven for deep-links).
 // Internal state (workspace, scan, success/error) is lifted here so
 // sub-tabs can share the last artifact scan across sessions.
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, useCallback, type ReactNode } from 'react';
 import { Link, NavLink, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { useTonAddress } from '@tonconnect/ui-react';
 import { ShoppingBag, Wallet as WalletIcon } from 'lucide-react';
 import type { TonForgeArtifactScan, TonForgeDeveloperWorkspace } from '../../../domain/tonforge/types';
 import { fetchDeveloperWorkspace } from '../../../services/tonforgeApi';
+import { fetchSellerKycStatus, type SellerKycStatus } from '../../../lib/commerceApi';
 import ListingsTab from './ListingsTab';
 import OrdersTab from './OrdersTab';
 import PublishingTab from './PublishingTab';
@@ -43,6 +44,17 @@ export default function CommerceSection() {
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [lastScan, setLastScan] = useState<TonForgeArtifactScan | null>(null);
+  const [sellerKyc, setSellerKyc] = useState<SellerKycStatus | null>(null);
+
+  const refreshKycStatus = useCallback(async () => {
+    if (!wallet) return;
+    try {
+      const status = await fetchSellerKycStatus(wallet);
+      setSellerKyc(status);
+    } catch {
+      /* seller may not be registered yet */
+    }
+  }, [wallet]);
   const [flash, setFlash] = useState<FlashState>({ error: null, success: null });
   const location = useLocation();
 
@@ -68,7 +80,8 @@ export default function CommerceSection() {
 
   useEffect(() => {
     void reloadWorkspace().catch(() => {});
-  }, [reloadWorkspace]);
+    void refreshKycStatus();
+  }, [reloadWorkspace, refreshKycStatus]);
 
   const activeTab = useMemo(() => {
     const segment = location.pathname.replace(/^\/profile\/commerce\/?/, '').split('/')[0] || 'listings';
@@ -92,7 +105,7 @@ export default function CommerceSection() {
       {flash.error && <Banner kind="error" message={flash.error} onDismiss={() => setFlash((f) => ({ ...f, error: null }))} />}
       {flash.success && <Banner kind="success" message={flash.success} onDismiss={() => setFlash((f) => ({ ...f, success: null }))} />}
 
-      <KycRequiredBanner workspace={workspace} />
+      <KycRequiredBanner kycStatus={sellerKyc} />
       <NoCollectionWarning wallet={wallet} />
 
       <Tabs activeId={activeTab.id} />

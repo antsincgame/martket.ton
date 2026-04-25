@@ -112,6 +112,29 @@ async function setupProfiles(databases) {
   );
   await waitForAttribute(databases, 'profiles', 'rejection_count');
 
+  // ── Lite KYC fields (buyer verification) ──
+  const kycLiteStrings = [
+    ['kyc_lite_first_name', 100, false],
+    ['kyc_lite_last_name', 100, false],
+    ['kyc_lite_date_of_birth', 10, false],
+    ['kyc_lite_country_code', 2, false],
+    ['kyc_lite_city', 200, false],
+  ];
+  for (const [key, size, req] of kycLiteStrings) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, 'profiles', key, size, req)
+    );
+    await waitForAttribute(databases, 'profiles', key);
+  }
+  await ignoreConflict(() =>
+    databases.createDatetimeAttribute(DATABASE_ID, 'profiles', 'kyc_lite_consent_at', false)
+  );
+  await waitForAttribute(databases, 'profiles', 'kyc_lite_consent_at');
+  await ignoreConflict(() =>
+    databases.createDatetimeAttribute(DATABASE_ID, 'profiles', 'kyc_lite_completed_at', false)
+  );
+  await waitForAttribute(databases, 'profiles', 'kyc_lite_completed_at');
+
   try {
     await databases.createIndex(DATABASE_ID, 'profiles', 'idx_ton', IndexType.Key, ['ton_address']);
     console.log('[core] Индекс profiles.ton_address');
