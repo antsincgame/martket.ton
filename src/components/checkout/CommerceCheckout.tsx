@@ -1,21 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTonAddress, useTonConnectUI } from '@tonconnect/ui-react';
-import { Loader2, ShieldCheck, Wallet, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Loader2, ShieldCheck, Wallet, Download, AlertTriangle, CheckCircle, Info, Sparkles } from 'lucide-react';
 import { beginCell, Cell } from '@ton/core';
 import {
   fetchListingsForCatalog,
   createCommerceOrder,
   confirmCommerceOrder,
+  fetchCommerceOrder,
 } from '../../lib/commerceApi';
 import type { CreateOrderResponse } from '../../domain/commerce/types';
 import type { CommerceListingPublic } from '../../domain/commerce/types';
 import { logger } from '../../lib/logger';
-import MintProgress from './MintProgress';
-
-function resolveTonNetwork(): 'mainnet' | 'testnet' {
-  if (typeof window === 'undefined') return 'mainnet';
-  return window.localStorage.getItem('ton_network') === 'testnet' ? 'testnet' : 'mainnet';
-}
 
 interface Props {
   catalogProductId: string;
@@ -28,8 +23,12 @@ type Phase =
   | 'creating-order'
   | 'awaiting-wallet'
   | 'confirming'
+  | 'minting'        // v4: payment verified, license NFT being minted by worker
   | 'done'
   | 'error';
+
+const MINT_POLL_INTERVAL_MS = 5_000;
+const MINT_POLL_MAX_ATTEMPTS = 60;  // 60 * 5s = 5 min ceiling
 
 export default function CommerceCheckout({ catalogProductId }: Props) {
   const buyerWallet = useTonAddress();
@@ -38,8 +37,17 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   const [listing, setListing] = useState<CommerceListingPublic | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [order, setOrder] = useState<CreateOrderResponse | null>(null);
+  const [delivery, setDelivery] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [licenseId, setLicenseId] = useState<string | null>(null);
+  const [mintProgress, setMintProgress] = useState<number>(0);  // attempts count, для UI
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup polling timer при unmount
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,11 +62,44 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
       .catch((err: unknown) => {
         if (cancelled) return;
         logger.warn('[checkout] listing fetch', err);
-        setError(err instanceof Error ? err.message : 'Failed to load listing');
-        setPhase('error');
+        setPhase('no-listing');
       });
     return () => { cancelled = true; };
   }, [catalogProductId]);
+
+  /**
+   * Polls /orders/:id every 5s until either:
+   *  - state becomes PAID/FULFILLED + deliveryPayload is set → phase=done
+   *  - max attempts exceeded → phase=error (with friendly message)
+   */
+  const startMintPolling = useCallback(async (orderId: string, walletAddr: string) => {
+    let attempts = 0;
+    const poll = async () => {
+      attempts += 1;
+      setMintProgress(attempts);
+      try {
+        const status = await fetchCommerceOrder(orderId, walletAddr);
+        const isPaidOrFulfilled = status.order.state === 'paid' || status.order.state === 'fulfilled';
+        if (isPaidOrFulfilled && status.deliveryPayload) {
+          setDelivery(status.deliveryPayload);
+          setPhase('done');
+          return;
+        }
+      } catch (err) {
+        logger.warn('[checkout] mint poll error:', err instanceof Error ? err.message : err);
+        // Сетевые ошибки не считаем фатальными — продолжаем polling
+      }
+      if (attempts >= MINT_POLL_MAX_ATTEMPTS) {
+        setError(
+          'Minting taking longer than expected. Your payment is safe — license will appear in your library shortly. You can refresh the page.',
+        );
+        setPhase('error');
+        return;
+      }
+      pollTimerRef.current = setTimeout(() => void poll(), MINT_POLL_INTERVAL_MS);
+    };
+    pollTimerRef.current = setTimeout(() => void poll(), MINT_POLL_INTERVAL_MS);
+  }, []);
 
   const handleBuy = useCallback(async () => {
     if (!listing || !buyerWallet) return;
@@ -86,14 +127,24 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
 
       setPhase('confirming');
       const confirmation = await confirmCommerceOrder(ord.orderId, buyerWallet, txHash);
-      if (confirmation.license?.id) {
-        setLicenseId(confirmation.license.id);
+
+      // v4 flow: backend подтвердил платёж, но license NFT минтится worker'ом.
+      // Опрашиваем /orders/:id до появления entitlement.
+      if (confirmation.mintPending) {
+        setPhase('minting');
+        setMintProgress(0);
+        await startMintPolling(ord.orderId, buyerWallet);
+        return;
+      }
+
+      // Legacy v3 flow или v4 у которого worker уже успел отработать —
+      // entitlement пришёл сразу.
+      if (confirmation.entitlement?.deliveryPayload) {
+        setDelivery(confirmation.entitlement.deliveryPayload);
       }
       setPhase('done');
     } catch (err: unknown) {
       const raw = err instanceof Error ? err.message : 'Purchase failed';
-      // Friendlier copy for sanctions / KYC denials. The backend appends a
-      // `(CODE)` suffix to the message via commerceAuthFetch.
       let msg = raw;
       if (/OFAC_SDN|EU_CONSOLIDATED|SANCTIONED/.test(raw)) {
         msg = 'This wallet is on a public sanctions list (US OFAC / EU). The purchase is legally unavailable.';
@@ -103,7 +154,7 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
       setError(msg);
       setPhase('error');
     }
-  }, [listing, buyerWallet, tonConnectUI]);
+  }, [listing, buyerWallet, tonConnectUI, startMintPolling]);
 
   if (phase === 'loading') {
     return (
@@ -122,81 +173,63 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
     );
   }
 
-  if (phase === 'error' && !listing) {
+  if (phase === 'minting') {
+    const elapsed = mintProgress * (MINT_POLL_INTERVAL_MS / 1000);
     return (
-      <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-5 space-y-3">
-        <div className="flex items-start gap-2 text-sm text-red-200">
-          <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-          <span>{error || 'Failed to load checkout. Please try again.'}</span>
+      <div className="rounded-xl border border-[#00F5FF]/30 bg-gradient-to-b from-[#00F5FF]/10 to-transparent p-5 space-y-3">
+        <div className="flex items-center gap-2 text-[#00F5FF] font-semibold">
+          <Sparkles className="w-5 h-5 animate-pulse" />
+          Payment received — minting your license NFT…
         </div>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="text-xs text-red-300 underline hover:text-red-200"
-        >
-          Reload page
-        </button>
+        <div className="flex items-center gap-3 text-sm text-gray-300">
+          <Loader2 className="w-4 h-4 animate-spin text-[#00F5FF]" />
+          <span>License NFT is being deployed on-chain. This usually takes 30–60 seconds.</span>
+        </div>
+        <div className="text-[10px] text-gray-500 font-mono">
+          Elapsed: {elapsed}s · Polling for license registration…
+        </div>
+        {order?.escrow && (
+          <div className="text-[10px] text-gray-500 font-mono break-all">
+            Escrow: {order.escrow.address.slice(0, 12)}…{order.escrow.address.slice(-8)}
+          </div>
+        )}
       </div>
     );
   }
 
   if (phase === 'done') {
-    // After the NFT-mint bridge every successful confirm MUST return a licenseId
-    // (orderRoutes.confirm calls ensureLicenseForOrder which throws otherwise).
-    // If we somehow ended up here without one, surface a hard error rather than
-    // silently letting the buyer download a product whose NFT was never minted.
-    if (!licenseId || !listing) {
-      return (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-2">
-          <div className="flex items-center gap-2 text-amber-300 font-semibold">
-            <AlertTriangle className="w-5 h-5" />
-            Mint not initiated
-          </div>
-          <p className="text-sm text-amber-100/90">
-            Payment confirmed but the License NFT mint did not start. Contact support
-            with your order ID — your funds are safe in escrow.
-          </p>
-          {order?.orderId && (
-            <p className="text-[11px] font-mono break-all text-amber-200/70">order: {order.orderId}</p>
-          )}
-        </div>
-      );
-    }
     return (
-      <div className="space-y-4">
-        <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-5 space-y-3">
-          <div className="flex items-center gap-2 text-green-400 font-semibold">
-            <CheckCircle className="w-5 h-5" />
-            Payment confirmed
-          </div>
-          <p className="text-sm text-gray-300">
-            Waiting for the License NFT mint to complete before unlocking download.
-          </p>
+      <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-5 space-y-3">
+        <div className="flex items-center gap-2 text-green-400 font-semibold">
+          <CheckCircle className="w-5 h-5" />
+          Purchase complete
         </div>
-        <MintProgress
-          licenseId={licenseId}
-          network={resolveTonNetwork()}
-          listingId={listing.id}
-        />
+        <p className="text-sm text-gray-300">
+          The product has been added to your library.
+        </p>
+        {delivery && (
+          <a
+            href={delivery}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg bg-green-500/20 border border-green-500/30 px-4 py-2 text-sm font-semibold text-green-400 hover:bg-green-500/30 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Download now
+          </a>
+        )}
       </div>
     );
   }
 
   const isBusy = phase === 'creating-order' || phase === 'awaiting-wallet' || phase === 'confirming';
-  const priceDisplay = listing?.priceTonHuman ?? humanFromRaw(listing?.priceAmountRaw ?? '0');
-  // After the NFT-mint bridge every active listing mints an NFT. We still
-  // honour the order's actual nft.willMint flag if present (covers legacy
-  // listings that haven't been migrated yet).
-  const willMintNft = order?.nft?.willMint ?? listing?.nftEnabled ?? true;
-  // Static estimate before order is created (matches backend GAS_BREAKDOWN total).
-  const FALLBACK_GAS_NANO_WITH_NFT = '300000000'; // 0.30 TON
-  const gasNano = order?.gasBreakdown?.totalGasNano ?? FALLBACK_GAS_NANO_WITH_NFT;
-  const gasDisplay = humanFromRaw(gasNano);
-  const totalDisplay = order?.escrow?.totalAmountRaw
-    ? humanFromRaw(order.escrow.totalAmountRaw)
-    : listing?.priceAmountRaw
-      ? humanFromRaw(addNano(listing.priceAmountRaw, gasNano))
-      : null;
+  const sellerPriceHuman = listing?.priceTonHuman ?? humanFromRaw(listing?.priceAmountRaw ?? '0');
+  // Fee breakdown виден только когда backend вернул order с fee/sellerAmount полями.
+  // До создания order'а показываем estimate из listing.platformFeeBps.
+  const estimatedFeeBps = order?.feeBps ?? listing?.platformFeeBps ?? 1500;
+  const sellerTon = order?.sellerAmountTonHuman ?? sellerPriceHuman;
+  const feeTon = order?.feeAmountTonHuman ?? estimateFeeTonHuman(sellerPriceHuman, estimatedFeeBps);
+  const totalTon = order?.amountTonHuman ?? addTonHuman(sellerTon, feeTon);
 
   return (
     <div className="rounded-xl border border-[#FFD700]/20 bg-gradient-to-b from-[#FFD700]/5 to-transparent p-5 space-y-4">
@@ -205,7 +238,28 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
           <ShieldCheck className="w-5 h-5 text-[#FFD700]" />
           <span className="text-sm font-semibold text-white">Secure TON Payment</span>
         </div>
-        <span className="text-lg font-display font-bold text-[#FFD700]">{priceDisplay} TON</span>
+        <span className="text-lg font-display font-bold text-[#FFD700]">{totalTon} TON</span>
+      </div>
+
+      {/* Fee breakdown */}
+      <div className="rounded-lg bg-black/20 border border-white/5 p-3 space-y-1.5 text-xs">
+        <div className="flex justify-between text-gray-400">
+          <span>Seller price</span>
+          <span className="font-mono text-gray-200">{sellerTon} TON</span>
+        </div>
+        <div className="flex justify-between text-gray-400">
+          <span className="flex items-center gap-1">
+            Platform fee
+            <span title={`${(estimatedFeeBps / 100).toFixed(1)}% of seller price`}>
+              <Info className="w-3 h-3 text-gray-500" />
+            </span>
+          </span>
+          <span className="font-mono text-gray-200">+ {feeTon} TON</span>
+        </div>
+        <div className="border-t border-white/10 pt-1.5 flex justify-between font-semibold">
+          <span className="text-white">You pay</span>
+          <span className="font-mono text-[#FFD700]">{totalTon} TON</span>
+        </div>
       </div>
 
       {error && (
@@ -241,36 +295,16 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
           ) : (
             <>
               <Wallet className="w-5 h-5" />
-              Buy for {priceDisplay} TON
+              Buy for {totalTon} TON
             </>
           )}
         </button>
       )}
 
-      {(totalDisplay || gasDisplay) && (
-        <div className="rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-gray-300 space-y-1">
-          <div className="flex items-center justify-between">
-            <span>Product price</span>
-            <span className="font-mono text-white">{priceDisplay} TON</span>
-          </div>
-          {gasDisplay && (
-            <div className="flex items-center justify-between text-gray-400">
-              <span>{willMintNft ? 'Network fee (escrow + mint NFT)' : 'Network fee (escrow)'}</span>
-              <span className="font-mono">~{gasDisplay} TON</span>
-            </div>
-          )}
-          {totalDisplay && (
-            <div className="flex items-center justify-between border-t border-white/10 pt-1 mt-1">
-              <span className="font-semibold text-white">Total to sign</span>
-              <span className="font-mono text-[#FFD700] font-semibold">{totalDisplay} TON</span>
-            </div>
-          )}
-        </div>
-      )}
-
       <p className="text-[10px] text-gray-500 text-center">
-        Payment goes to an on-chain escrow contract.
-        {willMintNft && ' A License NFT will be minted to your wallet on confirmation.'}
+        {order?.escrow
+          ? 'Funds held in on-chain escrow until you confirm delivery. Auto-release after trial window.'
+          : 'Payment goes to a verified treasury address. On-chain verification via TonAPI.'}
       </p>
     </div>
   );
@@ -304,10 +338,17 @@ function humanFromRaw(raw: string): string {
   return frac ? `${intPart}.${frac}` : intPart;
 }
 
-function addNano(a: string, b: string): string {
-  try {
-    return (BigInt(a) + BigInt(b)).toString();
-  } catch {
-    return a;
-  }
+/**
+ * Estimate fee for display: seller * bps / 10000. Client-side approximation;
+ * backend всё равно считает свой правильный ответ после create order.
+ */
+function estimateFeeTonHuman(sellerHuman: string, feeBps: number): string {
+  const seller = parseFloat(sellerHuman) || 0;
+  const fee = (seller * feeBps) / 10000;
+  return fee.toFixed(fee < 0.01 ? 6 : 4).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function addTonHuman(a: string, b: string): string {
+  const sum = (parseFloat(a) || 0) + (parseFloat(b) || 0);
+  return sum.toFixed(sum < 1 ? 6 : 4).replace(/0+$/, '').replace(/\.$/, '');
 }

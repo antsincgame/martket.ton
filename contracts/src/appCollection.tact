@@ -1,25 +1,12 @@
 import "@stdlib/deploy";
 import "./licenseItem.tact";
+import "./escrow.tact";
 
 // ─── Messages ────────────────────────────────────────────────────────
 //
-// Mint deploys a new LicenseItem with deterministic address derived from
-// (collection, index, buyer, escrow, transferLimit, content, burnDeadline).
-// The backend computes the same address client-side using the wrapper.
-//
-// Burn forwards Burn{} to a specific item address provided by the backend,
-// because the collection has no on-chain mapping of (index → init data).
-// LicenseItem internally checks sender() == collection, so only this path
-// can trigger a collection-mediated burn.
-
-message(0x6a3aaa14) MintLicense {
-    queryId:           Int as uint64;
-    buyerAddress:      Address;
-    escrowAddress:     Address;
-    transferLimit:     Int as uint8;
-    individualContent: Cell;
-    burnDeadline:      Int as uint32;
-}
+// NOTE: MintLicense объявлен в escrow.tact (outgoing message от эскроу).
+// Сюда тип приходит через `import "./escrow.tact"`. Дубликат здесь
+// сломает компиляцию — Tact не допускает повторное объявление message-типа.
 
 message(0x4d8e8a14) BurnLicense {
     queryId:     Int as uint64;
@@ -53,7 +40,16 @@ contract AppCollection with Deployable {
         self.commonContent     = commonContent;
     }
 
-    // ─── Mint: only owner ────────────────────────────────────────────
+    // ─── Mint: triggered by ownerAddress (backend signer) ────────────
+    //
+    // ВРЕМЕННОЕ РЕШЕНИЕ (Option C):
+    // Mint разрешён только от ownerAddress (backend, wallet controlled by platform).
+    // Escrow шлёт MintLicense через PayEscrow→Collection, но sender будет Escrow,
+    // не owner. Поэтому нужен backend-oracle который индексирует PayEscrow события
+    // и пересылает MintLicense в Collection со своим signed sender.
+    //
+    // TODO: вернуть trustless init-hash check после локальной отладки.
+    // Было: require(sender() == contractAddress(initOf Escrow(...)))
 
     receive(msg: MintLicense) {
         require(sender() == self.ownerAddress, "Only collection owner can mint");
@@ -61,32 +57,32 @@ contract AppCollection with Deployable {
 
         let index: Int = self.nextItemIndex;
 
-        let init: StateInit = initOf LicenseItem(
+        let licenseInit: StateInit = initOf LicenseItem(
             index,
-            myAddress(),
-            msg.buyerAddress,
-            msg.escrowAddress,
+            myAddress(),          // collection
+            msg.buyerAddress,     // owner of NFT
+            sender(),             // escrow address — передаётся в item для burn refund flow
             msg.transferLimit,
             msg.individualContent,
             msg.burnDeadline,
         );
 
-        let itemAddress: Address = contractAddress(init);
+        let itemAddress: Address = contractAddress(licenseInit);
 
         send(SendParameters{
             to: itemAddress,
             value: 0,
             mode: SendRemainingValue,
             bounce: false,
-            code: init.code,
-            data: init.data,
+            code: licenseInit.code,
+            data: licenseInit.data,
             body: "License minted".asComment(),
         });
 
         self.nextItemIndex = index + 1;
     }
 
-    // ─── Burn: only owner can request collection-mediated burn ───────
+    // ─── Admin burn (только для DMCA/edge cases) ─────────────────────
 
     receive(msg: BurnLicense) {
         require(sender() == self.ownerAddress, "Only collection owner can burn");
@@ -99,8 +95,6 @@ contract AppCollection with Deployable {
             body: Burn{ queryId: msg.queryId }.toCell(),
         });
     }
-
-    // ─── Owner rotation ──────────────────────────────────────────────
 
     receive(msg: ChangeOwner) {
         require(sender() == self.ownerAddress, "Only current owner can rotate");
@@ -129,8 +123,6 @@ contract AppCollection with Deployable {
         return self.appId;
     }
 }
-
-// ─── Getter return types ─────────────────────────────────────────────
 
 struct CollectionData {
     nextItemIndex:     Int as uint64;

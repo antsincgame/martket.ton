@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, ExternalLink, Clock, CheckCircle, XCircle, RefreshCw, AlertTriangle } from 'lucide-react';
+import {
+  Package, ExternalLink, Clock, CheckCircle, XCircle, RefreshCw, AlertTriangle, Sparkles,
+} from 'lucide-react';
 import { fetchBuyerOrders, type BuyerOrderRow } from '../lib/commerceApi';
 import { logger } from '../lib/logger';
 
@@ -14,11 +16,25 @@ function rawToHuman(raw: string): string {
 
 const stateConfig: Record<string, { label: string; icon: typeof Clock; className: string }> = {
   pending_payment: { label: 'Pending', icon: Clock, className: 'text-yellow-400' },
+  minting: { label: 'Minting NFT', icon: Sparkles, className: 'text-[#00F5FF]' },
   paid: { label: 'Paid', icon: CheckCircle, className: 'text-green-400' },
   fulfilled: { label: 'Fulfilled', icon: CheckCircle, className: 'text-emerald-400' },
   refunded: { label: 'Refunded', icon: XCircle, className: 'text-blue-400' },
   cancelled: { label: 'Cancelled', icon: XCircle, className: 'text-gray-400' },
 };
+
+/**
+ * Derived state для UI:
+ * v4 flow — order.state == 'pending_payment' + tonTxHash != null означает
+ * backend уже проверил платёж и теперь mint worker разворачивает LicenseItem.
+ * Для UX показываем это как "Minting" вместо "Pending".
+ */
+function resolveDisplayState(order: BuyerOrderRow): string {
+  if (order.state === 'pending_payment' && order.tonTxHash) {
+    return 'minting';
+  }
+  return order.state;
+}
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<BuyerOrderRow[]>([]);
@@ -77,8 +93,10 @@ export default function OrdersPage() {
 
       <div className="space-y-3">
         {orders.map((order) => {
-          const cfg = stateConfig[order.state] ?? stateConfig.pending_payment!;
+          const displayState = resolveDisplayState(order);
+          const cfg = stateConfig[displayState] ?? stateConfig.pending_payment!;
           const Icon = cfg.icon;
+          const isMinting = displayState === 'minting';
           return (
             <div
               key={order.id}
@@ -86,7 +104,7 @@ export default function OrdersPage() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Icon className={`w-4 h-4 ${cfg.className}`} />
+                  <Icon className={`w-4 h-4 ${cfg.className} ${isMinting ? 'animate-pulse' : ''}`} />
                   <span className={`text-sm font-semibold ${cfg.className}`}>{cfg.label}</span>
                 </div>
                 <span className="text-sm font-mono text-[#FFD700]">

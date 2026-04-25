@@ -1,5 +1,10 @@
 /**
- * LicenseItem v2 contract tests (TEP-64 + soulbound + BuyerBurn + collection-mediated burn).
+ * LicenseItem v4 contract tests.
+ *
+ * v4: добавлен пустой receive() для авто-регистрации в Escrow сразу после
+ * deploy (обрабатывает "License minted" комментарий от Collection).
+ * Остальная семантика (TEP-64, soulbound, BuyerBurn, collection-mediated burn)
+ * без изменений.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -16,7 +21,7 @@ function content(uri: string) {
   return beginCell().storeStringTail(uri).endCell();
 }
 
-describe('LicenseItem v2 contract', () => {
+describe('LicenseItem v4 contract', () => {
   let blockchain: Blockchain;
   let collection: SandboxContract<TreasuryContract>;
   let owner: SandboxContract<TreasuryContract>;
@@ -47,9 +52,12 @@ describe('LicenseItem v2 contract', () => {
       burnDeadline(deadlineOffset),
     );
     const sc = blockchain.openContract(item);
+    // Мы шлём Deploy от collection чтобы item сразу получил "License minted"-like
+    // семантику. Автогенерируемый Deploy message это opcode 0x946a98b6, НЕ пустой
+    // receive. Тем не менее, тут инициализируется state, deploy проходит.
     const deployRes = await sc.send(
       collection.getSender(),
-      { value: toNano('0.05') },
+      { value: toNano('0.1') },
       { $$type: 'Deploy', queryId: 0n },
     );
     expect(deployRes.transactions).toHaveTransaction({
@@ -74,7 +82,7 @@ describe('LicenseItem v2 contract', () => {
     const sc = blockchain.openContract(item);
     await sc.send(
       collection.getSender(),
-      { value: toNano('0.05') },
+      { value: toNano('0.1') },
       { $$type: 'Deploy', queryId: 0n },
     );
     return sc;
@@ -108,6 +116,73 @@ describe('LicenseItem v2 contract', () => {
     const item = await deploySoulbound();
     const dl = await item.getBurnDeadline();
     expect(dl).toBe(burnDeadline());
+  });
+
+  // ─── Self-registration (v4) ──────────────────────────────────────
+
+  it('sends RegisterLicense to escrow when receiving "License minted" from collection', async () => {
+    const item = await LicenseItem.fromInit(
+      INDEX,
+      collection.address,
+      owner.address,
+      escrow.address,
+      SOULBOUND,
+      content('soulbound.json'),
+      burnDeadline(),
+    );
+    const sc = blockchain.openContract(item);
+
+    // Deploy (первое сообщение от collection — Deploy{}).
+    await sc.send(
+      collection.getSender(),
+      { value: toNano('0.1') },
+      { $$type: 'Deploy', queryId: 0n },
+    );
+
+    // Теперь шлём пустое сообщение от collection (симулирует "License minted"
+    // комментарий который escrow.tact шлёт реальной LicenseItem после init).
+    const result = await sc.send(
+      collection.getSender(),
+      { value: toNano('0.1') },
+      null,  // empty body = triggers empty receive()
+    );
+
+    // Item должен отправить RegisterLicense в escrow
+    expect(result.transactions).toHaveTransaction({
+      from: sc.address,
+      to: escrow.address,
+      success: true,
+    });
+
+    // is_registered == true после первой регистрации
+    const registered = await sc.getIsRegistered();
+    expect(registered).toBe(true);
+  });
+
+  it('does not re-register on subsequent empty messages', async () => {
+    const item = await deploySoulbound();
+
+    // Первое empty-message от collection — регистрация
+    await item.send(
+      collection.getSender(),
+      { value: toNano('0.1') },
+      null,
+    );
+    const firstRegistered = await item.getIsRegistered();
+    expect(firstRegistered).toBe(true);
+
+    // Второе empty-message — не должно слать register повторно
+    const secondResult = await item.send(
+      collection.getSender(),
+      { value: toNano('0.1') },
+      null,
+    );
+    const secondSends = secondResult.transactions.filter(
+      (tx) => tx.inMessage?.info.type === 'internal' &&
+              tx.inMessage.info.src?.toString() === item.address.toString() &&
+              tx.inMessage.info.dest?.toString() === escrow.address.toString()
+    );
+    expect(secondSends.length).toBe(0);
   });
 
   // ─── Soulbound transfer rejection ────────────────────────────────

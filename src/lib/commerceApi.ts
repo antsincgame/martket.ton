@@ -3,9 +3,9 @@ import { getJwt } from './appwriteAuth';
 import type {
   CommerceConfigResponse,
   CommerceListingPublic,
+  ConfirmOrderResponse,
   CreateOrderResponse,
   OrderStatusResponse,
-  ConfirmOrderResponse,
   LicensePublic,
 } from '../domain/commerce/types';
 
@@ -81,7 +81,7 @@ async function commerceAuthFetch<T>(
   return parsed.data;
 }
 
-// ─── Public (unauthenticated) ────────────────────────────────────────
+// ─── Public (unauthenticated) ───────────────────────────────────────
 
 export async function fetchCommerceConfig(): Promise<CommerceConfigResponse | null> {
   try {
@@ -116,7 +116,7 @@ export async function fetchSellerListings(wallet: string): Promise<CommerceListi
   return parsed.data.data.listings;
 }
 
-// ─── Authenticated (JWT via commerceAuthFetch) ───────────────────────
+// ─── Authenticated (JWT via commerceAuthFetch) ─────────────────────────
 
 export async function createCommerceOrder(
   listingId: string,

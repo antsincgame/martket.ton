@@ -1,4 +1,4 @@
-// "Мои лицензии" — секция профиля для просмотра NFT-лицензий покупателя.
+﻿// "Мои лицензии" — секция профиля для просмотра NFT-лицензий покупателя.
 //
 // Источник данных: GET /api/v1/commerce/buyers/me/licenses (LicensePublic[]).
 // Заменил легаси-источник tonforgeApi.fetchWalletProfile (in-memory state),
@@ -69,11 +69,9 @@ function StateBadge({ state }: { state: LicenseState }) {
   );
 }
 
-// Tact-generated TL-B (contracts/build/LicenseItem_LicenseItem.md):
-//   buyer_burn#7a1b3c5d  queryId:uint64 = BuyerBurn
-//   confirm_delivery#f4a8bfa0           = ConfirmDelivery
+// Opcodes must match contracts/src/escrow.tact (Tact compile)
 const OP_BUYER_BURN = 0x7a1b3c5d;
-const OP_CONFIRM_DELIVERY = 0xf4a8bfa0;
+const OP_CONFIRM_DELIVERY = 0x45dfb5a1;
 
 function buildBuyerBurnBase64(): string {
   // Must be a valid BOC, not raw bytes — TonConnect parses payload as a Cell.

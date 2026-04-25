@@ -397,9 +397,14 @@ async function startScanWorker(): Promise<void> {
   }
 }
 
-async function startMintWorkerSafe(): Promise<void> {
+/**
+ * Mint worker (Option C): polling-based bridge between on-chain PayEscrow
+ * and Collection's MintLicense. Runs только если COLLECTION_ADDRESS +
+ * COLLECTION_OWNER_MNEMONIC заданы хотя бы для одной сети.
+ */
+async function startMintWorkerIfConfigured(): Promise<void> {
   try {
-    const { startMintWorker } = await import('./tonforge/mintWorker.js');
+    const { startMintWorker } = await import('./commerce/mintWorker.js');
     startMintWorker();
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'unknown';
@@ -427,7 +432,7 @@ async function start(): Promise<void> {
   await bootstrapTonForge();
   const ttlCronHandle = startOrderTtlCron();
   await startScanWorker();
-  await startMintWorkerSafe();
+  await startMintWorkerIfConfigured();
   await startSanctionsRefreshSafe();
   const server = app.listen(PORT, () => {
     logger.info(`TON Web Store API running on port ${PORT}`);
@@ -446,10 +451,10 @@ async function start(): Promise<void> {
       const workerMod = await import('./scan/worker.js');
       await workerMod.stop();
     } catch (err: unknown) {
-      logger.warn('[server] worker stop failed:', err instanceof Error ? err.message : err);
+      logger.warn('[server] scan worker stop failed:', err instanceof Error ? err.message : err);
     }
     try {
-      const mintMod = await import('./tonforge/mintWorker.js');
+      const mintMod = await import('./commerce/mintWorker.js');
       mintMod.stopMintWorker();
     } catch (err: unknown) {
       logger.warn('[server] mint worker stop failed:', err instanceof Error ? err.message : err);

@@ -1,6 +1,10 @@
 /**
  * Commerce коллекции в БД marketplace + bucket commerce_assets.
  * env: как у provision-appwrite.mjs + APPWRITE_API_KEY с правами databases.* и storage.*
+ *
+ * v4 escrow поля (orders): sellerWallet, escrowAddress, licenseContentUri,
+ * mintAttempts (int), licenseAddress. Эти поля нужны mint worker'у для
+ * автоматической обработки платежа и deploy LicenseItem.
  */
 import 'dotenv/config';
 import { Client, Databases, IndexType, Permission, Role, Storage } from 'node-appwrite';
@@ -119,6 +123,8 @@ async function setupListings(databases) {
     ['status', 32, true],
     ['deliveryType', 32, true],
     ['assetFileId', 128, false],
+    // v4: per-listing custom metadata URI. Если пустой — order использует fallback.
+    ['licenseContentUri', 512, false],
   ];
   for (const [k, size, req] of strings) {
     await ignoreConflict(() =>
@@ -245,6 +251,7 @@ async function setupListingSecrets(databases) {
 async function setupOrders(databases) {
   await ensureCollection(databases, COL_ORDERS, 'Commerce orders', SERVER_ONLY);
   const cols = [
+    // v3 legacy поля
     ['listingId', 64, true],
     ['buyerWallet', 128, true],
     ['amountRaw', 80, true],
@@ -255,7 +262,11 @@ async function setupOrders(databases) {
     ['state', 32, true],
     ['sellerNetAmountRaw', 80, true],
     ['listingSnapshotTitle', 255, false],
-    ['escrowAddress', 96, false],
+    // v4 escrow поля — нужны mint worker'у
+    ['sellerWallet', 128, false],       // seller address для MintLicense
+    ['escrowAddress', 128, false],      // derived Escrow address
+    ['licenseContentUri', 512, false],  // TEP-64 metadata URI
+    ['licenseAddress', 128, false],     // set by worker после RegisterLicense
   ];
   for (const [k, size, req] of cols) {
     await ignoreConflict(() =>
@@ -263,9 +274,17 @@ async function setupOrders(databases) {
     );
     await waitForAttribute(databases, COL_ORDERS, k);
   }
+  // mintAttempts — integer, отдельным вызовом
+  await ignoreConflict(() =>
+    databases.createIntegerAttribute(DATABASE_ID, COL_ORDERS, 'mintAttempts', false, 0, 100, 0)
+  );
+  await waitForAttribute(databases, COL_ORDERS, 'mintAttempts');
+
   await idx(databases, COL_ORDERS, 'idx_order_memo', IndexType.Unique, ['memo']);
   await idx(databases, COL_ORDERS, 'idx_buyer_state', IndexType.Key, ['buyerWallet', 'state']);
   await idx(databases, COL_ORDERS, 'idx_listing', IndexType.Key, ['listingId']);
+  // Index для mint worker polling — state + escrowAddress
+  await idx(databases, COL_ORDERS, 'idx_state_escrow', IndexType.Key, ['state', 'escrowAddress']);
 }
 
 async function setupEntitlements(databases) {
@@ -275,6 +294,8 @@ async function setupEntitlements(databases) {
     ['buyerWallet', 128, true],
     ['listingId', 64, true],
     ['deliveryPayload', 50000, true],
+    // v4: для каких ордеров была заминчена лицензия и куда
+    ['licenseAddress', 128, false],
   ];
   for (const [k, size, req] of cols) {
     await ignoreConflict(() =>
