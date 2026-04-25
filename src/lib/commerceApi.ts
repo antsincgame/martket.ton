@@ -351,16 +351,16 @@ export async function adminCommerceFetch(
   return json;
 }
 
-// ── Sumsub KYC (seller verification) ─────────────────────────────
+// ── Didit KYC (seller verification) ──────────────────────────────
 
-export interface SumsubTokenResponse {
-  token: string;
-  userId: string;
+export interface DiditSessionResponse {
+  sessionId: string;
+  url: string;
   alreadyApproved?: boolean;
 }
 
-export async function fetchSumsubToken(wallet: string): Promise<SumsubTokenResponse> {
-  const result = await commerceAuthFetch<{ data: SumsubTokenResponse }>('/sellers/kyc/token', {
+export async function createKycSession(wallet: string): Promise<DiditSessionResponse> {
+  const result = await commerceAuthFetch<{ data: DiditSessionResponse }>('/sellers/kyc/session', {
     method: 'POST',
     body: JSON.stringify({ wallet }),
   });

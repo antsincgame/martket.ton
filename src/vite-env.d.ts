@@ -14,22 +14,3 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-declare module '@sumsub/websdk' {
-  interface SumsubSDKInstance {
-    launch(container: HTMLElement): void;
-    destroy(): void;
-  }
-  interface SumsubSDKBuilder {
-    withConf(conf: Record<string, unknown>): SumsubSDKBuilder;
-    withOptions(opts: Record<string, unknown>): SumsubSDKBuilder;
-    on(event: string, handler: (...args: unknown[]) => void): SumsubSDKBuilder;
-    build(): SumsubSDKInstance;
-  }
-  const _default: {
-    init(
-      accessToken: string,
-      tokenRefresh: () => Promise<string>,
-    ): SumsubSDKBuilder;
-  };
-  export default _default;
-}

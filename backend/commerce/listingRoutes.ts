@@ -25,10 +25,10 @@ import { sellerRegisterSchema, createListingSchema, patchListingSchema } from '.
 import { mapListingPublic, appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
 import { requireSellerKyc } from './handlers/requireSellerKyc.js';
 import {
-  generateSumsubToken,
-  verifySumsubWebhookSignature,
-  handleSumsubWebhook,
-} from './handlers/sumsubIntegration.js';
+  createDiditSession,
+  verifyDiditWebhookSignature,
+  handleDiditWebhook,
+} from './handlers/diditIntegration.js';
 
 const router = express.Router();
 const upload = multer({
@@ -248,8 +248,8 @@ router.post('/listings/:id/asset', apiRequireAuth(), upload.single('file'), asyn
   }
 });
 
-// ── Sumsub KYC: generate access token for WebSDK ──────────────────
-router.post('/sellers/kyc/token', apiRequireAuth(), async (req: Request, res: Response) => {
+// ── Didit KYC: create verification session ────────────────────────
+router.post('/sellers/kyc/session', apiRequireAuth(), async (req: Request, res: Response) => {
   try {
     const { wallet } = req.body as { wallet?: string };
     if (!wallet) {
@@ -275,35 +275,36 @@ router.post('/sellers/kyc/token', apiRequireAuth(), async (req: Request, res: Re
       return;
     }
 
-    const result = await generateSumsubToken(wallet);
-    res.json({ data: { token: result.token, userId: result.userId } });
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost';
+    const callbackUrl = `${protocol}://${host}/api/v1/commerce/sellers/kyc/webhook`;
+
+    const result = await createDiditSession(wallet, callbackUrl);
+    res.json({ data: { sessionId: result.sessionId, url: result.url } });
   } catch (e: unknown) {
-    logger.error('[commerce] sumsub token:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Failed to generate KYC token', code: 'SUMSUB_TOKEN' });
+    logger.error('[commerce] didit session:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to create KYC session', code: 'DIDIT_SESSION' });
   }
 });
 
-// ── Sumsub KYC: webhook receiver ──────────────────────────────────
+// ── Didit KYC: webhook receiver ───────────────────────────────────
 router.post('/sellers/kyc/webhook', express.raw({ type: '*/*' }), async (req: Request, res: Response) => {
   try {
-    const signature = req.headers['x-payload-digest'] as string | undefined;
-    if (!signature) {
-      res.status(401).json({ error: 'Missing signature' });
-      return;
-    }
+    const signature = req.headers['x-webhook-signature'] as string | undefined
+      || req.headers['x-payload-digest'] as string | undefined;
 
     const rawBody = req.body as Buffer;
-    if (!verifySumsubWebhookSignature(rawBody, signature)) {
-      logger.warn('[sumsub] invalid webhook signature');
+    if (signature && !verifyDiditWebhookSignature(rawBody, signature)) {
+      logger.warn('[didit] invalid webhook signature');
       res.status(401).json({ error: 'Invalid signature' });
       return;
     }
 
     const payload = JSON.parse(rawBody.toString('utf-8'));
-    const result = await handleSumsubWebhook(payload);
+    const result = await handleDiditWebhook(payload);
     res.json({ ok: true, processed: result.processed });
   } catch (e: unknown) {
-    logger.error('[sumsub] webhook error:', e instanceof Error ? e.message : e);
+    logger.error('[didit] webhook error:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });

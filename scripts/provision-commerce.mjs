@@ -109,7 +109,7 @@ async function setupSellerProfiles(databases) {
   );
   await waitForAttribute(databases, COL_SELLER_PROFILES, 'storage_last_check_at');
 
-  // ── Full KYC fields (seller verification via Sumsub) ──
+  // ── Full KYC fields (seller verification via Didit) ──
   const kycCols = [
     ['kyc_status', 32, false],
     ['kyc_provider', 32, false],

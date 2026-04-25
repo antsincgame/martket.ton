@@ -1,14 +1,14 @@
 /**
- * Sumsub WebSDK widget for seller KYC verification.
+ * Didit hosted KYC widget for seller verification.
  *
- * Loads the @sumsub/websdk dynamically, generates an access token via
- * the backend, and renders the embedded verification UI. On completion
- * the widget fires onComplete so the parent can refetch KYC status.
+ * Creates a verification session via the backend, then opens the
+ * Didit hosted verification page in a new tab. Polls for status
+ * changes until the session is Approved, Declined, or times out.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { ShieldCheck, Loader2, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
-import { fetchSumsubToken, fetchSellerKycStatus, type SellerKycStatus } from '../../../lib/commerceApi';
+import { ShieldCheck, Loader2, AlertTriangle, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
+import { createKycSession, fetchSellerKycStatus, type SellerKycStatus } from '../../../lib/commerceApi';
 import { logger } from '../../../lib/logger';
 
 interface Props {
@@ -16,17 +16,16 @@ interface Props {
   onStatusChange?: (status: SellerKycStatus) => void;
 }
 
-type WidgetPhase = 'loading' | 'active' | 'completed' | 'error' | 'already-approved' | 'rejected';
+type WidgetPhase = 'loading' | 'ready' | 'polling' | 'completed' | 'error' | 'already-approved' | 'rejected' | 'expired';
 
 const KYC_POLL_INTERVAL_MS = 5_000;
-const KYC_POLL_MAX = 120;
+const KYC_POLL_MAX = 240;
 
-export default function SumsubKycWidget({ wallet, onStatusChange }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export default function DiditKycWidget({ wallet, onStatusChange }: Props) {
   const [phase, setPhase] = useState<WidgetPhase>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [verificationUrl, setVerificationUrl] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sdkInstanceRef = useRef<{ destroy: () => void } | null>(null);
 
   const pollKycStatus = useCallback(async () => {
     let attempts = 0;
@@ -41,15 +40,18 @@ export default function SumsubKycWidget({ wallet, onStatusChange }: Props) {
         }
         if (status.kycStatus === 'rejected') {
           setPhase('rejected');
-          setError(status.kycRejectionReason || 'Verification was rejected.');
+          setError(status.kycRejectionReason || 'Verification was declined.');
           onStatusChange?.(status);
           return;
         }
       } catch (err) {
-        logger.warn('[SumsubKycWidget] poll error:', err);
+        logger.warn('[DiditKycWidget] poll error:', err);
       }
       if (attempts < KYC_POLL_MAX) {
         pollRef.current = setTimeout(() => void poll(), KYC_POLL_INTERVAL_MS);
+      } else {
+        setPhase('expired');
+        setError('Verification polling timed out. Refresh the page to check status.');
       }
     };
     pollRef.current = setTimeout(() => void poll(), KYC_POLL_INTERVAL_MS);
@@ -60,41 +62,20 @@ export default function SumsubKycWidget({ wallet, onStatusChange }: Props) {
 
     async function init() {
       try {
-        const tokenResult = await fetchSumsubToken(wallet);
+        const result = await createKycSession(wallet);
         if (cancelled) return;
 
-        if ((tokenResult as unknown as Record<string, unknown>).alreadyApproved) {
+        if (result.alreadyApproved) {
           setPhase('already-approved');
           return;
         }
 
-        const snsWebSdk = await import('@sumsub/websdk');
-        if (cancelled || !containerRef.current) return;
-
-        const sdk = snsWebSdk.default
-          .init(tokenResult.token, async () => {
-            const refreshed = await fetchSumsubToken(wallet);
-            return refreshed.token;
-          })
-          .withConf({ lang: 'en' })
-          .withOptions({ addViewportTag: false, adaptIframeHeight: true })
-          .on('idCheck.onApplicantStatusChanged', (payload: unknown) => {
-            logger.info('[sumsub] status changed:', payload);
-          })
-          .on('idCheck.onApplicantSubmitted', () => {
-            void pollKycStatus();
-          })
-          .build();
-
-        if (containerRef.current) {
-          sdk.launch(containerRef.current);
-          sdkInstanceRef.current = sdk;
-          setPhase('active');
-        }
+        setVerificationUrl(result.url);
+        setPhase('ready');
       } catch (err) {
         if (cancelled) return;
-        const msg = err instanceof Error ? err.message : 'Failed to load verification widget';
-        logger.error('[SumsubKycWidget] init error:', msg);
+        const msg = err instanceof Error ? err.message : 'Failed to create verification session';
+        logger.error('[DiditKycWidget] init error:', msg);
         setError(msg);
         setPhase('error');
       }
@@ -105,15 +86,21 @@ export default function SumsubKycWidget({ wallet, onStatusChange }: Props) {
     return () => {
       cancelled = true;
       if (pollRef.current) clearTimeout(pollRef.current);
-      sdkInstanceRef.current?.destroy();
     };
-  }, [wallet, pollKycStatus]);
+  }, [wallet]);
+
+  const handleStartVerification = useCallback(() => {
+    if (!verificationUrl) return;
+    window.open(verificationUrl, '_blank', 'noopener,noreferrer');
+    setPhase('polling');
+    void pollKycStatus();
+  }, [verificationUrl, pollKycStatus]);
 
   if (phase === 'loading') {
     return (
       <div className="flex items-center gap-3 p-6 rounded-xl bg-white/5 border border-white/10">
         <Loader2 className="w-5 h-5 animate-spin text-[#00F5FF]" />
-        <span className="text-sm text-gray-400">Loading verification widget…</span>
+        <span className="text-sm text-gray-400">Preparing verification session…</span>
       </div>
     );
   }
@@ -145,12 +132,24 @@ export default function SumsubKycWidget({ wallet, onStatusChange }: Props) {
       <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-5 space-y-2">
         <div className="flex items-center gap-2 text-red-300 font-medium">
           <XCircle className="w-5 h-5" />
-          Verification rejected
+          Verification declined
         </div>
         {error && <p className="text-sm text-red-200/80">{error}</p>}
         <p className="text-xs text-gray-400">
           Contact support to appeal or re-submit with correct documents.
         </p>
+      </div>
+    );
+  }
+
+  if (phase === 'expired') {
+    return (
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-2">
+        <div className="flex items-center gap-2 text-amber-300 font-medium">
+          <AlertTriangle className="w-5 h-5" />
+          Verification session expired
+        </div>
+        {error && <p className="text-sm text-amber-200/80">{error}</p>}
       </div>
     );
   }
@@ -165,9 +164,42 @@ export default function SumsubKycWidget({ wallet, onStatusChange }: Props) {
         {error && <p className="text-sm text-red-200/80">{error}</p>}
         <p className="text-xs text-gray-400">
           Please check your internet connection and try again. If the problem persists,
-          ensure SUMSUB_APP_TOKEN is configured.
+          ensure DIDIT_API_KEY is configured on the server.
         </p>
       </div>
+    );
+  }
+
+  if (phase === 'polling') {
+    return (
+      <section className="rounded-2xl border border-white/[0.08] bg-black/30 p-5 space-y-4">
+        <header className="flex items-center gap-2">
+          <ShieldCheck className="w-5 h-5 text-[#FFD700]" />
+          <h2 className="text-base font-semibold text-white">Verification in Progress</h2>
+        </header>
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+          <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
+          <div className="space-y-1">
+            <p className="text-sm text-cyan-200 font-medium">
+              Complete verification in the Didit tab
+            </p>
+            <p className="text-xs text-gray-400">
+              This page will update automatically once your identity is confirmed.
+            </p>
+          </div>
+        </div>
+        {verificationUrl && (
+          <a
+            href={verificationUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-cyan-300 hover:text-cyan-200 underline"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Re-open verification page
+          </a>
+        )}
+      </section>
     );
   }
 
@@ -178,10 +210,18 @@ export default function SumsubKycWidget({ wallet, onStatusChange }: Props) {
         <h2 className="text-base font-semibold text-white">Identity Verification</h2>
       </header>
       <p className="text-xs text-gray-400 leading-relaxed">
-        Complete document verification below. This usually takes 2–5 minutes.
-        Your data is processed securely by our verification partner (Sumsub).
+        Complete document verification to start selling. This usually takes 2–5 minutes.
+        Your data is processed securely by Didit — an all-in-one identity platform
+        with free core KYC (500 checks/month).
       </p>
-      <div ref={containerRef} className="min-h-[400px] rounded-xl overflow-hidden" />
+      <button
+        type="button"
+        onClick={handleStartVerification}
+        className="inline-flex items-center gap-2 rounded-xl border border-[#FFD700]/30 bg-[#FFD700]/10 px-5 py-3 text-sm font-semibold text-[#FFD700] hover:bg-[#FFD700]/20 transition-colors"
+      >
+        <ExternalLink className="w-4 h-4" />
+        Start Verification
+      </button>
     </section>
   );
 }
