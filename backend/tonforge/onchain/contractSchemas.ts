@@ -8,6 +8,11 @@ import { Address, beginCell, Cell, contractAddress, type StateInit } from '@ton/
  * wrapper in contracts/. Tests in contracts/tests verify on-chain behaviour;
  * a smoke check via /api/tonforge/config could compare opcode hashes if we
  * ever fear drift.
+ *
+ * v4.1: MintLicense payload layout соответствует natural Tact order:
+ * content (ref) идёт ПЕРЕД burnDeadline (uint32). Это совпадает с Tact
+ * сериализацией `message(0x6a3aaa14) MintLicense { ... individualContent:
+ * Cell; burnDeadline: Int as uint32; }`.
  */
 
 // ─── Opcodes ─────────────────────────────────────────────────────────
@@ -62,6 +67,12 @@ export function collectionStateInit(code: Cell, p: AppCollectionInit): StateInit
   return { code, data: buildCollectionDataCell(p) };
 }
 
+/**
+ * Порядок полей должен совпадать с Tact natural order из
+ * `message(0x6a3aaa14) MintLicense { ... }` в contracts/src/escrow.tact:
+ * queryId(64) · buyer(addr) · escrow(addr) · transferLimit(8) ·
+ * individualContent(ref) · burnDeadline(32).
+ */
 export function buildMintLicensePayload(args: {
   queryId: bigint;
   buyerAddress: Address;
@@ -76,8 +87,8 @@ export function buildMintLicensePayload(args: {
     .storeAddress(args.buyerAddress)
     .storeAddress(args.escrowAddress)
     .storeUint(args.transferLimit, 8)
-    .storeUint(args.burnDeadline, 32)
     .storeRef(args.individualContent)
+    .storeUint(args.burnDeadline, 32)
     .endCell();
 }
 

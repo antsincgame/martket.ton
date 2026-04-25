@@ -1,5 +1,10 @@
 /**
  * AppCollection v4 contract tests (Option C — owner-driven mint).
+ *
+ * v4.1: MintLicense payload урезан до минимума и содержит явный
+ * escrowAddress. Лишние поля (orderId/seller/treasury/amounts/trial)
+ * удалены — они живут в Escrow init params, дублировать их в
+ * MintLicense не нужно.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -24,23 +29,18 @@ describe('AppCollection v4 contract', () => {
   let blockchain: Blockchain;
   let owner: SandboxContract<TreasuryContract>;
   let buyer: SandboxContract<TreasuryContract>;
-  let seller: SandboxContract<TreasuryContract>;
-  let treasury: SandboxContract<TreasuryContract>;
+  let escrowStub: SandboxContract<TreasuryContract>;
   let outsider: SandboxContract<TreasuryContract>;
   let collection: SandboxContract<AppCollection>;
 
-  const SELLER_AMOUNT = toNano('12.5');
-  const FEE_AMOUNT    = toNano('1.875');
-  const TOTAL_AMOUNT  = SELLER_AMOUNT + FEE_AMOUNT;
-  const TRIAL_WINDOW  = 3600n;
+  const TRIAL_WINDOW = 3600n;
 
   beforeEach(async () => {
     blockchain = await Blockchain.create();
     blockchain.now = Math.floor(Date.now() / 1000);
     owner = await blockchain.treasury('owner');
     buyer = await blockchain.treasury('buyer');
-    seller = await blockchain.treasury('seller');
-    treasury = await blockchain.treasury('treasury');
+    escrowStub = await blockchain.treasury('escrowStub');
     outsider = await blockchain.treasury('outsider');
 
     const contract = await AppCollection.fromInit(
@@ -72,17 +72,11 @@ describe('AppCollection v4 contract', () => {
     return {
       $$type: 'MintLicense' as const,
       queryId,
-      orderId: 1n,
-      buyerAddress: buyer.address,
-      sellerAddress: seller.address,
-      treasuryAddress: treasury.address,
-      amountNano: TOTAL_AMOUNT,
-      sellerAmountNano: SELLER_AMOUNT,
-      feeNano: FEE_AMOUNT,
-      trialWindowSec: TRIAL_WINDOW,
-      transferLimit: 0n,
+      buyerAddress:      buyer.address,
+      escrowAddress:     escrowStub.address,
+      transferLimit:     0n,
       individualContent: individualContent(0),
-      burnDeadline: burnDeadline(),
+      burnDeadline:      burnDeadline(),
     };
   }
 

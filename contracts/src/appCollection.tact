@@ -42,14 +42,13 @@ contract AppCollection with Deployable {
 
     // ─── Mint: triggered by ownerAddress (backend signer) ────────────
     //
-    // ВРЕМЕННОЕ РЕШЕНИЕ (Option C):
-    // Mint разрешён только от ownerAddress (backend, wallet controlled by platform).
-    // Escrow шлёт MintLicense через PayEscrow→Collection, но sender будет Escrow,
-    // не owner. Поэтому нужен backend-oracle который индексирует PayEscrow события
-    // и пересылает MintLicense в Collection со своим signed sender.
+    // Option C: mint gated by oracle signature. Escrow-адрес передаётся
+    // в payload (msg.escrowAddress) → LicenseItem корректно привязан к
+    // реальному Escrow, refund-петля (BuyerBurn → RefundOnBurn → Escrow)
+    // замыкается.
     //
-    // TODO: вернуть trustless init-hash check после локальной отладки.
-    // Было: require(sender() == contractAddress(initOf Escrow(...)))
+    // TODO: вернуть trustless init-hash check после testnet E2E —
+    // тогда Escrow сам сможет шлать MintLicense без oracle middleman.
 
     receive(msg: MintLicense) {
         require(sender() == self.ownerAddress, "Only collection owner can mint");
@@ -59,9 +58,9 @@ contract AppCollection with Deployable {
 
         let licenseInit: StateInit = initOf LicenseItem(
             index,
-            myAddress(),          // collection
-            msg.buyerAddress,     // owner of NFT
-            sender(),             // escrow address — передаётся в item для burn refund flow
+            myAddress(),            // collection
+            msg.buyerAddress,       // NFT owner = buyer wallet
+            msg.escrowAddress,      // реальный Escrow для refund-петли
             msg.transferLimit,
             msg.individualContent,
             msg.burnDeadline,
