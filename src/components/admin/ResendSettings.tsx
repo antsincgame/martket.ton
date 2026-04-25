@@ -98,10 +98,10 @@ const ResendSettings = () => {
       const token = await getToken();
       const [s, t, c, inbox, mboxes, domains] = await Promise.all([
         apiFetch<ResendStatus>('/api/admin/resend/status', token),
-        apiFetch<EmailTemplate[]>('/api/admin/resend/templates', token),
-        apiFetch<Campaign[]>('/api/admin/resend/campaigns', token),
+        apiFetch<EmailTemplate[]>('/api/admin/resend/templates', token).catch(() => [] as EmailTemplate[]),
+        apiFetch<Campaign[]>('/api/admin/resend/campaigns', token).catch(() => [] as Campaign[]),
         apiFetch<{ items: unknown[]; unread: number }>('/api/admin/resend/inbox?limit=1', token).catch(() => null),
-        apiFetch<Mailbox[]>('/api/admin/resend/mailboxes', token).catch(() => []),
+        apiFetch<Mailbox[]>('/api/admin/resend/mailboxes', token).catch(() => [] as Mailbox[]),
         apiFetch<{ domains: ResendDomain[] }>('/api/admin/resend/addresses', token).catch(() => null),
       ]);
       setStatus(s);

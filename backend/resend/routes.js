@@ -11,7 +11,8 @@ const router = express.Router();
 let inboundRepoCache = null;
 async function getInboundRepo() {
   if (!inboundRepoCache) {
-    inboundRepoCache = await import('../core/inboundEmailRepository.js');
+    const mod = await import('../core/inboundEmailRepository.js');
+    inboundRepoCache = (mod && typeof mod.listInbound === 'function') ? mod : (mod.default ?? mod);
   }
   return inboundRepoCache;
 }
@@ -19,7 +20,8 @@ async function getInboundRepo() {
 let templateRepoCache = null;
 async function getTemplateRepo() {
   if (!templateRepoCache) {
-    templateRepoCache = await import('../core/emailTemplateRepository.js');
+    const mod = await import('../core/emailTemplateRepository.js');
+    templateRepoCache = (mod && typeof mod.listTemplates === 'function') ? mod : (mod.default ?? mod);
     await templateRepoCache.seedDefaults();
   }
   return templateRepoCache;
@@ -28,7 +30,9 @@ async function getTemplateRepo() {
 let campaignRepoCache = null;
 async function getCampaignRepo() {
   if (!campaignRepoCache) {
-    campaignRepoCache = await import('../core/emailCampaignRepository.js');
+    const mod = await import('../core/emailCampaignRepository.js');
+    // tsx/ESM interop: named exports may live on mod.default when imported from CJS
+    campaignRepoCache = (mod && typeof mod.listCampaigns === 'function') ? mod : (mod.default ?? mod);
   }
   return campaignRepoCache;
 }
@@ -666,7 +670,8 @@ router.get(
 let mailboxRepoCache = null;
 async function getMailboxRepo() {
   if (!mailboxRepoCache) {
-    mailboxRepoCache = await import('../core/emailMailboxRepository.js');
+    const mod = await import('../core/emailMailboxRepository.js');
+    mailboxRepoCache = (mod && typeof mod.listMailboxes === 'function') ? mod : (mod.default ?? mod);
   }
   return mailboxRepoCache;
 }
