@@ -71,9 +71,19 @@ export async function completeOAuthCallback(userId: string, secret: string): Pro
 /**
  * Kicks off GitHub OAuth. Appwrite redirects the browser to GitHub; on
  * success the user lands back at `/auth/callback?userId=&secret=`.
+ *
+ * Drops any existing session first — Appwrite throws
+ * "Creation of a session is prohibited when a session is active"
+ * if we try to create a new OAuth token over an active session.
  */
-export function startGithubOAuth(): void {
+export async function startGithubOAuth(): Promise<void> {
   const account = ensureClient();
+  try {
+    await account.deleteSession('current');
+    cachedJwt = null;
+  } catch {
+    // No active session — that's fine, proceed.
+  }
   const callback = buildCallbackUrl();
   account.createOAuth2Token(OAuthProvider.Github, callback, callback);
 }

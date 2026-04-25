@@ -27,14 +27,16 @@ export default function SignInPage() {
     }
   }, [isAuthenticated, isLoading, navigate]);
 
-  const handleGithub = (): void => {
+  const handleGithub = async (): Promise<void> => {
     setError(null);
+    setBusy(true);
     try {
-      startGithubOAuth();
+      await startGithubOAuth();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'GitHub sign-in unavailable';
       logger.warn('[sign-in] github failed:', msg);
       setError(msg);
+      setBusy(false);
     }
   };
 
@@ -124,10 +126,11 @@ export default function SignInPage() {
           <button
             type="button"
             onClick={handleGithub}
-            className="w-full inline-flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white hover:bg-white/10 hover:border-[#FFD700]/40 transition-all"
+            disabled={busy}
+            className="w-full inline-flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white hover:bg-white/10 hover:border-[#FFD700]/40 transition-all disabled:opacity-60 disabled:cursor-wait"
           >
-            <Github className="w-5 h-5" />
-            <span className="font-medium">Continue with GitHub</span>
+            {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Github className="w-5 h-5" />}
+            <span className="font-medium">{busy ? 'Redirecting...' : 'Continue with GitHub'}</span>
           </button>
 
           <button
