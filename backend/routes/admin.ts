@@ -7,6 +7,7 @@ import { createAuditLogSchema } from './validation.js';
 import * as repo from '../core/repository.js';
 import { profileToSnakeCase, updateProfile } from '../core/repository.js';
 import { generateId } from '../core/generateId.js';
+import { listAllProducts, listProductsByCategory, renameCategory } from '../core/productRepository.js';
 
 const router = express.Router();
 
@@ -332,6 +333,85 @@ router.patch(
     });
     const updated = await repo.findUserById(targetId);
     res.json({ success: true, data: updated ? profileToSnakeCase(updated) : null });
+  }),
+);
+
+// ─── Categories ──────────────────────────────────────────────────────────────
+
+router.get(
+  '/categories',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (_req, res) => {
+    const products = await listAllProducts();
+    const countMap = new Map<string, number>();
+    for (const p of products) {
+      const slug = (p.category || 'other').toLowerCase().trim();
+      countMap.set(slug, (countMap.get(slug) ?? 0) + 1);
+    }
+    const categories = Array.from(countMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([slug, count]) => ({ slug, name: slug, products: count }));
+    res.json({ success: true, data: categories });
+  }),
+);
+
+router.post(
+  '/categories',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const { name } = req.body as { name?: string };
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ success: false, message: 'name is required' });
+      return;
+    }
+    const slug = name.trim().toLowerCase().replace(/\s+/g, '-');
+    const existing = await listProductsByCategory(slug);
+    if (existing.length > 0) {
+      res.status(409).json({ success: false, message: `Category "${slug}" already exists` });
+      return;
+    }
+    res.status(201).json({ success: true, data: { slug, name: slug, products: 0 } });
+  }),
+);
+
+router.patch(
+  '/categories/:slug',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const oldSlug = str(req.params.slug);
+    const { name } = req.body as { name?: string };
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ success: false, message: 'name is required' });
+      return;
+    }
+    const newSlug = name.trim().toLowerCase().replace(/\s+/g, '-');
+    if (oldSlug === newSlug) {
+      res.status(400).json({ success: false, message: 'New name is the same as old name' });
+      return;
+    }
+    const updated = await renameCategory(oldSlug, newSlug);
+    res.json({ success: true, data: { slug: newSlug, name: newSlug, products: updated } });
+  }),
+);
+
+router.delete(
+  '/categories/:slug',
+  apiRequireAuth(),
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const slug = str(req.params.slug);
+    const inUse = await listProductsByCategory(slug);
+    if (inUse.length > 0) {
+      res.status(409).json({
+        success: false,
+        message: `Cannot delete category "${slug}": ${inUse.length} product(s) use it. Reassign them first.`,
+      });
+      return;
+    }
+    res.json({ success: true, data: { slug, deleted: true } });
   }),
 );
 

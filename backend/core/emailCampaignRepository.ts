@@ -88,6 +88,15 @@ export async function findByCampaignId(campaignId: string): Promise<EmailCampaig
   return doc ? mapCampaign(asDoc(doc)) : null;
 }
 
+export async function deleteCampaign(id: string): Promise<boolean> {
+  try {
+    await databases().deleteDocument(CORE_DATABASE_ID, COL_EMAIL_CAMPAIGNS, id);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function updateStatus(
   id: string,
   status: EmailCampaign['status'],

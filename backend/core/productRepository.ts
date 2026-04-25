@@ -158,6 +158,24 @@ export async function insertProduct(row: Record<string, unknown>): Promise<Produ
   return findProductById(id);
 }
 
+export async function listProductsByCategory(category: string): Promise<Product[]> {
+  const res = await databases().listDocuments(CORE_DATABASE_ID, COL_LEGACY_PRODUCTS, [
+    Query.equal('category', category),
+    Query.limit(5000),
+  ]);
+  return res.documents.map((d) => mapProduct(asDoc(d)));
+}
+
+export async function renameCategory(oldSlug: string, newSlug: string): Promise<number> {
+  const products = await listProductsByCategory(oldSlug);
+  await Promise.all(
+    products.map((p) =>
+      databases().updateDocument(CORE_DATABASE_ID, COL_LEGACY_PRODUCTS, p.id, { category: newSlug }),
+    ),
+  );
+  return products.length;
+}
+
 export async function searchProducts(query: string, limit = 50): Promise<Product[]> {
   const res = await databases().listDocuments(CORE_DATABASE_ID, COL_LEGACY_PRODUCTS, [
     Query.equal('status', 'published'),

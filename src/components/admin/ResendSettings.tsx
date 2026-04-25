@@ -181,6 +181,28 @@ const ResendSettings = () => {
     }
   };
 
+  const handleDeleteTemplate = async (templateId: string) => {
+    if (!confirm('Delete this template permanently?')) return;
+    try {
+      const token = await getToken();
+      await apiFetch(`/api/admin/resend/templates/${templateId}`, token, { method: 'DELETE' });
+      setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+    }
+  };
+
+  const handleDeleteCampaign = async (campaignId: string) => {
+    if (!confirm('Delete this campaign permanently?')) return;
+    try {
+      const token = await getToken();
+      await apiFetch(`/api/admin/resend/campaigns/${campaignId}`, token, { method: 'DELETE' });
+      setCampaigns((prev) => prev.filter((c) => c.id !== campaignId));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+    }
+  };
+
   const handleCreateMailbox = async () => {
     setMailboxFormError(null);
     if (!newMailbox.name.trim() || !newMailbox.username.trim() || !newMailbox.domain) {
@@ -597,13 +619,22 @@ const ResendSettings = () => {
                   <h4 className="text-white font-medium">{t.name}</h4>
                   <p className="text-gray-400 text-sm">{t.subject}</p>
                 </div>
-                <button
-                  onClick={() => setEditingTemplate({ ...t })}
-                  className="bg-white/10 hover:bg-white/20 text-gray-300 px-4 py-2 rounded-lg text-sm transition-colors flex items-center space-x-2"
-                >
-                  <Eye className="w-4 h-4" />
-                  <span>Edit</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setEditingTemplate({ ...t })}
+                    className="bg-white/10 hover:bg-white/20 text-gray-300 px-4 py-2 rounded-lg text-sm transition-colors flex items-center space-x-2"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteTemplate(t.id)}
+                    className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors"
+                    title="Delete template"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -682,15 +713,26 @@ const ResendSettings = () => {
                   </span>
                 </div>
               </div>
-              {c.status === 'draft' && (
-                <button
-                  onClick={() => handleSendCampaign(c.id)}
-                  className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>Send Now</span>
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {c.status === 'draft' && (
+                  <button
+                    onClick={() => handleSendCampaign(c.id)}
+                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>Send Now</span>
+                  </button>
+                )}
+                {c.status !== 'sending' && (
+                  <button
+                    onClick={() => handleDeleteCampaign(c.id)}
+                    className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 transition-colors"
+                    title="Delete campaign"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>

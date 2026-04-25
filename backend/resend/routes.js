@@ -175,6 +175,23 @@ router.get(
   }
 );
 
+router.delete(
+  '/templates/:id',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    try {
+      const tmplRepo = await getTemplateRepo();
+      const deleted = await tmplRepo.deleteTemplate(req.params.id);
+      if (!deleted) return res.status(404).json({ success: false, message: 'Template not found' });
+      res.json({ success: true });
+    } catch (err) {
+      logger.error('[resend/templates] delete failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
+);
+
 router.post(
   '/campaigns',
   apiRequireAuth(),
@@ -217,6 +234,27 @@ router.post(
       res.status(500).json({ success: false, message: err.message });
     }
   }
+);
+
+router.delete(
+  '/campaigns/:id',
+  apiRequireAuth(),
+  requireAdminRole,
+  async (req, res) => {
+    try {
+      const campRepo = await getCampaignRepo();
+      const campaign = await campRepo.findByCampaignId(req.params.id);
+      if (!campaign) return res.status(404).json({ success: false, message: 'Campaign not found' });
+      if (campaign.status === 'sending') {
+        return res.status(409).json({ success: false, message: 'Cannot delete a campaign that is currently sending' });
+      }
+      await campRepo.deleteCampaign(campaign.id);
+      res.json({ success: true });
+    } catch (err) {
+      logger.error('[resend/campaigns] delete failed:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  },
 );
 
 router.post(

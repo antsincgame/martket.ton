@@ -84,6 +84,13 @@ export async function updateTemplate(
   return findByKey(key);
 }
 
+export async function deleteTemplate(key: string): Promise<boolean> {
+  const existing = await findByKey(key);
+  if (!existing) return false;
+  await databases().deleteDocument(CORE_DATABASE_ID, COL_EMAIL_TEMPLATES, existing.id);
+  return true;
+}
+
 const DEFAULT_TEMPLATES: Array<{ key: string; name: string; subject: string; body: string; variables: string[] }> = [
   {
     key: 'welcome',

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ShieldCheck, Loader2, Search, Award } from 'lucide-react';
+import { ShieldCheck, Loader2, Search, Award, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { storeApiUrl } from '../../lib/storeApi';
 import { logger } from '../../lib/logger';
@@ -97,6 +97,15 @@ export default function VerifiedDemiurges() {
             Verified demiurges get auto-publish after a clean VirusTotal scan ({verifiedCount}/{users.length} verified).
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <button
+          onClick={() => void load()}
+          disabled={loading}
+          className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+          title="Refresh"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+        </button>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#666]" />
           <input
@@ -106,6 +115,7 @@ export default function VerifiedDemiurges() {
             placeholder="Search by name or email…"
             className="rounded-lg border border-white/10 bg-white/5 pl-9 pr-3 py-2 text-sm text-white placeholder:text-[#555] focus:outline-none focus:border-[#FFD700]/40"
           />
+        </div>
         </div>
       </div>
 
