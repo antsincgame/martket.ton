@@ -154,7 +154,7 @@ async function processTick(network: TonNetwork): Promise<void> {
         .updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
           mintAttempts: (order.mintAttempts ?? 0) + 1,
         })
-        .catch(() => {});
+        .catch((err: unknown) => logger.warn(`[mintWorker] failed to bump mintAttempts for ${order.$id}:`, err instanceof Error ? err.message : err));
     }
   }
 }

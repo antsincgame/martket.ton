@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -224,7 +225,7 @@ const clientErrorLimiter = rateLimit({ windowMs: 60_000, max: 10, standardHeader
 
 app.post('/api/client-errors', clientErrorLimiter, async (req, res) => {
   const { message, stack, componentStack, pathname, userAgent, viewport, resetKey, timestamp } = req.body as Record<string, unknown>;
-  const errorId = `ce_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const errorId = `ce_${Date.now().toString(36)}_${crypto.randomBytes(4).toString('hex')}`;
   logger.error(`[client-error] ${errorId}: ${message}`, {
     stack, componentStack, pathname, userAgent, viewport, resetKey, timestamp,
     ip: req.ip,
