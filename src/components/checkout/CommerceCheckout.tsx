@@ -166,6 +166,11 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
     }
   }, [listing, buyerWallet, tonConnectUI, startMintPolling]);
 
+  const handleKycComplete = useCallback(() => {
+    setShowKycLite(false);
+    void handleBuy();
+  }, [handleBuy]);
+
   if (phase === 'loading') {
     return (
       <div className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10">
@@ -231,11 +236,6 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
       </div>
     );
   }
-
-  const handleKycComplete = useCallback(() => {
-    setShowKycLite(false);
-    void handleBuy();
-  }, [handleBuy]);
 
   const isBusy = phase === 'creating-order' || phase === 'awaiting-wallet' || phase === 'confirming';
   const listingPriceUsd = (listing as Record<string, unknown> | null)?.priceUsd as number | undefined;

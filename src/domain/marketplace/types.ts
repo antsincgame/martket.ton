@@ -4,6 +4,7 @@ export interface CatalogListingProduct {
   name: string;
   description: string;
   price: number;
+  priceUsd?: number;
   rating: number;
   downloads: number;
   image: string;

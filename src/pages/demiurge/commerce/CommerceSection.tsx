@@ -79,7 +79,7 @@ export default function CommerceSection() {
   );
 
   useEffect(() => {
-    void reloadWorkspace().catch(() => {});
+    void reloadWorkspace();
     void refreshKycStatus();
   }, [reloadWorkspace, refreshKycStatus]);
 

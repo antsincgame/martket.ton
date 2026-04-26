@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Search, RefreshCw, Download, Filter, ExternalLink,
   AlertTriangle, CheckCircle, Eye, ChevronDown, ChevronUp,
-  XCircle, Shield, Globe, Activity, FileText, BarChart3, ArrowUpDown,
+  Shield, Globe, Activity, FileText, BarChart3, ArrowUpDown,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { storeApiUrl } from '../../lib/storeApi';
@@ -703,7 +703,7 @@ function ComplianceCard({ entry, statusUpdating, onStatusUpdate }: { entry: Ledg
   );
 }
 
-function ReportsTab({ stats, entries }: { stats: LedgerStats | null; entries: LedgerEntry[] }) {
+function ReportsTab({ stats, entries: _entries }: { stats: LedgerStats | null; entries: LedgerEntry[] }) {
   if (!stats) {
     return (
       <div className="py-16 text-center">
