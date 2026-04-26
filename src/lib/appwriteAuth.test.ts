@@ -92,8 +92,8 @@ describe('completeOAuthCallback', () => {
 });
 
 describe('startGithubOAuth', () => {
-  it('redirects via OAuth2Token', () => {
-    startGithubOAuth();
+  it('redirects via OAuth2Token', async () => {
+    await startGithubOAuth();
     expect(accountMock.createOAuth2Token).toHaveBeenCalledWith(
       'github',
       `${ORIGIN}/auth/callback`,
