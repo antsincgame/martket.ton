@@ -1,4 +1,4 @@
-﻿// "Мои лицензии" — секция профиля для просмотра NFT-лицензий покупателя.
+// "Мои лицензии" — секция профиля для просмотра NFT-лицензий покупателя.
 //
 // Источник данных: GET /api/v1/commerce/buyers/me/licenses (LicensePublic[]).
 // Заменил легаси-источник tonforgeApi.fetchWalletProfile (in-memory state),
@@ -52,12 +52,12 @@ function shortAddr(addr: string | undefined | null): string {
 }
 
 const STATE_PALETTE: Record<LicenseState, { bg: string; border: string; text: string; label: string }> = {
-  mint_pending: { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-300', label: 'Минт в процессе' },
-  minted: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-300', label: 'Активна' },
-  mint_failed: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-300', label: 'Ошибка минта' },
-  refund_pending: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-300', label: 'Refund в пути' },
-  refunded: { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-300', label: 'Возвращена' },
-  burned: { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-300', label: 'Сожжена' },
+  mint_pending: { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-300', label: 'Minting' },
+  minted: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-300', label: 'Active' },
+  mint_failed: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-300', label: 'Mint failed' },
+  refund_pending: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-300', label: 'Refund pending' },
+  refunded: { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-300', label: 'Refunded' },
+  burned: { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-300', label: 'Burned' },
 };
 
 function StateBadge({ state }: { state: LicenseState }) {
@@ -128,7 +128,7 @@ function DownloadButton({ license }: { license: LicensePublic }) {
       const { url } = await issueDownloadUrl(license.listingId);
       window.open(url, '_blank', 'noopener');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось получить ссылку');
+      setError(err instanceof Error ? err.message : 'Failed to fetch download link');
     } finally {
       setBusy(false);
     }
@@ -143,7 +143,7 @@ function DownloadButton({ license }: { license: LicensePublic }) {
         className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-400/20 transition-colors disabled:opacity-50"
       >
         {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-        Скачать билд
+        Download build
       </button>
       {error && <p className="text-[10px] text-rose-300">{error}</p>}
     </div>
@@ -181,7 +181,7 @@ function ConfirmDeliveryButton({
       });
       onConfirmed();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Транзакция отклонена');
+      setError(err instanceof Error ? err.message : 'Transaction rejected');
     } finally {
       setSending(false);
       setConfirming(false);
@@ -194,10 +194,10 @@ function ConfirmDeliveryButton({
         type="button"
         onClick={() => setConfirming(true)}
         className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-400/20 transition-colors"
-        title="Досрочно выплатить продавцу и закрыть escrow"
+        title="Release escrow funds to seller now"
       >
         <CheckCircle2 className="w-3 h-3" />
-        Подтвердить доставку
+        Confirm delivery
       </button>
     );
   }
@@ -205,8 +205,8 @@ function ConfirmDeliveryButton({
   return (
     <div className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 p-3 space-y-2 text-xs">
       <p className="text-cyan-100 font-medium">
-        Средства будут немедленно переведены продавцу. Вы потеряете возможность
-        вернуть их через сжигание NFT. Уверены?
+        Funds will be released to the seller immediately. You will lose the
+        ability to refund via NFT burn. Continue?
       </p>
       {error && <p className="text-rose-300">{error}</p>}
       <div className="flex gap-2">
@@ -217,14 +217,14 @@ function ConfirmDeliveryButton({
           className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-1.5 text-white font-semibold hover:bg-cyan-500 disabled:opacity-50"
         >
           {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-          Да, выплатить
+          Yes, release
         </button>
         <button
           type="button"
           onClick={() => { setConfirming(false); setError(null); }}
           className="rounded-lg border border-white/10 px-3 py-1.5 text-white/70 hover:text-white"
         >
-          Отмена
+          Cancel
         </button>
       </div>
     </div>
@@ -280,7 +280,7 @@ function BuyerBurnButton({
         className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-[11px] font-semibold text-rose-300 hover:bg-rose-500/20 transition-colors"
       >
         <Flame className="w-3 h-3" />
-        Сжечь и вернуть ({remainH}h)
+        Burn &amp; refund ({remainH}h)
       </button>
     );
   }
@@ -288,7 +288,7 @@ function BuyerBurnButton({
   return (
     <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 space-y-2 text-xs">
       <p className="text-rose-200 font-medium">
-        NFT будет сожжён, а средства вернутся вам. Это действие необратимо.
+        The NFT will be burned and funds will be returned to your wallet. This action is irreversible.
       </p>
       {error && <p className="text-rose-300">{error}</p>}
       <div className="flex gap-2">
@@ -299,14 +299,14 @@ function BuyerBurnButton({
           className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-white font-semibold hover:bg-rose-500 disabled:opacity-50"
         >
           {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Flame className="w-3 h-3" />}
-          Подтвердить
+          Confirm
         </button>
         <button
           type="button"
           onClick={() => { setConfirming(false); setError(null); }}
           className="rounded-lg border border-white/10 px-3 py-1.5 text-white/70 hover:text-white"
         >
-          Отмена
+          Cancel
         </button>
       </div>
     </div>
@@ -337,7 +337,7 @@ export default function MyLicensesPanel() {
       });
       setLicenses(sorted);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось загрузить лицензии');
+      setError(err instanceof Error ? err.message : 'Failed to load licenses');
     } finally {
       setLoading(false);
     }
@@ -352,9 +352,9 @@ export default function MyLicensesPanel() {
       <div className="rounded-xl border border-white/10 bg-white/5 p-5 flex items-start gap-3">
         <WalletIcon className="w-5 h-5 text-[#FFD700]" />
         <div>
-          <h3 className="text-sm font-semibold text-white">Подключите TON-кошелёк</h3>
+          <h3 className="text-sm font-semibold text-white">Connect a TON wallet</h3>
           <p className="text-xs text-white/60 mt-1">
-            Чтобы увидеть свои лицензии-NFT, привяжите кошелёк в разделе Wallet.
+            To see your License NFTs, link a wallet in the Wallet section.
           </p>
         </div>
       </div>
@@ -367,10 +367,10 @@ export default function MyLicensesPanel() {
         <div>
           <h2 className="text-lg font-display font-bold uppercase tracking-widest text-white flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-[#FFD700]" />
-            Мои лицензии
+            My licenses
           </h2>
           <p className="text-xs text-white/50 mt-1">
-            On-chain License NFTs, привязанные к вашему кошельку{' '}
+            On-chain License NFTs bound to your wallet{' '}
             <span className="font-mono text-white/70">{shortAddr(wallet)}</span>{' '}
             ({network}).
           </p>
@@ -382,7 +382,7 @@ export default function MyLicensesPanel() {
           className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white hover:bg-white/10 disabled:opacity-50"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Обновить
+          Refresh
         </button>
       </div>
 
@@ -394,7 +394,7 @@ export default function MyLicensesPanel() {
 
       {!loading && licenses.length === 0 && !error && (
         <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-center text-sm text-white/60">
-          У вас пока нет купленных лицензий. После покупки приложения сюда подъедет ваш License NFT.
+          No licenses yet. Your License NFT will land here right after your first purchase.
         </div>
       )}
 
