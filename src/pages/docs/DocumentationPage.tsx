@@ -148,7 +148,6 @@ const TOC = [
   ['#ton', 'TON'],
   ['#license-nft', 'License NFT'],
   ['#help', 'Help'],
-  ['#builders', 'Builders'],
 ];
 
 export default function DocumentationPage() {
@@ -638,7 +637,8 @@ export default function DocumentationPage() {
         {/* ── BUILDER APPENDIX ── */}
         <section
           id="builders"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#8B5CF6]/20 bg-gradient-to-br from-[#0b0814]/95 to-[#04040c] p-6 sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Bot className="h-5 w-5 text-[#8B5CF6]" aria-hidden />
@@ -664,7 +664,8 @@ export default function DocumentationPage() {
         {/* ── AGENT API ── */}
         <section
           id="agent-api"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#00F5FF]/15 bg-gradient-to-br from-[#06121a]/95 to-[#04040c] p-6 sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Bot className="h-5 w-5 text-[#00F5FF]" aria-hidden />
@@ -709,7 +710,8 @@ export default function DocumentationPage() {
         {/* ── ENGINEERS ── */}
         <section
           id="engineers"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#8B5CF6]/20 bg-gradient-to-r from-[#080812] to-[#0d0b14] p-6 sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Shield className="h-5 w-5 text-[#8B5CF6]" aria-hidden />
@@ -805,7 +807,8 @@ export default function DocumentationPage() {
         {/* ── MECHANICUS ── */}
         <section
           id="mechanicus"
-          className="scroll-mt-24 rounded-xl border border-[#FF2A6D]/25 bg-[#06040b] p-6 sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
             <div>

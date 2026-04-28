@@ -333,14 +333,6 @@ function H(
 const TOC = [
   ['#concept', 'Concept'],
   ['#why', 'Why NFT'],
-  ['#architecture', 'Architecture'],
-  ['#lifecycle', 'Lifecycle'],
-  ['#contracts', 'Contracts'],
-  ['#oracle', 'Oracle'],
-  ['#standards', 'TEP'],
-  ['#security', 'Security'],
-  ['#limitations', 'Limits'],
-  ['#mechanicus', 'LM∞'],
 ];
 
 function CodeBlock({ language, children }: { language: string; children: string }) {
@@ -571,7 +563,8 @@ export default function LicenseNftPage() {
         {/* ── ARCHITECTURE ── */}
         <section
           id="architecture"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#8B5CF6]/20 bg-gradient-to-br from-[#0a0814]/95 to-[#04040c] p-6 sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Box className="h-5 w-5 text-[#8B5CF6]" aria-hidden />
@@ -634,7 +627,8 @@ export default function LicenseNftPage() {
         {/* ── LIFECYCLE ── */}
         <section
           id="lifecycle"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#00FF88]/15 bg-gradient-to-br from-[#06120c]/95 to-[#04040c] p-6 sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Zap className="h-5 w-5 text-[#00FF88]" aria-hidden />
@@ -694,7 +688,8 @@ export default function LicenseNftPage() {
         {/* ── CONTRACTS ── */}
         <section
           id="contracts"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#FFD700]/15 bg-gradient-to-br from-[#101018]/95 to-[#06060e] p-6 sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Hexagon className="h-5 w-5 text-[#FFD700]" aria-hidden />
@@ -720,7 +715,8 @@ export default function LicenseNftPage() {
         {/* ── ORACLE ── */}
         <section
           id="oracle"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#00F5FF]/15 bg-gradient-to-br from-[#06121a]/95 to-[#04040c] p-6 sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Cpu className="h-5 w-5 text-[#00F5FF]" aria-hidden />
@@ -748,7 +744,8 @@ export default function LicenseNftPage() {
         {/* ── STANDARDS ── */}
         <section
           id="standards"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#8B5CF6]/15 bg-gradient-to-br from-[#0a0814]/95 to-[#04040c] p-6 sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <BadgeCheck className="h-5 w-5 text-[#8B5CF6]" aria-hidden />
@@ -835,7 +832,8 @@ export default function LicenseNftPage() {
         {/* ── SECURITY ── */}
         <section
           id="security"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#FF2A6D]/15 bg-gradient-to-br from-[#180810]/95 to-[#04040c] p-6 sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <ShieldCheck className="h-5 w-5 text-[#FF2A6D]" aria-hidden />
@@ -869,7 +867,8 @@ export default function LicenseNftPage() {
         {/* ── CURRENT LIMITATIONS ── */}
         <section
           id="limitations"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#FFA040]/25 bg-gradient-to-br from-[#1a1206]/95 to-[#04040c] p-6 sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <AlertTriangle className="h-5 w-5 text-[#FFA040]" aria-hidden />
@@ -920,7 +919,8 @@ export default function LicenseNftPage() {
         {/* ── MECHANICUS BLOCK FOR LM∞ ── */}
         <section
           id="mechanicus"
-          className="mb-10 scroll-mt-24 rounded-xl border border-[#FF2A6D]/30 bg-gradient-to-br from-[#0a0008]/95 to-[#000] p-6 shadow-[0_0_60px_rgba(255,42,109,0.08)] sm:p-8"
+          className="hidden"
+          aria-hidden="true"
         >
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
