@@ -37,12 +37,14 @@ function slugToName(slug) {
   return slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function renderHtml(title, desc, img, url) {
+function renderHtml({ title, desc, img, url, body }) {
   return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="${esc(url)}">
 <meta property="og:site_name" content="${SITE}">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
@@ -53,7 +55,9 @@ function renderHtml(title, desc, img, url) {
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(desc)}">
 <meta name="twitter:image" content="${esc(img)}">
-</head><body></body></html>`;
+</head><body>
+${body || `<h1>${esc(title)}</h1><p>${esc(desc)}</p>`}
+</body></html>`;
 }
 
 async function resolveProduct(slug) {
@@ -77,11 +81,38 @@ async function resolveProfile(slug) {
   } catch { return null; }
 }
 
+async function listPublished(limit = 24) {
+  if (!repo) return [];
+  try {
+    const products = await repo.listProductsByStatus('published');
+    return Array.isArray(products) ? products.slice(0, limit) : [];
+  } catch { return []; }
+}
+
+function productSlug(p) {
+  return (p.slug || p.id || p.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || '').toString();
+}
+
+function productLink(p) {
+  const slug = productSlug(p);
+  return slug ? `${ORIGIN}/product/${slug}` : ORIGIN;
+}
+
+function renderProductCard(p) {
+  const link = productLink(p);
+  const name = esc(p.name || 'Untitled');
+  const desc = esc(p.shortDescription || p.description || '');
+  const cat = p.category ? `<span> &middot; ${esc(CATEGORIES[p.category] || slugToName(p.category))}</span>` : '';
+  const price = p.price !== undefined && p.price !== null ? `<span> &middot; ${esc(String(p.price))} TON</span>` : '';
+  return `<li><a href="${esc(link)}"><strong>${name}</strong></a>${cat}${price}<br>${desc}</li>`;
+}
+
 router.get('/', async (req, res) => {
   const rawPath = (req.query.path || '/').replace(/\?.*$/, '');
   let title = SITE + ' — Decentralized Digital Marketplace';
   let desc = DEFAULT_DESC;
   let img = ICON;
+  let body = '';
   const url = ORIGIN + rawPath;
 
   const devMatch = rawPath.match(/^\/developer\/([^/]+)/);
@@ -97,6 +128,12 @@ router.get('/', async (req, res) => {
       ? `${profile.bio} — explore products by ${name} on ${SITE}.`
       : `Developer profile on ${SITE}`;
     img = profile?.bannerUrl || profile?.avatar || ICON;
+
+    const all = await listPublished(200);
+    const own = all.filter((p) => p.authorSlug === slug || p.author === slug || p.developerSlug === slug);
+    body = `<h1>${esc(name)}</h1>` +
+      (profile?.bio ? `<p>${esc(profile.bio)}</p>` : '') +
+      (own.length ? `<h2>Products by ${esc(name)}</h2><ul>${own.map(renderProductCard).join('')}</ul>` : '');
   } else if (prodMatch) {
     const slug = prodMatch[1];
     const product = await resolveProduct(slug);
@@ -104,19 +141,42 @@ router.get('/', async (req, res) => {
       title = `${product.name} — ${SITE}`;
       desc = product.shortDescription || product.description || DEFAULT_DESC;
       img = product.image || ICON;
+      const fullDesc = product.description ? `<p>${esc(product.description)}</p>` : '';
+      const shortDesc = product.shortDescription && product.shortDescription !== product.description
+        ? `<p><em>${esc(product.shortDescription)}</em></p>` : '';
+      const cat = product.category
+        ? `<p>Category: <a href="${ORIGIN}/category/${esc(product.category)}">${esc(CATEGORIES[product.category] || slugToName(product.category))}</a></p>` : '';
+      const price = product.price !== undefined && product.price !== null
+        ? `<p>Price: ${esc(String(product.price))} TON</p>` : '';
+      const tags = Array.isArray(product.tags) && product.tags.length
+        ? `<p>Tags: ${product.tags.map((t) => esc(t)).join(', ')}</p>` : '';
+      body = `<h1>${esc(product.name)}</h1>${shortDesc}${fullDesc}${cat}${price}${tags}`;
     } else {
       title = `Product — ${SITE}`;
+      body = `<h1>Product not found</h1><p><a href="${ORIGIN}/">Back to ${SITE}</a></p>`;
     }
   } else if (catMatch) {
     const slug = catMatch[1];
     const name = CATEGORIES[slug] || slugToName(slug);
     title = `${name} — ${SITE}`;
     desc = `Browse ${name} on ${SITE} — decentralized digital marketplace on TON blockchain.`;
+
+    const all = await listPublished(200);
+    const inCat = all.filter((p) => p.category === slug);
+    body = `<h1>${esc(name)}</h1><p>${esc(desc)}</p>` +
+      (inCat.length ? `<ul>${inCat.map(renderProductCard).join('')}</ul>` : '<p>No products yet.</p>');
+  } else if (rawPath === '/' || rawPath === '') {
+    const featured = await listPublished(24);
+    const cats = Object.entries(CATEGORIES)
+      .map(([k, v]) => `<li><a href="${ORIGIN}/category/${esc(k)}">${esc(v)}</a></li>`).join('');
+    body = `<h1>${esc(title)}</h1><p>${esc(desc)}</p>` +
+      `<h2>Categories</h2><ul>${cats}</ul>` +
+      (featured.length ? `<h2>Featured products</h2><ul>${featured.map(renderProductCard).join('')}</ul>` : '');
   }
 
   res.set('Content-Type', 'text/html; charset=utf-8');
-  res.set('Cache-Control', 'public, max-age=3600');
-  res.send(renderHtml(title, desc, img, url));
+  res.set('Cache-Control', 'public, max-age=600');
+  res.send(renderHtml({ title, desc, img, url, body }));
 });
 
 module.exports = router;
