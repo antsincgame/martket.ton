@@ -6,7 +6,6 @@ import {
   Sparkles,
   HelpCircle,
   BookOpen,
-  Bot,
   ExternalLink,
   MessageCircle,
   ChevronRight,
@@ -31,21 +30,21 @@ const SUPPORT_LINKS: SupportItem[] = [
     label: 'Documentation',
     icon: BookOpen,
     accent: 'group-hover:text-[#FFD700]',
-    desc: 'Buyer & publisher guide',
+    desc: 'Buyer help and publisher guide',
   },
   {
     to: '/docs/license-nft',
-    label: 'License NFT',
+    label: 'License & refunds',
     icon: ShieldCheck,
     accent: 'group-hover:text-[#FF2A6D]',
-    desc: 'Soulbound proof of purchase · TEP-62/64',
+    desc: 'Proof of purchase and on-chain refund',
   },
   {
-    to: '/docs#agent-api',
-    label: 'Agent API',
-    icon: Bot,
+    to: '/refund-policy',
+    label: 'Refund Policy',
+    icon: HelpCircle,
     accent: 'group-hover:text-[#00F5FF]',
-    desc: 'Personal access tokens for AI agents',
+    desc: 'Refund window, DMCA and disputes',
   },
   {
     href: TELEGRAM_URL,
@@ -215,9 +214,9 @@ const Footer = () => {
             <div className="flex items-start gap-1.5 sm:col-span-2 lg:col-span-4">
               <span className="mt-0.5 block h-1.5 w-1.5 shrink-0 rounded-full bg-[#FF2A6D]" />
               <span>
-                <strong className="text-gray-300">Soulbound proof of purchase.</strong> Каждая покупка минтит{' '}
-                <Link to="/docs/license-nft" className="text-[#FF2A6D] hover:underline">License NFT</Link> в TON —
-                несъёмный, верифицируемый on-chain, сжигается только при возврате средств. TEP-62 / TEP-64.
+                <strong className="text-gray-300">Soulbound proof of purchase.</strong> Every purchase mints a{' '}
+                <Link to="/docs/license-nft" className="text-[#FF2A6D] hover:underline">License NFT</Link> on TON —
+                non-transferable, on-chain verifiable, and burnable only for refunds. TEP-62 / TEP-64.
               </span>
             </div>
           </div>
@@ -242,13 +241,6 @@ const Footer = () => {
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
               License NFT
             </Link>
-            <Link
-              to="/docs#agent-api"
-              className="inline-flex items-center gap-1.5 font-medium text-[#00F5FF]/80 transition-colors hover:text-[#00F5FF]"
-            >
-              <Bot className="h-3.5 w-3.5" aria-hidden />
-              Agent API
-            </Link>
             <span className="hidden h-4 w-px bg-white/15 sm:inline" aria-hidden />
             <Link to="/terms" className="font-medium text-white/80 transition-colors hover:text-white">
               Terms of Service
@@ -263,10 +255,9 @@ const Footer = () => {
         </div>
 
         <div className="mt-8 rounded-xl border border-[#8B5CF6]/20 bg-gradient-to-r from-[#8B5CF6]/[0.08] via-transparent to-[#00F5FF]/[0.06] p-4 text-center">
-          <p className="mb-1 text-xs font-mono uppercase tracking-[0.25em] text-[#8B5CF6]/90">Sacred dedication</p>
+          <p className="mb-1 text-xs font-mono uppercase tracking-[0.25em] text-[#8B5CF6]/90">Buyer-first by design</p>
           <p className="text-sm text-gray-400">
-            Om Tare Tu Tarre Svaha — May this marketplace bring prosperity to all beings and support the growth of
-            consciousness through technology.
+            Clear ownership, wallet-controlled payments, and on-chain refunds without support tickets during the trial window.
           </p>
         </div>
       </div>

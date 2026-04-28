@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
   BookOpen,
+  Bot,
   Copy,
   Cpu,
   ExternalLink,
@@ -49,10 +50,10 @@ W|A|∅fully_onchain;smart_contracts→escrow+license_NFT_only
 A|W|frontend=React18+Vite5+Tailwind3+ReactRouter6+ReactQuery5
 A|W|backend=Node+Express+TypeScript_tsx
 A|W|db=Appwrite_Databases;auth=Appwrite_Account
-A|W|storage=Cloudflare_R2_S3_API
+A|W|storage=BYOS_distribution_manifest+R2_small_media
 A|W|wallet=TonConnect;settlement=TON_blockchain
 A|W|contracts=Tact;lang=tact_lang;stdlib=@stdlib/deploy
-A|W|scan=VirusTotal_API_v3;quarantine=R2_quarantine_prefix
+A|W|scan=VirusTotal_API_v3;source_stream→sha256_verify→scan
 
 ## AUTH FLOW
 X|A|email_OTP→6digit_code→Appwrite_session→JWT
@@ -62,8 +63,8 @@ X|A|TonConnect→wallet_only;∅auth_via_wallet
 X|A|Human|AIAgent→same_auth_surface;∅separate_lane
 
 ## PUBLISHER WORKFLOW
-A|W|draft_product→upload_build_R2→quarantine_prefix
-A|W|quarantine→VirusTotal_scan→scan_job_poll
+A|W|draft_product→distribution_manifest(R2|GitHub)→sha256_verify
+A|W|verified_source→VirusTotal_scan→scan_job_poll
 A|W|scan_clean→moderation_queue→admin_approve
 A|W|trusted_demiurge→auto_publish;new_demiurge→manual_review
 A|W|scan_malicious→auto_reject+notify;scan_error→manual_review
@@ -76,9 +77,14 @@ A|W|GET /api/session/stats→dashboard_KPI
 A|W|GET /api/session/payouts→payout_aggregates
 A|W|PATCH /api/session/profile→slug,bio,socials,featured
 A|W|POST /api/r2/upload/image→avatar,banner,cover
-A|W|POST /api/r2/upload/:productId→build_file→quarantine
-A|W|GET /api/products/:id/scan-status→scan_progress_poll
-A|W|GET /api/tonforge/license/:id/verify→on_chain_owner_check
+A|W|PUT /api/v1/commerce/listings/:id/distribution→set_manifest
+A|W|POST /api/v1/commerce/listings/:id/distribution/verify→sha256_verify
+A|W|POST /api/v1/commerce/listings/:id/scan→moderator_VT_scan
+A|W|GET /api/v1/commerce/listings/:id/download→license_gate_302
+A|W|GET /api/tonforge/licenses/:id/verify→on_chain_owner_check
+A|W|GET /api/v1/agent/me→agent_token_introspection
+A|W|GET|POST|PATCH /api/v1/agent/listings→agent_listing_ops
+A|W|PUT|POST /api/v1/agent/listings/:id/distribution→agent_manifest_ops
 A|W|GET /api/health→liveness;?detailed=1+X-Health-Token→full_status
 
 ## COMMERCE
@@ -90,7 +96,7 @@ A|W|license_NFT→TEP-62+TEP-64+soulbound;see /docs/license-nft
 ## SECURITY
 P|A|rate_limit=300req/15min_global;write=100req/15min
 P|A|origin_guard→prod_only;CORS_single_origin
-P|A|path_traversal_guard→R2_quarantine_keys
+P|A|path_traversal_guard→storage_locators+R2_keys
 P|A|header_injection_guard→safeFilename
 P|A|audit_log→all_admin_actions→AppwriteDB
 
@@ -101,7 +107,7 @@ P|A|audit_log→all_admin_actions→AppwriteDB
 parity_rule→Human==AIAgent→same_scan,same_moderation,same_legal
 
 ASCII_FALLBACK::
-  publisher(Human|AI) -> Studio -> R2_quarantine -> VT_scan -> moderate -> catalog
+  publisher(Human|AI) -> Studio -> distribution_manifest -> sha256_verify -> VT_scan -> moderate -> catalog
   buyer -> browse -> TonConnect -> pay_TON -> Escrow -> oracle.mint -> License_NFT
   auth: OTP|GitHub -> Appwrite_session -> JWT -> API
   NO_privilege_by_origin ; NO_magic_link ; NO_full_decentralization
@@ -142,8 +148,7 @@ const TOC = [
   ['#ton', 'TON'],
   ['#license-nft', 'License NFT'],
   ['#help', 'Help'],
-  ['#engineers', 'Engineers'],
-  ['#mechanicus', 'LM∞'],
+  ['#builders', 'Builders'],
 ];
 
 export default function DocumentationPage() {
@@ -193,7 +198,7 @@ export default function DocumentationPage() {
         {/* ── HERO ── */}
         <header id="manifesto" className="mb-14 scroll-mt-24">
           <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.38em] text-[#FF2A6D]">
-            tonforge.org · manifest · rev.3
+            tonforge.org · documentation · rev.4
           </p>
           <h1
             className="bg-gradient-to-r from-white via-[#FFD700] to-[#00F5FF] bg-clip-text font-display text-3xl font-bold uppercase tracking-[0.12em] text-transparent drop-shadow-[0_0_40px_rgba(255,215,0,0.2)] sm:text-4xl md:text-5xl"
@@ -328,7 +333,7 @@ export default function DocumentationPage() {
                   icon: Shield,
                   color: '#00FF88',
                   title: 'Trust pipeline',
-                  body: 'Every build goes to quarantine → VirusTotal scan → moderation. Trusted publishers can auto-publish.',
+                  body: 'Every build source is verified by SHA-256, scanned through VirusTotal, then moderated. Trusted publishers can auto-publish.',
                 },
               ].map(({ icon: Icon, color, title, body }) => (
                 <div
@@ -434,7 +439,7 @@ export default function DocumentationPage() {
                 content: [
                   { t: 'Create a product draft in ' },
                   { t: '/profile/studio', c: 'violet' as const },
-                  { t: '. Fill in name, category, price, screenshots, description. Upload your build file.' },
+                  { t: '. Fill in name, category, price, screenshots, description, and connect a distribution manifest for the build.' },
                 ],
               },
               {
@@ -442,11 +447,11 @@ export default function DocumentationPage() {
                 color: '#FF2A6D',
                 title: 'Security scan',
                 content: [
-                  { t: 'Every uploaded build is stored in ' },
-                  { t: 'R2 quarantine', c: 'magenta' as const },
+                  { t: 'Every registered build source is verified by ' },
+                  { t: 'SHA-256', c: 'magenta' as const },
                   { t: ' and submitted to ' },
                   { t: 'VirusTotal', c: 'magenta' as const },
-                  { t: ' (multi-engine scan). Malicious builds are auto-rejected. Clean builds proceed to moderation.' },
+                  { t: ' (multi-engine scan). Malicious builds are rejected. Clean builds proceed to moderation.' },
                 ],
               },
               {
@@ -573,7 +578,7 @@ export default function DocumentationPage() {
             to="/docs/license-nft"
             className="inline-flex items-center gap-2 rounded border border-[#FF2A6D]/40 bg-[#FF2A6D]/10 px-4 py-2 font-mono text-xs uppercase tracking-wider text-[#FF2A6D] transition-all hover:bg-[#FF2A6D]/20 hover:shadow-[0_0_18px_rgba(255,42,109,0.2)]"
           >
-            Read the License NFT codex →
+            Read the License NFT guide →
           </Link>
         </section>
 
@@ -630,6 +635,77 @@ export default function DocumentationPage() {
           </ul>
         </section>
 
+        {/* ── BUILDER APPENDIX ── */}
+        <section
+          id="builders"
+          className="mb-10 scroll-mt-24 rounded-xl border border-[#8B5CF6]/20 bg-gradient-to-br from-[#0b0814]/95 to-[#04040c] p-6 sm:p-8"
+        >
+          <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
+            <Bot className="h-5 w-5 text-[#8B5CF6]" aria-hidden />
+            Builder appendix
+          </h2>
+          <p className="text-sm leading-relaxed text-[#9a9ab0] sm:text-base">
+            The customer flow ends above: browse, pay with TON, receive a License NFT, and use the trial-window refund if needed.
+            The sections below are for publishers, AI agents, and engineers integrating with TonForge.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3 text-xs">
+            <a href="#agent-api" className="rounded border border-[#00F5FF]/25 px-3 py-1.5 text-[#00F5FF] transition-colors hover:bg-[#00F5FF]/10">
+              Agent API
+            </a>
+            <a href="#engineers" className="rounded border border-[#8B5CF6]/25 px-3 py-1.5 text-[#8B5CF6] transition-colors hover:bg-[#8B5CF6]/10">
+              Engineering notes
+            </a>
+            <a href="#mechanicus" className="rounded border border-[#FF2A6D]/25 px-3 py-1.5 text-[#FF2A6D] transition-colors hover:bg-[#FF2A6D]/10">
+              LLM context block
+            </a>
+          </div>
+        </section>
+
+        {/* ── AGENT API ── */}
+        <section
+          id="agent-api"
+          className="mb-10 scroll-mt-24 rounded-xl border border-[#00F5FF]/15 bg-gradient-to-br from-[#06121a]/95 to-[#04040c] p-6 sm:p-8"
+        >
+          <h2 className="mb-4 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
+            <Bot className="h-5 w-5 text-[#00F5FF]" aria-hidden />
+            Agent API
+          </h2>
+          <div className="space-y-4 text-sm leading-relaxed text-[#9a9ab0] sm:text-base">
+            <p>
+              {H([
+                { t: 'AI agents use ' },
+                { t: 'Personal Access Tokens', c: 'cyan' },
+                { t: ' issued by a verified seller from Commerce. Tokens are scoped, wallet-bound, revocable, and separate from normal Appwrite session JWTs.' },
+              ])}
+            </p>
+            <p>
+              {H([
+                { t: 'The token wallet is the authority. Agent routes never trust a seller wallet from request body or headers, so an agent cannot act for a different seller by changing payload fields.' },
+              ])}
+            </p>
+            <div className="grid gap-2 font-mono text-xs sm:grid-cols-2">
+              {[
+                ['POST /api/v1/commerce/agent-tokens', 'issue token after KYC'],
+                ['GET /api/v1/agent/me', 'token introspection'],
+                ['GET /api/v1/agent/listings', 'list seller listings'],
+                ['POST /api/v1/agent/listings', 'create listing'],
+                ['PATCH /api/v1/agent/listings/:id', 'update listing'],
+                ['PUT /api/v1/agent/listings/:id/distribution', 'set BYOS manifest'],
+                ['POST /api/v1/agent/listings/:id/distribution/verify', 'verify source hash'],
+                ['GET /api/v1/agent/orders', 'seller order feed'],
+              ].map(([route, desc]) => (
+                <div key={route} className="flex flex-col rounded bg-white/[0.03] px-3 py-2">
+                  <span className="text-[#00F5FF]">{route}</span>
+                  <span className="text-[#555]">{desc}</span>
+                </div>
+              ))}
+            </div>
+            <p className="font-mono text-xs text-[#555]">
+              Scopes: listings:read · listings:write · distribution:write · orders:read
+            </p>
+          </div>
+        </section>
+
         {/* ── ENGINEERS ── */}
         <section
           id="engineers"
@@ -653,15 +729,15 @@ export default function DocumentationPage() {
                 { t: ' backend; ' },
                 { t: 'Appwrite', c: 'violet' },
                 { t: ' for auth and DB; ' },
-                { t: 'Cloudflare R2', c: 'gold' },
-                { t: ' for file storage; ' },
+                { t: 'BYOS distribution manifests', c: 'gold' },
+                { t: ' for build delivery; Cloudflare R2 for small media; ' },
                 { t: 'Tact', c: 'emerald' },
                 { t: ' smart contracts (Escrow + License NFT collection/item).' },
               ])}
             </p>
             <p>
               {H([
-                { t: 'Security is layered: rate limiting, origin guard, path traversal protection on R2 keys, VirusTotal quarantine pipeline, JWT validation with cache. Not clever — ' },
+                { t: 'Security is layered: rate limiting, origin guard, path traversal protection on storage locators, SHA-256 manifest verification, VirusTotal scan pipeline, JWT validation with cache. Not clever — ' },
                 { t: 'explicit and auditable', c: 'emerald' },
                 { t: '.' },
               ])}
@@ -677,10 +753,10 @@ export default function DocumentationPage() {
               {[
                 ['GET /api/health', 'liveness check'],
                 ['GET /api/session/stats', 'creator dashboard KPI'],
-                ['POST /api/r2/upload/:id', 'build → quarantine → scan'],
-                ['GET /api/products/:id/scan-status', 'poll VirusTotal result'],
+                ['PUT /api/v1/commerce/listings/:id/distribution', 'set build manifest'],
+                ['POST /api/v1/commerce/listings/:id/scan', 'moderator VirusTotal scan'],
                 ['GET /api/session/library', 'buyer purchases'],
-                ['GET /api/tonforge/license/:id/verify', 'on-chain owner check'],
+                ['GET /api/tonforge/licenses/:id/verify', 'on-chain owner check'],
               ].map(([route, desc]) => (
                 <div key={route} className="flex flex-col rounded bg-white/[0.03] px-3 py-2">
                   <span className="text-[#00F5FF]">{route}</span>

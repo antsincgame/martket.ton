@@ -163,7 +163,7 @@ function App() {
                   <Route
                     path="/docs"
                     element={
-                      <RouteSuspense message="Loading manifest...">
+                      <RouteSuspense message="Loading documentation...">
                         <DocumentationPage />
                       </RouteSuspense>
                     }
@@ -171,7 +171,7 @@ function App() {
                   <Route
                     path="/docs/license-nft"
                     element={
-                      <RouteSuspense message="Forging license codex...">
+                      <RouteSuspense message="Loading License NFT guide...">
                         <LicenseNftPage />
                       </RouteSuspense>
                     }

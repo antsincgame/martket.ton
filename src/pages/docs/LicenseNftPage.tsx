@@ -22,7 +22,7 @@ import {
 
 /* ═══════════════════════════════════════════════════════════════
    MECHANICUS PROTOCOL — License NFT subsystem
-   Grammar: OMNISSIAH::HDSK_EXTRACTOR  (см. /docs)
+   Grammar: OMNISSIAH::HDSK_EXTRACTOR  (see /docs)
    IN→license_nft_subsystem  OUT→codegen_context
    ═══════════════════════════════════════════════════════════════ */
 const LICENSE_MECH_BLOCK = `OMNISSIAH::TONFORGE_LICENSE_NFT v2
@@ -214,12 +214,12 @@ contract AppCollection with Deployable {
     collectionContent: Cell;
     commonContent:     Cell;
 
-    // Option C: mint gated by oracle signature. Escrow-адрес передаётся
-    // в payload (msg.escrowAddress) → LicenseItem корректно привязан к
-    // реальному Escrow, refund-петля (BuyerBurn → RefundOnBurn → Escrow)
-    // замыкается end-to-end.
+    // Option C: mint gated by oracle signature. The Escrow address is passed
+    // in payload (msg.escrowAddress), so LicenseItem is bound to the real
+    // Escrow and the refund loop (BuyerBurn → RefundOnBurn → Escrow) closes
+    // end-to-end.
     //
-    // TODO: trustless init-hash check (Escrow сам шлёт MintLicense) после
+    // TODO: trustless init-hash check (Escrow sends MintLicense itself) after
     // testnet E2E smoke.
     receive(msg: MintLicense) {
         require(sender() == self.ownerAddress, "Only collection owner can mint");
@@ -230,7 +230,7 @@ contract AppCollection with Deployable {
             index,
             myAddress(),            // collection
             msg.buyerAddress,       // NFT owner = buyer wallet
-            msg.escrowAddress,      // реальный Escrow для refund-петли
+            msg.escrowAddress,      // real Escrow for the refund loop
             msg.transferLimit,
             msg.individualContent,
             msg.burnDeadline,
@@ -254,24 +254,24 @@ contract AppCollection with Deployable {
 
 const TS_ORACLE_MINT = `// backend/tonforge/onchain/mintLicense.ts
 export async function mintLicense(args: MintArgs) {
-  // Адрес LicenseItem детерминирован: backend считает его клиентски
-  // через StateInit(code, init_data) до отправки транзакции.
+  // LicenseItem address is deterministic: backend computes it client-side
+  // from StateInit(code, init_data) before sending the transaction.
   const itemAddress = computeItemAddress(licenseItemCode, {
     index:         args.index,
     collection:    collection.address,
     ownerAddress:  args.buyer,                   // NFT owner = buyer
-    escrowAddress: args.escrow,                  // реальный Escrow
+    escrowAddress: args.escrow,                  // real Escrow
     transferLimit: 0,                            // soulbound
     burnDeadline:  args.burnDeadline,
     content:       buildOffchainContent(args.metadataUri),
   });
 
-  // MintLicense payload — 6 полей. orderId / seller / treasury / amounts
-  // хранятся в Escrow init params, Collection их не использует.
+  // MintLicense payload has 6 fields. orderId / seller / treasury / amounts
+  // live in Escrow init params; Collection does not use them.
   const body = buildMintLicensePayload({
     queryId:           args.queryId,
     buyerAddress:      args.buyer,
-    escrowAddress:     args.escrow,              // критично: не sender()
+    escrowAddress:     args.escrow,              // critical: not sender()
     transferLimit:     0,
     individualContent: buildOffchainContent(args.metadataUri),
     burnDeadline:      args.burnDeadline,
@@ -424,13 +424,13 @@ export default function LicenseNftPage() {
           className="mb-10 inline-flex items-center gap-2 text-sm text-[#555] transition-colors hover:text-[#FFD700]"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
-          Back to Manifest
+          Back to docs
         </Link>
 
         {/* ── HERO ── */}
         <header className="mb-14">
           <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.38em] text-[#FF2A6D]">
-            tonforge.org · subsystem · license-nft · rev.2
+            tonforge.org · documentation · license-nft · rev.3
           </p>
           <h1 className="bg-gradient-to-r from-white via-[#FFD700] to-[#00F5FF] bg-clip-text font-display text-3xl font-bold uppercase tracking-[0.12em] text-transparent drop-shadow-[0_0_40px_rgba(255,215,0,0.25)] sm:text-4xl md:text-5xl">
             License NFT
@@ -440,13 +440,13 @@ export default function LicenseNftPage() {
           </p>
           <p className="mt-5 max-w-2xl text-base leading-relaxed text-[#9a9ab0] sm:text-lg">
             {H([
-              { t: 'Каждая покупка приложения на TonForge выпускает ' },
+              { t: 'Every successful TonForge app purchase mints a ' },
               { t: 'soulbound NFT', c: 'gold' },
-              { t: ' — несъёмное доказательство владения, привязанное к кошельку покупателя. Лицензия живёт в блокчейне, а не в нашей БД. Платформа её ' },
-              { t: 'минтит', c: 'cyan' },
-              { t: ' через oracle и ' },
-              { t: 'верифицирует', c: 'emerald' },
-              { t: ' on-chain. Сжигает её сам покупатель — чтобы забрать средства из эскроу в течение trial window.' },
+              { t: ' — a non-transferable ownership proof bound to the buyer wallet. The license lives on-chain, not only in our database. The platform ' },
+              { t: 'mints', c: 'cyan' },
+              { t: ' it through the oracle and ' },
+              { t: 'verifies', c: 'emerald' },
+              { t: ' it on-chain. The buyer can burn it themselves to reclaim funds from escrow during the trial window.' },
             ])}
           </p>
 
@@ -482,36 +482,36 @@ export default function LicenseNftPage() {
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Sparkles className="h-5 w-5 text-[#FFD700]" aria-hidden />
-            Концепция
+            Concept
           </h2>
           <div className="space-y-4 text-sm leading-relaxed sm:text-base">
             <p>
               {H([
-                { t: 'License NFT — это ' },
-                { t: 'soulbound токен', c: 'gold' },
-                { t: ' (несъёмный): после минта он навсегда привязан к кошельку покупателя. Передать нельзя — в storage стоит ' },
+                { t: 'A License NFT is a ' },
+                { t: 'soulbound token', c: 'gold' },
+                { t: ': after mint it is permanently bound to the buyer wallet. It cannot be transferred because storage sets ' },
                 { t: 'transferLimit = 0', c: 'magenta' },
-                { t: ', и контракт отклоняет любой входящий Transfer.' },
+                { t: ', and the contract rejects any incoming Transfer.' },
               ])}
             </p>
             <p>
               {H([
-                { t: 'Лицензия выполняет ' },
-                { t: 'три функции одновременно', c: 'cyan' },
-                { t: ': proof-of-purchase (в metadata зашит SHA-256 артефакта), entitlement key (backend проверяет on-chain владение перед активацией устройства) и refund anchor (покупатель может сжечь NFT в trial window — эскроу вернёт средства автоматически).' },
+                { t: 'The license performs ' },
+                { t: 'three jobs at once', c: 'cyan' },
+                { t: ': proof-of-purchase (artifact SHA-256 is embedded in metadata), entitlement key (backend verifies on-chain ownership before device activation), and refund anchor (the buyer can burn the NFT inside the trial window and Escrow returns funds automatically).' },
               ])}
             </p>
             <p>
               {H([
-                { t: 'Сжечь NFT может только ' },
-                { t: 'сам покупатель', c: 'emerald' },
-                { t: ' через BuyerBurn — и только до ' },
+                { t: 'Only the ' },
+                { t: 'buyer', c: 'emerald' },
+                { t: ' can burn the NFT through BuyerBurn, and only before ' },
                 { t: 'burnDeadline', c: 'gold' },
-                { t: '. После дедлайна лицензия становится постоянной, а эскроу разблокирует средства продавцу по TimeoutRelease.' },
+                { t: '. After the deadline, the license becomes permanent and Escrow releases funds to the seller through TimeoutRelease.' },
               ])}
             </p>
             <p className="rounded-lg border border-[#FFD700]/15 bg-black/40 px-4 py-3 font-mono text-xs text-[#FFD700]/90">
-              ∅ копий · ∅ "потерянных лицензий" · ∅ серверного локапа · ∅ арбитра при рефанде
+              ∅ copies · ∅ "lost licenses" · ∅ server-only lockup · ∅ refund arbitrator
             </p>
           </div>
         </section>
@@ -523,7 +523,7 @@ export default function LicenseNftPage() {
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <BadgeCheck className="h-5 w-5 text-[#00F5FF]" aria-hidden />
-            Зачем нам вообще NFT
+            Why NFT
           </h2>
           <div className="grid gap-4 sm:grid-cols-2">
             {[
@@ -531,25 +531,25 @@ export default function LicenseNftPage() {
                 title: 'Tamper-evidence',
                 color: '#FFD700',
                 icon: ShieldCheck,
-                body: 'Все минты и сжигания публичны в TON. Фейковая запись в нашей БД без on-chain NFT не пройдёт верификацию.',
+                body: 'All mints and burns are public on TON. A fake database record without an on-chain NFT will not pass verification.',
               },
               {
                 title: 'Cross-device proof',
                 color: '#00F5FF',
                 icon: Fingerprint,
-                body: 'Любое устройство проверяет владение через get_nft_data. Серверная БД — вторичный кэш, не источник истины.',
+                body: 'Any device can verify ownership through get_nft_data. The server database is a secondary cache, not the source of truth.',
               },
               {
                 title: 'Composability',
                 color: '#8B5CF6',
                 icon: Network,
-                body: 'Tonkeeper, TONScan, сторонние сервисы и AI-агенты видят владение нативно, без нашего API.',
+                body: 'Tonkeeper, TONScan, third-party services, and AI agents can see ownership natively without our API.',
               },
               {
                 title: 'Refund integrity',
                 color: '#FF2A6D',
                 icon: Flame,
-                body: 'Рефанд инициируется покупателем, контракт эскроу возвращает средства без арбитра. Событие видно всем.',
+                body: 'The buyer initiates refund, and Escrow returns funds without an arbitrator. The event is visible to everyone.',
               },
             ].map((card) => (
               <div
@@ -575,19 +575,19 @@ export default function LicenseNftPage() {
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Box className="h-5 w-5 text-[#8B5CF6]" aria-hidden />
-            Архитектура: три контракта, один оракул
+            Architecture: three contracts, one oracle
           </h2>
           <p className="mb-5 text-sm text-[#a8a8be] sm:text-base">
             {H([
-              { t: 'Система состоит из трёх Tact-контрактов: ' },
+              { t: 'The system consists of three Tact contracts: ' },
               { t: 'Escrow', c: 'cyan' },
-              { t: ' (по одному на покупку, холдит средства), ' },
+              { t: ' (one per purchase, holds funds), ' },
               { t: 'AppCollection', c: 'gold' },
-              { t: ' (по одному на приложение, TEP-62) и ' },
+              { t: ' (one per app, TEP-62), and ' },
               { t: 'LicenseItem', c: 'magenta' },
-              { t: ' (по одному на покупку, TEP-64). Минтит лицензии не покупатель — ' },
+              { t: ' (one per purchase, TEP-64). The buyer does not mint licenses; the ' },
               { t: 'backend-oracle', c: 'emerald' },
-              { t: ', кошелёк которого задан как ownerAddress в коллекции. Это стандартный паттерн TEP-62: oracle проверяет факт оплаты в эскроу и затем шлёт MintLicense.' },
+              { t: ' does. Its wallet is set as ownerAddress in the collection. This is an intentional Option C pattern: the oracle checks Escrow funding and then sends MintLicense.' },
             ])}
           </p>
 
@@ -618,15 +618,15 @@ export default function LicenseNftPage() {
 
           <p className="mt-5 text-sm text-[#a8a8be]">
             {H([
-              { t: 'Адрес каждого ' },
+              { t: 'Each ' },
               { t: 'LicenseItem', c: 'gold' },
-              { t: ' детерминирован: backend считает его клиентски через ' },
+              { t: ' address is deterministic: backend computes it client-side through ' },
               { t: 'StateInit(code, init_data)', c: 'cyan' },
-              { t: ' и поллит ' },
+              { t: ' and polls ' },
               { t: 'getContractState', c: 'emerald' },
-              { t: ' до ' },
+              { t: ' until ' },
               { t: 'state == active', c: 'emerald' },
-              { t: '. Ссылка в TONScan и Tonkeeper готова ещё до финализации mint-транзакции.' },
+              { t: '. The TONScan and Tonkeeper link can be prepared before the mint transaction is finalized.' },
             ])}
           </p>
         </section>
@@ -638,16 +638,16 @@ export default function LicenseNftPage() {
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Zap className="h-5 w-5 text-[#00FF88]" aria-hidden />
-            Жизненный цикл лицензии
+            License lifecycle
           </h2>
 
           <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.25em] text-[#00FF88]/70">On-chain (Escrow state)</p>
           <ol className="mb-6 space-y-2 text-sm">
             {[
-              ['INIT (0)', '#777', 'Escrow задеплоен, средств нет.'],
-              ['FUNDED (1)', '#00F5FF', 'Buyer оплатил, paidAt зафиксирован. Окно для BuyerBurn открыто.'],
-              ['RELEASED (3)', '#FFD700', 'Trial window истёк или buyer подтвердил delivery — средства ушли продавцу и треасури.'],
-              ['REFUNDED (4)', '#FF2A6D', 'Либо buyer сжёг NFT (BuyerBurn), либо oracle не уложился в grace и buyer вернул средства через RefundIfNotMinted.'],
+              ['INIT (0)', '#777', 'Escrow is deployed, no funds yet.'],
+              ['FUNDED (1)', '#00F5FF', 'Buyer paid, paidAt is recorded, and the BuyerBurn window is open.'],
+              ['RELEASED (3)', '#FFD700', 'Trial window expired or buyer confirmed delivery; funds moved to seller and treasury.'],
+              ['REFUNDED (4)', '#FF2A6D', 'Buyer burned the NFT through BuyerBurn, or oracle missed grace and buyer called RefundIfNotMinted.'],
             ].map(([state, color, desc]) => (
               <li
                 key={state}
@@ -664,16 +664,16 @@ export default function LicenseNftPage() {
             ))}
           </ol>
 
-          <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.25em] text-[#00FF88]/70">Off-chain (license.state в БД)</p>
+          <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.25em] text-[#00FF88]/70">Off-chain (license.state in DB)</p>
           <ol className="space-y-2 text-sm">
             {[
-              ['mint_pending', '#00F5FF', 'Покупка подтверждена, оракул поставил задачу минта в очередь.'],
-              ['mint_failed', '#FF2A6D', 'Сетевая ошибка или проблема seqno. Оракул ретраит; buyer может дернуть RefundIfNotMinted через 10 минут.'],
-              ['trial_active', '#00FF88', 'NFT задеплоен, registered. Tonkeeper показывает его в Collectibles. Buyer может жечь.'],
-              ['device_bound', '#8B5CF6', 'Backend проверил on-chain владение и привязал deviceId. On-chain состояние NFT не меняется.'],
-              ['released', '#FFD700', 'Trial window истёк и эскроу разблокирован. NFT остаётся у покупателя навсегда.'],
-              ['burn_pending', '#FFA040', 'Buyer отправил BuyerBurn; ждём подтверждения.'],
-              ['revoked / refunded', '#FF2A6D', 'NFT сожжён, средства вернулись. Verify возвращает false, artifact gate закрыт.'],
+              ['mint_pending', '#00F5FF', 'Purchase is confirmed and the oracle mint task is queued.'],
+              ['mint_failed', '#FF2A6D', 'Network or seqno error. Oracle retries; buyer can call RefundIfNotMinted after 10 minutes.'],
+              ['trial_active', '#00FF88', 'NFT is deployed and registered. Tonkeeper shows it in Collectibles. Buyer can burn it.'],
+              ['device_bound', '#8B5CF6', 'Backend verified on-chain ownership and bound deviceId. On-chain NFT state does not change.'],
+              ['released', '#FFD700', 'Trial window expired and Escrow released funds. NFT remains with the buyer forever.'],
+              ['burn_pending', '#FFA040', 'Buyer sent BuyerBurn; confirmation is pending.'],
+              ['revoked / refunded', '#FF2A6D', 'NFT is burned and funds returned. Verify returns false; artifact gate is closed.'],
             ].map(([state, color, desc]) => (
               <li
                 key={state}
@@ -698,15 +698,15 @@ export default function LicenseNftPage() {
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <Hexagon className="h-5 w-5 text-[#FFD700]" aria-hidden />
-            Контракты (Tact)
+            Contracts (Tact)
           </h2>
           <p className="mb-4 text-sm text-[#a8a8be]">
             {H([
-              { t: 'Исходники — в ' },
+              { t: 'Sources live in ' },
               { t: 'contracts/src/', c: 'emerald' },
-              { t: ', покрытие sandbox-тестов по всем четырём спекам (' },
+              { t: ', with sandbox test coverage across four specs (' },
               { t: 'escrow · appCollection · licenseItem · licenseLifecycle', c: 'cyan' },
-              { t: '). Runbook с процедурами testnet→mainnet — в ' },
+              { t: '). The testnet→mainnet runbook is in ' },
               { t: 'docs/license-nft-runbook.md', c: 'gold' },
               { t: '.' },
             ])}
@@ -728,11 +728,11 @@ export default function LicenseNftPage() {
           </h2>
           <p className="mb-4 text-sm text-[#a8a8be]">
             {H([
-              { t: 'Один WalletV4 c мнемоникой в ' },
+              { t: 'A single WalletV4 with mnemonic in ' },
               { t: 'ORACLE_MNEMONIC', c: 'magenta' },
-              { t: ' (Coolify secret). Адрес кошелька == ' },
+              { t: ' (Coolify secret). Wallet address == ' },
               { t: 'AppCollection.ownerAddress', c: 'gold' },
-              { t: ', поэтому только наш backend может вызывать MintLicense, BurnLicense и ChangeOwner. Gas-бюджеты сконфигурированы через env (' },
+              { t: ', so only our backend can call MintLicense, BurnLicense, and ChangeOwner. Gas budgets are configured through env (' },
               { t: 'LICENSE_MINT_GAS_NANO=0.1 TON', c: 'emerald' },
               { t: ', ' },
               { t: 'LICENSE_BURN_GAS_NANO=0.05 TON', c: 'emerald' },
@@ -752,46 +752,46 @@ export default function LicenseNftPage() {
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <BadgeCheck className="h-5 w-5 text-[#8B5CF6]" aria-hidden />
-            TEP-соответствие
+            TEP compliance
           </h2>
           <ul className="space-y-3 text-sm text-[#b8b8cc]">
             <li className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#00FF88]" aria-hidden />
               <span>
-                <strong className="text-white">TEP-62</strong> — коллекция реализует канонические геттеры{' '}
+                <strong className="text-white">TEP-62</strong> — the collection implements canonical getters{' '}
                 <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00F5FF]">get_collection_data</code>,{' '}
                 <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00F5FF]">get_nft_content</code>.
-                Индексация item-ов через монотонный{' '}
+                Items are indexed through monotonic{' '}
                 <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#FFD700]">nextItemIndex</code>.
               </span>
             </li>
             <li className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#00FF88]" aria-hidden />
               <span>
-                <strong className="text-white">TEP-64</strong> — off-chain content с префиксом{' '}
+                <strong className="text-white">TEP-64</strong> — off-chain content with prefix{' '}
                 <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#FFD700]">0x01</code> +{' '}
-                UTF-8 URI на JSON. Геттер{' '}
+                UTF-8 URI to JSON. Getter{' '}
                 <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#00F5FF]">get_nft_data</code>{' '}
-                возвращает <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#8B5CF6]">(init, index, collection, owner, content)</code>.
+                returns <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#8B5CF6]">(init, index, collection, owner, content)</code>.
               </span>
             </li>
             <li className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#FFD700]" aria-hidden />
               <span>
-                <strong className="text-white">TEP-85 (SBT) — не наследуем</strong>. TEP-85 требует отдельную authority-роль
-                (prove_ownership / destroy / revoke), которая по сути дублирует{' '}
+                <strong className="text-white">TEP-85 (SBT) — not inherited</strong>. TEP-85 requires a separate authority role
+                (prove_ownership / destroy / revoke), which would effectively duplicate{' '}
                 <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#8B5CF6]">collection_owner</code>.
-                Soulbound-семантику мы получаем проще — через{' '}
+                We get soulbound semantics more simply through{' '}
                 <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#FF2A6D]">transferLimit = 0</code>{' '}
-                в item-контракте. Для коллекционных NFT (в будущем) этот же механизм даёт controlled edition с{' '}
+                in the item contract. For future collectible NFTs, the same mechanism enables controlled editions with{' '}
                 <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#FFD700]">transferLimit &gt; 0</code>.
               </span>
             </li>
             <li className="flex items-start gap-3 rounded-lg border border-white/10 bg-black/30 p-3">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#00FF88]" aria-hidden />
               <span>
-                <strong className="text-white">Sharding-friendly</strong> — у каждого NFT свой контракт, общего state
-                нет, валидаторы могут процессить параллельно (TON-нативный паттерн).
+                <strong className="text-white">Sharding-friendly</strong> — each NFT has its own contract, there is no shared
+                state, and validators can process them in parallel (the TON-native pattern).
               </span>
             </li>
           </ul>
@@ -839,18 +839,18 @@ export default function LicenseNftPage() {
         >
           <h2 className="mb-5 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-widest text-white">
             <ShieldCheck className="h-5 w-5 text-[#FF2A6D]" aria-hidden />
-            Безопасность и threat-model
+            Security and threat model
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {[
-              ['Mint без оплаты', 'Практически невозможен при целостности ключа: только oracle-кошелёк может вызвать MintLicense, и backend дёргает его только после state=FUNDED в эскроу.'],
-              ['Двойной mint', 'queryId=hash(sessionId) + unique-constraint на purchase_session_id в БД + SELECT…FOR UPDATE. Поверх — контрактный nextItemIndex монотонно растёт.'],
-              ['Подмена лицензии', 'activateDevice → on-chain verifyLicenseOwner до записи deviceId. Запись в БД без живого NFT не пройдёт.'],
-              ['Refund-fraud', 'BuyerBurn возможен только от owner и только пока now() ≤ burnDeadline. После дедлайна — контракт отклоняет.'],
-              ['Oracle завис', 'Через 600 секунд после оплаты buyer может сам вызвать RefundIfNotMinted и вернуть средства без участия платформы.'],
-              ['Compromise oracle', 'ChangeOwner(newOracle) → ротация ключа, существующие NFT остаются валидными.'],
-              ['Loss of mnemonic', 'Plan B: деплой новой коллекции; старые NFT остаются у владельцев, новые минты в старой коллекции невозможны.'],
-              ['Подмена item-кода', 'nftItemCode фиксирован в StateInit коллекции; backend сверяет hash с pinned env LICENSE_NFT_ITEM_CODE_BOC.'],
+              ['Mint without payment', 'Practically impossible while the key is intact: only the oracle wallet can call MintLicense, and backend does so only after Escrow reaches state=FUNDED.'],
+              ['Double mint', 'queryId=hash(sessionId) + DB unique constraint on purchase_session_id + SELECT...FOR UPDATE. On-chain nextItemIndex is monotonic on top.'],
+              ['License spoofing', 'activateDevice runs on-chain verifyLicenseOwner before writing deviceId. A DB row without a live NFT will not pass.'],
+              ['Refund fraud', 'BuyerBurn is possible only from owner and only while now() <= burnDeadline. After the deadline, contract rejects it.'],
+              ['Oracle stuck', 'After 600 seconds from payment, buyer can call RefundIfNotMinted and recover funds without platform involvement.'],
+              ['Oracle compromise', 'ChangeOwner(newOracle) rotates the key; existing NFTs remain valid.'],
+              ['Loss of mnemonic', 'Plan B: deploy a new collection. Old NFTs remain with holders; new mints in the old collection become impossible.'],
+              ['Item-code substitution', 'nftItemCode is fixed in Collection StateInit; backend compares the hash with pinned env LICENSE_NFT_ITEM_CODE_BOC.'],
             ].map(([title, body]) => (
               <div key={title} className="rounded-lg border border-white/10 bg-black/35 p-3">
                 <p className="font-mono text-[11px] uppercase tracking-wider text-[#FF2A6D]">{title}</p>
@@ -859,9 +859,9 @@ export default function LicenseNftPage() {
             ))}
           </div>
           <p className="mt-5 text-xs text-[#666]">
-            Полный runbook операций:{' '}
+            Full operations runbook:{' '}
             <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[#FFD700]">docs/license-nft-runbook.md</code>;
-            спецификация:{' '}
+            specification:{' '}
             <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[#FFD700]">docs/license-nft-spec.md</code>.
           </p>
         </section>
@@ -877,9 +877,9 @@ export default function LicenseNftPage() {
           </h2>
           <p className="mb-4 text-sm text-[#c8b898]">
             {H([
-              { t: 'Текущая реализация — это осознанно упрощённый ' },
+              { t: 'The current implementation is an intentionally simplified ' },
               { t: 'Option C', c: 'gold' },
-              { t: '. Мы фиксируем известные компромиссы здесь, а не прячем их в TODO-комментариях.' },
+              { t: '. Known compromises are documented here instead of being hidden in TODO comments.' },
             ])}
           </p>
           <ul className="space-y-3 text-sm text-[#c8b898]">
@@ -888,30 +888,30 @@ export default function LicenseNftPage() {
                 Mint gated by oracle, not trustless
               </p>
               <p>
-                В канонической TEP-62-архитектуре Escrow сам шлёт MintLicense в Collection, а Collection проверяет{' '}
+                In canonical TEP-62-style architecture, Escrow itself sends MintLicense to Collection, and Collection checks{' '}
                 <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#FFD700]">init_hash(sender) == expectedEscrow</code>.
-                У нас сейчас минт разрешён только от oracle-кошелька. Скомпрометированный ключ оракула → потенциальная
-                возможность фейкового минта. Митигация: hardware wallet в проде, ротация через ChangeOwner, multisig в
+                Today mint is allowed only from the oracle wallet. A compromised oracle key could potentially produce
+                fake mints. Mitigation: production hardware wallet, ChangeOwner rotation, and multisig on the
                 roadmap.
               </p>
             </li>
             <li className="rounded-lg border border-[#FFA040]/20 bg-black/40 p-3">
               <p className="mb-1 font-mono text-[11px] uppercase tracking-wider text-[#FFA040]">
-                Metadata hosting — пока Appwrite
+                Metadata hosting — currently Appwrite
               </p>
               <p>
-                TEP-64 JSON хостятся в Appwrite Storage (bucket{' '}
+                TEP-64 JSON is hosted in Appwrite Storage (bucket{' '}
                 <code className="rounded bg-white/5 px-1.5 py-0.5 font-mono text-xs text-[#FFD700]">license-metadata</code>).
-                Для production-target — IPFS / Pinata, чтобы при исчезновении нашего CDN лицензия оставалась читаемой.
+                Production target is IPFS / Pinata so licenses remain readable even if our CDN disappears.
               </p>
             </li>
             <li className="rounded-lg border border-[#FFA040]/20 bg-black/40 p-3">
               <p className="mb-1 font-mono text-[11px] uppercase tracking-wider text-[#FFA040]">
-                Пока не защищаем
+                Not protected yet
               </p>
               <p>
-                Реверс-инжиниринг скачанного бинарника и шаринг файла вне платформы — вне scope этого слоя. Лицензия
-                защищает право на обновления и entitlement, не сам артефакт. DRM-watermarking — отдельный roadmap item.
+                Reverse engineering a downloaded binary and sharing the file outside the platform are outside this layer's
+                scope. The license protects update rights and entitlement, not the artifact itself. DRM watermarking is a separate roadmap item.
               </p>
             </li>
           </ul>
@@ -937,10 +937,10 @@ export default function LicenseNftPage() {
             </button>
           </div>
           <p className="mb-4 text-xs text-[#888]">
-            Скопируйте блок и вставьте в системный prompt AI-агента (Claude, GPT, локальная LM-модель).
-            Грамматика та же, что на{' '}
-            <Link to="/docs#mechanicus" className="text-[#FFD700] hover:underline">/docs#mechanicus</Link>: операторы (≡, →, ⊕, ∅),
-            домены (W/X/A/P), сжатые правила. Малая модель не ошибётся в API контрактов.
+            Copy this block into the system prompt of an AI agent (Claude, GPT, or a local LM).
+            The grammar is the same as on{' '}
+            <Link to="/docs#mechanicus" className="text-[#FFD700] hover:underline">/docs#mechanicus</Link>: operators (≡, →, ⊕, ∅),
+            domains (W/X/A/P), compact rules. Even a small model can follow the contract API correctly.
           </p>
           <pre className="overflow-x-auto rounded-lg border border-[#FF2A6D]/20 bg-black/80 p-4 font-mono text-[11px] leading-relaxed text-[#7affb0]">
             <code>{LICENSE_MECH_BLOCK}</code>
