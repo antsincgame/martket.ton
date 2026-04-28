@@ -177,12 +177,26 @@ export async function renameCategory(oldSlug: string, newSlug: string): Promise<
 }
 
 export async function searchProducts(query: string, limit = 50): Promise<Product[]> {
-  const res = await databases().listDocuments(CORE_DATABASE_ID, COL_LEGACY_PRODUCTS, [
-    Query.equal('status', 'published'),
-    Query.search('name', query),
-    Query.limit(Math.min(limit, 200)),
-  ]);
-  return res.documents.map((d) => mapProduct(asDoc(d)));
+  const max = Math.min(limit, 200);
+  try {
+    const res = await databases().listDocuments(CORE_DATABASE_ID, COL_LEGACY_PRODUCTS, [
+      Query.equal('status', 'published'),
+      Query.search('name', query),
+      Query.limit(max),
+    ]);
+    return res.documents.map((d) => mapProduct(asDoc(d)));
+  } catch {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const products = await listProductsByStatus('published');
+    return products
+      .filter((p) =>
+        [p.name, p.shortDescription, p.description, p.category]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(q)),
+      )
+      .slice(0, max);
+  }
 }
 
 export async function updateProduct(

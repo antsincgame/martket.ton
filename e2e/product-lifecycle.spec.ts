@@ -194,8 +194,9 @@ test.describe('TonForge API', () => {
     const res = await request.get(`${API}/api/tonforge/config`);
     expect(res.ok()).toBe(true);
     const body = await res.json();
-    expect(body).toHaveProperty('backendMode');
-    expect(body).toHaveProperty('treasuryWallet');
+    expect(body).toHaveProperty('data');
+    expect(body.data).toHaveProperty('backendMode');
+    expect(body.data).toHaveProperty('treasuryWallet');
   });
 
   test('GET /api/tonforge/apps/featured returns array', async ({ request }) => {
@@ -205,7 +206,7 @@ test.describe('TonForge API', () => {
     expect(res.ok()).toBe(true);
     const body = await res.json();
     expect(body).toHaveProperty('data');
-    expect(Array.isArray(body.data)).toBe(true);
+    expect(Array.isArray(body.data.apps)).toBe(true);
   });
 
   test('GET /api/tonforge/apps/:id returns 404 for nonexistent', async ({ request }) => {

@@ -272,11 +272,11 @@ app.get('/api/ton-price', async (_req, res) => {
 
 // ─── Route modules ──────────────────────────────────────────────────
 
+app.use('/api', adminRoutes);
 app.use('/api', profileRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/session/products', sessionProductsRouter);
 app.use('/api', purchaseRoutes);
-app.use('/api', adminRoutes);
 app.use('/api', statsRoutes);
 app.use('/api', payoutRoutes);
 app.use('/api', supportRoutes);
