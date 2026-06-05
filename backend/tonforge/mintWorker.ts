@@ -39,6 +39,8 @@ import { mintLicense, pollItemDeployed } from './onchain/mintLicense.js';
 import { registerLicense } from './onchain/registerLicense.js';
 import { oracleRefund, pollEscrowSettled } from './onchain/oracleRefund.js';
 import { timeoutRelease, checkEscrowAlive } from './onchain/timeoutRelease.js';
+import { screenWallet } from '../sanctions/screen.js';
+import { checkWalletAml } from '../aml/amlbot.js';
 
 /**
  * Worker tunables.
@@ -230,6 +232,18 @@ async function processRefundConfirm(license: LicenseRecord): Promise<void> {
   logger.info(`[mintWorker.refund] license ${license.$id} fully refunded on-chain`);
 }
 
+// Троттлинг warn-логов по задержанным выплатам: payout-цикл тикает каждые
+// ~30 с, без троттлинга один «грязный» кошелёк зальёт лог одинаковыми строками.
+const HOLD_LOG_THROTTLE_MS = 60 * 60 * 1000;
+const holdLoggedAt = new Map<string, number>();
+
+function logPayoutHold(licenseId: string, message: string): void {
+  const last = holdLoggedAt.get(licenseId) || 0;
+  if (Date.now() - last < HOLD_LOG_THROTTLE_MS) return;
+  holdLoggedAt.set(licenseId, Date.now());
+  logger.warn(message);
+}
+
 /**
  * Periodic payout: trial window expired and buyer didn't burn → release
  * funds from escrow to seller via TimeoutRelease.
@@ -251,6 +265,30 @@ async function processPayout(license: LicenseRecord): Promise<void> {
   }
   if (alive === 'unknown') {
     logger.warn(`[mintWorker.payout] state query failed for license ${license.$id}, will retry`);
+    return;
+  }
+
+  // Комплаенс-гейт перед выплатой: санкции (O(1), локальный список) +
+  // AML-скоринг (кэшируется в aml_checks). Продавца проверяли при публикации
+  // листинга, но между публикацией и выплатой кошелёк мог попасть в списки.
+  // ВАЖНО: контракт позволяет ЛЮБОМУ вызвать TimeoutRelease после окна —
+  // гейт останавливает только НАШУ автоматическую выплату и оставляет след
+  // для ops-разбора. license остаётся в minted без releasedAt → ретрай после
+  // истечения TTL кэша (если кошелёк «очистился» — выплата пройдёт сама).
+  const sellerScreen = screenWallet(license.sellerWallet);
+  if (!sellerScreen.ok) {
+    logPayoutHold(
+      license.$id,
+      `[mintWorker.payout] HOLD license=${license.$id} seller=${license.sellerWallet} sanctioned (${sellerScreen.reason})`,
+    );
+    return;
+  }
+  const sellerAml = await checkWalletAml(license.sellerWallet);
+  if (!sellerAml.ok) {
+    logPayoutHold(
+      license.$id,
+      `[mintWorker.payout] HOLD license=${license.$id} seller=${license.sellerWallet} AML risk=${sellerAml.riskScore}`,
+    );
     return;
   }
 
