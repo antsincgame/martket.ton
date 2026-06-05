@@ -1,4 +1,4 @@
-﻿import express, { type Request, type Response } from 'express';
+import express, { type Request, type Response } from 'express';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import {
@@ -11,6 +11,7 @@ import { computeOrderAmounts, nanoRawToTonHuman } from './money.js';
 import { verifyPaymentByMemo, verifyPaymentToEscrow, addressesEqual } from './tonVerify.js';
 import { computeEscrow, GAS_BREAKDOWN } from './escrow.js';
 import { screenWallet } from '../sanctions/screen.js';
+import { checkWalletAml } from '../aml/amlbot.js';
 import { resolveNetworkConfig } from '../config/network.js';
 import { writeAudit } from './audit.js';
 import { logger } from '../logger.js';
@@ -61,6 +62,24 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
     const kycCheck = await requireBuyerKycLite(buyerWallet);
     if (!kycCheck.ok) {
       res.status(kycCheck.status).json({ error: kycCheck.message, code: kycCheck.code });
+      return;
+    }
+
+    // AML-скоринг покупателя (AMLBot) — после KYC-гейта, чтобы не тратить
+    // платные проверки на тех, кто всё равно не может покупать. Fail-open:
+    // блокирует только подтверждённый высокий риск (см. backend/aml/amlbot.ts).
+    const aml = await checkWalletAml(buyerWallet);
+    if (!aml.ok) {
+      await writeAudit(buyerWallet, 'aml_block', 'listing', listingId, {
+        buyerWallet,
+        riskScore: aml.riskScore,
+        stage: 'order_create',
+      });
+      res.status(451).json({
+        error: 'Wallet failed AML risk screening and cannot transact.',
+        code: 'AML_HIGH_RISK',
+        riskScore: aml.riskScore,
+      });
       return;
     }
 
@@ -213,6 +232,24 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
       res.status(451).json({
         error: 'Wallet is on a sanctions list and cannot transact.',
         code: payScreen.reason || 'SANCTIONED',
+      });
+      return;
+    }
+
+    // Повторный AML-гейт на момент оплаты: между созданием заказа и оплатой
+    // вердикт мог измениться. Из-за кэша (aml_checks) это почти всегда
+    // бесплатное чтение, а не вторая платная проверка.
+    const payAml = await checkWalletAml(buyerWallet);
+    if (!payAml.ok) {
+      await writeAudit(buyerWallet, 'aml_block', 'order', orderId, {
+        buyerWallet,
+        riskScore: payAml.riskScore,
+        stage: 'order_confirm',
+      });
+      res.status(451).json({
+        error: 'Wallet failed AML risk screening and cannot transact.',
+        code: 'AML_HIGH_RISK',
+        riskScore: payAml.riskScore,
       });
       return;
     }

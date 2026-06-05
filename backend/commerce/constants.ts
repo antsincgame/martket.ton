@@ -9,6 +9,7 @@ export const COL_DOWNLOAD_AUDIT = 'download_audit';
 export const COL_LICENSES = 'licenses';
 export const COL_WORKER_LOCKS = 'worker_locks';
 export const COL_AGENT_TOKENS = 'agent_tokens';
+export const COL_AML_CHECKS = 'aml_checks';
 export const BUCKET_ASSETS = 'commerce_assets';
 
 export const ORDER_STATE = {
