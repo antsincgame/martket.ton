@@ -50,18 +50,20 @@ afterEach(() => {
 });
 
 describe('buildCheckPayload', () => {
-  it('подпись md5(address + asset + accessId) без accessKey', () => {
-    const p = buildCheckPayload('addr1', 'TON', 'acc1');
-    const expected = createHash('md5').update('addr1TONacc1').digest('hex');
-    expect(p.get('hash')).toBe(expected);
-    expect(p.get('address')).toBe('addr1');
+  // Контракт сверен с production-интеграциями AMLBot (shkeeper, premiumbox):
+  // hash = сам адрес, token = md5(`${hash}:${accessKey}:${accessId}`).
+  it('hash = сам адрес, token = md5(address:accessKey:accessId)', () => {
+    const p = buildCheckPayload('addr1', 'TON', 'acc1', 'key1');
+    expect(p.get('hash')).toBe('addr1');
+    expect(p.get('token')).toBe(createHash('md5').update('addr1:key1:acc1').digest('hex'));
     expect(p.get('asset')).toBe('TON');
     expect(p.get('accessId')).toBe('acc1');
+    expect(p.get('flow')).toBe('fast');
   });
 
-  it('accessKey входит в подпись, если задан', () => {
-    const p = buildCheckPayload('addr1', 'TON', 'acc1', 'key1');
-    expect(p.get('hash')).toBe(createHash('md5').update('addr1TONacc1key1').digest('hex'));
+  it('без accessKey подпись строится с пустым средним сегментом', () => {
+    const p = buildCheckPayload('addr1', 'TON', 'acc1');
+    expect(p.get('token')).toBe(createHash('md5').update('addr1::acc1').digest('hex'));
   });
 });
 

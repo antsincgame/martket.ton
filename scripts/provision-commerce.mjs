@@ -24,6 +24,7 @@ const COL_DOWNLOAD_AUDIT = 'download_audit';
 const COL_LICENSES = 'licenses';
 const COL_WORKER_LOCKS = 'worker_locks';
 const COL_AGENT_TOKENS = 'agent_tokens';
+const COL_AML_CHECKS = 'aml_checks';
 const BUCKET_ASSETS = 'commerce_assets';
 
 const READ_ANY = [Permission.read(Role.any())];
@@ -449,6 +450,34 @@ async function setupAgentTokens(databases) {
   await idx(databases, COL_AGENT_TOKENS, 'idx_wallet', IndexType.Key, ['wallet']);
 }
 
+async function setupAmlChecks(databases) {
+  // Кэш AML-вердиктов AMLBot (backend/aml/amlbot.ts): один документ на
+  // нормализованный кошелёк (0:hex). Свежесть контролирует код через
+  // AML_CACHE_HOURS, протухшие записи перезаписываются upsert'ом.
+  await ensureCollection(databases, COL_AML_CHECKS, 'AML wallet checks', SERVER_ONLY);
+  const stringCols = [
+    ['wallet', 128, true],
+    ['asset', 16, true],
+    ['verdict', 16, true],          // ok | high_risk
+    ['providerRaw', 4000, false],   // усечённый сырой ответ провайдера для разбора инцидентов
+  ];
+  for (const [k, size, req] of stringCols) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, COL_AML_CHECKS, k, size, req)
+    );
+    await waitForAttribute(databases, COL_AML_CHECKS, k);
+  }
+  await ignoreConflict(() =>
+    databases.createIntegerAttribute(DATABASE_ID, COL_AML_CHECKS, 'riskScore', true)
+  );
+  await waitForAttribute(databases, COL_AML_CHECKS, 'riskScore');
+  await ignoreConflict(() =>
+    databases.createDatetimeAttribute(DATABASE_ID, COL_AML_CHECKS, 'checkedAt', true)
+  );
+  await waitForAttribute(databases, COL_AML_CHECKS, 'checkedAt');
+  await idx(databases, COL_AML_CHECKS, 'uniq_wallet', IndexType.Unique, ['wallet']);
+}
+
 async function ensureBucket(storage) {
   try {
     await storage.createBucket(
@@ -484,6 +513,7 @@ async function main() {
   await setupLicenses(databases);
   await setupWorkerLocks(databases);
   await setupAgentTokens(databases);
+  await setupAmlChecks(databases);
   await setupAudit(databases);
   await setupDownloadAudit(databases);
   await ensureBucket(storage);

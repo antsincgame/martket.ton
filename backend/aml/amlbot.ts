@@ -17,16 +17,17 @@
  *
  * env:
  *   AMLBOT_ACCESS_ID   — accessId из кабинета AMLBot (обязателен для включения)
- *   AMLBOT_ACCESS_KEY  — если выдан аккаунту, входит в подпись запроса
+ *   AMLBOT_ACCESS_KEY  — access key аккаунта, входит в подпись token
  *   AMLBOT_API_URL     — endpoint partner API (default extrnlapiendpoint.silencatech.com)
  *   AMLBOT_ASSET       — код актива (default TON)
  *   AML_RISK_THRESHOLD — порог блокировки 1..100 (default 70)
  *   AML_CACHE_HOURS    — TTL кэша вердиктов в часах (default 168 = 7 дней)
  *
- * ВАЖНО: рецепт подписи (hash) сверить с PDF-докой из кабинета AMLBot после
- * онбординга. Стандартная схема — md5(address + asset + accessId); у части
- * аккаунтов в конкатенацию добавляется accessKey. Оба варианта поддержаны
- * через env без правок кода (см. buildCheckPayload).
+ * Контракт запроса подтверждён двумя production-интеграциями AMLBot
+ * (shkeeper app/aml_bot_api.py, premiumbox moduls/amlbot/class.php):
+ *   hash  — основной идентификатор проверки; для address-only проверки
+ *           (наш кейс) это САМ АДРЕС, для транзакции — txid;
+ *   token — подпись md5(`${hash}:${accessKey}:${accessId}`).
  */
 
 import { createHash } from 'crypto';
@@ -86,8 +87,8 @@ export function amlStatus(): { enabled: boolean; threshold: number; cacheHours: 
 }
 
 /**
- * Тело POST-запроса к partner API. Вынесено в чистую функцию ради тестов
- * и лёгкой подстройки под фактический контракт аккаунта.
+ * Тело POST-запроса к partner API. Вынесено в чистую функцию ради тестов.
+ * hash = сам адрес (address-only проверка), token = md5(hash:accessKey:accessId).
  */
 export function buildCheckPayload(
   address: string,
@@ -95,13 +96,15 @@ export function buildCheckPayload(
   accessId: string,
   accessKey = '',
 ): URLSearchParams {
-  const hash = createHash('md5').update(address + asset + accessId + accessKey).digest('hex');
+  const token = createHash('md5')
+    .update(`${address}:${accessKey}:${accessId}`)
+    .digest('hex');
   const params = new URLSearchParams();
-  params.set('hash', hash);
-  params.set('address', address);
+  params.set('hash', address);
   params.set('asset', asset);
   params.set('accessId', accessId);
-  params.set('locale', 'en');
+  params.set('token', token);
+  params.set('locale', 'en_US');
   params.set('flow', 'fast');
   return params;
 }
