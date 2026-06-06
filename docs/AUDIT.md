@@ -54,6 +54,7 @@
 - [ ] **Payouts — заглушка, путает USD и TON** → разнести валюты, пометить как not-implemented в UI. _(§2.9)_
 - [ ] **Demo-treasury fallback в `tonforge/demoData.ts`** → стартовая валидация, отклонять demo-адрес в проде. _(§2.9)_
 - [ ] **`backend/package-lock.json` тянет `registry.npmmirror.com`** → перегенерировать на `registry.npmjs.org`. _(§2.9)_
+- [ ] **High-severity CVE в прод-зависимостях бэкенда** (CI `npm audit --audit-level=high` красный): `axios` через `@ton/ton@16.2.4`, `fast-xml-builder` через `@aws-sdk`. Отдельный remediation-PR (bump/`overrides`). _(§2.9)_
 - [ ] **Судьба legacy `tonforge/*` (`@deprecated`, in-memory, два mint-воркера)** → удалить или довести. _(§2.9)_
 
 ### ⚪ P3 — мелочи
@@ -164,9 +165,19 @@ URI брать из реального CDN/листинга, иначе не м�
   `tonforge/*` весь `@deprecated`, но смонтирован (`/api/tonforge`); существуют **два**
   mint-воркера (`commerce/mintWorker.ts` без seller-compliance-гейта vs
   `tonforge/mintWorker.ts` с гейтом).
-- **Цепочка поставок:** `backend/package-lock.json` ссылается на
-  `registry.npmmirror.com` (73 ссылки) — риск воспроизводимости; перегенерировать lock
-  на официальном реестре.
+- **Цепочка поставок (2 проблемы):**
+  1. `backend/package-lock.json` ссылается на `registry.npmmirror.com` (73 ссылки)
+     — риск воспроизводимости; перегенерировать lock на официальном реестре.
+  2. CI-job `npm audit · backend` (workflow `security.yml`, гейт `--audit-level=high`)
+     **красный** — 15 уязвимостей (12 moderate, 3 high) в дереве бэкенда. High-severity
+     сидят в **прод-зависимостях**: `axios` (множество CVE: prototype-pollution,
+     SSRF/NO_PROXY-bypass, ReDoS) — транзитивно через `@ton/ton@16.2.3-16.2.4`;
+     `fast-xml-builder`/`fast-xml-parser` — через `@aws-sdk`. Moderate: `ip-address`
+     (через `express-rate-limit`/`geoip-lite`), `qs` (через `express`/`body-parser`),
+     `uuid` (через `svix`→`resend`), `brace-expansion`. Падение **предсуществующее**
+     (не вызвано docs-изменениями) — advisory-база npm пополнилась новыми CVE поверх
+     зафиксированного lock-файла. Лечится bump'ом/`overrides` отдельным PR с прогоном
+     тестов; в CI намеренно нет авто-`npm audit fix` («human decision»).
 - **Latent footgun (НЕ активный баг):** `money.ts` (fee «сверху») и
   `escrow.ts:resolveAmountSplit` (fee «изнутри») не взаимно-обратны. Живой путь
   безопасен — `orderRoutes` передаёт явные `seller`+`fee` и срабатывает проверка
