@@ -12,6 +12,7 @@
  */
 
 import express, { type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { databases, ID, Query } from '../commerce/appwrite.js';
 import {
   DATABASE_ID,
@@ -36,6 +37,20 @@ import { getInstructionSections } from './instructions.js';
 import { buildAgentStatus, buildOnboardingChecklist } from './status.js';
 
 const router = express.Router();
+
+/**
+ * Coarse per-IP backstop applied to every agent route. The primary, fine-grained
+ * limit is per-token (600/15min) inside `apiRequireAgentToken`; this outer limiter
+ * bounds abuse from a single IP before the token is even verified. Kept generous
+ * so legitimate multi-agent egress IPs are not throttled by the per-token logic.
+ */
+const agentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+router.use(agentLimiter);
 
 router.get('/me', apiRequireAgentToken(), (req: Request, res: Response) => {
   const a = req.agent!;
