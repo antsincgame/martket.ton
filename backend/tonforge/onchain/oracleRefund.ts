@@ -1,9 +1,6 @@
-import { Address, internal, SendMode } from '@ton/core';
+import { Address } from '@ton/core';
 import { logger } from '../../logger.js';
-import { loadOnchainConfig } from './config.js';
-import { getOracleWallet } from './oracleWallet.js';
 import { getTonClient } from './tonClient.js';
-import { buildOracleRefundPayload } from './contractSchemas.js';
 
 export interface OracleRefundInput {
   escrowAddress: string;
@@ -14,43 +11,22 @@ export interface OracleRefundResult {
 }
 
 /**
- * Treasury (oracle wallet acts as treasury here) sends OracleRefund to the
- * Escrow. Contract enforces:
- *   - escrow.state == FUNDED
- *   - sender == treasury
- *   - no LicenseItem has been registered yet (licenseAddress == zero)
+ * DEPRECATED / UNSUPPORTED. The escrow contract (contracts/src/escrow.tact)
+ * has no oracle-triggered refund receiver. The only pre-mint refund is
+ * `RefundIfNotMinted` (0x5a8e1f23), which the contract requires to be sent by
+ * the BUYER (`sender() == self.buyer`) after the mint grace period — the
+ * oracle cannot trigger it.
  *
- * On success the escrow self-destructs and forwards its full balance
- * back to the buyer. Used by mintWorker when a license never made it
- * on-chain after MAX_ATTEMPTS.
+ * A previous implementation broadcast an invented `OracleRefund` opcode
+ * (0xbf21e1ee) that silently bounced on-chain while the DB was optimistically
+ * marked `refund_pending`, stranding buyers in a state that never settled. We
+ * now fail loudly so the caller surfaces the real path instead.
  */
-export async function oracleRefund(input: OracleRefundInput): Promise<OracleRefundResult> {
-  const cfg = loadOnchainConfig();
-  if (!cfg.enabled) {
-    throw new Error('ONCHAIN_DISABLED');
-  }
-
-  const escrow = Address.parse(input.escrowAddress);
-  const payload = buildOracleRefundPayload();
-
-  const oracle = await getOracleWallet();
-  const seqno = await oracle.wallet.getSeqno();
-  await oracle.wallet.sendTransfer({
-    seqno,
-    secretKey: oracle.secretKey,
-    sendMode: SendMode.PAY_GAS_SEPARATELY,
-    messages: [
-      internal({
-        to: escrow,
-        value: 50_000_000n,
-        bounce: true,
-        body: payload,
-      }),
-    ],
-  });
-
-  logger.info(`[onchain.refund] sent OracleRefund escrow=${escrow.toString()} seqno=${seqno}`);
-  return { txSeqno: seqno };
+export async function oracleRefund(_input: OracleRefundInput): Promise<OracleRefundResult> {
+  throw new Error(
+    'ORACLE_REFUND_UNSUPPORTED: escrow has no oracle refund receiver; ' +
+      'the buyer must call RefundIfNotMinted after the mint grace period',
+  );
 }
 
 export interface PollEscrowSettledOpts {
