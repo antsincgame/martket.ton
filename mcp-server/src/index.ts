@@ -26,8 +26,12 @@ const TOKEN = process.env.TONFORGE_AGENT_TOKEN;
 const ORIGIN = new URL(BASE).origin;
 
 if (!TOKEN) {
-  console.error('FATAL: set TONFORGE_AGENT_TOKEN to a tfa_… Personal Access Token.');
-  process.exit(1);
+  // Seller tools need a token; the public discovery tools do not. Run in
+  // discovery-only mode rather than refusing to start, so buyer/shopping
+  // agents can use the server with no seller credentials.
+  console.error(
+    'TONFORGE_AGENT_TOKEN not set — seller tools are disabled; public discovery tools still work.',
+  );
 }
 
 interface ApiError {
@@ -42,6 +46,12 @@ interface ApiError {
  * shapes as a single thrown Error the tool layer turns into an isError result.
  */
 async function api(method: string, path: string, body?: unknown): Promise<unknown> {
+  if (!TOKEN) {
+    throw new Error(
+      'No TONFORGE_AGENT_TOKEN configured. This is a seller tool — set a tfa_ token issued by a verified seller. ' +
+        'Public discovery tools (search_products, get_product, list_offers) work without one.',
+    );
+  }
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
@@ -285,7 +295,7 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   // MCP speaks JSON-RPC on stdout; logs must go to stderr.
-  console.error(`tonforge-agent MCP server ready (base=${BASE})`);
+  console.error(`tonforge-agent MCP server ready (base=${BASE}, seller tools ${TOKEN ? 'enabled' : 'disabled'})`);
 }
 
 main().catch((e) => {

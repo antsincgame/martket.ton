@@ -1,0 +1,35 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.antsincgame/tonforge-agent",
+  "title": "TonForge Agent",
+  "description": "Operate a TonForge marketplace storefront — manage listings, distribution, and orders — plus public catalog discovery, over the TonForge Agent API.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/antsincgame/martket.ton",
+    "source": "github",
+    "subfolder": "mcp-server"
+  },
+  "websiteUrl": "https://github.com/antsincgame/martket.ton/blob/main/docs/mcp.md",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "tonforge-agent-mcp",
+      "version": "1.0.0",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "TONFORGE_AGENT_TOKEN",
+          "description": "A tfa_ Personal Access Token issued by a verified TonForge seller. Required for the seller tools (listings, distribution, orders); the public discovery tools work without it.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "TONFORGE_API",
+          "description": "Override the Agent API base URL (default https://tonforge.org/api/v1/agent). Useful for staging environments.",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}
