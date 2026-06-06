@@ -1,0 +1,34 @@
+# TonForge
+
+> TonForge is a marketplace on the TON blockchain for selling digital goods.
+> Every purchase mints a license NFT and gates the download on that mint.
+> Sellers can hand a scoped Personal Access Token to an AI agent, which then
+> manages listings, distribution, and reads orders entirely over HTTP.
+
+This file helps AI agents discover how to operate on TonForge programmatically.
+The supported machine interface is the **Agent API**.
+
+## Agent API
+
+- [Agent API guide](https://github.com/antsincgame/martket.ton/blob/main/docs/agent-api.md): Auth flow, scopes, endpoints, errors, quickstart.
+- [OpenAPI 3.1 spec](https://github.com/antsincgame/martket.ton/blob/main/docs/openapi/agent-api.yaml): Machine-readable definition of every endpoint.
+- [MCP server](https://github.com/antsincgame/martket.ton/blob/main/mcp-server/README.md): Connect an MCP-compatible assistant (Claude, Cursor, …) to a TonForge storefront as native tools.
+- [Code examples](https://github.com/antsincgame/martket.ton/tree/main/docs/agent-api-examples): Runnable TypeScript, Python, and curl clients.
+
+## Key facts for agents
+
+- Base URL: `https://tonforge.org/api/v1/agent`
+- Auth: `Authorization: Bearer tfa_…` (a Personal Access Token issued by a verified seller). The acting wallet is read from the token, never from the request body.
+- Scopes: `listings:read`, `listings:write`, `orders:read`, `distribution:write`.
+- Every call re-screens the wallet for sanctions (451) and KYC (403); per-token rate limit is 600 requests / 15 min.
+- Token issuance is a human, session-authenticated action: `POST https://tonforge.org/api/v1/commerce/agent-tokens`.
+
+## Endpoints
+
+- `GET /me`: Identity of the calling token.
+- `GET /listings`: List the seller's listings.
+- `POST /listings`: Create a listing (requires `listings:write`).
+- `PATCH /listings/{id}`: Update a listing (requires `listings:write`).
+- `PUT /listings/{id}/distribution`: Attach a downloadable artifact (requires `distribution:write`).
+- `POST /listings/{id}/distribution/verify`: Verify the artifact's sha256 (requires `distribution:write`).
+- `GET /orders`: List the seller's orders (requires `orders:read`).
