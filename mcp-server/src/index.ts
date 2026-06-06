@@ -21,6 +21,9 @@ import { z } from 'zod';
 
 const BASE = process.env.TONFORGE_API ?? 'https://tonforge.org/api/v1/agent';
 const TOKEN = process.env.TONFORGE_AGENT_TOKEN;
+// Site origin (e.g. https://tonforge.org) for the PUBLIC discovery endpoints,
+// derived from BASE so a TONFORGE_API override (staging, etc.) carries over.
+const ORIGIN = new URL(BASE).origin;
 
 if (!TOKEN) {
   console.error('FATAL: set TONFORGE_AGENT_TOKEN to a tfa_… Personal Access Token.');
@@ -62,6 +65,30 @@ async function api(method: string, path: string, body?: unknown): Promise<unknow
     throw new Error(`HTTP ${res.status} ${code}${e.error ?? e.message ?? res.statusText}`);
   }
 
+  const obj = json as { data?: unknown };
+  return obj.data ?? json;
+}
+
+/**
+ * GET a PUBLIC endpoint under the site origin (catalog discovery). These need
+ * no token — they back the storefront — so a shopping agent can browse before
+ * any seller token is involved. Both the products (`{ success, data }`) and
+ * commerce (`{ data }`) envelopes expose `.data`, so we unwrap it uniformly.
+ */
+async function publicGet(path: string): Promise<unknown> {
+  const res = await fetch(`${ORIGIN}${path}`, { headers: { Accept: 'application/json' } });
+  const text = await res.text();
+  let json: unknown;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    json = { raw: text };
+  }
+  if (!res.ok) {
+    const e = json as ApiError;
+    const code = e.code ? `${e.code}: ` : '';
+    throw new Error(`HTTP ${res.status} ${code}${e.error ?? e.message ?? res.statusText}`);
+  }
   const obj = json as { data?: unknown };
   return obj.data ?? json;
 }
@@ -199,6 +226,55 @@ server.tool(
   async ({ limit }) => {
     try {
       return ok(await api('GET', `/orders?limit=${limit ?? 100}`));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+// ── Discovery tools (public, no token) — for shopping/buyer agents ──────────
+
+server.tool(
+  'search_products',
+  'Search the public TonForge product catalog by keyword (no auth). Returns published products a buyer could shop for.',
+  {
+    q: z.string().min(2).describe('Search query (min 2 chars).'),
+    limit: z.number().int().min(1).max(200).optional().describe('Max results (default 50, max 200).'),
+  },
+  async ({ q, limit }) => {
+    try {
+      const qs = new URLSearchParams({ q, limit: String(limit ?? 50) });
+      return ok(await publicGet(`/api/products/search?${qs.toString()}`));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'get_product',
+  'Fetch a single published product from the public catalog by id (no auth).',
+  {
+    id: z.string().describe('Product id.'),
+  },
+  async ({ id }) => {
+    try {
+      return ok(await publicGet(`/api/products/${encodeURIComponent(id)}`));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'list_offers',
+  "List the active listings (sellers' offers) for a given catalog product (no auth). Use this to find what's for sale and at what price before initiating a purchase.",
+  {
+    catalogProductId: z.string().describe('The catalog product id to find offers for.'),
+  },
+  async ({ catalogProductId }) => {
+    try {
+      return ok(await publicGet(`/api/v1/commerce/listings/catalog/${encodeURIComponent(catalogProductId)}`));
     } catch (e) {
       return fail(e);
     }

@@ -7,6 +7,8 @@ seller's storefront in natural language.
 
 ## Tools
 
+### Seller tools (require an agent token + scope)
+
 | Tool                  | Scope needed         | Does                                            |
 | --------------------- | -------------------- | ----------------------------------------------- |
 | `whoami`              | any                  | Show the token's wallet, scopes, prefix         |
@@ -20,6 +22,20 @@ seller's storefront in natural language.
 A tool call that exceeds the token's scopes returns a clear error; it never
 escalates privilege. The token is read from the environment, so the model never
 sees the secret.
+
+### Discovery tools (public, no token)
+
+For shopping/buyer agents — these hit the public storefront API and need no auth:
+
+| Tool              | Does                                                          |
+| ----------------- | ------------------------------------------------------------ |
+| `search_products` | Search the public product catalog by keyword                 |
+| `get_product`     | Fetch a published product by id                              |
+| `list_offers`     | List active listings (sellers' offers) for a catalog product |
+
+> Completing a purchase is intentionally **not** a tool: it requires the buyer's
+> own TON wallet to sign the escrow transaction (plus KYC/AML). See
+> [docs/buyer-api.md](../docs/buyer-api.md) for the discover → prepare → sign flow.
 
 ## Setup
 

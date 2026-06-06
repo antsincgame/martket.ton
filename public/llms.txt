@@ -10,9 +10,10 @@ The supported machine interface is the **Agent API**.
 
 ## Agent API
 
-- [Agent API guide](https://github.com/antsincgame/martket.ton/blob/main/docs/agent-api.md): Auth flow, scopes, endpoints, errors, quickstart.
-- [OpenAPI 3.1 spec](https://github.com/antsincgame/martket.ton/blob/main/docs/openapi/agent-api.yaml): Machine-readable definition of every endpoint.
-- [MCP server](https://github.com/antsincgame/martket.ton/blob/main/mcp-server/README.md): Connect an MCP-compatible assistant (Claude, Cursor, …) to a TonForge storefront as native tools.
+- [Agent API guide](https://github.com/antsincgame/martket.ton/blob/main/docs/agent-api.md): Seller-side automation — auth flow, scopes, endpoints, errors, quickstart.
+- [Buyer / shopping guide](https://github.com/antsincgame/martket.ton/blob/main/docs/buyer-api.md): Public discovery + the non-custodial purchase flow for shopping agents.
+- [OpenAPI 3.1 spec](https://github.com/antsincgame/martket.ton/blob/main/docs/openapi/agent-api.yaml): Machine-readable definition of every Agent API endpoint.
+- [MCP server](https://github.com/antsincgame/martket.ton/blob/main/mcp-server/README.md): Connect an MCP-compatible assistant (Claude, Cursor, …) to TonForge as native tools (seller management + public discovery).
 - [Code examples](https://github.com/antsincgame/martket.ton/tree/main/docs/agent-api-examples): Runnable TypeScript, Python, and curl clients.
 
 ## Key facts for agents
@@ -23,7 +24,15 @@ The supported machine interface is the **Agent API**.
 - Every call re-screens the wallet for sanctions (451) and KYC (403); per-token rate limit is 600 requests / 15 min.
 - Token issuance is a human, session-authenticated action: `POST https://tonforge.org/api/v1/commerce/agent-tokens`.
 
-## Endpoints
+## Discovery (public, no auth — for shopping agents)
+
+- `GET https://tonforge.org/api/products`: All published products.
+- `GET https://tonforge.org/api/products/search?q=&limit=`: Search products (q >= 2 chars).
+- `GET https://tonforge.org/api/products/{id}`: A single published product.
+- `GET https://tonforge.org/api/v1/commerce/listings/catalog/{catalogProductId}`: Active offers for a product.
+- Purchase is non-custodial: the buyer's own TON wallet signs the escrow transaction; no token can move a user's funds. See the buyer guide for the discover -> prepare -> sign flow.
+
+## Seller endpoints (Agent API)
 
 - `GET /me`: Identity of the calling token.
 - `GET /listings`: List the seller's listings.
