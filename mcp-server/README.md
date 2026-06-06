@@ -1,0 +1,95 @@
+# TonForge Agent MCP server
+
+An [MCP](https://modelcontextprotocol.io) server that exposes the
+[TonForge Agent API](../docs/agent-api.md) as tools, so any MCP-compatible
+assistant — Claude Desktop, Claude Code, Cursor, Windsurf, … — can operate a
+seller's storefront in natural language.
+
+## Tools
+
+| Tool                  | Scope needed         | Does                                            |
+| --------------------- | -------------------- | ----------------------------------------------- |
+| `whoami`              | any                  | Show the token's wallet, scopes, prefix         |
+| `list_listings`       | `listings:read`      | List your listings                              |
+| `create_listing`      | `listings:write`     | Create a listing                                |
+| `update_listing`      | `listings:write`     | Update a listing                                |
+| `set_distribution`    | `distribution:write` | Attach a downloadable artifact (→ draft)        |
+| `verify_distribution` | `distribution:write` | Resolve + hash the artifact, compare sha256     |
+| `list_orders`         | `orders:read`        | List your orders                                |
+
+A tool call that exceeds the token's scopes returns a clear error; it never
+escalates privilege. The token is read from the environment, so the model never
+sees the secret.
+
+## Setup
+
+```bash
+cd mcp-server
+npm install
+npm run build      # emits dist/index.js
+```
+
+You need a TonForge **agent token** (`tfa_…`) issued by a verified seller — see
+[issuing a token](../docs/agent-api.md#issuing-a-token).
+
+## Configure your assistant
+
+### Claude Code (CLI)
+
+```bash
+claude mcp add tonforge \
+  --env TONFORGE_AGENT_TOKEN=tfa_your_token_here \
+  -- node /absolute/path/to/mcp-server/dist/index.js
+```
+
+### Claude Desktop / Cursor (JSON config)
+
+Add to the app's MCP config (`claude_desktop_config.json`, or Cursor's
+`mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "tonforge": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-server/dist/index.js"],
+      "env": {
+        "TONFORGE_AGENT_TOKEN": "tfa_your_token_here"
+      }
+    }
+  }
+}
+```
+
+Restart the assistant. You should now be able to ask things like:
+
+> "List my TonForge listings and raise the price of the slowest seller by 10%."
+>
+> "Create a listing for catalog product prod_123 at $19.99 with the file at
+> https://… in collection EQC…"
+
+### Override the API base (optional)
+
+Set `TONFORGE_API` (e.g. for a staging deployment):
+
+```json
+"env": {
+  "TONFORGE_AGENT_TOKEN": "tfa_…",
+  "TONFORGE_API": "https://staging.tonforge.org/api/v1/agent"
+}
+```
+
+## Run without building (dev)
+
+```bash
+TONFORGE_AGENT_TOKEN=tfa_… npm run dev
+```
+
+## Security notes
+
+- The token grants exactly the scopes it was issued with; issue the narrowest
+  set the agent needs.
+- The server logs only to stderr (stdout is reserved for the MCP JSON-RPC
+  stream) and never logs the token.
+- Revoke a token any time from the dashboard or `DELETE /agent-tokens/{id}`;
+  revocation and expiry take effect immediately.
