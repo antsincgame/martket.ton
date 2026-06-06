@@ -275,7 +275,12 @@ export async function fetchBuyerOrders(): Promise<BuyerOrderRow[]> {
 
 // ─── Agent API tokens (Personal Access Tokens) ──────────────────────
 
-export type AgentScope = 'listings:read' | 'listings:write' | 'orders:read' | 'distribution:write';
+export type AgentScope =
+  | 'listings:read'
+  | 'listings:write'
+  | 'orders:read'
+  | 'distribution:write'
+  | 'instructions:read';
 
 export interface AgentTokenSummary {
   id: string;

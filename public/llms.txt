@@ -21,8 +21,9 @@ The supported machine interface is the **Agent API**.
 
 - Base URL: `https://tonforge.org/api/v1/agent`
 - Auth: `Authorization: Bearer tfa_…` (a Personal Access Token issued by a verified seller). The acting wallet is read from the token, never from the request body.
-- Scopes: `listings:read`, `listings:write`, `orders:read`, `distribution:write`.
-- Every call re-screens the wallet for sanctions (451) and KYC (403); per-token rate limit is 600 requests / 15 min.
+- Scopes: `listings:read`, `listings:write`, `orders:read`, `distribution:write`, `instructions:read`.
+- New agents: start at `GET /api/v1/agent/instructions` (scope `instructions:read`) for the machine-readable onboarding manual + checklist, and `GET /api/v1/agent/status` for onboarding/order progress. Both are readable before KYC.
+- Every call re-screens the wallet for sanctions (451) and KYC (403); the onboarding reads `GET /instructions` and `GET /status` are the only endpoints readable before KYC. Per-token rate limit is 600 requests / 15 min.
 - Token issuance is a human, session-authenticated action: `POST https://tonforge.org/api/v1/commerce/agent-tokens`.
 
 ## Discovery (public, no auth — for shopping agents)
@@ -36,6 +37,8 @@ The supported machine interface is the **Agent API**.
 ## Seller endpoints (Agent API)
 
 - `GET /me`: Identity of the calling token.
+- `GET /instructions`: Onboarding/operating manual + personal onboarding checklist (scope `instructions:read`, pre-KYC ok).
+- `GET /status`: Onboarding progress + listing/order aggregates (any token, pre-KYC ok).
 - `GET /listings`: List the seller's listings.
 - `POST /listings`: Create a listing (requires `listings:write`).
 - `PATCH /listings/{id}`: Update a listing (requires `listings:write`).

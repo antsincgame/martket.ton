@@ -7,8 +7,9 @@ import { CURRENCY } from './constants.js';
 import { DEFAULT_PLATFORM_FEE_BPS } from './constants.js';
 import { commerceAdmin } from './helpers.js';
 import { validateBody } from '../middleware/validate.js';
-import { orderStateSchema } from './validation.js';
+import { orderStateSchema, agentInstructionSchema } from './validation.js';
 import { str } from '../utils/params.js';
+import { listInstructionsForAdmin, upsertInstruction } from '../agent/instructions.js';
 
 const router = express.Router();
 
@@ -62,5 +63,45 @@ router.post('/admin/orders/:id/state', commerceAdmin, validateBody(orderStateSch
     res.status(500).json({ error: 'Order state update failed', code: 'ORDER_STATE' });
   }
 });
+
+// ── Agent instructions channel ─────────────────────────────────────
+// The machine-facing onboarding/operating manual served to agents at
+// GET /api/v1/agent/instructions. Defaults live in code; these endpoints let an
+// admin override or extend any section (stored in Appwrite `agent_instructions`).
+
+router.get('/admin/agent-instructions', commerceAdmin, async (_req: Request, res: Response) => {
+  try {
+    const sections = await listInstructionsForAdmin();
+    res.json({ data: { sections } });
+  } catch (e: unknown) {
+    logger.error('[commerce] admin agent-instructions list:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to load instructions', code: 'AGENT_INSTRUCTIONS_LIST' });
+  }
+});
+
+router.put(
+  '/admin/agent-instructions/:section',
+  commerceAdmin,
+  validateBody(agentInstructionSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const section = str(req.params.section);
+      if (!/^[a-z0-9_]{2,64}$/.test(section)) {
+        res.status(400).json({ error: 'Invalid section key', code: 'BAD_SECTION' });
+        return;
+      }
+      const body = req.body as { title: string; body: string; order?: number; active?: boolean };
+      const saved = await upsertInstruction(section, body);
+      await writeAudit('admin', 'agent_instruction_upsert', 'agent_instruction', section, {
+        order: saved.order,
+        active: saved.active,
+      });
+      res.json({ data: { section: saved } });
+    } catch (e: unknown) {
+      logger.error('[commerce] admin agent-instructions upsert:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Failed to save instruction', code: 'AGENT_INSTRUCTION_SAVE' });
+    }
+  },
+);
 
 export default router;

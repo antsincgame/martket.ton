@@ -32,6 +32,8 @@ import { str } from '../utils/params.js';
 import { apiRequireAgentToken } from './agentAuth.js';
 import { createListingSchema, patchListingSchema } from '../commerce/validation.js';
 import { validateBody } from '../middleware/validate.js';
+import { getInstructionSections } from './instructions.js';
+import { buildAgentStatus, buildOnboardingChecklist } from './status.js';
 
 const router = express.Router();
 
@@ -45,6 +47,47 @@ router.get('/me', apiRequireAgentToken(), (req: Request, res: Response) => {
     },
   });
 });
+
+/**
+ * Agent onboarding / operating manual. Readable before KYC (`skipKyc`) so a
+ * brand-new agent can learn how to get verified. Returns the platform-authored
+ * instruction sections plus a personalised onboarding checklist.
+ */
+router.get(
+  '/instructions',
+  apiRequireAgentToken(['instructions:read'], { skipKyc: true }),
+  async (req: Request, res: Response) => {
+    try {
+      const [sections, onboarding] = await Promise.all([
+        getInstructionSections(),
+        buildOnboardingChecklist(req.agent!.wallet),
+      ]);
+      res.json({ data: { sections, onboarding } });
+    } catch (e) {
+      logger.error('[agent] instructions:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Failed to load instructions', code: 'AGENT_INSTRUCTIONS' });
+    }
+  },
+);
+
+/**
+ * Single self-status feed: onboarding progress + listing/order/distribution
+ * aggregates (counts only, no buyer PII). No read scope required and readable
+ * before KYC so an onboarding agent can poll its own progress.
+ */
+router.get(
+  '/status',
+  apiRequireAgentToken([], { skipKyc: true }),
+  async (req: Request, res: Response) => {
+    try {
+      const status = await buildAgentStatus(req.agent!.wallet);
+      res.json({ data: status });
+    } catch (e) {
+      logger.error('[agent] status:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Failed to load status', code: 'AGENT_STATUS' });
+    }
+  },
+);
 
 router.get('/listings', apiRequireAgentToken(['listings:read']), async (req: Request, res: Response) => {
   const wallet = req.agent!.wallet;

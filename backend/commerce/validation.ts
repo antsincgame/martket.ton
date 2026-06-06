@@ -83,6 +83,14 @@ export const orderStateSchema = z.object({
   state: z.enum(['pending_payment', 'paid', 'fulfilled', 'refunded', 'cancelled']),
 });
 
+// ── Agent instructions channel (admin authoring) ───────────────────
+export const agentInstructionSchema = z.object({
+  title: z.string().min(1).max(200),
+  body: z.string().min(1).max(20000),
+  order: z.number().int().min(0).max(1000).optional(),
+  active: z.boolean().optional(),
+});
+
 // ── BYOS Storage credentials ──────────────────────────────────────
 export const setStorageSchema = z.object({
   wallet: z.string().min(1),

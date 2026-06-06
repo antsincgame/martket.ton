@@ -34,7 +34,11 @@ info:
     - on a sanctions list  → `451 SANCTIONED`
     - KYC not approved      → `403` (KYC code)
     These run on *every* call, so a token issued before a designation — or for a
-    wallet whose KYC was later revoked — stops working immediately.
+    wallet whose KYC was later revoked — stops working immediately. The two
+    onboarding-facing reads `GET /instructions` and `GET /status` are the only
+    exception to the KYC gate (sanctions screening still applies): they stay
+    readable before KYC so an agent can learn how to get verified and track its
+    own progress.
 
     ## Rate limiting
     Per-token: `AGENT_RATE_LIMIT` requests / 15 min (default **600**). Responses
@@ -56,6 +60,8 @@ servers:
 tags:
   - name: Identity
     description: Inspect the token currently in use.
+  - name: Onboarding
+    description: Machine-readable operating manual and self-status. Readable before KYC.
   - name: Listings
     description: Create, read, and update the seller's product listings.
   - name: Distribution
@@ -94,6 +100,59 @@ paths:
                         type: array
                         items: { $ref: "#/components/schemas/Scope" }
                       tokenPrefix: { type: string, example: "tfa_ABCD1234" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "451": { $ref: "#/components/responses/Sanctioned" }
+
+  /instructions:
+    get:
+      tags: [Onboarding]
+      operationId: getAgentInstructions
+      summary: Onboarding / operating manual
+      description: >-
+        Returns the platform-authored, machine-readable operating manual (honest
+        service description, prerequisites, lifecycle, KYC requirement and conduct
+        policy) plus a personalised onboarding checklist derived from the agent's
+        account state. Requires `instructions:read`. Readable **before** KYC.
+      security:
+        - agentBearer: [instructions:read]
+        - agentHeader: [instructions:read]
+      responses:
+        "200":
+          description: Instruction sections and onboarding checklist.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      sections:
+                        type: array
+                        items: { $ref: "#/components/schemas/InstructionSection" }
+                      onboarding: { $ref: "#/components/schemas/Onboarding" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "451": { $ref: "#/components/responses/Sanctioned" }
+
+  /status:
+    get:
+      tags: [Onboarding]
+      operationId: getAgentStatus
+      summary: Self-status + onboarding progress
+      description: >-
+        Returns the agent's onboarding checklist plus listing/order/distribution
+        aggregates (counts only — no buyer PII). Any valid token; no read scope
+        required. Readable **before** KYC so an onboarding agent can poll progress.
+      responses:
+        "200":
+          description: Aggregated self-status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/AgentStatus" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "451": { $ref: "#/components/responses/Sanctioned" }
 
@@ -440,7 +499,66 @@ components:
   schemas:
     Scope:
       type: string
-      enum: [listings:read, listings:write, orders:read, distribution:write]
+      enum: [listings:read, listings:write, orders:read, distribution:write, instructions:read]
+
+    InstructionSection:
+      type: object
+      properties:
+        section: { type: string, example: onboarding }
+        title: { type: string }
+        body: { type: string, description: Markdown-ish plain text. }
+        order: { type: integer }
+        active: { type: boolean }
+        source: { type: string, enum: [default, admin] }
+
+    Onboarding:
+      type: object
+      properties:
+        kyc:
+          type: object
+          properties:
+            status: { type: string, enum: [none, pending, approved, rejected] }
+            ok: { type: boolean }
+        storage:
+          type: object
+          properties:
+            status: { type: string }
+            connected: { type: boolean }
+            provider: { type: string, nullable: true }
+        catalog:
+          type: object
+          properties:
+            listings: { type: integer }
+            hasListings: { type: boolean }
+        distribution:
+          type: object
+          properties:
+            configured: { type: boolean }
+            verified: { type: boolean }
+        readyToSell: { type: boolean }
+        nextStep: { type: string, nullable: true }
+
+    AgentStatus:
+      type: object
+      properties:
+        wallet: { type: string }
+        onboarding: { $ref: "#/components/schemas/Onboarding" }
+        listings:
+          type: object
+          properties:
+            total: { type: integer }
+            byStatus: { type: object, additionalProperties: { type: integer } }
+        orders:
+          type: object
+          properties:
+            total: { type: integer }
+            byState: { type: object, additionalProperties: { type: integer } }
+        distribution:
+          type: object
+          properties:
+            configured: { type: integer }
+            verified: { type: integer }
+            needsAttention: { type: integer }
 
     Listing:
       type: object

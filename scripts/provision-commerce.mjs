@@ -24,6 +24,7 @@ const COL_DOWNLOAD_AUDIT = 'download_audit';
 const COL_LICENSES = 'licenses';
 const COL_WORKER_LOCKS = 'worker_locks';
 const COL_AGENT_TOKENS = 'agent_tokens';
+const COL_AGENT_INSTRUCTIONS = 'agent_instructions';
 const COL_AML_CHECKS = 'aml_checks';
 const BUCKET_ASSETS = 'commerce_assets';
 
@@ -450,6 +451,39 @@ async function setupAgentTokens(databases) {
   await idx(databases, COL_AGENT_TOKENS, 'idx_wallet', IndexType.Key, ['wallet']);
 }
 
+async function setupAgentInstructions(databases) {
+  // Admin-authored overrides for the agent onboarding/instructions channel
+  // (GET /api/v1/agent/instructions). Defaults live in code; rows here override
+  // or extend a section by its `section` key. Server-only: agents read it via
+  // the backend, never directly.
+  await ensureCollection(databases, COL_AGENT_INSTRUCTIONS, 'Agent instructions', SERVER_ONLY);
+  await ignoreConflict(() =>
+    databases.createStringAttribute(DATABASE_ID, COL_AGENT_INSTRUCTIONS, 'section', 64, true)
+  );
+  await waitForAttribute(databases, COL_AGENT_INSTRUCTIONS, 'section');
+  await ignoreConflict(() =>
+    databases.createStringAttribute(DATABASE_ID, COL_AGENT_INSTRUCTIONS, 'title', 255, true)
+  );
+  await waitForAttribute(databases, COL_AGENT_INSTRUCTIONS, 'title');
+  await ignoreConflict(() =>
+    databases.createStringAttribute(DATABASE_ID, COL_AGENT_INSTRUCTIONS, 'body', 20000, true)
+  );
+  await waitForAttribute(databases, COL_AGENT_INSTRUCTIONS, 'body');
+  await ignoreConflict(() =>
+    databases.createIntegerAttribute(DATABASE_ID, COL_AGENT_INSTRUCTIONS, 'order', false)
+  );
+  await waitForAttribute(databases, COL_AGENT_INSTRUCTIONS, 'order');
+  await ignoreConflict(() =>
+    databases.createIntegerAttribute(DATABASE_ID, COL_AGENT_INSTRUCTIONS, 'version', false)
+  );
+  await waitForAttribute(databases, COL_AGENT_INSTRUCTIONS, 'version');
+  await ignoreConflict(() =>
+    databases.createBooleanAttribute(DATABASE_ID, COL_AGENT_INSTRUCTIONS, 'active', false, true)
+  );
+  await waitForAttribute(databases, COL_AGENT_INSTRUCTIONS, 'active');
+  await idx(databases, COL_AGENT_INSTRUCTIONS, 'uniq_section', IndexType.Unique, ['section']);
+}
+
 async function setupAmlChecks(databases) {
   // Кэш AML-вердиктов AMLBot (backend/aml/amlbot.ts): один документ на
   // нормализованный кошелёк (0:hex). Свежесть контролирует код через
@@ -513,6 +547,7 @@ async function main() {
   await setupLicenses(databases);
   await setupWorkerLocks(databases);
   await setupAgentTokens(databases);
+  await setupAgentInstructions(databases);
   await setupAmlChecks(databases);
   await setupAudit(databases);
   await setupDownloadAudit(databases);

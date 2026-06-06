@@ -15,6 +15,10 @@ export const ALL_SCOPES = [
   'listings:write',
   'orders:read',
   'distribution:write',
+  // Read the agent onboarding/instructions channel (service docs, prerequisites,
+  // lifecycle, behaviour policy). Intentionally readable before KYC so a brand-new
+  // agent can learn how to get verified — see `skipKyc` in agentAuth.
+  'instructions:read',
 ] as const;
 
 export type AgentScope = (typeof ALL_SCOPES)[number];
@@ -24,6 +28,7 @@ const READ_IMPLIED_BY: Record<AgentScope, AgentScope[]> = {
   'listings:write': ['listings:read'],
   'orders:read': [],
   'distribution:write': ['listings:read'],
+  'instructions:read': [],
 };
 
 export function parseScopes(csv: string | undefined | null): AgentScope[] {

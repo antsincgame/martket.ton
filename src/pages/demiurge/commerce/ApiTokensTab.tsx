@@ -23,6 +23,7 @@ const ALL_SCOPES: { value: AgentScope; label: string; help: string }[] = [
   { value: 'listings:write', label: 'listings:write', help: 'Create / update listings, change prices, activate.' },
   { value: 'orders:read', label: 'orders:read', help: 'Read recent orders and buyer wallets.' },
   { value: 'distribution:write', label: 'distribution:write', help: 'Configure the build manifest (R2 / GitHub release).' },
+  { value: 'instructions:read', label: 'instructions:read', help: 'Read the agent onboarding & operating manual (readable before KYC).' },
 ];
 
 interface Props {

@@ -86,5 +86,21 @@ describe('ALL_SCOPES', () => {
     expect(ALL_SCOPES).toContain('listings:write');
     expect(ALL_SCOPES).toContain('orders:read');
     expect(ALL_SCOPES).toContain('distribution:write');
+    expect(ALL_SCOPES).toContain('instructions:read');
+  });
+});
+
+describe('instructions:read', () => {
+  it('is a standalone read scope that implies nothing else', () => {
+    expect(Array.from(expandScopes(['instructions:read']))).toEqual(['instructions:read']);
+  });
+
+  it('parses and round-trips', () => {
+    expect(parseScopes('instructions:read')).toEqual(['instructions:read']);
+    expect(serializeScopes(['instructions:read'])).toBe('instructions:read');
+  });
+
+  it('does not satisfy unrelated scopes', () => {
+    expect(hasAllScopes(['instructions:read'], ['listings:read'])).toBe(false);
   });
 });

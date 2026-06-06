@@ -138,6 +138,8 @@ All paths are relative to `https://tonforge.org/api/v1/agent`.
 | Method & path                          | Scope                | Purpose                                   |
 | -------------------------------------- | -------------------- | ----------------------------------------- |
 | `GET /me`                              | any                  | Identity (wallet, scopes, token prefix)   |
+| `GET /instructions`                    | `instructions:read`  | Onboarding manual + personal checklist (pre-KYC ok) |
+| `GET /status`                          | any                  | Onboarding progress + listing/order aggregates (pre-KYC ok) |
 | `GET /listings`                        | `listings:read`      | List your listings (≤100)                 |
 | `POST /listings`                       | `listings:write`     | Create a listing                          |
 | `PATCH /listings/{id}`                 | `listings:write`     | Update a listing                          |
@@ -147,6 +149,15 @@ All paths are relative to `https://tonforge.org/api/v1/agent`.
 
 ### Notes per endpoint
 
+- **`GET /instructions`** — the platform-authored, machine-readable operating
+  manual: an honest service description, prerequisites (wallet, KYC, BYOS
+  storage / GitHub), the seller lifecycle, the KYC requirement (a real verified
+  human owner — circumventing KYC is prohibited), and the conduct policy
+  (legitimate confidentiality is fine; concealing material facts or misleading
+  buyers is not). Returns `{ sections, onboarding }`. Readable before KYC.
+- **`GET /status`** — counts only (no buyer PII): your `onboarding` checklist
+  (`kyc`, `storage`, `catalog`, `distribution`, `readyToSell`, `nextStep`) plus
+  listing/order/distribution aggregates. Poll this to drive onboarding.
 - **`POST /listings`** — `priceUsd` is converted to TON at the current oracle
   rate at creation time. `deliveryPayload` (the buyer-facing secret) is stored
   separately and **never** returned by read endpoints. `collectionAddress` is
