@@ -221,8 +221,74 @@ support-валидация, float TON-математика, второй mint-в
 - Resend-webhook — образцовый fail-closed с svix-проверкой.
 - Контракты на Tact зрелые, lifecycle покрыт sandbox-тестами.
 - Authz централизована, `user_id` из токена, Appwrite-Query параметризованы.
-- strict TS, ~0 `any`, 481 unit-тест, CI с CodeQL/gitleaks.
+- strict TS, ~0 `any`, 496 unit-тестов (включая новый drift-guard опкодов), CI с CodeQL/gitleaks.
 
-> Самая важная единичная задача: **§3.1 опкод-дрифт** — он на критическом пути
-> выручки и молчалив; один e2e-платёж на testnet или один assert опкод-хэша в CI
-> поймал бы его.
+---
+
+## 6. Длинный хвост (utils / mappers / hooks / e2e)
+
+- **`roleCatalog.ts` (P2):** `requiresMFA: true` (admin/super_admin) и
+  `sessionDuration` **объявлены, но не enforced** — реальная аутентификация это
+  Appwrite OTP/OAuth без MFA-гейта, `authenticateWithMFA` существует только в
+  интерфейсе; `sessionDuration` идёт лишь в косметический клиентский `expiresAt`
+  (`AuthContext.tsx:26`), а реальную сессию определяет Appwrite-JWT. Тот же
+  паттерн «аспирационная security-конфигурация без проводки», что и
+  mahakala-театр (§3.5).
+- **`backend/logger.ts:14` (P2):** `JSON.stringify` логирует произвольные
+  объекты **без редактирования** — любой токен/секрет/PII, переданный в logger,
+  пишется как есть. Это и есть причина, по которой `[AUTH_AUDIT_BE]` (§3.3)
+  реально светит JWT/email в логах. _Чинить:_ allow/deny-list полей + редакция.
+- **`backend/sentry.ts:17` (P2):** нет `beforeSend`/scrubbing, дефолтный PII-захват
+  Sentry активен; секреты могут уехать во внешний сервис.
+- **`mapDocuments.ts` (P2):** мапперы **фабрикуют** недостающие данные —
+  синтетическое описание («— Catalog description (Appwrite).», `:152`), выдуманный
+  счётчик отзывов из `downloads/200`, `version: '1.0.0'`, `lastUpdated = сегодня`.
+  UI показывает выдуманные метаданные как настоящие (тот же мотив, что seed-merge).
+- **`utils/tonAmount.ts:5` (P2):** `nanoRawToTonHuman` не валидирует вход —
+  нечисловая/дробная строка режется позиционно и выдаёт мусор (вход backend-контролируемый,
+  риск низкий, но без ассерта).
+- **`catalog.ts:235` (P3):** сортировка `'newest'` = `Number(b.id)-Number(a.id)`;
+  Appwrite `$id` нечисловые → `NaN` → сортировка по «новизне» **молча не работает**
+  на реальных данных (только на seed с числовыми id).
+- **`requestId.ts:14` (P3):** клиентский `x-request-id` принимается без bounds и
+  отражается в ответ (spoofing log-correlation; newline-инъекция снята валидацией Node).
+- **`useTonPrice.ts:12` (P3):** при не-OK ответе тихо возвращает `0` → цена $0
+  вместо ошибки. **`params.str()` (P3):** без bounding длины (Query параметризованы).
+- Чисто: `slugify`, `useAdminData`, `Network/SearchContext`, `commerce/tonforge types`,
+  `repository`, `ids`, `limits`, `categoryIcons`, `platformIcons`, `asyncHandler`.
+
+**E2E — покрытие в основном косметическое (P2, важно):**
+- `smoke.spec.ts` — много вакуумных ассертов (`count >= 0` всегда истина, `:199`;
+  `if (visible)`-гарды молча no-op при отсутствии элемента).
+- `product-lifecycle`/`admin-panel` — настоящие **auth-gate** проверки (401/403),
+  но все под `test.skip(!backendUp)` → без бэкенда в CI весь сьют «зелёный» скипом;
+  аутентифицированный happy-path покупки/mint/KYC не прогоняется ни разу.
+- `commerce-nft-bridge.spec.ts:108-167` — флагманские «mint→minted» и
+  «mint_failed→refunded» **не монтируют** компонент, а делают `goto('/docs/...')` и
+  проверяют наличие слова «refund» в статической доке. Стаб `/licenses/**` не
+  срабатывает — критический mint/refund state-machine **тестируется против текста
+  документации, а не поведения**.
+
+> Итог §6: длинный хвост по утилитам/типам в целом крепкий, но опирается на
+> «защитные дефолты», которые **фабрикуют или маскируют** отсутствующие данные, а
+> наблюдаемость (logger/sentry) **не скрабит секреты**. Главный пробел — **e2e:
+> security-гейты реальны, но backend-gated скипом, а ключевые денежные потоки
+> (покупка/mint/refund/KYC) фактически не прогоняются** (496 unit-тестов реальны,
+> e2e критических флоу — нет).
+
+---
+
+## 7. Исправлено в этом PR (ветка `claude/funny-dijkstra-KIPtO`)
+
+| Находка | Статус | Коммит |
+|---------|--------|--------|
+| §3.1 Опкод-дрифт (P0) | ✅ исправлено: опкоды синхронизированы с `escrow.tact`, убран выдуманный `ORACLE_REFUND`, добавлен drift-guard тест (парсит `.tact`) | `be0edd3` |
+| §3.3 PII `/profiles/by-ton` (P1) | ✅ исправлено: public-subset без email/KYC/internal-id | `c88c8f8` |
+| §3.3 `purchases` без unique-индексов (P0) | ✅ исправлено: unique `(user_id, product_id)` + `uniq_tx_hash`, идемпотентный `insertPurchase` (409 → existing) | `c88c8f8` |
+| (из `AUDIT.md`) high-CVE deps + npmmirror | ✅ исправлено: `overrides` + lock на npmjs; `npm audit --audit-level=high` = 0 | ранее |
+| (из `AUDIT.md`) флака-тест GCM | ✅ исправлено: детерминированный tamper | ранее |
+
+> Самая важная **оставшаяся** задача после этого PR: реальные e2e денежного пути
+> (покупка→escrow→mint→download) на testnet и серверный пиннинг сети + fail-closed
+> KYC-webhook (§`AUDIT.md` P0). Опкод-дрифт, который был №1 риском, закрыт и
+> защищён тестом от регрессии.
