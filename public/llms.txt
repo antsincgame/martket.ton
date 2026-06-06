@@ -13,7 +13,8 @@ The supported machine interface is the **Agent API**.
 - [Agent API guide](https://github.com/antsincgame/martket.ton/blob/main/docs/agent-api.md): Seller-side automation — auth flow, scopes, endpoints, errors, quickstart.
 - [Buyer / shopping guide](https://github.com/antsincgame/martket.ton/blob/main/docs/buyer-api.md): Public discovery + the non-custodial purchase flow for shopping agents.
 - [OpenAPI 3.1 spec](https://github.com/antsincgame/martket.ton/blob/main/docs/openapi/agent-api.yaml): Machine-readable definition of every Agent API endpoint.
-- [MCP server](https://github.com/antsincgame/martket.ton/blob/main/mcp-server/README.md): Connect an MCP-compatible assistant (Claude, Cursor, …) to TonForge as native tools (seller management + public discovery).
+- [MCP server](https://github.com/antsincgame/martket.ton/blob/main/docs/mcp.md): Connect an MCP-compatible assistant (Claude, Cursor, …) to TonForge as native tools (seller management + public discovery). Install with `npx tonforge-agent-mcp`, or find it in the MCP registry as `io.github.antsincgame/tonforge-agent`.
+- [Plugin manifest](https://tonforge.org/.well-known/ai-plugin.json): Machine-readable plugin descriptor pointing at the OpenAPI spec and auth model.
 - [Code examples](https://github.com/antsincgame/martket.ton/tree/main/docs/agent-api-examples): Runnable TypeScript, Python, and curl clients.
 
 ## Key facts for agents

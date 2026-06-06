@@ -1,0 +1,18 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "TonForge",
+  "name_for_model": "tonforge",
+  "description_for_human": "Buy and sell digital goods on the TON blockchain. Browse the catalog, and manage a seller storefront.",
+  "description_for_model": "TonForge is a TON-blockchain marketplace for digital goods. Public catalog discovery (products, search, offers) needs no auth. Seller actions — manage listings, distribution manifests, and read orders — use a per-seller bearer Personal Access Token that starts with 'tfa_'. The acting wallet is derived from the token. See the OpenAPI spec for endpoints. For native tool-calling integration prefer the MCP server: https://github.com/antsincgame/martket.ton/blob/main/docs/mcp.md . Purchasing is non-custodial: only the buyer's own TON wallet can sign the payment, so an agent discovers and prepares orders but cannot move funds.",
+  "auth": {
+    "type": "user_http",
+    "authorization_type": "bearer"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://raw.githubusercontent.com/antsincgame/martket.ton/main/docs/openapi/agent-api.yaml"
+  },
+  "logo_url": "https://tonforge.org/app-icon.png",
+  "contact_email": "support@tonforge.org",
+  "legal_info_url": "https://tonforge.org/terms"
+}
