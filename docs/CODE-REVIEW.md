@@ -285,6 +285,8 @@ support-валидация, float TON-математика, второй mint-в
 | §3.1 Опкод-дрифт (P0) | ✅ исправлено: опкоды синхронизированы с `escrow.tact`, убран выдуманный `ORACLE_REFUND`, добавлен drift-guard тест (парсит `.tact`) | `be0edd3` |
 | §3.3 PII `/profiles/by-ton` (P1) | ✅ исправлено: public-subset без email/KYC/internal-id | `c88c8f8` |
 | §3.3 `purchases` без unique-индексов (P0) | ✅ исправлено: unique `(user_id, product_id)` + `uniq_tx_hash`, идемпотентный `insertPurchase` (409 → existing) | `c88c8f8` |
+| `AUDIT §2.1` KYC-webhook fail-open (P0) | ✅ исправлено: подпись обязательна (нет/невалидна → 401), пустой `DIDIT_WEBHOOK_SECRET` → fail-closed; тест `diditIntegration.test.ts` | этот PR |
+| `AUDIT §2.2` сеть из клиентского заголовка (P0) | ✅ исправлено: `resolveNetwork` пинится к `TON_NETWORK`, клиентский `x-ton-network` advisory-only; тест `network.test.ts` | этот PR |
 | (из `AUDIT.md`) high-CVE deps + npmmirror | ✅ исправлено: `overrides` + lock на npmjs; `npm audit --audit-level=high` = 0 | ранее |
 | (из `AUDIT.md`) флака-тест GCM | ✅ исправлено: детерминированный tamper | ранее |
 

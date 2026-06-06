@@ -39,8 +39,8 @@
 ## 1. Чек-лист задач (для трекинга)
 
 ### 🔴 P0 — до публичного запуска
-- [ ] **KYC-webhook Didit обходится без аутентификации** → fail-closed + обязательная подпись + сверка через `fetchDiditSessionResult`. _(§2.1)_
-- [ ] **Сеть выбирается клиентским заголовком `x-ton-network`** → запинить сеть серверно на деплой. _(§2.2)_
+- [x] **KYC-webhook Didit обходится без аутентификации** → ✅ fail-closed: подпись теперь обязательна (нет заголовка → 401) и пустой `DIDIT_WEBHOOK_SECRET` → отказ. Опц. усиление (сверка через `fetchDiditSessionResult`) — осталось. _(§2.1)_
+- [x] **Сеть выбирается клиентским заголовком `x-ton-network`** → ✅ запинено серверно к `TON_NETWORK`; клиентский заголовок/`?network` теперь advisory-only (игнорируется, на mismatch — warn). _(§2.2)_
 
 ### 🟠 P1 — достоверность и контроли
 - [ ] **Фейковый seed-каталог всегда подмешивается в живую витрину** → убрать merge, seed только как fallback при пустой БД; снять demo-бейджи с публичных страниц. _(§2.3)_
@@ -84,6 +84,12 @@
 не доверять телу вебхука — брать статус из `fetchDiditSessionResult(session_id)`
 (функция уже реализована в том же модуле).
 
+> ✅ **Исправлено:** `listingRoutes.ts` теперь `if (!signature || !verify(...)) → 401`;
+> `verifyDiditWebhookSignature` читает `DIDIT_WEBHOOK_SECRET` напрямую и при пустом
+> секрете/пустой подписи возвращает `false` (fail-closed). Тест:
+> `diditIntegration.test.ts`. Осталось как доп. усиление: сверка статуса через
+> `fetchDiditSessionResult` вместо доверия телу.
+
 ### 2.2 🔴 P0/P1 — Сеть выбирается клиентским заголовком
 **`backend/config/network.ts:66-72` (resolve) и `:24-37` (configs)**
 
@@ -98,6 +104,13 @@ testnet-TON, `verifyPaymentToEscrow` валидирует оплату чере�
 
 **Фикс:** пинить сеть на сервере (одна сеть на деплой через env), не доверять
 заголовку; либо физически разделять treasury/коллекции/каталог по сетям.
+
+> ✅ **Исправлено:** `resolveNetwork()` теперь возвращает сеть из `TON_NETWORK`
+> (тот же источник, что и `tonforge/onchain/config.ts`); клиентский
+> `x-ton-network`/`?network` — advisory-only (на mismatch — `logger.warn`, сеть
+> сервера побеждает). `resolveNetworkConfig(req)` без изменений в сигнатуре. Тест:
+> `network.test.ts` (`resolveNetwork (server-pinned)`). Операторам: задать
+> `TON_NETWORK` явно, чтобы commerce и mint-воркер совпадали.
 
 ### 2.3 🟠 P1 — Фейковый seed-каталог в живой витрине
 **`src/domain/marketplace/marketplaceRemote.ts:60-88`**
