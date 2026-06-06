@@ -1,4 +1,5 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import { InputFile } from 'node-appwrite/file';
 import { Permission, Role } from 'node-appwrite';
@@ -300,8 +301,14 @@ function requireValidDiditSignature(req: Request, res: Response, next: NextFunct
   next();
 }
 
+// Per-IP cap on the public webhook endpoint. Generous enough for legitimate
+// Didit delivery (low-frequency, retried on 429) while bounding floods of
+// forged requests before they reach body-parsing / signature verification.
+const limitWebhook = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
+
 router.post(
   '/sellers/kyc/webhook',
+  limitWebhook,
   express.raw({ type: '*/*' }),
   requireValidDiditSignature,
   async (req: Request, res: Response) => {
