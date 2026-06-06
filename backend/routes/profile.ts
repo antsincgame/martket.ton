@@ -149,6 +149,33 @@ router.patch(
   }),
 );
 
+/**
+ * Public-safe projection. `/profiles/by-ton` is reachable by ANY authenticated
+ * user, so it must never leak email, KYC-lite PII (legal name / DOB / country /
+ * city) or internal identifiers (appwrite/clerk user id, security level).
+ */
+function toPublicProfile(p: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ton_address: p.ton_address,
+    display_name: p.display_name,
+    slug: p.slug,
+    avatar: p.avatar,
+    banner_url: p.banner_url,
+    bio: p.bio,
+    about_long: p.about_long,
+    website: p.website,
+    github: p.github,
+    telegram: p.telegram,
+    twitter: p.twitter,
+    role: p.role,
+    verified: p.verified,
+    trust_score: p.trust_score,
+    published_count: p.published_count,
+    featured_product_ids: p.featured_product_ids,
+    created_at: p.created_at,
+  };
+}
+
 router.get(
   '/profiles/by-ton/:ton',
   apiRequireAuth(),
@@ -158,7 +185,8 @@ router.get(
       res.status(404).json({ success: false, message: 'User not found' });
       return;
     }
-    res.json({ success: true, data: profileToSnakeCase(profile) });
+    // Public-safe subset only — no email / KYC PII / internal ids.
+    res.json({ success: true, data: toPublicProfile(profileToSnakeCase(profile)) });
   }),
 );
 

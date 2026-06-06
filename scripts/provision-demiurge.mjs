@@ -93,8 +93,19 @@ async function createPurchases(db) {
   await ignoreConflict(() =>
     db.createIndex(DATABASE_ID, 'purchases', 'idx_product', IndexType.Key, ['product_id'])
   );
+  // Unique: one ownership row per (user, product). Closes the read-then-write
+  // race in purchaseRepository.insertPurchase (the app catches the 409 and
+  // treats it as idempotent). NOTE: an existing DB that already has this index
+  // as a non-unique Key must drop it first — Appwrite can't change an index
+  // type in place, so on those DBs this create is a no-op (409 ignored).
   await ignoreConflict(() =>
-    db.createIndex(DATABASE_ID, 'purchases', 'idx_user_product', IndexType.Key, ['user_id', 'product_id'])
+    db.createIndex(DATABASE_ID, 'purchases', 'idx_user_product', IndexType.Unique, ['user_id', 'product_id'])
+  );
+  // Unique: anti-replay — the same on-chain tx_hash can't claim two purchases.
+  // Appwrite allows multiple NULL tx_hash rows under a unique index; the app
+  // always writes a real hash on paid purchases.
+  await ignoreConflict(() =>
+    db.createIndex(DATABASE_ID, 'purchases', 'uniq_tx_hash', IndexType.Unique, ['tx_hash'])
   );
   console.log('  + indexes');
 }
