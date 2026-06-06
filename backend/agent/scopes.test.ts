@@ -87,6 +87,18 @@ describe('ALL_SCOPES', () => {
     expect(ALL_SCOPES).toContain('orders:read');
     expect(ALL_SCOPES).toContain('distribution:write');
     expect(ALL_SCOPES).toContain('instructions:read');
+    expect(ALL_SCOPES).toContain('products:write');
+  });
+});
+
+describe('products:write', () => {
+  it('is a standalone write scope that implies nothing else', () => {
+    expect(Array.from(expandScopes(['products:write']))).toEqual(['products:write']);
+  });
+
+  it('does not satisfy listing scopes and vice versa', () => {
+    expect(hasAllScopes(['products:write'], ['listings:write'])).toBe(false);
+    expect(hasAllScopes(['listings:write'], ['products:write'])).toBe(false);
   });
 });
 

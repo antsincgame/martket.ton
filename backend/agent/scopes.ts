@@ -19,6 +19,10 @@ export const ALL_SCOPES = [
   // lifecycle, behaviour policy). Intentionally readable before KYC so a brand-new
   // agent can learn how to get verified — see `skipKyc` in agentAuth.
   'instructions:read',
+  // Create catalog product drafts. Drafts enter the same moderation + antivirus
+  // pipeline as human-created products and stay unpublished until a moderator
+  // approves them. Requires KYC like every other write scope.
+  'products:write',
 ] as const;
 
 export type AgentScope = (typeof ALL_SCOPES)[number];
@@ -29,6 +33,7 @@ const READ_IMPLIED_BY: Record<AgentScope, AgentScope[]> = {
   'orders:read': [],
   'distribution:write': ['listings:read'],
   'instructions:read': [],
+  'products:write': [],
 };
 
 export function parseScopes(csv: string | undefined | null): AgentScope[] {

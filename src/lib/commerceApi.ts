@@ -280,7 +280,8 @@ export type AgentScope =
   | 'listings:write'
   | 'orders:read'
   | 'distribution:write'
-  | 'instructions:read';
+  | 'instructions:read'
+  | 'products:write';
 
 export interface AgentTokenSummary {
   id: string;

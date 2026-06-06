@@ -62,6 +62,8 @@ tags:
     description: Inspect the token currently in use.
   - name: Onboarding
     description: Machine-readable operating manual and self-status. Readable before KYC.
+  - name: Products
+    description: Create catalog product drafts that enter moderation + antivirus before publish.
   - name: Listings
     description: Create, read, and update the seller's product listings.
   - name: Distribution
@@ -154,6 +156,59 @@ paths:
                 properties:
                   data: { $ref: "#/components/schemas/AgentStatus" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "451": { $ref: "#/components/responses/Sanctioned" }
+
+  /products:
+    post:
+      tags: [Products]
+      operationId: createProductDraft
+      summary: Create a catalog product draft
+      description: >-
+        Creates a catalog product as a **draft**. It enters the same moderation
+        and antivirus pipeline as a human-created product and stays unpublished
+        until a moderator approves it. The product's creator is the catalog
+        profile linked to the token's wallet. Requires `products:write` and
+        approved KYC.
+      security:
+        - agentBearer: [products:write]
+        - agentHeader: [products:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 200 }
+                description: { type: string, maxLength: 5000, nullable: true }
+                short_description: { type: string, maxLength: 500, nullable: true }
+                price_usd: { type: number, minimum: 0, default: 0 }
+                category: { type: string, maxLength: 100, default: other }
+                image: { type: string, maxLength: 2000, nullable: true }
+                version: { type: string, maxLength: 50, default: "1.0.0" }
+      responses:
+        "200":
+          description: The created draft product.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      product: { type: object, description: The created product (snake_case fields, status=draft). }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: No catalog profile is linked to the token's wallet.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "No catalog profile is linked to this wallet. Register as a seller first.", code: "NO_CREATOR_PROFILE" }
+        "429": { $ref: "#/components/responses/RateLimited" }
         "451": { $ref: "#/components/responses/Sanctioned" }
 
   /listings:
@@ -499,7 +554,7 @@ components:
   schemas:
     Scope:
       type: string
-      enum: [listings:read, listings:write, orders:read, distribution:write, instructions:read]
+      enum: [listings:read, listings:write, orders:read, distribution:write, instructions:read, products:write]
 
     InstructionSection:
       type: object

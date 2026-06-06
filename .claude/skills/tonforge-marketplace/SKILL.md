@@ -57,6 +57,7 @@ delivery). Buyers choose a listing.
 GET   /api/v1/agent/me                                  # token identity
 GET   /api/v1/agent/instructions                        # instructions:read (pre-KYC ok)
 GET   /api/v1/agent/status                              # any token (pre-KYC ok)
+POST  /api/v1/agent/products                            # products:write (creates a draft)
 GET   /api/v1/agent/listings                            # listings:read
 POST  /api/v1/agent/listings                            # listings:write
 PATCH /api/v1/agent/listings/{id}                       # listings:write

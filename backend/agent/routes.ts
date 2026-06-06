@@ -35,6 +35,10 @@ import { createListingSchema, patchListingSchema } from '../commerce/validation.
 import { validateBody } from '../middleware/validate.js';
 import { getInstructionSections } from './instructions.js';
 import { buildAgentStatus, buildOnboardingChecklist } from './status.js';
+import { createProductSchema } from '../routes/validation.js';
+import { insertProduct, productToSnakeCase } from '../core/repository.js';
+import { findUserByTonAddress } from '../core/profileRepository.js';
+import { generateId } from '../core/generateId.js';
 
 const router = express.Router();
 
@@ -100,6 +104,62 @@ router.get(
     } catch (e) {
       logger.error('[agent] status:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Failed to load status', code: 'AGENT_STATUS' });
+    }
+  },
+);
+
+/**
+ * Create a catalog product as a DRAFT. The draft enters the same moderation +
+ * antivirus pipeline as a human-created product and stays unpublished until a
+ * moderator approves it — this is the platform's verification of agent-originated
+ * inventory. The product's creator is the catalog profile linked to the token's
+ * wallet (resolved here, never trusted from the body). Requires KYC (middleware).
+ */
+router.post(
+  '/products',
+  apiRequireAgentToken(['products:write']),
+  validateBody(createProductSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const wallet = req.agent!.wallet;
+      const creator = await findUserByTonAddress(wallet);
+      if (!creator) {
+        res.status(409).json({
+          error: 'No catalog profile is linked to this wallet. Register as a seller first.',
+          code: 'NO_CREATOR_PROFILE',
+        });
+        return;
+      }
+      const body = req.body as {
+        name: string;
+        description?: string | null;
+        short_description?: string | null;
+        price_usd?: number;
+        category?: string;
+        image?: string | null;
+        version?: string;
+      };
+      const id = generateId();
+      const product = await insertProduct({
+        id,
+        creator_id: creator.id,
+        name: body.name,
+        description: body.description ?? null,
+        short_description: body.short_description ?? null,
+        price_usd: body.price_usd ?? 0,
+        category: body.category ?? 'other',
+        image: body.image ?? null,
+        version: body.version ?? '1.0.0',
+        status: 'draft',
+      });
+      await writeAudit(wallet, 'agent_product_create', 'product', id, {
+        token: req.agent!.tokenPrefix,
+        name: body.name,
+      });
+      res.json({ data: { product: product ? productToSnakeCase(product) : null } });
+    } catch (e) {
+      logger.error('[agent] product create:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Product creation failed', code: 'AGENT_PRODUCT_CREATE' });
     }
   },
 );
