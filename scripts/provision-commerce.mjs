@@ -25,6 +25,7 @@ const COL_LICENSES = 'licenses';
 const COL_WORKER_LOCKS = 'worker_locks';
 const COL_AGENT_TOKENS = 'agent_tokens';
 const COL_AGENT_INSTRUCTIONS = 'agent_instructions';
+const COL_SELLER_COLLECTIONS = 'seller_collections';
 const COL_AML_CHECKS = 'aml_checks';
 const BUCKET_ASSETS = 'commerce_assets';
 
@@ -484,6 +485,38 @@ async function setupAgentInstructions(databases) {
   await idx(databases, COL_AGENT_INSTRUCTIONS, 'uniq_section', IndexType.Unique, ['section']);
 }
 
+async function setupSellerCollections(databases) {
+  // Per-seller AppCollection registry (Phase 1: platform-owned, one collection
+  // per seller+network). owner_wallet stores the SELLER wallet for forward
+  // compatibility with sovereign collections; the on-chain owner today is the
+  // platform COLLECTION_OWNER key. Server-only.
+  await ensureCollection(databases, COL_SELLER_COLLECTIONS, 'Per-seller collections', SERVER_ONLY);
+  const stringCols = [
+    ['sellerWallet', 128, true],
+    ['network', 16, true],            // mainnet | testnet
+    ['appId', 80, true],              // uint256 as decimal string
+    ['collectionAddress', 96, false], // set once the address is computed
+    ['ownerWallet', 128, false],      // seller wallet (for Phase 2 migration)
+    ['metadataUri', 512, false],
+    ['itemBaseUri', 512, false],
+    ['deployTxHash', 128, false],
+    ['status', 16, true],             // pending | deployed | failed
+    ['lastError', 1000, false],
+  ];
+  for (const [k, size, req] of stringCols) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, COL_SELLER_COLLECTIONS, k, size, req)
+    );
+    await waitForAttribute(databases, COL_SELLER_COLLECTIONS, k);
+  }
+  await ignoreConflict(() =>
+    databases.createDatetimeAttribute(DATABASE_ID, COL_SELLER_COLLECTIONS, 'deployedAt', false)
+  );
+  await waitForAttribute(databases, COL_SELLER_COLLECTIONS, 'deployedAt');
+  await idx(databases, COL_SELLER_COLLECTIONS, 'uniq_wallet_network', IndexType.Unique, ['sellerWallet', 'network']);
+  await idx(databases, COL_SELLER_COLLECTIONS, 'idx_status', IndexType.Key, ['status']);
+}
+
 async function setupAmlChecks(databases) {
   // Кэш AML-вердиктов AMLBot (backend/aml/amlbot.ts): один документ на
   // нормализованный кошелёк (0:hex). Свежесть контролирует код через
@@ -548,6 +581,7 @@ async function main() {
   await setupWorkerLocks(databases);
   await setupAgentTokens(databases);
   await setupAgentInstructions(databases);
+  await setupSellerCollections(databases);
   await setupAmlChecks(databases);
   await setupAudit(databases);
   await setupDownloadAudit(databases);

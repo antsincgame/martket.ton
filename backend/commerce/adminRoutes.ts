@@ -7,9 +7,12 @@ import { CURRENCY } from './constants.js';
 import { DEFAULT_PLATFORM_FEE_BPS } from './constants.js';
 import { commerceAdmin } from './helpers.js';
 import { validateBody } from '../middleware/validate.js';
-import { orderStateSchema, agentInstructionSchema } from './validation.js';
+import { orderStateSchema, agentInstructionSchema, provisionCollectionSchema } from './validation.js';
 import { str } from '../utils/params.js';
 import { listInstructionsForAdmin, upsertInstruction } from '../agent/instructions.js';
+import { provisionSellerCollection, ProvisionConfigError } from './collectionProvisioner.js';
+import { findSellerCollection } from './sellerCollectionRepository.js';
+import type { TonNetwork } from '../config/network.js';
 
 const router = express.Router();
 
@@ -100,6 +103,47 @@ router.put(
     } catch (e: unknown) {
       logger.error('[commerce] admin agent-instructions upsert:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Failed to save instruction', code: 'AGENT_INSTRUCTION_SAVE' });
+    }
+  },
+);
+
+// ── Per-seller collection provisioning (Phase 1) ───────────────────
+// Deploys a platform-owned AppCollection for a seller (idempotent). The seller
+// then attaches the returned address to their listings via the existing flow.
+
+router.get('/admin/seller-collections/:wallet/:network', commerceAdmin, async (req: Request, res: Response) => {
+  try {
+    const wallet = str(req.params.wallet);
+    const network = str(req.params.network) as TonNetwork;
+    const record = await findSellerCollection(wallet, network);
+    res.json({ data: { collection: record } });
+  } catch (e: unknown) {
+    logger.error('[commerce] admin seller-collection get:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Lookup failed', code: 'SELLER_COLLECTION_GET' });
+  }
+});
+
+router.post(
+  '/admin/seller-collections/provision',
+  commerceAdmin,
+  validateBody(provisionCollectionSchema),
+  async (req: Request, res: Response) => {
+    const { sellerWallet, network } = req.body as { sellerWallet: string; network: TonNetwork };
+    try {
+      const result = await provisionSellerCollection(sellerWallet, network);
+      await writeAudit('admin', 'seller_collection_provision', 'seller_collection', sellerWallet, {
+        network,
+        collectionAddress: result.collectionAddress,
+        alreadyDeployed: result.alreadyDeployed,
+      });
+      res.json({ data: result });
+    } catch (e: unknown) {
+      if (e instanceof ProvisionConfigError) {
+        res.status(503).json({ error: e.message, code: e.code });
+        return;
+      }
+      logger.error('[commerce] admin seller-collection provision:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Provisioning failed', code: 'SELLER_COLLECTION_PROVISION' });
     }
   },
 );

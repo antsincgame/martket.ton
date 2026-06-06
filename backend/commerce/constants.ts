@@ -10,6 +10,7 @@ export const COL_LICENSES = 'licenses';
 export const COL_WORKER_LOCKS = 'worker_locks';
 export const COL_AGENT_TOKENS = 'agent_tokens';
 export const COL_AGENT_INSTRUCTIONS = 'agent_instructions';
+export const COL_SELLER_COLLECTIONS = 'seller_collections';
 export const COL_AML_CHECKS = 'aml_checks';
 export const BUCKET_ASSETS = 'commerce_assets';
 

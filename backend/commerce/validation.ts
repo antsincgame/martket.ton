@@ -91,6 +91,12 @@ export const agentInstructionSchema = z.object({
   active: z.boolean().optional(),
 });
 
+// ── Per-seller collection provisioning (admin trigger) ─────────────
+export const provisionCollectionSchema = z.object({
+  sellerWallet: tonAddressSchema,
+  network: z.enum(['mainnet', 'testnet']),
+});
+
 // ── BYOS Storage credentials ──────────────────────────────────────
 export const setStorageSchema = z.object({
   wallet: z.string().min(1),
