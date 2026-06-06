@@ -282,12 +282,15 @@ router.post('/sellers/kyc/session', apiRequireAuth(), async (req: Request, res: 
 // ── Didit KYC: webhook receiver ───────────────────────────────────
 router.post('/sellers/kyc/webhook', express.raw({ type: '*/*' }), async (req: Request, res: Response) => {
   try {
-    const signature = req.headers['x-webhook-signature'] as string | undefined
-      || req.headers['x-payload-digest'] as string | undefined;
+    const signature = (req.headers['x-webhook-signature'] as string | undefined)
+      || (req.headers['x-payload-digest'] as string | undefined);
 
     const rawBody = req.body as Buffer;
-    if (signature && !verifyDiditWebhookSignature(rawBody, signature)) {
-      logger.warn('[didit] invalid webhook signature');
+    // FAIL-CLOSED: a missing signature header used to skip verification entirely
+    // (an attacker could omit it and forge an "Approved" KYC event). Always
+    // require a present, valid signature.
+    if (!signature || !verifyDiditWebhookSignature(rawBody, signature)) {
+      logger.warn('[didit] webhook rejected: missing or invalid signature');
       res.status(401).json({ error: 'Invalid signature' });
       return;
     }

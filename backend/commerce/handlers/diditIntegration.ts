@@ -34,7 +34,8 @@ function getDiditConfig() {
   return {
     apiKey: requireEnv('DIDIT_API_KEY'),
     workflowId: requireEnv('DIDIT_WORKFLOW_ID'),
-    webhookSecret: process.env.DIDIT_WEBHOOK_SECRET || '',
+    // NOTE: DIDIT_WEBHOOK_SECRET is read directly in verifyDiditWebhookSignature
+    // (webhook verification must not depend on the API key / workflow id).
   };
 }
 
@@ -123,26 +124,27 @@ export async function fetchDiditSessionResult(
 
 /**
  * Verify the HMAC signature on an incoming Didit webhook.
+ *
+ * FAIL-CLOSED: a missing secret or a missing/invalid signature returns false so
+ * the caller rejects the request. Reads DIDIT_WEBHOOK_SECRET directly (it does
+ * NOT require the API key / workflow id, which are unrelated to verification).
  */
 export function verifyDiditWebhookSignature(
   rawBody: string | Buffer,
   signatureHeader: string,
 ): boolean {
-  const cfg = getDiditConfig();
-  if (!cfg.webhookSecret) {
-    logger.warn('[didit] DIDIT_WEBHOOK_SECRET not set — skipping signature check');
-    return true;
+  const secret = (process.env.DIDIT_WEBHOOK_SECRET || '').trim();
+  if (!secret) {
+    logger.error('[didit] DIDIT_WEBHOOK_SECRET not set — rejecting webhook (fail-closed)');
+    return false;
   }
+  if (!signatureHeader) return false;
   const bodyStr = typeof rawBody === 'string' ? rawBody : rawBody.toString('utf-8');
-  const digest = crypto
-    .createHmac('sha256', cfg.webhookSecret)
-    .update(bodyStr)
-    .digest('hex');
+  const digest = crypto.createHmac('sha256', secret).update(bodyStr).digest('hex');
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(digest, 'hex'),
-      Buffer.from(signatureHeader, 'hex'),
-    );
+    const expected = Buffer.from(digest, 'hex');
+    const provided = Buffer.from(signatureHeader, 'hex');
+    return expected.length === provided.length && crypto.timingSafeEqual(expected, provided);
   } catch {
     return false;
   }
