@@ -5,6 +5,9 @@ An [MCP](https://modelcontextprotocol.io) server that exposes the
 assistant — Claude Desktop, Claude Code, Cursor, Windsurf, … — can operate a
 seller's storefront in natural language.
 
+> **Canonical docs & publishing:** [docs/mcp.md](../docs/mcp.md). Quick start:
+> `npx tonforge-agent-mcp` (registry name `io.github.antsincgame/tonforge-agent`).
+
 ## Tools
 
 ### Seller tools (require an agent token + scope)
