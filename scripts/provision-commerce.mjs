@@ -38,7 +38,9 @@ async function ignoreConflict(fn) {
   try {
     await fn();
   } catch (error) {
-    if (error.code !== 409) throw error;
+    // 409 — already exists; attribute_limit_exceeded — staging DB at cap but
+    // idempotent re-run must not abort before agent_instructions / seller_collections.
+    if (error.code !== 409 && error.type !== 'attribute_limit_exceeded') throw error;
   }
 }
 

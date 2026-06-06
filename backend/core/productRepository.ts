@@ -2,8 +2,29 @@ import { Query, type Models } from 'node-appwrite';
 import { databases } from './db.js';
 import { CORE_DATABASE_ID, COL_LEGACY_PRODUCTS } from './constants.js';
 import { generateId } from './generateId.js';
+import { getTonUsdPrice, usdToTonHuman } from '../commerce/tonPriceOracle.js';
 import type { Product, ProductId, ProfileId, ProductStatus, ScanStatus } from '../domain/types.js';
 import { type AppwriteDoc, asDoc } from '../domain/appwrite-helpers.js';
+
+async function resolvePriceTon(row: Record<string, unknown>): Promise<number> {
+  if (typeof row.price_ton === 'number' && Number.isFinite(row.price_ton)) {
+    return row.price_ton;
+  }
+  const priceUsd = Number(row.price_usd ?? 0);
+  if (!Number.isFinite(priceUsd) || priceUsd <= 0) return 0;
+  try {
+    const rate = await getTonUsdPrice();
+    return parseFloat(usdToTonHuman(priceUsd, rate)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Appwrite legacy_products schemas differ between envs (some have price_usd, some price_ton only). */
+function legacyProductOmitFields(): Set<string> {
+  const raw = (process.env.LEGACY_PRODUCTS_OMIT_FIELDS || '').trim();
+  return new Set(raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : []);
+}
 
 function mapProduct(doc: AppwriteDoc): Product {
   return {
@@ -133,12 +154,14 @@ export async function findProductById(id: string): Promise<Product | null> {
 
 export async function insertProduct(row: Record<string, unknown>): Promise<Product | null> {
   const id = (row.id as string) || generateId();
+  const priceTon = await resolvePriceTon(row);
+  const omit = legacyProductOmitFields();
   const data: Record<string, unknown> = {
     creator_id: row.creator_id ?? null,
     name: row.name,
     description: row.description,
     short_description: row.short_description,
-    price_usd: row.price_usd,
+    price_ton: priceTon,
     category: row.category,
     image: row.image,
     rating: (row.rating as number) ?? 0,
@@ -151,6 +174,12 @@ export async function insertProduct(row: Record<string, unknown>): Promise<Produ
     build_size_bytes: row.build_size_bytes ?? null,
     build_filename: row.build_filename ?? null,
   };
+  if (!omit.has('price_usd')) {
+    data.price_usd = row.price_usd;
+  }
+  if (!omit.has('scan_status')) {
+    data.scan_status = (row.scan_status as string) ?? 'pending';
+  }
   if (row.developer_id && !data.creator_id) {
     data.developer_id = row.developer_id;
   }
