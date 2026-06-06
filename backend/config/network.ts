@@ -1,4 +1,5 @@
 import type { Request } from 'express';
+import { logger } from '../logger.js';
 
 export type TonNetwork = 'mainnet' | 'testnet';
 
@@ -63,12 +64,35 @@ const configs: Record<TonNetwork, NetworkConfig> = {
   },
 };
 
-export function resolveNetwork(req: Request): TonNetwork {
-  const header = req.get(NETWORK_HEADER);
-  if (header === 'testnet') return 'testnet';
-  const query = req.query.network;
-  if (query === 'testnet') return 'testnet';
-  return 'mainnet';
+/**
+ * The active TON network is SERVER-PINNED via the TON_NETWORK env var (the same
+ * source tonforge/onchain/config.ts reads). The client-supplied `x-ton-network`
+ * header / `?network` query is advisory ONLY — it must never decide which
+ * treasury / collection / tonapi the backend verifies payments against.
+ * Otherwise a client could pay with free testnet TON and have it verified as a
+ * mainnet purchase (network-confusion theft).
+ *
+ * Operators MUST set TON_NETWORK explicitly so that commerce and the on-chain
+ * mint worker agree on a single network. Defaults to mainnet here to preserve
+ * the previous commerce default when the var is unset.
+ */
+function pinnedNetwork(): TonNetwork {
+  return env('TON_NETWORK', 'mainnet') === 'testnet' ? 'testnet' : 'mainnet';
+}
+
+export function resolveNetwork(req?: Request): TonNetwork {
+  const pinned = pinnedNetwork();
+  if (req) {
+    const requested =
+      req.get(NETWORK_HEADER) ||
+      (typeof req.query.network === 'string' ? req.query.network : '');
+    if (requested && requested !== pinned) {
+      logger.warn(
+        `[network] ignoring client-requested network '${requested}'; server is pinned to '${pinned}'`,
+      );
+    }
+  }
+  return pinned;
 }
 
 export function getNetworkConfig(network: TonNetwork): NetworkConfig {
