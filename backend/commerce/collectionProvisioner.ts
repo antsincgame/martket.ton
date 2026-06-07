@@ -23,6 +23,12 @@
 
 import { createHash } from 'crypto';
 import { Address, beginCell, Cell, toNano } from '@ton/core';
+import {
+  buildOffchainContentForContract,
+  coerceBuildAddress,
+  toBackendAddress,
+  toBackendCell,
+} from '../tonforge/onchain/tonBuildCoerce.js';
 import { getNetworkConfig, type TonNetwork } from '../config/network.js';
 import { logger } from '../logger.js';
 import {
@@ -96,17 +102,24 @@ export async function computeCollectionInit(
   itemBaseUri: string,
 ): Promise<{ address: Address; init: { code: Cell; data: Cell } }> {
   const AppCollection = await loadAppCollection();
-  return AppCollection.fromInit(
-    appId,
-    ownerAddress,
-    buildOffchainContent(metadataUri),
-    buildOffchainContent(itemBaseUri),
-  );
+  const ownerForBuild = await coerceBuildAddress(ownerAddress);
+  const collectionContent = await buildOffchainContentForContract(metadataUri);
+  const commonContent = await buildOffchainContentForContract(itemBaseUri);
+  const result = await AppCollection.fromInit(appId, ownerForBuild, collectionContent, commonContent);
+  return {
+    address: toBackendAddress(result.address),
+    init: {
+      code: toBackendCell(result.init!.code),
+      data: toBackendCell(result.init!.data),
+    },
+  };
 }
 
 // ─── On-chain deploy (infra; testnet-verified, not unit-tested) ─────
 
 function jsonRpcEndpoint(network: TonNetwork): string {
+  const fromEnv = (process.env.TON_API_ENDPOINT || '').trim();
+  if (fromEnv) return fromEnv;
   return network === 'mainnet'
     ? 'https://toncenter.com/api/v2/jsonRPC'
     : 'https://testnet.toncenter.com/api/v2/jsonRPC';
@@ -134,23 +147,39 @@ async function deployCollectionOnChain(params: {
   if (existing.state === 'active') return { deployed: false };
 
   const opened = client.open(wallet);
-  const seqno: number = await opened.getSeqno();
   const deployBody = beginCell().storeUint(0x946a98b6, 32).storeUint(0, 64).endCell();
 
-  await opened.sendTransfer({
-    seqno,
-    secretKey: keypair.secretKey,
-    sendMode: SendMode.PAY_GAS_SEPARATELY,
-    messages: [
-      internal({
-        to: params.address,
-        value: toNano(process.env.COLLECTION_FUND_TON || '0.1'),
-        bounce: false,
-        init: params.init,
-        body: deployBody,
-      }),
-    ],
-  });
+  const sendDeploy = async () => {
+    const currentSeqno = await opened.getSeqno();
+    await opened.sendTransfer({
+      seqno: currentSeqno,
+      secretKey: keypair.secretKey,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      messages: [
+        internal({
+          to: params.address,
+          value: toNano(process.env.COLLECTION_FUND_TON || '0.1'),
+          bounce: false,
+          init: params.init,
+          body: deployBody,
+        }),
+      ],
+    });
+  };
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await sendDeploy();
+      break;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isRateLimit = msg.includes('429') || msg.includes('Ratelimit');
+      if (!isRateLimit || attempt === 4) throw err;
+      const delayMs = 15_000 * (attempt + 1);
+      logger.warn(`[provisioner] deploy rate-limited, retry in ${delayMs}ms (attempt ${attempt + 1}/5)`);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
 
   // Poll until active.
   for (let i = 0; i < 30; i += 1) {
@@ -197,7 +226,14 @@ export async function provisionSellerCollection(
 
   const appId = existing?.appId ? BigInt(existing.appId) : deriveAppId(sellerWallet, network);
   const { metadataUri, itemBaseUri } = buildSellerMetadataUris(sellerWallet, network);
-  const ownerAddress = Address.parse(cfg.collectionOwnerAddress);
+
+  // Derive owner from mnemonic (WalletContractV4 w0) — same as deployCollection.ts.
+  // Address.parse(envString) can fail when contracts/build resolves a different
+  // @ton/core than backend (BitBuilder.writeAddress rejects parsed testnet UF).
+  const { mnemonicToPrivateKey } = await import('@ton/crypto');
+  const { WalletContractV4 } = await import('@ton/ton');
+  const ownerKeypair = await mnemonicToPrivateKey(cfg.collectionOwnerMnemonic.trim().split(/\s+/));
+  const ownerAddress = WalletContractV4.create({ workchain: 0, publicKey: ownerKeypair.publicKey }).address;
 
   const { address, init } = await computeCollectionInit(appId, ownerAddress, metadataUri, itemBaseUri);
   const collectionAddress = address.toString({ testOnly: network === 'testnet' });

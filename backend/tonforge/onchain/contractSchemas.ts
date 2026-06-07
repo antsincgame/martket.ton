@@ -1,4 +1,10 @@
 import { Address, beginCell, Cell, contractAddress, type StateInit } from '@ton/core';
+import {
+  coerceBuildAddress,
+  coerceBuildCell,
+  toBackendAddress,
+  toBackendCell,
+} from './tonBuildCoerce.js';
 
 /**
  * Backend-side mirror of contracts/src/{AppCollection,LicenseItem}Wrapper.ts.
@@ -111,21 +117,56 @@ export interface LicenseItemInit {
   content: Cell;
 }
 
-export function buildItemDataCell(p: LicenseItemInit): Cell {
-  return beginCell()
-    .storeUint(p.index, 256)
-    .storeAddress(p.collection)
-    .storeAddress(p.ownerAddress)
-    .storeAddress(p.escrowAddress)
-    .storeUint(p.transferLimit, 8)
-    .storeUint(0, 8)
-    .storeUint(p.burnDeadline, 32)
-    .storeRef(p.content)
-    .endCell();
+export function buildItemDataCell(_p: LicenseItemInit): never {
+  throw new Error(
+    'buildItemDataCell is deprecated: flat layout overflows BitBuilder. Use computeItemAddress() instead.',
+  );
 }
 
-export function computeItemAddress(code: Cell, p: LicenseItemInit): Address {
-  return contractAddress(0, { code, data: buildItemDataCell(p) });
+interface LicenseItemContractStatic {
+  init(
+    index: bigint,
+    collection: Address,
+    ownerAddress: Address,
+    escrowAddress: Address,
+    transferLimit: bigint,
+    content: Cell,
+    burnDeadline: bigint,
+  ): Promise<{ code: Cell; data: Cell }>;
+}
+
+let _licenseItemClass: LicenseItemContractStatic | null = null;
+
+async function loadLicenseItemClass(): Promise<LicenseItemContractStatic> {
+  if (!_licenseItemClass) {
+    const mod = (await import('../../../contracts/build/LicenseItem_LicenseItem.js')) as {
+      LicenseItem: LicenseItemContractStatic;
+    };
+    _licenseItemClass = mod.LicenseItem;
+  }
+  return _licenseItemClass;
+}
+
+/** Matches Tact LicenseItem storage (split data cell with ref). */
+export async function computeItemAddress(code: Cell, p: LicenseItemInit): Promise<Address> {
+  const LicenseItem = await loadLicenseItemClass();
+  const buildCode = await coerceBuildCell(code);
+  const init = await LicenseItem.init(
+    p.index,
+    await coerceBuildAddress(p.collection),
+    await coerceBuildAddress(p.ownerAddress),
+    await coerceBuildAddress(p.escrowAddress),
+    BigInt(p.transferLimit),
+    await coerceBuildCell(p.content),
+    BigInt(p.burnDeadline),
+  );
+  void buildCode;
+  return toBackendAddress(
+    contractAddress(0, {
+      code: toBackendCell(init.code),
+      data: toBackendCell(init.data),
+    }),
+  );
 }
 
 // ─── RegisterLicense (oracle → escrow) ──────────────────────────────

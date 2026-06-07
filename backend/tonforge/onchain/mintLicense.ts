@@ -45,7 +45,7 @@ export async function mintLicense(input: MintLicenseInput): Promise<MintLicenseR
   const individualContent = buildIndividualContent(input.metadataUri);
   const itemCode = getLicenseItemCode();
 
-  const itemAddress = computeItemAddress(itemCode, {
+  const itemAddress = await computeItemAddress(itemCode, {
     index: input.index,
     collection,
     ownerAddress: buyer,
