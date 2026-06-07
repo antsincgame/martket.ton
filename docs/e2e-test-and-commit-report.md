@@ -39,7 +39,7 @@
 | `86b7f8d` | `fix(commerce): reconcile order PAID after tonforge mint` | `reconcileOrderAfterMint.ts`; вызов из `tonforge/mintWorker`; `omitOrderFields` / `omitEntitlementFields` |
 | `5e14a18` | `fix(commerce): optional E2E_LOW_GAS escrow buffer for smoke runs` | Уменьшенный gas buffer при `E2E_LOW_GAS=1` (не для prod-like прогонов) |
 | `785cc1c` | `feat(scripts): live-smoke-e2e-suite single and multi seller flows` | `live-smoke-e2e-suite.mjs` — режимы `single` \| `multi` \| `all` |
-| `7b5570b` | `docs: E2E test and commit report for PR #90` | Этот документ |
+| `ca8eadf` | `docs: E2E test and commit report for PR #90` | Этот документ |
 
 **База Phase 1:** `454e140` — `feat(commerce): per-seller collections — provisioning foundation`
 
