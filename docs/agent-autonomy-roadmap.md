@@ -172,6 +172,10 @@ receive(msg: RemoveMinter) { require(sender() == self.ownerAddress, "owner only"
 - ✅ Осиротевшие методы `createPurchaseSession`/`confirmPurchaseSession` удалены из
   `tonforge/service.ts` + каскадная чистка (7 теней: импорты цен, типы `PurchaseSession*`,
   `buildTonAddress`, `addHours`). Полное удаление недостижимого кода; tsc/тесты зелёные.
+- ✅ Order-reconciler: машина состояний вынесена в чистую `decideReconcileAction` (поведение
+  неизменно) и покрыта юнит-тестом (7 кейсов: FUNDED+license→PAID, 3/4→FULFILLED/REFUNDED,
+  zero-addr→wait, защита от ложного распознавания реального адреса) — щит денежного пути
+  до testnet-сертификации.
 
 **Остаётся (P2, не блокеры):**
 - 🟡 `TON_USD_FALLBACK` — политика прода: fail-closed (не задавать → заказ падает при

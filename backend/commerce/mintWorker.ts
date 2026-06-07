@@ -152,6 +152,34 @@ async function processTick(network: TonNetwork): Promise<void> {
   }
 }
 
+export type ReconcileAction =
+  | { kind: 'finalize' }   // escrow FUNDED + license registered → finalize order to PAID
+  | { kind: 'fulfilled' }  // escrow released (state 3) → order FULFILLED
+  | { kind: 'refunded' }   // escrow refunded (state 4) → order REFUNDED
+  | { kind: 'wait' }       // FUNDED but no license yet → tonforge/mintWorker owns the mint
+  | { kind: 'noop' };      // unknown/other escrow state → nothing to reconcile
+
+// Escrow license_address getter returns the EQ/UQ form; the zero address (no
+// license registered yet) renders as EQAAAA…/UQAAAA….
+const ZERO_LICENSE_RE = /^EQAAAAA|^UQAAAAA/;
+
+/**
+ * Pure reconciliation decision (the order-state machine). Given the on-chain
+ * escrow state (1 = FUNDED, 3 = released/confirmed, 4 = refunded) and the license
+ * address the escrow exposes, decide what to do with the order. Exported for unit
+ * tests — the effectful `processOrder` is a thin wiring around it.
+ */
+export function decideReconcileAction(
+  escrowState: number | null,
+  licenseAddress: string | null,
+): ReconcileAction {
+  if (escrowState === 3) return { kind: 'fulfilled' };
+  if (escrowState === 4) return { kind: 'refunded' };
+  if (escrowState !== 1) return { kind: 'noop' };
+  const isZero = !licenseAddress || ZERO_LICENSE_RE.test(licenseAddress);
+  return isZero ? { kind: 'wait' } : { kind: 'finalize' };
+}
+
 async function processOrder(
   order: PendingOrderRow,
   cfg: ReturnType<typeof getNetworkConfig>,
@@ -159,28 +187,29 @@ async function processOrder(
   const db = databases();
   const escrowAddr = order.escrowAddress!;
 
-  // Step 1: read escrow state.
   const state = await getEscrowState(escrowAddr, cfg.tonapiBase, cfg.tonapiKey);
-  if (state === null) return;
-  if (state !== 1) {
-    if (state === 3 || state === 4) {
-      await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
-        state: state === 3 ? ORDER_STATE.FULFILLED : ORDER_STATE.REFUNDED,
-      });
-    }
-    return;
-  }
+  // Only query the license getter once the escrow is FUNDED.
+  const licenseAddr =
+    state === 1 ? await getEscrowLicenseAddress(escrowAddr, cfg.tonapiBase, cfg.tonapiKey) : null;
+  const action = decideReconcileAction(state, licenseAddr);
 
-  // Step 2: FUNDED — has tonforge/mintWorker already minted + registered a license?
-  const licenseAddr = await getEscrowLicenseAddress(escrowAddr, cfg.tonapiBase, cfg.tonapiKey);
-  const isZeroAddr = !licenseAddr || licenseAddr.match(/^EQAAAAA|^UQAAAAA/) !== null;
-  if (!isZeroAddr) {
-    await onMintConfirmed(order, licenseAddr!);
-    return;
+  switch (action.kind) {
+    case 'fulfilled':
+      await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, { state: ORDER_STATE.FULFILLED });
+      return;
+    case 'refunded':
+      await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, { state: ORDER_STATE.REFUNDED });
+      return;
+    case 'finalize':
+      // licenseAddr is non-zero here per decideReconcileAction.
+      await onMintConfirmed(order, licenseAddr!);
+      return;
+    case 'wait':
+    case 'noop':
+      // FUNDED-but-not-minted or unknown state → tonforge/mintWorker owns the mint;
+      // a later tick reconciles the order once the license is registered.
+      return;
   }
-
-  // FUNDED but not minted yet → tonforge/mintWorker owns the mint. Nothing to do
-  // here; a later tick reconciles the order once the license is registered.
 }
 
 async function onMintConfirmed(order: PendingOrderRow, licenseAddress: string): Promise<void> {
