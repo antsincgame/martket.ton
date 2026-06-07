@@ -139,7 +139,10 @@ let _licenseItemClass: LicenseItemContractStatic | null = null;
 
 async function loadLicenseItemClass(): Promise<LicenseItemContractStatic> {
   if (!_licenseItemClass) {
-    const mod = (await import('../../../contracts/build/LicenseItem_LicenseItem.js')) as {
+    // Variable specifier so tsc does not statically resolve the gitignored Tact
+    // build artifact (resolved at runtime by tsx; matches commerce/escrow.ts).
+    const modPath = '../../../contracts/build/LicenseItem_LicenseItem.js';
+    const mod = (await import(modPath)) as {
       LicenseItem: LicenseItemContractStatic;
     };
     _licenseItemClass = mod.LicenseItem;

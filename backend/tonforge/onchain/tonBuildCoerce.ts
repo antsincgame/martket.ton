@@ -10,9 +10,11 @@ let buildCore: BuildCore | null = null;
 
 async function loadBuildCore(): Promise<BuildCore> {
   if (!buildCore) {
-    buildCore = (await import(
-      '../../../contracts/node_modules/@ton/core/dist/index.js'
-    )) as BuildCore;
+    // Variable specifier so tsc does not statically resolve the contracts' own
+    // @ton/core copy — it is not installed in the typecheck job and is resolved
+    // at runtime (matches the dynamic-import convention in commerce/escrow.ts).
+    const buildCorePath = '../../../contracts/node_modules/@ton/core/dist/index.js';
+    buildCore = (await import(buildCorePath)) as BuildCore;
   }
   return buildCore;
 }
