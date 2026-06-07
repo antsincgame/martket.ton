@@ -48,6 +48,9 @@ export const createListingSchema = z.object({
   collectionAddress: tonAddressSchema,
 });
 
+/** Agent API: sellerWallet comes from the token, not the request body. */
+export const agentCreateListingSchema = createListingSchema.omit({ sellerWallet: true });
+
 export const patchListingSchema = z
   .object({
     sellerWallet: z.string().optional(),

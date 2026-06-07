@@ -25,13 +25,13 @@ import {
 } from '../commerce/constants.js';
 import { tonHumanToNanoRaw } from '../commerce/money.js';
 import { getTonUsdPrice, usdToTonHuman } from '../commerce/tonPriceOracle.js';
-import { mapListingPublic } from '../commerce/helpers.js';
+import { mapListingPublic, omitListingFields } from '../commerce/helpers.js';
 import { asDoc } from '../domain/appwrite-helpers.js';
 import { writeAudit } from '../commerce/audit.js';
 import { logger } from '../logger.js';
 import { str } from '../utils/params.js';
 import { apiRequireAgentToken } from './agentAuth.js';
-import { createListingSchema, patchListingSchema } from '../commerce/validation.js';
+import { agentCreateListingSchema, patchListingSchema } from '../commerce/validation.js';
 import { validateBody } from '../middleware/validate.js';
 import { getInstructionSections } from './instructions.js';
 import { buildAgentStatus, buildOnboardingChecklist } from './status.js';
@@ -181,7 +181,7 @@ router.get('/listings', apiRequireAgentToken(['listings:read']), async (req: Req
 router.post(
   '/listings',
   apiRequireAgentToken(['listings:write']),
-  validateBody(createListingSchema),
+  validateBody(agentCreateListingSchema),
   async (req: Request, res: Response) => {
     try {
       const wallet = req.agent!.wallet;
@@ -214,7 +214,7 @@ router.post(
       const priceAmountRaw = tonHumanToNanoRaw(tonHuman);
       const decimals = 9;
 
-      const listing = await databases().createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), {
+      const listing = await databases().createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), omitListingFields({
         sellerWallet: wallet,
         catalogProductId,
         title,
@@ -228,7 +228,7 @@ router.post(
         deliveryType,
         assetFileId: '',
         collection_address: collectionAddress,
-      });
+      }));
       await databases().createDocument(DATABASE_ID, COL_LISTING_SECRETS, ID.unique(), {
         listingId: listing.$id,
         deliveryPayload,

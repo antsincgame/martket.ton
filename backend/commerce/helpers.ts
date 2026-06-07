@@ -7,6 +7,22 @@ import { resolveProfile } from '../middleware/auth.js';
 import { addressesEqual } from './tonVerify.js';
 import type { Profile } from '../domain/types.js';
 
+/** Staging Appwrite listings schemas may omit newer attrs (attribute cap). */
+function listingOmitFields(): Set<string> {
+  const raw = (process.env.LEGACY_LISTINGS_OMIT_FIELDS || '').trim();
+  return new Set(raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : []);
+}
+
+export function omitListingFields<T extends Record<string, unknown>>(payload: T): T {
+  const omit = listingOmitFields();
+  if (omit.size === 0) return payload;
+  const out = { ...payload };
+  for (const key of omit) {
+    delete out[key];
+  }
+  return out;
+}
+
 export function commerceAdmin(req: Request, res: Response, next: () => void): void {
   const got = str(req.headers['x-commerce-admin-secret']);
   const need = process.env.COMMERCE_ADMIN_SECRET || '';

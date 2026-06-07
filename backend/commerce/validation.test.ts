@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createListingSchema, patchListingSchema, tonAddressSchema } from './validation.js';
+import { agentCreateListingSchema, createListingSchema, patchListingSchema, tonAddressSchema } from './validation.js';
 
 const VALID_EQ = 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
 const VALID_UQ = 'UQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJKZ';
@@ -72,6 +72,17 @@ describe('createListingSchema', () => {
       ...VALID_BASE,
       collectionAddress: VALID_EQ,
     });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('agentCreateListingSchema', () => {
+  it('does not require sellerWallet in body', () => {
+    const { sellerWallet: _ignored, ...withoutWallet } = {
+      ...VALID_BASE,
+      collectionAddress: VALID_EQ,
+    };
+    const result = agentCreateListingSchema.safeParse(withoutWallet);
     expect(result.success).toBe(true);
   });
 });
