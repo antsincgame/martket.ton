@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { ADMIN_TABS, DEFAULT_ADMIN_TAB_ID } from './tabs.config';
 
 describe('admin tabs.config (characterization)', () => {
-  it('exposes exactly 13 tabs in stable order', () => {
-    expect(ADMIN_TABS).toHaveLength(13);
+  it('exposes exactly 14 tabs in stable order', () => {
+    expect(ADMIN_TABS).toHaveLength(14);
     expect(ADMIN_TABS.map((tab) => tab.id)).toEqual([
       'security',
       'users',
@@ -14,6 +14,7 @@ describe('admin tabs.config (characterization)', () => {
       'categories',
       'ledger',
       'commerce',
+      'agent-docs',
       'email',
       'support',
       'errors',
@@ -47,6 +48,7 @@ describe('admin tabs.config (characterization)', () => {
       categories: { resource: 'categories', action: 'read' },
       ledger: { resource: '*', action: 'read' },
       commerce: { resource: 'products', action: 'read' },
+      'agent-docs': { resource: 'products', action: 'read' },
       email: { resource: '*', action: 'update' },
       support: { resource: '*', action: 'read' },
       errors: { resource: 'audit_logs', action: 'read' },
