@@ -37,17 +37,6 @@ export const publishAppSchema = z.object({
   activationPolicy: z.string().min(1),
 });
 
-export const purchaseSessionSchema = z.object({
-  appId: z.string().min(1),
-  buyerWallet: z.string().min(1),
-});
-
-export const confirmPurchaseSchema = z.object({
-  purchaseSessionId: z.string().min(1),
-  buyerWallet: z.string().min(1),
-  txHash: z.string().optional(),
-});
-
 export const activateDeviceSchema = z.object({
   buyerWallet: z.string().min(1),
   deviceId: z.string().min(1).max(200),
