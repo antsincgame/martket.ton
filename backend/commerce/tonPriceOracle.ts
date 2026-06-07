@@ -96,6 +96,17 @@ export async function getTonUsdPrice(): Promise<number> {
     if (cache) {
       return cache.usd;
     }
+    const fallback = Number(process.env.TON_USD_FALLBACK);
+    if (Number.isFinite(fallback) && fallback > 0) {
+      logger.warn(`[tonPriceOracle] using TON_USD_FALLBACK=$${fallback.toFixed(4)}`);
+      cache = {
+        usd: fallback,
+        updatedAt: new Date().toISOString(),
+        fetchedAt: now,
+        source: 'TON_USD_FALLBACK',
+      };
+      return fallback;
+    }
     throw new Error('TON price unavailable and no stale cache');
   }
 }

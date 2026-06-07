@@ -323,7 +323,9 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
         ensureLicenseForOrder(
           { $id: orderId, listingId: order['listingId'] as string, buyerWallet, escrowAddress },
           {
-            collection_address: listingForLicense['collectionAddress'] as string | undefined,
+            collection_address:
+              (listingForLicense['collection_address'] as string | undefined) ||
+              (listingForLicense['collectionAddress'] as string | undefined),
             catalogProductId: listingForLicense['catalogProductId'] as string | undefined,
             sellerWallet: listingForLicense['sellerWallet'] as string | undefined,
           },
