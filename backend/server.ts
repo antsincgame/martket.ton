@@ -389,17 +389,29 @@ async function startScanWorker(): Promise<void> {
 }
 
 /**
- * Mint worker (Option C): polling-based bridge between on-chain PayEscrow
- * and Collection's MintLicense. Runs только если COLLECTION_ADDRESS +
- * COLLECTION_OWNER_MNEMONIC заданы хотя бы для одной сети.
+ * Legacy Option C mint worker: polls orders in pending_payment with FUNDED escrow.
  */
-async function startMintWorkerIfConfigured(): Promise<void> {
+async function startCommerceMintWorkerIfConfigured(): Promise<void> {
   try {
     const { startMintWorker } = await import('./commerce/mintWorker.js');
     startMintWorker();
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'unknown';
-    logger.warn('Mint worker bootstrap failed:', msg);
+    logger.warn('Commerce mint worker bootstrap failed:', msg);
+  }
+}
+
+/**
+ * TonForge license mint worker: retries licenses in minting/failed, refunds, payouts.
+ * Requires ORACLE_MNEMONIC + LICENSE_NFT_ITEM_CODE_BOC (loadOnchainConfig.enabled).
+ */
+async function startTonforgeMintWorkerIfConfigured(): Promise<void> {
+  try {
+    const { startMintWorker } = await import('./tonforge/mintWorker.js');
+    startMintWorker();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'unknown';
+    logger.warn('TonForge mint worker bootstrap failed:', msg);
   }
 }
 
@@ -423,7 +435,8 @@ async function start(): Promise<void> {
   await bootstrapTonForge();
   const ttlCronHandle = startOrderTtlCron();
   await startScanWorker();
-  await startMintWorkerIfConfigured();
+  await startCommerceMintWorkerIfConfigured();
+  await startTonforgeMintWorkerIfConfigured();
   await startSanctionsRefreshSafe();
   const server = app.listen(PORT, () => {
     logger.info(`TON Web Store API running on port ${PORT}`);
