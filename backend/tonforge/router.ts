@@ -7,8 +7,6 @@ import { screenWallet } from '../sanctions/screen.js';
 import {
   kycSchema,
   publishAppSchema,
-  purchaseSessionSchema,
-  confirmPurchaseSchema,
   activateDeviceSchema,
 } from './validation.js';
 
@@ -125,29 +123,16 @@ router.post('/apps', apiRequireAuth(), validateBody(publishAppSchema), async (re
   }
 });
 
-router.post('/purchase/session', apiRequireAuth(), validateBody(purchaseSessionSchema), async (req: Request, res: Response) => {
-  try {
-    const body = req.body as { appId: string; buyerWallet: string };
-    const owner = await requireWalletOwner(req, res, body.buyerWallet);
-    if (!owner) return;
-    const response = getTonForgeService().createPurchaseSession(body);
-    res.json({ data: response });
-  } catch (error) {
-    handleError(res, error);
-  }
-});
-
-router.post('/purchase/confirm', apiRequireAuth(), validateBody(confirmPurchaseSchema), async (req: Request, res: Response) => {
-  try {
-    const body = req.body as { purchaseSessionId: string; buyerWallet: string; txHash?: string };
-    const owner = await requireWalletOwner(req, res, body.buyerWallet);
-    if (!owner) return;
-    const response = getTonForgeService().confirmPurchaseSession(body);
-    res.json({ data: response });
-  } catch (error) {
-    handleError(res, error);
-  }
-});
+// Retired (410 Gone). The legacy in-memory purchase flow verified no payment and
+// had no sanctions/AML/KYC gate. Real, escrow-verified purchase + on-chain minting
+// lives in the Commerce API (POST /api/v1/commerce/orders + /confirm).
+function retired(useInstead: string) {
+  return (_req: Request, res: Response): void => {
+    res.status(410).json({ error: `This endpoint is retired. Use ${useInstead}.`, code: 'ENDPOINT_GONE' });
+  };
+}
+router.post('/purchase/session', retired('POST /api/v1/commerce/orders'));
+router.post('/purchase/confirm', retired('POST /api/v1/commerce/orders/:id/confirm'));
 
 // IDOR fix: wallet is derived from the authenticated profile, not from query.
 // Prevents any authenticated user from reading another user's licenses.

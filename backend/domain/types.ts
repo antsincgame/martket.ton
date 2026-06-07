@@ -276,30 +276,6 @@ export interface License {
   mintError?: string | null;
 }
 
-// ─── Purchase Session (TonForge) ────────────────────────────────────
-
-export const PurchaseSessionState = {
-  AWAITING_PAYMENT: 'awaiting_wallet_payment',
-  TRIAL_ACTIVE: 'trial_active',
-  RELEASED: 'released',
-  REFUNDED: 'refunded',
-} as const;
-export type PurchaseSessionState = (typeof PurchaseSessionState)[keyof typeof PurchaseSessionState];
-
-export interface PurchaseSession {
-  readonly purchaseSessionId: PurchaseSessionId;
-  buyerWallet: TonAddress;
-  appId: string;
-  state: PurchaseSessionState;
-  amountTon: number;
-  amountNano: string;
-  treasuryWallet: TonAddress;
-  escrowAddress: string;
-  memo: string;
-  readonly createdAt: string;
-  trialEndsAt: string;
-}
-
 // ─── Developer Profile (TonForge) ───────────────────────────────────
 
 export interface DeveloperProfile {
@@ -451,7 +427,6 @@ export interface TonForgeState {
   userProfiles: UserProfile[];
   reviews: AppReview[];
   licenses: License[];
-  purchaseSessions: PurchaseSession[];
   scans: ScanResult[];
 }
 

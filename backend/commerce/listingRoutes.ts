@@ -1,4 +1,5 @@
-import express, { type Request, type Response } from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
+import rateLimit from 'express-rate-limit';
 import multer from 'multer';
 import { InputFile } from 'node-appwrite/file';
 import { Permission, Role } from 'node-appwrite';
@@ -280,26 +281,47 @@ router.post('/sellers/kyc/session', apiRequireAuth(), async (req: Request, res: 
 });
 
 // ── Didit KYC: webhook receiver ───────────────────────────────────
-router.post('/sellers/kyc/webhook', express.raw({ type: '*/*' }), async (req: Request, res: Response) => {
-  try {
-    const signature = req.headers['x-webhook-signature'] as string | undefined
-      || req.headers['x-payload-digest'] as string | undefined;
 
-    const rawBody = req.body as Buffer;
-    if (signature && !verifyDiditWebhookSignature(rawBody, signature)) {
-      logger.warn('[didit] invalid webhook signature');
-      res.status(401).json({ error: 'Invalid signature' });
-      return;
-    }
-
-    const payload = JSON.parse(rawBody.toString('utf-8'));
-    const result = await handleDiditWebhook(payload);
-    res.json({ ok: true, processed: result.processed });
-  } catch (e: unknown) {
-    logger.error('[didit] webhook error:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Webhook processing failed' });
+/**
+ * Express middleware that authenticates an incoming Didit webhook via its HMAC
+ * signature BEFORE the handler runs. Fail-closed: a missing/invalid signature
+ * (or an unconfigured DIDIT_WEBHOOK_SECRET) is rejected with 401 and the handler
+ * never executes. Verification lives here, in a dedicated guard, so the route
+ * body carries no request-controlled security branch.
+ */
+function requireValidDiditSignature(req: Request, res: Response, next: NextFunction): void {
+  const signature = (req.headers['x-webhook-signature'] as string | undefined)
+    || (req.headers['x-payload-digest'] as string | undefined);
+  const rawBody = req.body as Buffer;
+  if (!signature || !verifyDiditWebhookSignature(rawBody, signature)) {
+    logger.warn('[didit] webhook rejected: missing or invalid signature');
+    res.status(401).json({ error: 'Invalid signature' });
+    return;
   }
-});
+  next();
+}
+
+// Per-IP cap on the public webhook endpoint. Generous enough for legitimate
+// Didit delivery (low-frequency, retried on 429) while bounding floods of
+// forged requests before they reach body-parsing / signature verification.
+const limitWebhook = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
+
+router.post(
+  '/sellers/kyc/webhook',
+  limitWebhook,
+  express.raw({ type: '*/*' }),
+  requireValidDiditSignature,
+  async (req: Request, res: Response) => {
+    try {
+      const payload = JSON.parse((req.body as Buffer).toString('utf-8'));
+      const result = await handleDiditWebhook(payload);
+      res.json({ ok: true, processed: result.processed });
+    } catch (e: unknown) {
+      logger.error('[didit] webhook error:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  },
+);
 
 // ── Seller KYC status (for frontend polling) ──────────────────────
 router.get('/sellers/:wallet/kyc-status', apiRequireAuth(), async (req: Request, res: Response) => {

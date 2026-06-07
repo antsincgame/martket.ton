@@ -1,0 +1,48 @@
+# TonForge
+
+> TonForge is a marketplace on the TON blockchain for selling digital goods.
+> Every purchase mints a license NFT and gates the download on that mint.
+> Sellers can hand a scoped Personal Access Token to an AI agent, which then
+> manages listings, distribution, and reads orders entirely over HTTP.
+
+This file helps AI agents discover how to operate on TonForge programmatically.
+The supported machine interface is the **Agent API**.
+
+## Agent API
+
+- [Agent API guide](https://github.com/antsincgame/martket.ton/blob/main/docs/agent-api.md): Seller-side automation — auth flow, scopes, endpoints, errors, quickstart.
+- [Buyer / shopping guide](https://github.com/antsincgame/martket.ton/blob/main/docs/buyer-api.md): Public discovery + the non-custodial purchase flow for shopping agents.
+- [OpenAPI 3.1 spec](https://github.com/antsincgame/martket.ton/blob/main/docs/openapi/agent-api.yaml): Machine-readable definition of every Agent API endpoint.
+- [MCP server](https://github.com/antsincgame/martket.ton/blob/main/docs/mcp.md): Connect an MCP-compatible assistant (Claude, Cursor, …) to TonForge as native tools (seller management + public discovery). Install with `npx tonforge-agent-mcp`, or find it in the MCP registry as `io.github.antsincgame/tonforge-agent`.
+- [Plugin manifest](https://tonforge.org/.well-known/ai-plugin.json): Machine-readable plugin descriptor pointing at the OpenAPI spec and auth model.
+- [Code examples](https://github.com/antsincgame/martket.ton/tree/main/docs/agent-api-examples): Runnable TypeScript, Python, and curl clients.
+
+## Key facts for agents
+
+- Base URL: `https://tonforge.org/api/v1/agent`
+- Auth: `Authorization: Bearer tfa_…` (a Personal Access Token issued by a verified seller). The acting wallet is read from the token, never from the request body.
+- Scopes: `listings:read`, `listings:write`, `orders:read`, `distribution:write`, `instructions:read`, `products:write`.
+- New agents: start at `GET /api/v1/agent/instructions` (scope `instructions:read`) for the machine-readable onboarding manual + checklist, and `GET /api/v1/agent/status` for onboarding/order progress. Both are readable before KYC.
+- Every call re-screens the wallet for sanctions (451) and KYC (403); the onboarding reads `GET /instructions` and `GET /status` are the only endpoints readable before KYC. Per-token rate limit is 600 requests / 15 min.
+- Token issuance is a human, session-authenticated action: `POST https://tonforge.org/api/v1/commerce/agent-tokens`.
+
+## Discovery (public, no auth — for shopping agents)
+
+- `GET https://tonforge.org/api/products`: All published products.
+- `GET https://tonforge.org/api/products/search?q=&limit=`: Search products (q >= 2 chars).
+- `GET https://tonforge.org/api/products/{id}`: A single published product.
+- `GET https://tonforge.org/api/v1/commerce/listings/catalog/{catalogProductId}`: Active offers for a product.
+- Purchase is non-custodial: the buyer's own TON wallet signs the escrow transaction; no token can move a user's funds. See the buyer guide for the discover -> prepare -> sign flow.
+
+## Seller endpoints (Agent API)
+
+- `GET /me`: Identity of the calling token.
+- `GET /instructions`: Onboarding/operating manual + personal onboarding checklist (scope `instructions:read`, pre-KYC ok).
+- `GET /status`: Onboarding progress + listing/order aggregates (any token, pre-KYC ok).
+- `POST /products`: Create a catalog product draft (scope `products:write`); enters moderation + antivirus before it can be published.
+- `GET /listings`: List the seller's listings.
+- `POST /listings`: Create a listing (requires `listings:write`).
+- `PATCH /listings/{id}`: Update a listing (requires `listings:write`).
+- `PUT /listings/{id}/distribution`: Attach a downloadable artifact (requires `distribution:write`).
+- `POST /listings/{id}/distribution/verify`: Verify the artifact's sha256 (requires `distribution:write`).
+- `GET /orders`: List the seller's orders (requires `orders:read`).

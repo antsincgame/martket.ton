@@ -48,6 +48,10 @@ export async function listPurchasesByUser(userId: string): Promise<Purchase[]> {
   return res.documents.map((d) => mapPurchase(asDoc(d)));
 }
 
+function isConflict(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: number }).code === 409;
+}
+
 export async function insertPurchase(row: {
   id?: string;
   user_id: string;
@@ -56,11 +60,22 @@ export async function insertPurchase(row: {
   tx_hash?: string | null;
 }): Promise<Purchase | null> {
   const id = row.id || generateId();
-  await databases().createDocument(CORE_DATABASE_ID, COL_PURCHASES, id, {
-    user_id: row.user_id,
-    product_id: row.product_id,
-    price_usd: row.price_usd ?? 0,
-    tx_hash: row.tx_hash ?? null,
-  });
+  try {
+    await databases().createDocument(CORE_DATABASE_ID, COL_PURCHASES, id, {
+      user_id: row.user_id,
+      product_id: row.product_id,
+      price_usd: row.price_usd ?? 0,
+      tx_hash: row.tx_hash ?? null,
+    });
+  } catch (err) {
+    // A unique index (uniq_tx_hash or idx_user_product) rejected a concurrent
+    // or replayed insert. Treat as idempotent: return the row that won the race
+    // instead of surfacing a 500 / creating a duplicate ownership record.
+    if (isConflict(err)) {
+      const byTx = row.tx_hash ? await findPurchaseByTxHash(row.tx_hash) : null;
+      return byTx ?? (await findPurchase(row.user_id, row.product_id));
+    }
+    throw err;
+  }
   return findPurchase(row.user_id, row.product_id);
 }

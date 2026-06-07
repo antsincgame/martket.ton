@@ -37,6 +37,8 @@ backend/data/
 # Test artifacts
 playwright-report/
 test-results/
+scripts/.verify-*.json
+scripts/.token-out.json
 
 # Build artifacts
 *.tsbuildinfo

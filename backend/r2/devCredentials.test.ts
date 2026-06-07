@@ -40,7 +40,12 @@ describe('devCredentials', () => {
   it('rejects tampered ciphertext via GCM auth tag', () => {
     const creds = { accessKeyId: 'A', secretAccessKey: 'B' };
     const enc = encryptCreds(creds);
-    const tampered = { ...enc, ciphertext: enc.ciphertext.replace(/.$/, '0') };
+    // Flip the last hex char to a guaranteed-different value so the tamper is
+    // deterministic — replacing with a fixed char could coincide with the
+    // original last char and leave the ciphertext unchanged (flaky GCM check).
+    const lastChar = enc.ciphertext.slice(-1);
+    const flipped = lastChar === '0' ? '1' : '0';
+    const tampered = { ...enc, ciphertext: enc.ciphertext.slice(0, -1) + flipped };
     expect(() => decryptCreds(tampered)).toThrow();
   });
 

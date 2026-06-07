@@ -7,6 +7,33 @@ import { resolveProfile } from '../middleware/auth.js';
 import { addressesEqual } from './tonVerify.js';
 import type { Profile } from '../domain/types.js';
 
+function fieldsToOmit(envKey: string): Set<string> {
+  const raw = (process.env[envKey] || '').trim();
+  return new Set(raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : []);
+}
+
+function omitFields<T extends Record<string, unknown>>(payload: T, envKey: string): T {
+  const omit = fieldsToOmit(envKey);
+  if (omit.size === 0) return payload;
+  const out = { ...payload };
+  for (const key of omit) {
+    delete out[key];
+  }
+  return out;
+}
+
+export function omitListingFields<T extends Record<string, unknown>>(payload: T): T {
+  return omitFields(payload, 'LEGACY_LISTINGS_OMIT_FIELDS');
+}
+
+export function omitOrderFields<T extends Record<string, unknown>>(payload: T): T {
+  return omitFields(payload, 'LEGACY_ORDERS_OMIT_FIELDS');
+}
+
+export function omitEntitlementFields<T extends Record<string, unknown>>(payload: T): T {
+  return omitFields(payload, 'LEGACY_ENTITLEMENTS_OMIT_FIELDS');
+}
+
 export function commerceAdmin(req: Request, res: Response, next: () => void): void {
   const got = str(req.headers['x-commerce-admin-secret']);
   const need = process.env.COMMERCE_ADMIN_SECRET || '';

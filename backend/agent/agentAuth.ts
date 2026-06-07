@@ -95,7 +95,18 @@ function readToken(req: Request): string | null {
   return extractBearerToken(req as unknown as { get(name: string): string | string[] | undefined | null });
 }
 
-export function apiRequireAgentToken(required: AgentScope[] = []) {
+/**
+ * @param required scopes the token must hold (after implication expansion).
+ * @param opts.skipKyc when true, a valid token whose wallet has NOT yet passed
+ *   KYC is still allowed through. Used only for the onboarding-facing read
+ *   endpoints (`/instructions`, `/status`) so an unverified agent can learn how
+ *   to get verified and track its own progress. Sanctions screening still
+ *   applies — a sanctioned wallet is rejected regardless.
+ */
+export function apiRequireAgentToken(
+  required: AgentScope[] = [],
+  opts: { skipKyc?: boolean } = {},
+) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const clientIp = req.ip || 'unknown';
     if (isAuthFailRateExceeded(clientIp)) {
@@ -150,10 +161,12 @@ export function apiRequireAgentToken(required: AgentScope[] = []) {
       });
       return;
     }
-    const kyc = await requireSellerKyc(record.wallet);
-    if (!kyc.ok) {
-      res.status(kyc.status).json({ success: false, message: kyc.message, code: kyc.code });
-      return;
+    if (!opts.skipKyc) {
+      const kyc = await requireSellerKyc(record.wallet);
+      if (!kyc.ok) {
+        res.status(kyc.status).json({ success: false, message: kyc.message, code: kyc.code });
+        return;
+      }
     }
 
     const rate = checkRate(record.$id);

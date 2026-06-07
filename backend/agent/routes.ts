@@ -12,6 +12,7 @@
  */
 
 import express, { type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { databases, ID, Query } from '../commerce/appwrite.js';
 import {
   DATABASE_ID,
@@ -24,16 +25,36 @@ import {
 } from '../commerce/constants.js';
 import { tonHumanToNanoRaw } from '../commerce/money.js';
 import { getTonUsdPrice, usdToTonHuman } from '../commerce/tonPriceOracle.js';
-import { mapListingPublic } from '../commerce/helpers.js';
+import { mapListingPublic, omitListingFields } from '../commerce/helpers.js';
 import { asDoc } from '../domain/appwrite-helpers.js';
 import { writeAudit } from '../commerce/audit.js';
 import { logger } from '../logger.js';
 import { str } from '../utils/params.js';
 import { apiRequireAgentToken } from './agentAuth.js';
-import { createListingSchema, patchListingSchema } from '../commerce/validation.js';
+import { agentCreateListingSchema, patchListingSchema } from '../commerce/validation.js';
 import { validateBody } from '../middleware/validate.js';
+import { getInstructionSections } from './instructions.js';
+import { buildAgentStatus, buildOnboardingChecklist } from './status.js';
+import { createProductSchema } from '../routes/validation.js';
+import { insertProduct, productToSnakeCase } from '../core/repository.js';
+import { findUserByTonAddress } from '../core/profileRepository.js';
+import { generateId } from '../core/generateId.js';
 
 const router = express.Router();
+
+/**
+ * Coarse per-IP backstop applied to every agent route. The primary, fine-grained
+ * limit is per-token (600/15min) inside `apiRequireAgentToken`; this outer limiter
+ * bounds abuse from a single IP before the token is even verified. Kept generous
+ * so legitimate multi-agent egress IPs are not throttled by the per-token logic.
+ */
+const agentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+router.use(agentLimiter);
 
 router.get('/me', apiRequireAgentToken(), (req: Request, res: Response) => {
   const a = req.agent!;
@@ -45,6 +66,103 @@ router.get('/me', apiRequireAgentToken(), (req: Request, res: Response) => {
     },
   });
 });
+
+/**
+ * Agent onboarding / operating manual. Readable before KYC (`skipKyc`) so a
+ * brand-new agent can learn how to get verified. Returns the platform-authored
+ * instruction sections plus a personalised onboarding checklist.
+ */
+router.get(
+  '/instructions',
+  apiRequireAgentToken(['instructions:read'], { skipKyc: true }),
+  async (req: Request, res: Response) => {
+    try {
+      const [sections, onboarding] = await Promise.all([
+        getInstructionSections(),
+        buildOnboardingChecklist(req.agent!.wallet),
+      ]);
+      res.json({ data: { sections, onboarding } });
+    } catch (e) {
+      logger.error('[agent] instructions:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Failed to load instructions', code: 'AGENT_INSTRUCTIONS' });
+    }
+  },
+);
+
+/**
+ * Single self-status feed: onboarding progress + listing/order/distribution
+ * aggregates (counts only, no buyer PII). No read scope required and readable
+ * before KYC so an onboarding agent can poll its own progress.
+ */
+router.get(
+  '/status',
+  apiRequireAgentToken([], { skipKyc: true }),
+  async (req: Request, res: Response) => {
+    try {
+      const status = await buildAgentStatus(req.agent!.wallet);
+      res.json({ data: status });
+    } catch (e) {
+      logger.error('[agent] status:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Failed to load status', code: 'AGENT_STATUS' });
+    }
+  },
+);
+
+/**
+ * Create a catalog product as a DRAFT. The draft enters the same moderation +
+ * antivirus pipeline as a human-created product and stays unpublished until a
+ * moderator approves it — this is the platform's verification of agent-originated
+ * inventory. The product's creator is the catalog profile linked to the token's
+ * wallet (resolved here, never trusted from the body). Requires KYC (middleware).
+ */
+router.post(
+  '/products',
+  apiRequireAgentToken(['products:write']),
+  validateBody(createProductSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const wallet = req.agent!.wallet;
+      const creator = await findUserByTonAddress(wallet);
+      if (!creator) {
+        res.status(409).json({
+          error: 'No catalog profile is linked to this wallet. Register as a seller first.',
+          code: 'NO_CREATOR_PROFILE',
+        });
+        return;
+      }
+      const body = req.body as {
+        name: string;
+        description?: string | null;
+        short_description?: string | null;
+        price_usd?: number;
+        category?: string;
+        image?: string | null;
+        version?: string;
+      };
+      const id = generateId();
+      const product = await insertProduct({
+        id,
+        creator_id: creator.id,
+        name: body.name,
+        description: body.description ?? null,
+        short_description: body.short_description ?? null,
+        price_usd: body.price_usd ?? 0,
+        category: body.category ?? 'other',
+        image: body.image ?? null,
+        version: body.version ?? '1.0.0',
+        status: 'draft',
+      });
+      await writeAudit(wallet, 'agent_product_create', 'product', id, {
+        token: req.agent!.tokenPrefix,
+        name: body.name,
+      });
+      res.json({ data: { product: product ? productToSnakeCase(product) : null } });
+    } catch (e) {
+      logger.error('[agent] product create:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Product creation failed', code: 'AGENT_PRODUCT_CREATE' });
+    }
+  },
+);
 
 router.get('/listings', apiRequireAgentToken(['listings:read']), async (req: Request, res: Response) => {
   const wallet = req.agent!.wallet;
@@ -63,7 +181,7 @@ router.get('/listings', apiRequireAgentToken(['listings:read']), async (req: Req
 router.post(
   '/listings',
   apiRequireAgentToken(['listings:write']),
-  validateBody(createListingSchema),
+  validateBody(agentCreateListingSchema),
   async (req: Request, res: Response) => {
     try {
       const wallet = req.agent!.wallet;
@@ -96,7 +214,7 @@ router.post(
       const priceAmountRaw = tonHumanToNanoRaw(tonHuman);
       const decimals = 9;
 
-      const listing = await databases().createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), {
+      const listing = await databases().createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), omitListingFields({
         sellerWallet: wallet,
         catalogProductId,
         title,
@@ -110,7 +228,7 @@ router.post(
         deliveryType,
         assetFileId: '',
         collection_address: collectionAddress,
-      });
+      }));
       await databases().createDocument(DATABASE_ID, COL_LISTING_SECRETS, ID.unique(), {
         listingId: listing.$id,
         deliveryPayload,

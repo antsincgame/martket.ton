@@ -104,10 +104,16 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
 
     const memo = `cm_${crypto.randomBytes(12).toString('hex')}`;
 
-    // Collection address берётся из config (resolveNetworkConfig) — это
-    // адрес предеплоенной AppCollection для данной платформы.
+    // Per-seller collection (Phase 1): build the escrow around the LISTING's own
+    // AppCollection so each seller's licenses are minted into their own
+    // collection. The escrow, the license record (ensureLicenseForOrder) and the
+    // mint (tonforge/mintWorker) MUST all reference the same collection — keep
+    // these three in lockstep. Fall back to the global platform collection for
+    // legacy listings that were created before they carried a collection_address.
     // licenseContentUri — TEP-64 metadata URI, либо из listing либо dynamic.
-    const collectionAddress = netCfg.collectionAddress;
+    const collectionAddress =
+      (listing['collection_address'] as string | undefined)?.trim() ||
+      netCfg.collectionAddress;
     // Temp placeholder orderId для licenseContentUri — дальше заменится на настоящий $id.
     // Но ID.unique() даёт нам id заранее, используем его сразу.
     const orderId = ID.unique();
@@ -323,7 +329,9 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
         ensureLicenseForOrder(
           { $id: orderId, listingId: order['listingId'] as string, buyerWallet, escrowAddress },
           {
-            collection_address: listingForLicense['collectionAddress'] as string | undefined,
+            collection_address:
+              (listingForLicense['collection_address'] as string | undefined) ||
+              (listingForLicense['collectionAddress'] as string | undefined),
             catalogProductId: listingForLicense['catalogProductId'] as string | undefined,
             sellerWallet: listingForLicense['sellerWallet'] as string | undefined,
           },

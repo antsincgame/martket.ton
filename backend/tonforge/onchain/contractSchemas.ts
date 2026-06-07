@@ -1,4 +1,10 @@
 import { Address, beginCell, Cell, contractAddress, type StateInit } from '@ton/core';
+import {
+  coerceBuildAddress,
+  coerceBuildCell,
+  toBackendAddress,
+  toBackendCell,
+} from './tonBuildCoerce.js';
 
 /**
  * Backend-side mirror of contracts/src/{AppCollection,LicenseItem}Wrapper.ts.
@@ -17,12 +23,14 @@ import { Address, beginCell, Cell, contractAddress, type StateInit } from '@ton/
 
 // ─── Opcodes ─────────────────────────────────────────────────────────
 
-// Opcodes MUST match Tact-generated TL-B prefixes in contracts/build/*.md.
-// Mismatch silently bounces the message → wasted gas + broken flow.
-// Verified against:
-//   contracts/build/Escrow_Escrow.md
-//   contracts/build/AppCollection_AppCollection.md
-//   contracts/build/LicenseItem_LicenseItem.md
+// Opcodes MUST match the explicit message prefixes declared in
+// contracts/src/*.tact, e.g. `message(0xd2e5b971) PayEscrow`. A mismatch
+// silently bounces the message → wasted gas + broken flow (a buyer's
+// PayEscrow would never fund the escrow).
+//
+// `contractSchemas.opcodes.test.ts` parses the .tact sources and fails CI if
+// any of these constants drift from the on-chain message prefixes. DEPLOY is
+// the @stdlib/deploy Deployable trait opcode (not declared in our .tact).
 export const OP = {
   DEPLOY: 0x946a98b6,
   MINT_LICENSE: 0x6a3aaa14,
@@ -32,12 +40,11 @@ export const OP = {
   BURN: 0x595f07bc,
   GET_STATIC_DATA: 0x2fcb26a2,
   BUYER_BURN: 0x7a1b3c5d,
-  PAY_ESCROW: 0xcddea230,
-  CONFIRM_DELIVERY: 0xf4a8bfa0,
-  TIMEOUT_RELEASE: 0x19c74777,
-  REGISTER_LICENSE: 0x70db9989,
-  REFUND_ON_BURN: 0x7e083215,
-  ORACLE_REFUND: 0xbf21e1ee,
+  PAY_ESCROW: 0xd2e5b971,
+  CONFIRM_DELIVERY: 0x45dfb5a1,
+  TIMEOUT_RELEASE: 0x7f8c9a12,
+  REGISTER_LICENSE: 0x70e30189,
+  REFUND_ON_BURN: 0x9b3c2d45,
 } as const;
 
 // ─── AppCollection ───────────────────────────────────────────────────
@@ -110,21 +117,59 @@ export interface LicenseItemInit {
   content: Cell;
 }
 
-export function buildItemDataCell(p: LicenseItemInit): Cell {
-  return beginCell()
-    .storeUint(p.index, 256)
-    .storeAddress(p.collection)
-    .storeAddress(p.ownerAddress)
-    .storeAddress(p.escrowAddress)
-    .storeUint(p.transferLimit, 8)
-    .storeUint(0, 8)
-    .storeUint(p.burnDeadline, 32)
-    .storeRef(p.content)
-    .endCell();
+export function buildItemDataCell(_p: LicenseItemInit): never {
+  throw new Error(
+    'buildItemDataCell is deprecated: flat layout overflows BitBuilder. Use computeItemAddress() instead.',
+  );
 }
 
-export function computeItemAddress(code: Cell, p: LicenseItemInit): Address {
-  return contractAddress(0, { code, data: buildItemDataCell(p) });
+interface LicenseItemContractStatic {
+  init(
+    index: bigint,
+    collection: Address,
+    ownerAddress: Address,
+    escrowAddress: Address,
+    transferLimit: bigint,
+    content: Cell,
+    burnDeadline: bigint,
+  ): Promise<{ code: Cell; data: Cell }>;
+}
+
+let _licenseItemClass: LicenseItemContractStatic | null = null;
+
+async function loadLicenseItemClass(): Promise<LicenseItemContractStatic> {
+  if (!_licenseItemClass) {
+    // Variable specifier so tsc does not statically resolve the gitignored Tact
+    // build artifact (resolved at runtime by tsx; matches commerce/escrow.ts).
+    const modPath = '../../../contracts/build/LicenseItem_LicenseItem.js';
+    const mod = (await import(modPath)) as {
+      LicenseItem: LicenseItemContractStatic;
+    };
+    _licenseItemClass = mod.LicenseItem;
+  }
+  return _licenseItemClass;
+}
+
+/** Matches Tact LicenseItem storage (split data cell with ref). */
+export async function computeItemAddress(p: LicenseItemInit): Promise<Address> {
+  const LicenseItem = await loadLicenseItemClass();
+  // The deterministic code comes from the authoritative Tact wrapper's init()
+  // (it embeds the compiled LicenseItem code) — no separate code arg needed.
+  const init = await LicenseItem.init(
+    p.index,
+    await coerceBuildAddress(p.collection),
+    await coerceBuildAddress(p.ownerAddress),
+    await coerceBuildAddress(p.escrowAddress),
+    BigInt(p.transferLimit),
+    await coerceBuildCell(p.content),
+    BigInt(p.burnDeadline),
+  );
+  return toBackendAddress(
+    contractAddress(0, {
+      code: toBackendCell(init.code),
+      data: toBackendCell(init.data),
+    }),
+  );
 }
 
 // ─── RegisterLicense (oracle → escrow) ──────────────────────────────
@@ -136,11 +181,11 @@ export function buildRegisterLicensePayload(licenseAddress: Address): Cell {
     .endCell();
 }
 
-// ─── OracleRefund (treasury → escrow, only before RegisterLicense) ──
-
-export function buildOracleRefundPayload(): Cell {
-  return beginCell().storeUint(OP.ORACLE_REFUND, 32).endCell();
-}
+// NOTE: There is intentionally no buildOracleRefundPayload / ORACLE_REFUND.
+// escrow.tact has no oracle-triggered refund receiver — the only pre-mint
+// refund is RefundIfNotMinted (0x5a8e1f23), which the contract requires to be
+// sent by the BUYER (sender() == self.buyer), not the oracle. Any oracle-side
+// "refund" would bounce on-chain.
 
 // ─── PayEscrow (buyer → escrow) ─────────────────────────────────────
 

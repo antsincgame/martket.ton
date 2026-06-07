@@ -11,7 +11,12 @@
  * contracts/build/Escrow_Escrow.ts.
  */
 
-import { Address, beginCell, type Cell, type StateInit, contractAddress, toNano } from '@ton/core';
+import { Address, beginCell, Cell, type StateInit, contractAddress, toNano } from '@ton/core';
+import {
+  coerceBuildAddress,
+  coerceBuildCell,
+  toBackendCell,
+} from '../tonforge/onchain/tonBuildCoerce.js';
 import { logger } from '../logger.js';
 import { getTonClient } from '../tonforge/onchain/tonClient.js';
 import {
@@ -30,7 +35,15 @@ import {
 const ESCROW_GAS_BUFFER = toNano('0.15');
 const MINT_GAS_BUDGET = toNano('0.10');
 const REGISTER_GAS_BUDGET = toNano('0.05');
-const TOTAL_GAS_BUFFER = ESCROW_GAS_BUFFER + MINT_GAS_BUDGET + REGISTER_GAS_BUDGET;
+
+function resolveTotalGasBuffer(): bigint {
+  if (process.env.E2E_LOW_GAS === '1') {
+    return toNano('0.12');
+  }
+  return ESCROW_GAS_BUFFER + MINT_GAS_BUDGET + REGISTER_GAS_BUDGET;
+}
+
+const TOTAL_GAS_BUFFER = resolveTotalGasBuffer();
 
 export const GAS_BREAKDOWN = {
   escrowGasNano: ESCROW_GAS_BUFFER.toString(),
@@ -105,9 +118,6 @@ export interface EscrowComputeResult {
   feeNano: string;
 }
 
-/**
- * Конвертация UUID-подобного orderId в 256-битное число для контракта.
- */
 function orderIdToBigint(orderId: string): bigint {
   const hash = Buffer.from(orderId.replace(/-/g, '').padEnd(64, '0').slice(0, 64), 'hex');
   let n = 0n;
@@ -155,12 +165,12 @@ export async function computeEscrow(params: EscrowOrderParams): Promise<EscrowCo
   const Escrow = await loadEscrow();
 
   const orderId = orderIdToBigint(params.orderId);
-  const buyer = Address.parse(params.buyer);
-  const seller = Address.parse(params.seller);
-  const treasury = Address.parse(params.treasury);
-  const collectionAddress = Address.parse(params.collectionAddress);
+  const buyer = await coerceBuildAddress(params.buyer);
+  const seller = await coerceBuildAddress(params.seller);
+  const treasury = await coerceBuildAddress(params.treasury);
+  const collectionAddress = await coerceBuildAddress(params.collectionAddress);
   const split = resolveAmountSplit(params);
-  const licenseContent = buildLicenseContent(params.licenseContentUri);
+  const licenseContent = await coerceBuildCell(buildLicenseContent(params.licenseContentUri));
   const transferLimit = BigInt(params.transferLimit ?? 0);
 
   const init = await Escrow.init(
@@ -177,16 +187,18 @@ export async function computeEscrow(params: EscrowOrderParams): Promise<EscrowCo
     licenseContent,
   );
 
-  const stateInit: StateInit = { code: init.code, data: init.data };
+  const code = toBackendCell(init.code);
+  const data = toBackendCell(init.data);
+  const stateInit: StateInit = { code, data };
   const escrowAddr = contractAddress(0, stateInit);
 
   const stateInitCell = beginCell()
     .storeBit(false)
     .storeBit(false)
     .storeBit(true)
-    .storeRef(init.code)
+    .storeRef(code)
     .storeBit(true)
-    .storeRef(init.data)
+    .storeRef(data)
     .storeBit(false)
     .endCell();
 
@@ -197,12 +209,12 @@ export async function computeEscrow(params: EscrowOrderParams): Promise<EscrowCo
   const totalAmount = split.total + TOTAL_GAS_BUFFER;
 
   if (!_cachedCode) {
-    _cachedCode = init.code;
-    logger.info(`[escrow] code hash loaded: ${init.code.hash().toString('hex').slice(0, 16)}…`);
+    _cachedCode = code;
+    logger.info(`[escrow] code hash loaded: ${code.hash().toString('hex').slice(0, 16)}…`);
   }
 
   return {
-    escrowAddress: escrowAddr.toString(),
+    escrowAddress: escrowAddr.toString({ testOnly: true, bounceable: false }),
     stateInitBase64: stateInitCell.toBoc().toString('base64'),
     payloadBase64: payloadCell.toBoc().toString('base64'),
     totalAmountRaw: totalAmount.toString(),

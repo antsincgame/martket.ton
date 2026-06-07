@@ -48,6 +48,9 @@ export const createListingSchema = z.object({
   collectionAddress: tonAddressSchema,
 });
 
+/** Agent API: sellerWallet comes from the token, not the request body. */
+export const agentCreateListingSchema = createListingSchema.omit({ sellerWallet: true });
+
 export const patchListingSchema = z
   .object({
     sellerWallet: z.string().optional(),
@@ -81,6 +84,20 @@ export const confirmOrderSchema = z.object({
 
 export const orderStateSchema = z.object({
   state: z.enum(['pending_payment', 'paid', 'fulfilled', 'refunded', 'cancelled']),
+});
+
+// ── Agent instructions channel (admin authoring) ───────────────────
+export const agentInstructionSchema = z.object({
+  title: z.string().min(1).max(200),
+  body: z.string().min(1).max(20000),
+  order: z.number().int().min(0).max(1000).optional(),
+  active: z.boolean().optional(),
+});
+
+// ── Per-seller collection provisioning (admin trigger) ─────────────
+export const provisionCollectionSchema = z.object({
+  sellerWallet: tonAddressSchema,
+  network: z.enum(['mainnet', 'testnet']),
 });
 
 // ── BYOS Storage credentials ──────────────────────────────────────

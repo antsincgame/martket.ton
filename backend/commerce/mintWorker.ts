@@ -1,43 +1,39 @@
 /**
- * Mint worker: опрашивает Appwrite на orders в pending_payment с escrow address,
- * проверяет on-chain что escrow в FUNDED, и триггерит MintLicense от owner.
+ * Order reconciler (formerly the Option-C mint worker).
  *
- * Option C flow:
- *   1. Buyer отправляет PayEscrow на escrow address через TonConnect
- *   2. Escrow переходит в FUNDED (on-chain state=1)
- *   3. Этот worker polls: видит FUNDED → шлёт MintLicense от owner в Collection
- *      с escrowAddress=escrow.address (критично для refund-петли)
- *   4. Collection deploys LicenseItem, LicenseItem шлёт RegisterLicense обратно
- *   5. Worker видит licenseAddress != zero → order.state = PAID
+ * CANONICAL CHANGE: minting now lives in ONE place — `tonforge/mintWorker`,
+ * which mints into the per-seller `license.collectionAddress`, holds a
+ * cluster-wide lock, and runs the full mint/refund/payout lifecycle. This module
+ * NO LONGER MINTS. Keeping a second minter here (which targeted the *global*
+ * collection) was both a double-mint race and, once orders route to per-seller
+ * collections, an escrow↔mint collection mismatch.
  *
- * Retry strategy: сохраняет mintAttempts в order, при >5 попыток помечает
- * order как FAILED_MINT (buyer может сделать RefundIfNotMinted через grace).
+ * What it still does — purely reconcile order state from on-chain truth:
+ *   1. Poll orders in `pending_payment` that carry an escrow address.
+ *   2. Read the escrow's on-chain state:
+ *        - state 1 (FUNDED) + license registered → finalize order → PAID
+ *          (+ entitlement) via the shared reconcileOrderAfterMint handler — the
+ *          SAME finalization the immediate tonforge path uses (single source of
+ *          truth); this poller is the fallback if that immediate call failed.
+ *        - state 3 (CONFIRMED/released) → order FULFILLED.
+ *        - state 4 (REFUNDED) → order REFUNDED.
+ *   3. If FUNDED but no license yet → do nothing; tonforge/mintWorker will mint
+ *      and register, and a later tick reconciles the order.
  */
 
-import { Address, Cell } from '@ton/core';
+import { Cell } from '@ton/core';
 import {
   DATABASE_ID,
   COL_ORDERS,
-  COL_ENTITLEMENTS,
-  COL_LISTINGS,
-  COL_LISTING_SECRETS,
-  BUCKET_ASSETS,
   ORDER_STATE,
 } from './constants.js';
-import { databases, ID, Query } from './appwrite.js';
+import { databases, Query } from './appwrite.js';
 import { getNetworkConfig, type TonNetwork } from '../config/network.js';
-import {
-  getSigner,
-  sendMintLicense,
-  buildLicenseContent,
-  type MintLicenseArgs,
-} from './mintSigner.js';
 import { logger } from '../logger.js';
-import { writeAudit } from './audit.js';
-import { recordLedgerEntry } from '../core/ledgerService.js';
+import { reconcileOrderAfterMint } from './handlers/reconcileOrderAfterMint.js';
 
 const POLL_INTERVAL_MS = parseInt(process.env.MINT_WORKER_POLL_MS || '30000', 10);
-const MAX_MINT_ATTEMPTS = 5;
+const MAX_ATTEMPTS = 5;
 const MAX_ORDERS_PER_TICK = 20;
 
 let running = false;
@@ -64,7 +60,7 @@ async function getEscrowState(
     if (stackFirst?.num !== undefined) return Number(BigInt(stackFirst.num));
     return null;
   } catch (err) {
-    logger.warn(`[mintWorker] getEscrowState failed for ${escrowAddress}:`, err instanceof Error ? err.message : err);
+    logger.warn(`[orderReconciler] getEscrowState failed for ${escrowAddress}:`, err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -120,7 +116,9 @@ interface PendingOrderRow extends Record<string, unknown> {
 
 async function processTick(network: TonNetwork): Promise<void> {
   const cfg = getNetworkConfig(network);
-  if (!cfg.collectionAddress || !cfg.collectionOwnerMnemonic) {
+  // Reconciler runs whenever the v4 escrow flow is enabled (a collection is
+  // configured). It no longer mints, so it does not need the owner mnemonic.
+  if (!cfg.collectionAddress) {
     return;
   }
 
@@ -135,154 +133,95 @@ async function processTick(network: TonNetwork): Promise<void> {
   const orders = documents
     .map((d) => d as unknown as PendingOrderRow)
     .filter((o) => typeof o.escrowAddress === 'string' && o.escrowAddress.length > 0)
-    .filter((o) => (o.mintAttempts ?? 0) < MAX_MINT_ATTEMPTS)
+    .filter((o) => (o.mintAttempts ?? 0) < MAX_ATTEMPTS)
     .slice(0, MAX_ORDERS_PER_TICK);
 
   if (orders.length === 0) return;
 
-  logger.info(`[mintWorker] ${network}: processing ${orders.length} pending orders`);
-
-  const signer = await getSigner(network, cfg.collectionOwnerMnemonic, cfg.tonapiBase, cfg.tonapiKey);
-  const collectionAddr = Address.parse(cfg.collectionAddress);
+  logger.info(`[orderReconciler] ${network}: reconciling ${orders.length} pending order(s)`);
 
   for (const order of orders) {
     try {
-      await processOrder(order, network, signer, collectionAddr, cfg);
+      await processOrder(order, cfg);
     } catch (err) {
-      logger.warn(`[mintWorker] order ${order.$id} failed:`, err instanceof Error ? err.message : err);
-      await db
-        .updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
-          mintAttempts: (order.mintAttempts ?? 0) + 1,
-        })
-        .catch((err: unknown) => logger.warn(`[mintWorker] failed to bump mintAttempts for ${order.$id}:`, err instanceof Error ? err.message : err));
+      logger.warn(`[orderReconciler] order ${order.$id} failed:`, err instanceof Error ? err.message : err);
     }
   }
 }
 
+export type ReconcileAction =
+  | { kind: 'finalize' }   // escrow FUNDED + license registered → finalize order to PAID
+  | { kind: 'fulfilled' }  // escrow released (state 3) → order FULFILLED
+  | { kind: 'refunded' }   // escrow refunded (state 4) → order REFUNDED
+  | { kind: 'wait' }       // FUNDED but no license yet → tonforge/mintWorker owns the mint
+  | { kind: 'noop' };      // unknown/other escrow state → nothing to reconcile
+
+// Escrow license_address getter returns the EQ/UQ form; the zero address (no
+// license registered yet) renders as EQAAAA…/UQAAAA….
+const ZERO_LICENSE_RE = /^EQAAAAA|^UQAAAAA/;
+
+/**
+ * Pure reconciliation decision (the order-state machine). Given the on-chain
+ * escrow state (1 = FUNDED, 3 = released/confirmed, 4 = refunded) and the license
+ * address the escrow exposes, decide what to do with the order. Exported for unit
+ * tests — the effectful `processOrder` is a thin wiring around it.
+ */
+export function decideReconcileAction(
+  escrowState: number | null,
+  licenseAddress: string | null,
+): ReconcileAction {
+  if (escrowState === 3) return { kind: 'fulfilled' };
+  if (escrowState === 4) return { kind: 'refunded' };
+  if (escrowState !== 1) return { kind: 'noop' };
+  const isZero = !licenseAddress || ZERO_LICENSE_RE.test(licenseAddress);
+  return isZero ? { kind: 'wait' } : { kind: 'finalize' };
+}
+
 async function processOrder(
   order: PendingOrderRow,
-  network: TonNetwork,
-  signer: Awaited<ReturnType<typeof getSigner>>,
-  collectionAddr: Address,
   cfg: ReturnType<typeof getNetworkConfig>,
 ): Promise<void> {
   const db = databases();
   const escrowAddr = order.escrowAddress!;
 
-  // Шаг 1: escrow в FUNDED?
   const state = await getEscrowState(escrowAddr, cfg.tonapiBase, cfg.tonapiKey);
-  if (state === null) return;
-  if (state !== 1) {
-    if (state === 3 || state === 4) {
-      await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
-        state: state === 3 ? ORDER_STATE.FULFILLED : ORDER_STATE.REFUNDED,
+  // Only query the license getter once the escrow is FUNDED.
+  const licenseAddr =
+    state === 1 ? await getEscrowLicenseAddress(escrowAddr, cfg.tonapiBase, cfg.tonapiKey) : null;
+  const action = decideReconcileAction(state, licenseAddr);
+
+  switch (action.kind) {
+    case 'fulfilled':
+      await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, { state: ORDER_STATE.FULFILLED });
+      return;
+    case 'refunded':
+      await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, { state: ORDER_STATE.REFUNDED });
+      return;
+    case 'finalize':
+      // licenseAddr is non-zero here per decideReconcileAction. Delegate to the
+      // single finalization handler shared with the immediate tonforge path
+      // (idempotent: it no-ops if the order is already PAID/FULFILLED).
+      await reconcileOrderAfterMint({
+        orderId: order.$id,
+        listingId: order.listingId,
+        buyerWallet: order.buyerWallet,
+        nftAddress: licenseAddr!,
+        escrowAddress: order.escrowAddress ?? '',
       });
-    }
-    return;
-  }
-
-  // Шаг 2: license уже замижена?
-  const licenseAddr = await getEscrowLicenseAddress(escrowAddr, cfg.tonapiBase, cfg.tonapiKey);
-  const isZeroAddr = !licenseAddr || licenseAddr.match(/^EQAAAAA|^UQAAAAA/) !== null;
-  if (!isZeroAddr) {
-    await onMintConfirmed(order, licenseAddr!);
-    return;
-  }
-
-  // Шаг 3: mint. v4.1 — минимальный payload с escrowAddress.
-  const licenseContentUri = order.licenseContentUri ||
-    `https://cdn.example.org/license/${order.$id}.json`;
-
-  const mintArgs: MintLicenseArgs = {
-    queryId:           BigInt(Date.now()),
-    buyerAddress:      Address.parse(order.buyerWallet),
-    escrowAddress:     Address.parse(escrowAddr),
-    transferLimit:     0n,
-    individualContent: buildLicenseContent(licenseContentUri),
-    burnDeadline:      BigInt(Math.floor(Date.now() / 1000) + cfg.trialWindowSec),
-  };
-
-  await sendMintLicense(signer, collectionAddr, mintArgs);
-
-  await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
-    mintAttempts: (order.mintAttempts ?? 0) + 1,
-  });
-
-  await writeAudit(order.buyerWallet, 'mint_sent', 'order', order.$id, {
-    escrowAddress: escrowAddr,
-    network,
-  });
-
-  logger.info(`[mintWorker] mint triggered for order ${order.$id} (escrow=${escrowAddr})`);
-}
-
-async function onMintConfirmed(order: PendingOrderRow, licenseAddress: string): Promise<void> {
-  const db = databases();
-
-  const { documents: existingEnt } = await db.listDocuments(DATABASE_ID, COL_ENTITLEMENTS, [
-    Query.equal('orderId', order.$id),
-    Query.limit(1),
-  ]);
-  if (existingEnt.length > 0) {
-    await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
-      state: ORDER_STATE.PAID,
-      licenseAddress,
-    });
-    return;
-  }
-
-  try {
-    const listing = await db.getDocument(DATABASE_ID, COL_LISTINGS, order.listingId);
-    const { documents: secrets } = await db.listDocuments(DATABASE_ID, COL_LISTING_SECRETS, [
-      Query.equal('listingId', order.listingId),
-      Query.limit(1),
-    ]);
-    let payload = (secrets[0]?.deliveryPayload as string) ||
-      'Thank you for your purchase. License NFT minted to your wallet.';
-    if (listing.assetFileId) {
-      payload += `\n\n[File in Appwrite Storage: bucket ${BUCKET_ASSETS}, fileId ${listing.assetFileId}]`;
-    }
-
-    await db.createDocument(DATABASE_ID, COL_ENTITLEMENTS, ID.unique(), {
-      orderId: order.$id,
-      buyerWallet: order.buyerWallet,
-      listingId: order.listingId,
-      deliveryPayload: payload,
-      licenseAddress,
-    });
-
-    await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
-      state: ORDER_STATE.PAID,
-      licenseAddress,
-    });
-
-    await writeAudit(order.buyerWallet, 'mint_confirmed', 'order', order.$id, {
-      licenseAddress,
-    });
-
-    recordLedgerEntry({
-      entryType: 'mint_license',
-      refType: 'order',
-      refId: order.$id,
-      buyerWallet: order.buyerWallet,
-      amountTonRaw: order.amountRaw,
-      licenseAddress,
-      listingId: order.listingId,
-      productName: order.listingSnapshotTitle ?? (listing['title'] as string) ?? '',
-      escrowAddress: order.escrowAddress ?? null,
-    }).catch((err) => logger.warn('[mintWorker] ledger mint_license:', err instanceof Error ? err.message : err));
-
-    logger.info(`[mintWorker] mint confirmed for order ${order.$id}: license=${licenseAddress}`);
-  } catch (err) {
-    logger.warn(`[mintWorker] onMintConfirmed failed for ${order.$id}:`, err instanceof Error ? err.message : err);
+      return;
+    case 'wait':
+    case 'noop':
+      // FUNDED-but-not-minted or unknown state → tonforge/mintWorker owns the mint;
+      // a later tick reconciles the order once the license is registered.
+      return;
   }
 }
 
 async function tick(): Promise<void> {
   try {
     await Promise.all([
-      processTick('mainnet').catch((e) => logger.warn('[mintWorker] mainnet tick failed:', e)),
-      processTick('testnet').catch((e) => logger.warn('[mintWorker] testnet tick failed:', e)),
+      processTick('mainnet').catch((e) => logger.warn('[orderReconciler] mainnet tick failed:', e)),
+      processTick('testnet').catch((e) => logger.warn('[orderReconciler] testnet tick failed:', e)),
     ]);
   } finally {
     if (running) {
@@ -293,23 +232,23 @@ async function tick(): Promise<void> {
 
 export function startMintWorker(): void {
   if (running) {
-    logger.warn('[mintWorker] already running');
+    logger.warn('[orderReconciler] already running');
     return;
   }
 
   const mainnetCfg = getNetworkConfig('mainnet');
   const testnetCfg = getNetworkConfig('testnet');
-  const mainnetEnabled = !!(mainnetCfg.collectionAddress && mainnetCfg.collectionOwnerMnemonic);
-  const testnetEnabled = !!(testnetCfg.collectionAddress && testnetCfg.collectionOwnerMnemonic);
+  const mainnetEnabled = !!mainnetCfg.collectionAddress;
+  const testnetEnabled = !!testnetCfg.collectionAddress;
 
   if (!mainnetEnabled && !testnetEnabled) {
-    logger.info('[mintWorker] disabled — COLLECTION_ADDRESS or COLLECTION_OWNER_MNEMONIC not set for either network');
+    logger.info('[orderReconciler] disabled — COLLECTION_ADDRESS not set for either network');
     return;
   }
 
   running = true;
   logger.info(
-    `[mintWorker] started (mainnet=${mainnetEnabled}, testnet=${testnetEnabled}, poll=${POLL_INTERVAL_MS}ms)`,
+    `[orderReconciler] started (mainnet=${mainnetEnabled}, testnet=${testnetEnabled}, poll=${POLL_INTERVAL_MS}ms)`,
   );
 
   currentTimer = setTimeout(tick, 5_000);
@@ -321,5 +260,5 @@ export function stopMintWorker(): void {
     clearTimeout(currentTimer);
     currentTimer = null;
   }
-  logger.info('[mintWorker] stopped');
+  logger.info('[orderReconciler] stopped');
 }

@@ -83,6 +83,8 @@ A|W|POST /api/v1/commerce/listings/:id/scan→moderator_VT_scan
 A|W|GET /api/v1/commerce/listings/:id/download→license_gate_302
 A|W|GET /api/tonforge/licenses/:id/verify→on_chain_owner_check
 A|W|GET /api/v1/agent/me→agent_token_introspection
+A|W|GET /api/v1/agent/instructions→agent_onboarding_manual;GET /api/v1/agent/status→agent_self_status
+A|W|POST /api/v1/agent/products→agent_product_draft(moderation+scan)
 A|W|GET|POST|PATCH /api/v1/agent/listings→agent_listing_ops
 A|W|PUT|POST /api/v1/agent/listings/:id/distribution→agent_manifest_ops
 A|W|GET /api/health→liveness;?detailed=1+X-Health-Token→full_status
@@ -688,6 +690,9 @@ export default function DocumentationPage() {
               {[
                 ['POST /api/v1/commerce/agent-tokens', 'issue token after KYC'],
                 ['GET /api/v1/agent/me', 'token introspection'],
+                ['GET /api/v1/agent/instructions', 'onboarding manual + checklist'],
+                ['GET /api/v1/agent/status', 'onboarding + order status'],
+                ['POST /api/v1/agent/products', 'create product draft'],
                 ['GET /api/v1/agent/listings', 'list seller listings'],
                 ['POST /api/v1/agent/listings', 'create listing'],
                 ['PATCH /api/v1/agent/listings/:id', 'update listing'],

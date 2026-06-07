@@ -25,7 +25,6 @@ export {
   collectionStateInit,
   buildMintLicensePayload,
   buildRegisterLicensePayload,
-  buildOracleRefundPayload,
   buildPayEscrowPayload,
   buildConfirmDeliveryPayload,
   buildTimeoutReleasePayload,
