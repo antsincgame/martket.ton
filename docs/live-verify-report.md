@@ -119,8 +119,16 @@ LEGACY_LISTINGS_OMIT_FIELDS=priceUsd
 
 ## Известные ограничения
 
+> **Обновление — canonical review/refactor (commit `274969c`).** Пункт #2 закрыт:
+> order финализируется в `paid` order-reconciler'ом (бывший `commerce/mintWorker`
+> с демонтированным минт-шагом). Дополнительно: per-seller маршрутизация
+> достроена (escrow строится на `listing.collection_address`), двойной минтер
+> устранён (единственный минтер — `tonforge/mintWorker`), `LEGACY_*_OMIT_FIELDS`
+> убраны из prod-шаблона. Нужна multi-seller testnet-сертификация —
+> см. `docs/per-seller-collections.md`.
+
 1. **Staging Appwrite `listings`** — лимит атрибутов; `priceUsd` опускается через `LEGACY_LISTINGS_OMIT_FIELDS`.
-2. **`confirm`** возвращает `state: pending_payment` + `mintPending: true` (tonforge path не переводит order в `paid`).
+2. **`confirm`** возвращает `state: pending_payment` + `mintPending: true` (tonforge path не переводит order в `paid`). _(Закрыто reconciler'ом — см. примечание выше.)_
 3. **Баланс owner wallet** после E2E может быть низким (~0.49 TON) — нужен top-up для следующих mint.
 4. **`contracts/build/`** gitignored — на CI/новой машине нужен `npm run build` в `contracts/`.
 

@@ -95,6 +95,33 @@ Idempotency: calling provision again returns the same address with
 `alreadyDeployed: true` (it also short-circuits if the contract is already active
 on-chain).
 
+## Multi-seller routing certification (the decisive test)
+
+Single-seller passing is necessary but NOT sufficient — it can pass even if the
+escrow uses the global collection (when global == the one provisioned collection).
+This test proves the canonical routing: **each seller's purchase mints into THAT
+seller's own collection.**
+
+1. Provision a collection for **two distinct** sellers A and B (different wallets):
+   `POST /admin/seller-collections/provision` for each → addresses `COL_A`, `COL_B`
+   (must differ).
+2. Create one listing per seller, each carrying its own `collection_address`
+   (`COL_A` for A's listing, `COL_B` for B's). Do **not** rely on the global
+   `COLLECTION_ADDRESS_*`; ideally set the global to a THIRD, decoy address so a
+   regression to the global path is detectable.
+3. Buy **both** listings from a testnet buyer wallet (fund each escrow).
+4. After mint, assert per purchase:
+   - the order's escrow was built around the listing's collection (the escrow
+     address is deterministic from it),
+   - the minted License NFT's `collection` == the seller's own address
+     (`COL_A` for A, `COL_B` for B) — **not** the global decoy,
+   - `licenses` rows carry the matching `collectionAddress`,
+   - both orders reach `PAID` (reconciler) and downloads open.
+
+Pass criterion: A's NFT ∈ `COL_A`, B's NFT ∈ `COL_B`, neither in the global decoy.
+A regression (escrow/mint on the global collection) would put both NFTs in the
+decoy and fail this test.
+
 ## What is unit-tested vs. testnet-verified
 
 - **Unit-tested** (`collectionProvisioner.test.ts`): content-cell encoding,
