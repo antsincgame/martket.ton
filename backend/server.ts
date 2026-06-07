@@ -389,7 +389,9 @@ async function startScanWorker(): Promise<void> {
 }
 
 /**
- * Legacy Option C mint worker: polls orders in pending_payment with FUNDED escrow.
+ * Order reconciler (was the Option-C mint worker). It NO LONGER MINTS — minting
+ * is owned solely by the TonForge license worker below. This only reconciles
+ * order state from on-chain escrow/license truth (→ PAID / FULFILLED / REFUNDED).
  */
 async function startCommerceMintWorkerIfConfigured(): Promise<void> {
   try {

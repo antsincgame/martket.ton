@@ -7,9 +7,20 @@ change** and no seller signature. The seller's own wallet is recorded
 (`ownerWallet`) for forward compatibility with a future sovereign-collection
 model (Phase 2), but the on-chain owner today is the platform.
 
-This phase is **additive** and does not change the existing listing/mint flow: a
-listing still references a collection address explicitly. Provisioning hands the
-seller the address to use.
+Provisioning hands the seller a collection address; the seller attaches it to
+their listings. On order creation the escrow is built around
+`listing.collection_address` (falling back to the global platform collection for
+legacy listings without one), so the **escrow, the license record and the mint
+all target the same per-seller collection** — keep these three in lockstep.
+
+**Canonical mint path (one minter):** minting is owned solely by
+`tonforge/mintWorker` — it mints into `license.collectionAddress` (per-seller),
+holds a cluster-wide lock, and runs the full mint → register → refund → payout
+lifecycle. The former `commerce/mintWorker` was demoted to an **order-state
+reconciler**: it no longer mints (a second minter targeted the *global*
+collection — a double-mint race and, once orders route per-seller, an
+escrow↔mint mismatch); it only reconciles order state (→ PAID / FULFILLED /
+REFUNDED) from on-chain escrow/license truth.
 
 ## Components
 

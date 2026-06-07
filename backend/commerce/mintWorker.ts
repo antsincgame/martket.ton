@@ -1,20 +1,25 @@
 /**
- * Mint worker: опрашивает Appwrite на orders в pending_payment с escrow address,
- * проверяет on-chain что escrow в FUNDED, и триггерит MintLicense от owner.
+ * Order reconciler (formerly the Option-C mint worker).
  *
- * Option C flow:
- *   1. Buyer отправляет PayEscrow на escrow address через TonConnect
- *   2. Escrow переходит в FUNDED (on-chain state=1)
- *   3. Этот worker polls: видит FUNDED → шлёт MintLicense от owner в Collection
- *      с escrowAddress=escrow.address (критично для refund-петли)
- *   4. Collection deploys LicenseItem, LicenseItem шлёт RegisterLicense обратно
- *   5. Worker видит licenseAddress != zero → order.state = PAID
+ * CANONICAL CHANGE: minting now lives in ONE place — `tonforge/mintWorker`,
+ * which mints into the per-seller `license.collectionAddress`, holds a
+ * cluster-wide lock, and runs the full mint/refund/payout lifecycle. This module
+ * NO LONGER MINTS. Keeping a second minter here (which targeted the *global*
+ * collection) was both a double-mint race and, once orders route to per-seller
+ * collections, an escrow↔mint collection mismatch.
  *
- * Retry strategy: сохраняет mintAttempts в order, при >5 попыток помечает
- * order как FAILED_MINT (buyer может сделать RefundIfNotMinted через grace).
+ * What it still does — purely reconcile order state from on-chain truth:
+ *   1. Poll orders in `pending_payment` that carry an escrow address.
+ *   2. Read the escrow's on-chain state:
+ *        - state 1 (FUNDED) + license registered → finalize order → PAID
+ *          (+ entitlement) via onMintConfirmed.
+ *        - state 3 (CONFIRMED/released) → order FULFILLED.
+ *        - state 4 (REFUNDED) → order REFUNDED.
+ *   3. If FUNDED but no license yet → do nothing; tonforge/mintWorker will mint
+ *      and register, and a later tick reconciles the order.
  */
 
-import { Address, Cell } from '@ton/core';
+import { Cell } from '@ton/core';
 import {
   DATABASE_ID,
   COL_ORDERS,
@@ -26,18 +31,12 @@ import {
 } from './constants.js';
 import { databases, ID, Query } from './appwrite.js';
 import { getNetworkConfig, type TonNetwork } from '../config/network.js';
-import {
-  getSigner,
-  sendMintLicense,
-  buildLicenseContent,
-  type MintLicenseArgs,
-} from './mintSigner.js';
 import { logger } from '../logger.js';
 import { writeAudit } from './audit.js';
 import { recordLedgerEntry } from '../core/ledgerService.js';
 
 const POLL_INTERVAL_MS = parseInt(process.env.MINT_WORKER_POLL_MS || '30000', 10);
-const MAX_MINT_ATTEMPTS = 5;
+const MAX_ATTEMPTS = 5;
 const MAX_ORDERS_PER_TICK = 20;
 
 let running = false;
@@ -64,7 +63,7 @@ async function getEscrowState(
     if (stackFirst?.num !== undefined) return Number(BigInt(stackFirst.num));
     return null;
   } catch (err) {
-    logger.warn(`[mintWorker] getEscrowState failed for ${escrowAddress}:`, err instanceof Error ? err.message : err);
+    logger.warn(`[orderReconciler] getEscrowState failed for ${escrowAddress}:`, err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -120,7 +119,9 @@ interface PendingOrderRow extends Record<string, unknown> {
 
 async function processTick(network: TonNetwork): Promise<void> {
   const cfg = getNetworkConfig(network);
-  if (!cfg.collectionAddress || !cfg.collectionOwnerMnemonic) {
+  // Reconciler runs whenever the v4 escrow flow is enabled (a collection is
+  // configured). It no longer mints, so it does not need the owner mnemonic.
+  if (!cfg.collectionAddress) {
     return;
   }
 
@@ -135,41 +136,30 @@ async function processTick(network: TonNetwork): Promise<void> {
   const orders = documents
     .map((d) => d as unknown as PendingOrderRow)
     .filter((o) => typeof o.escrowAddress === 'string' && o.escrowAddress.length > 0)
-    .filter((o) => (o.mintAttempts ?? 0) < MAX_MINT_ATTEMPTS)
+    .filter((o) => (o.mintAttempts ?? 0) < MAX_ATTEMPTS)
     .slice(0, MAX_ORDERS_PER_TICK);
 
   if (orders.length === 0) return;
 
-  logger.info(`[mintWorker] ${network}: processing ${orders.length} pending orders`);
-
-  const signer = await getSigner(network, cfg.collectionOwnerMnemonic, cfg.tonapiBase, cfg.tonapiKey);
-  const collectionAddr = Address.parse(cfg.collectionAddress);
+  logger.info(`[orderReconciler] ${network}: reconciling ${orders.length} pending order(s)`);
 
   for (const order of orders) {
     try {
-      await processOrder(order, network, signer, collectionAddr, cfg);
+      await processOrder(order, cfg);
     } catch (err) {
-      logger.warn(`[mintWorker] order ${order.$id} failed:`, err instanceof Error ? err.message : err);
-      await db
-        .updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
-          mintAttempts: (order.mintAttempts ?? 0) + 1,
-        })
-        .catch((err: unknown) => logger.warn(`[mintWorker] failed to bump mintAttempts for ${order.$id}:`, err instanceof Error ? err.message : err));
+      logger.warn(`[orderReconciler] order ${order.$id} failed:`, err instanceof Error ? err.message : err);
     }
   }
 }
 
 async function processOrder(
   order: PendingOrderRow,
-  network: TonNetwork,
-  signer: Awaited<ReturnType<typeof getSigner>>,
-  collectionAddr: Address,
   cfg: ReturnType<typeof getNetworkConfig>,
 ): Promise<void> {
   const db = databases();
   const escrowAddr = order.escrowAddress!;
 
-  // Шаг 1: escrow в FUNDED?
+  // Step 1: read escrow state.
   const state = await getEscrowState(escrowAddr, cfg.tonapiBase, cfg.tonapiKey);
   if (state === null) return;
   if (state !== 1) {
@@ -181,7 +171,7 @@ async function processOrder(
     return;
   }
 
-  // Шаг 2: license уже замижена?
+  // Step 2: FUNDED — has tonforge/mintWorker already minted + registered a license?
   const licenseAddr = await getEscrowLicenseAddress(escrowAddr, cfg.tonapiBase, cfg.tonapiKey);
   const isZeroAddr = !licenseAddr || licenseAddr.match(/^EQAAAAA|^UQAAAAA/) !== null;
   if (!isZeroAddr) {
@@ -189,31 +179,8 @@ async function processOrder(
     return;
   }
 
-  // Шаг 3: mint. v4.1 — минимальный payload с escrowAddress.
-  const licenseContentUri = order.licenseContentUri ||
-    `https://cdn.example.org/license/${order.$id}.json`;
-
-  const mintArgs: MintLicenseArgs = {
-    queryId:           BigInt(Date.now()),
-    buyerAddress:      Address.parse(order.buyerWallet),
-    escrowAddress:     Address.parse(escrowAddr),
-    transferLimit:     0n,
-    individualContent: buildLicenseContent(licenseContentUri),
-    burnDeadline:      BigInt(Math.floor(Date.now() / 1000) + cfg.trialWindowSec),
-  };
-
-  await sendMintLicense(signer, collectionAddr, mintArgs);
-
-  await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
-    mintAttempts: (order.mintAttempts ?? 0) + 1,
-  });
-
-  await writeAudit(order.buyerWallet, 'mint_sent', 'order', order.$id, {
-    escrowAddress: escrowAddr,
-    network,
-  });
-
-  logger.info(`[mintWorker] mint triggered for order ${order.$id} (escrow=${escrowAddr})`);
+  // FUNDED but not minted yet → tonforge/mintWorker owns the mint. Nothing to do
+  // here; a later tick reconciles the order once the license is registered.
 }
 
 async function onMintConfirmed(order: PendingOrderRow, licenseAddress: string): Promise<void> {
@@ -270,19 +237,19 @@ async function onMintConfirmed(order: PendingOrderRow, licenseAddress: string): 
       listingId: order.listingId,
       productName: order.listingSnapshotTitle ?? (listing['title'] as string) ?? '',
       escrowAddress: order.escrowAddress ?? null,
-    }).catch((err) => logger.warn('[mintWorker] ledger mint_license:', err instanceof Error ? err.message : err));
+    }).catch((err) => logger.warn('[orderReconciler] ledger mint_license:', err instanceof Error ? err.message : err));
 
-    logger.info(`[mintWorker] mint confirmed for order ${order.$id}: license=${licenseAddress}`);
+    logger.info(`[orderReconciler] order ${order.$id} finalized: license=${licenseAddress}`);
   } catch (err) {
-    logger.warn(`[mintWorker] onMintConfirmed failed for ${order.$id}:`, err instanceof Error ? err.message : err);
+    logger.warn(`[orderReconciler] onMintConfirmed failed for ${order.$id}:`, err instanceof Error ? err.message : err);
   }
 }
 
 async function tick(): Promise<void> {
   try {
     await Promise.all([
-      processTick('mainnet').catch((e) => logger.warn('[mintWorker] mainnet tick failed:', e)),
-      processTick('testnet').catch((e) => logger.warn('[mintWorker] testnet tick failed:', e)),
+      processTick('mainnet').catch((e) => logger.warn('[orderReconciler] mainnet tick failed:', e)),
+      processTick('testnet').catch((e) => logger.warn('[orderReconciler] testnet tick failed:', e)),
     ]);
   } finally {
     if (running) {
@@ -293,23 +260,23 @@ async function tick(): Promise<void> {
 
 export function startMintWorker(): void {
   if (running) {
-    logger.warn('[mintWorker] already running');
+    logger.warn('[orderReconciler] already running');
     return;
   }
 
   const mainnetCfg = getNetworkConfig('mainnet');
   const testnetCfg = getNetworkConfig('testnet');
-  const mainnetEnabled = !!(mainnetCfg.collectionAddress && mainnetCfg.collectionOwnerMnemonic);
-  const testnetEnabled = !!(testnetCfg.collectionAddress && testnetCfg.collectionOwnerMnemonic);
+  const mainnetEnabled = !!mainnetCfg.collectionAddress;
+  const testnetEnabled = !!testnetCfg.collectionAddress;
 
   if (!mainnetEnabled && !testnetEnabled) {
-    logger.info('[mintWorker] disabled — COLLECTION_ADDRESS or COLLECTION_OWNER_MNEMONIC not set for either network');
+    logger.info('[orderReconciler] disabled — COLLECTION_ADDRESS not set for either network');
     return;
   }
 
   running = true;
   logger.info(
-    `[mintWorker] started (mainnet=${mainnetEnabled}, testnet=${testnetEnabled}, poll=${POLL_INTERVAL_MS}ms)`,
+    `[orderReconciler] started (mainnet=${mainnetEnabled}, testnet=${testnetEnabled}, poll=${POLL_INTERVAL_MS}ms)`,
   );
 
   currentTimer = setTimeout(tick, 5_000);
@@ -321,5 +288,5 @@ export function stopMintWorker(): void {
     clearTimeout(currentTimer);
     currentTimer = null;
   }
-  logger.info('[mintWorker] stopped');
+  logger.info('[orderReconciler] stopped');
 }
