@@ -177,6 +177,19 @@ async function processOne(license: LicenseRecord): Promise<void> {
     mintedAt: new Date().toISOString(),
   });
   logger.info(`[mintWorker] license ${license.$id} minted+registered`);
+
+  try {
+    const { reconcileOrderAfterMint } = await import('../commerce/handlers/reconcileOrderAfterMint.js');
+    await reconcileOrderAfterMint({
+      orderId: license.orderId,
+      listingId: license.listingId,
+      buyerWallet: license.buyerWallet,
+      nftAddress,
+      escrowAddress: license.escrowAddress,
+    });
+  } catch (err) {
+    logger.warn(`[mintWorker] order reconcile failed license=${license.$id}:`, err);
+  }
 }
 
 async function processRefund(license: LicenseRecord): Promise<void> {
