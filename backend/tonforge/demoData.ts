@@ -127,7 +127,6 @@ export function createDemoState(): TonForgeState {
       ...item,
       activatedDevices: item.activatedDevices.map((device) => ({ ...device })),
     })),
-    purchaseSessions: [],
     scans: [],
   };
 }

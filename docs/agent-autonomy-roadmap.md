@@ -176,6 +176,9 @@ receive(msg: RemoveMinter) { require(sender() == self.ownerAddress, "owner only"
   неизменно) и покрыта юнит-тестом (7 кейсов: FUNDED+license→PAID, 3/4→FULFILLED/REFUNDED,
   zero-addr→wait, защита от ложного распознавания реального адреса) — щит денежного пути
   до testnet-сертификации.
+- ✅ Мёртвое поле `purchaseSessions` (in-memory TonForge state) изгнано после удаления
+  legacy-методов: интерфейс `PurchaseSession`, enum `PurchaseSessionState`, поле состояния
+  и сид `demoData`. `PurchaseSessionId` сохранён (его держит `License`). tsc/тесты зелёные.
 - ✅ Финализация order→PAID **унифицирована**: единственный handler `reconcileOrderAfterMint`
   (immediate из `tonforge/mintWorker` + fallback из `commerce/mintWorker` делегируют в него);
   дублёр `onMintConfirmed` удалён. Handler покрыт юнит-тестом (6 кейсов: идемпотентность

@@ -1,5 +1,5 @@
 /**
- * @deprecated In-memory TonForge state (purchaseSessions / licenses) is being
+ * @deprecated In-memory TonForge state (licenses) is being
  * phased out in favour of Appwrite-backed Commerce orders + LicenseRecord
  * (see backend/commerce/orderRoutes.ts and backend/commerce/licenseRepository.ts).
  *
