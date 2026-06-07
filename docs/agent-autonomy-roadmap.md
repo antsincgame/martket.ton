@@ -169,14 +169,14 @@ receive(msg: RemoveMinter) { require(sender() == self.ownerAddress, "owner only"
   авторитетного Tact-`init()`); вычищены `mintLicense.ts` + тест. tsc/eslint/тесты зелёные.
 - ✅ Legacy `/api/tonforge/purchase/{session,confirm}` упокоены через `410 Gone` (фронт и
   тесты их не звали); осиротевшие zod-схемы удалены.
+- ✅ Осиротевшие методы `createPurchaseSession`/`confirmPurchaseSession` удалены из
+  `tonforge/service.ts` + каскадная чистка (7 теней: импорты цен, типы `PurchaseSession*`,
+  `buildTonAddress`, `addHours`). Полное удаление недостижимого кода; tsc/тесты зелёные.
 
 **Остаётся (P2, не блокеры):**
 - 🟡 `TON_USD_FALLBACK` — политика прода: fail-closed (не задавать → заказ падает при
   недоступности цены) vs resilient (задать + санити-бунд: отвергать если отклонение от
   последней цены > X%). Рекомендация — resilient с бундом.
-- 🟡 Удалить осиротевшие методы `createPurchaseSession`/`confirmPurchaseSession` из
-  `tonforge/service.ts` (теперь недостижимы по HTTP, tsc-чисты) — отдельный проход с
-  каскадной чисткой хелперов.
 - 🟡 Архитектура: свернуть order-reconciler в `tonforge/mintWorker` (одна сущность) —
   после testnet-сертификации.
 - 🟡 Прод-провижн: прогнать `npm run provision:commerce` на прод-Appwrite (создаёт
