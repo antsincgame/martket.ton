@@ -23,7 +23,7 @@
 | 0.1 Онбординг-канал инструкций | ✅ реализован, **live на staging** |
 | 0.2 `products:write` (черновики) | ✅ реализован, smoke на staging |
 | 0.3 `status`-эндпоинт | ✅ реализован |
-| 1. Per-seller коллекции (платформо-владеемые) | ✅ **single-seller verified на testnet** (order=`paid`, NFT в своей коллекции, `collectionMatch=true`); ⏳ multi-seller — нехватка testnet-TON (не код) |
+| 1. Per-seller коллекции (платформо-владеемые) | ✅ **CERTIFIED on testnet** — single + multi-seller (два продавца → две разные коллекции, оба NFT в своих, оба `paid`, on-chain match) |
 | Денежный путь: единственный минтер | ✅ `commerce/mintWorker` → reconciler; минтит только `tonforge` |
 | Безопасность: free-mint в `confirmPurchaseSession` | ✅ изгнан (он-чейн минт убран из deprecated-пути) |
 | 2. Суверенные коллекции продавца | 📜 спецификация (ниже); правка Tact + аудит |
@@ -202,14 +202,15 @@ receive(msg: RemoveMinter) { require(sender() == self.ownerAddress, "owner only"
   reconcileOrderAfterMint → order=paid + entitlement`. Финализация: **немедленная**
   (`reconcileOrderAfterMint` из tonforge-воркера, idempotent) + **поллинг-фолбэк**
   (`commerce/mintWorker` reconciler по `PENDING_PAYMENT`) — primary+fallback, не двойственность.
-- **Gate B — testnet multi-seller (решающий)**: ⏸ **BLOCKED** — нехватка testnet-TON
-  (owner-кошелёк осушён, faucet cooldown). Логика готова (`live-smoke-e2e-suite multi`);
-  нужно ≥1.5 TON на owner. Доказательство: два NFT в **разных** `collection_address`.
-- **Gate C — mainnet-готовность**: пройти `docs/commerce-license-smoke-checklist.md §6`
-  (treasury→multisig, oracle ≥50 TON, алерты на `mint_failed`/`refund_pending`, возврат
-  `REFUND_AFTER_MS` к 1ч, резервный ручной refund).
+- **Gate B — testnet multi-seller (решающий)**: ✅ **PASS** (E2E 2026-06-08, ~316с). Два
+  продавца, **две РАЗНЫЕ коллекции** (`kQA9mT1B…` / `kQBjCBYles9…`), NFT каждого — в **своей**,
+  оба order `paid`, on-chain match ✓✓. **Per-seller routing certified.** Коммит `fe73837`.
+- **Gate C — mainnet-готовность** (ОТДЕЛЬНО от мержа — это ops-активация mainnet, не код):
+  `docs/commerce-license-smoke-checklist.md §6` (treasury→multisig, oracle ≥50 TON, алерты
+  на `mint_failed`/`refund_pending`, `REFUND_AFTER_MS`=1ч, резервный ручной refund).
 
-**Решение Хранителя:** Gate A пройден — денежный путь и per-seller routing подтверждены
-на testnet для одного продавца (`collectionMatch=true`). Мерж в `main` **держим** до
-Gate B (multi-seller routing — суть Фазы 1), который ждёт лишь пополнения owner-кошелька,
-не правок кода. Фаза 0 и статика готовы.
+**Решение Хранителя:** **Gate A + B пройдены — Врата мержа открыты.** Денежный путь и
+per-seller routing **certified на testnet** (single + multi-seller). Фаза 0 live, статика
+зелена, ересь изгнана, денежный путь унифицирован и под Испытанием. Свитки готовы войти в
+Хранилище (`main`). Gate C — это последующая ops-активация mainnet (`TON_NETWORK=mainnet`),
+не блокер мержа кода: код работает на testnet-конфиге, пока техножрец не переключит сеть.
