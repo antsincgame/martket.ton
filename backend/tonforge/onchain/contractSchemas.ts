@@ -151,9 +151,10 @@ async function loadLicenseItemClass(): Promise<LicenseItemContractStatic> {
 }
 
 /** Matches Tact LicenseItem storage (split data cell with ref). */
-export async function computeItemAddress(code: Cell, p: LicenseItemInit): Promise<Address> {
+export async function computeItemAddress(p: LicenseItemInit): Promise<Address> {
   const LicenseItem = await loadLicenseItemClass();
-  const buildCode = await coerceBuildCell(code);
+  // The deterministic code comes from the authoritative Tact wrapper's init()
+  // (it embeds the compiled LicenseItem code) — no separate code arg needed.
   const init = await LicenseItem.init(
     p.index,
     await coerceBuildAddress(p.collection),
@@ -163,7 +164,6 @@ export async function computeItemAddress(code: Cell, p: LicenseItemInit): Promis
     await coerceBuildCell(p.content),
     BigInt(p.burnDeadline),
   );
-  void buildCode;
   return toBackendAddress(
     contractAddress(0, {
       code: toBackendCell(init.code),

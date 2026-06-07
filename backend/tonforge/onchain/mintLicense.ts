@@ -1,7 +1,7 @@
 import { Address, beginCell, internal, SendMode } from '@ton/core';
 import { logger } from '../../logger.js';
 import { loadOnchainConfig } from './config.js';
-import { getTonClient, getLicenseItemCode } from './tonClient.js';
+import { getTonClient } from './tonClient.js';
 import { getOracleWallet } from './oracleWallet.js';
 import {
   buildIndividualContent,
@@ -43,9 +43,8 @@ export async function mintLicense(input: MintLicenseInput): Promise<MintLicenseR
   const escrow = Address.parse(input.escrowAddress);
 
   const individualContent = buildIndividualContent(input.metadataUri);
-  const itemCode = getLicenseItemCode();
 
-  const itemAddress = await computeItemAddress(itemCode, {
+  const itemAddress = await computeItemAddress({
     index: input.index,
     collection,
     ownerAddress: buyer,

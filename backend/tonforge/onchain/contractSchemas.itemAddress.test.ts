@@ -58,8 +58,8 @@ describe('computeItemAddress', () => {
     const escrow = Address.parse('0QB29Gkp-BOr6cq8lVzIpFdCQQjUWyT8I1KcD02QTUEKEFt_');
     const params = sampleInit(collection, escrow);
 
-    const first = await computeItemAddress(code!, params);
-    const second = await computeItemAddress(code!, params);
+    const first = await computeItemAddress(params);
+    const second = await computeItemAddress(params);
 
     expect(first.toString()).toBe(second.toString());
     expect(() => Address.parse(first.toString())).not.toThrow();

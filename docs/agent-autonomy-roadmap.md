@@ -165,12 +165,10 @@ receive(msg: RemoveMinter) { require(sender() == self.ownerAddress, "owner only"
 - ✅ `LEGACY_*_OMIT_FIELDS` убраны из prod-шаблона (дропали `priceUsd`/`scan_status`).
 - ✅ CI: typecheck TS2307 (dynamic imports), 10 CodeQL-алертов (удалены dev-скрипты с
   утечкой `COMMERCE_ADMIN_SECRET`).
+- ✅ `computeItemAddress` — убран рудиментарный параметр `code` (адрес берётся из
+  авторитетного Tact-`init()`); вычищены `mintLicense.ts` + тест. tsc/eslint/тесты зелёные.
 
 **Остаётся (P2, не блокеры):**
-- 🟡 `computeItemAddress(code, …)` — параметр `code` рудиментарен (адрес берётся из
-  авторитетного Tact-`init()`); убрать `code` + `getLicenseItemCode()` из `mintLicense.ts`
-  после testnet-подтверждения. Затрагивает `contractSchemas.ts`, `mintLicense.ts`, тест,
-  фронтовую docs-страницу.
 - 🟡 `TON_USD_FALLBACK` — политика прода: fail-closed (не задавать → заказ падает при
   недоступности цены) vs resilient (задать + санити-бунд: отвергать если отклонение от
   последней цены > X%). Рекомендация — resilient с бундом.
