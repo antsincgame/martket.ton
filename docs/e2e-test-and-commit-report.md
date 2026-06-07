@@ -13,7 +13,7 @@
 | Unit/integration (`vitest run backend`) | **326/326 PASS** |
 | TypeScript (`tsc --noEmit`) | **PASS** |
 | Live E2E single-seller (mint + order `paid`) | **PASS** |
-| Live E2E multi-seller (per-seller collections) | **BLOCKED** — недостаток TON на owner wallet |
+| Live E2E multi-seller (per-seller collections) | **PASS** ✅ |
 | Agent API smoke (Phase 0) | **PASS** |
 
 ---
@@ -92,25 +92,43 @@ confirm → ensureLicenseForOrder → tonforge/mintWorker
 
 ---
 
-## Live E2E — multi-seller ⏸ BLOCKED
+## Live E2E — multi-seller ✅
 
-**Скрипт:** `node --import tsx backend/scripts/live-smoke-e2e-suite.mjs multi`
+**Скрипт:** `node --import tsx backend/scripts/live-smoke-e2e-suite.mjs multi`  
+**Прогон:** 2026-06-08, ~316s, exit 0 (после пополнения owner +2 TON)
 
-**Ошибка:**
+### Seller A
 
-```
-Owner balance 0.19 TON too low to fund buyer (need ~0.65 TON)
-```
+| Поле | Значение |
+|------|----------|
+| wallet | `EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t` |
+| collectionAddress | `kQA9mT1B8zY1WnOEbVUrQOL5P9F5pR4wpyhUqT40wAUm1D4-` |
+| orderId | `6a25fab7001a265c3be7` |
+| nftAddress | `EQBw7Amev9ZT_3toYiKdhhhEDVQoLdQSzBg4KP8Q0DSLPj1r` |
+| order.state | **`paid`** |
+| onChain.nftCollection | `0QA9mT1B8zY1WnOEbVUrQOL5P9F5pR4wpyhUqT40wAUm1GP7` |
+| collectionMatch | **true** |
 
-**Причина:** owner/oracle `0QDLSgMKoLoiRedbweIoescZpf2xUp3op4mw527zVWOoFiBR` исчерпан после single-seller прогонов; Testgiver faucet на cooldown (~32 мин).
+### Seller B
 
-**Для PASS нужно:**
+| Поле | Значение |
+|------|----------|
+| wallet | `0QAopJN6cf2GG0C1B3eSnGzx9fFLpbDymjtSjiYpcrUVHmKd` |
+| collectionAddress | `kQBjCBYles9RekxunFWFUcIif3F2OWXFK09T7X8D_NZMJsli` |
+| orderId | `6a25fb4900178e569076` |
+| nftAddress | `EQBFESPSTkqFgCYM6hANSaM4czxYTmrbQmwJgz1TfasL6xgT` |
+| order.state | **`paid`** |
+| onChain.nftCollection | `0QBjCBYles9RekxunFWFUcIif3F2OWXFK09T7X8D_NZMJpSn` |
+| collectionMatch | **true** |
 
-- ~0.65 TON на owner (fund buyer × 2 orders)
-- ~0.1 TON на deploy второй seller collection (seller B)
-- Рекомендуемый запас: **≥ 1.5 TON** на owner перед `multi`
+**Phase 1 proof:** NFT seller A и seller B лежат в **разных** on-chain коллекциях (`collectionMatch: true` для обоих, адреса коллекций различаются).
 
-**Ожидаемая проверка Phase 1:** два NFT в **разных** `collection_address` после покупки у seller A и seller B.
+### Ранний блокер (исправлен)
+
+| Симптом | Причина | Фикс |
+|---------|---------|------|
+| `NO_CREATOR_PROFILE` на seller B | `issueAgentTokenForWallet` создавал только `seller_profiles`, без catalog `profiles` | `ensureSellerAgentReady()` — seller + catalog profile как в `issue-agent-token.mjs` |
+| Owner balance too low | ~0.19 TON на oracle | Faucet +2 TON на `0QDLSgMKoLoiRedbweIoescZpf2xUp3op4mw527zVWOoFiBR` |
 
 ---
 
@@ -124,6 +142,7 @@ Owner balance 0.19 TON too low to fund buyer (need ~0.65 TON)
 | 4 | Appwrite 400 `licenseAddress` unknown | Staging schema без поля на orders/entitlements | `LEGACY_ORDERS_OMIT_FIELDS` / `LEGACY_ENTITLEMENTS_OMIT_FIELDS` |
 | 5 | Mint failed (insufficient gas) | `E2E_LOW_GAS=1` урезал on-chain gas | Убрать для prod-like; опция только для dev smoke |
 | 6 | Order stuck после mint | TonForge worker не переводил order в PAID | `reconcileOrderAfterMint` после `registerLicense` |
+| 7 | `NO_CREATOR_PROFILE` (seller B) | Suite не создавал catalog profile в `profiles` | `ensureSellerAgentReady()` в suite |
 
 ---
 
@@ -198,9 +217,9 @@ tonforge/mintWorker.ts
 
 ## Следующие шаги
 
-1. Пополнить owner wallet (≥ 1.5 TON) и прогнать `multi`.
-2. Обновить этот отчёт таблицей с двумя `collectionAddress` и on-chain proof.
-3. *(опционально)* unit-тест для `reconcileOrderAfterMint` (idempotent PAID, omit fields).
+1. ~~Пополнить owner wallet и прогнать `multi`~~ — **DONE** ✅
+2. ~~Обновить отчёт двумя `collectionAddress`~~ — **DONE** ✅
+3. *(опционально)* unit-тест для `ensureSellerAgentReady` / multi-seller provisioning edge cases
 
 ---
 

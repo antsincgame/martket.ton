@@ -228,11 +228,14 @@ async function provisionSellerCollection(sellerWallet) {
   return collectionAddress;
 }
 
-async function issueAgentTokenForWallet(wallet) {
-  const { issueToken } = await import('../agent/tokenIssuer.js');
+async function ensureSellerAgentReady(wallet) {
   const { databases, ID, Query } = await import('../commerce/appwrite.js');
   const { DATABASE_ID, COL_SELLER_PROFILES } = await import('../commerce/constants.js');
+  const { findUserByTonAddress } = await import('../core/profileRepository.js');
+  const { CORE_DATABASE_ID, COL_PROFILES } = await import('../core/constants.js');
+  const { generateId } = await import('../core/generateId.js');
   const db = databases();
+
   const { documents } = await db.listDocuments(DATABASE_ID, COL_SELLER_PROFILES, [
     Query.equal('wallet', wallet),
     Query.limit(1),
@@ -243,7 +246,30 @@ async function issueAgentTokenForWallet(wallet) {
       kyc_status: 'approved',
       displayName: 'E2E Seller',
     });
+  } else if (documents[0]['kyc_status'] !== 'approved') {
+    await db.updateDocument(DATABASE_ID, COL_SELLER_PROFILES, documents[0].$id, {
+      kyc_status: 'approved',
+    });
   }
+
+  const catalog = await findUserByTonAddress(wallet);
+  if (!catalog) {
+    const id = generateId();
+    await db.createDocument(CORE_DATABASE_ID, COL_PROFILES, id, {
+      ton_address: wallet,
+      name: 'E2E Seller',
+      display_name: 'E2E Seller',
+      role: 'demiurge',
+      slug: `e2e-${Date.now().toString(36)}`,
+      is_active: true,
+      security_level: 'low',
+    });
+  }
+}
+
+async function issueAgentTokenForWallet(wallet) {
+  const { issueToken } = await import('../agent/tokenIssuer.js');
+  await ensureSellerAgentReady(wallet);
   const { plaintext } = await issueToken({
     wallet,
     name: 'e2e-suite',
@@ -391,6 +417,9 @@ async function runMulti() {
   if (addrEq(collectionA, collectionB)) {
     throw new Error(`Multi-seller: collections must differ (both ${collectionA})`);
   }
+
+  await ensureSellerAgentReady(sellerA);
+  await ensureSellerAgentReady(sellerB.wallet);
 
   const { buyerMnemonic, buyerJwt } = await loadBuyer(2);
 
