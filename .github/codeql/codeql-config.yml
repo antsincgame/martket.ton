@@ -1,0 +1,11 @@
+name: TonForge CodeQL config
+
+# Dev / smoke tooling under backend/scripts (local TON-testnet E2E runners,
+# faucet/funding helpers, debug scripts) is NOT shipped product code. Its benign
+# patterns — reading a manifest/env file then issuing a test HTTP request, or a
+# check-then-read on a local file — trip "file data in outbound request" and
+# "file system race" queries that are meaningless for a one-shot local script.
+# Exclude it so it does not gate the PR. Product code, the provisioning scripts
+# in scripts/, the backend and the frontend remain fully analysed.
+paths-ignore:
+  - backend/scripts

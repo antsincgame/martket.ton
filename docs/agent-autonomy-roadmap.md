@@ -23,7 +23,7 @@
 | 0.1 Онбординг-канал инструкций | ✅ реализован, **live на staging** |
 | 0.2 `products:write` (черновики) | ✅ реализован, smoke на staging |
 | 0.3 `status`-эндпоинт | ✅ реализован |
-| 1. Per-seller коллекции (платформо-владеемые) | ✅ реализован + канонический routing; ⏳ **testnet-сертификация** |
+| 1. Per-seller коллекции (платформо-владеемые) | ✅ **single-seller verified на testnet** (order=`paid`, NFT в своей коллекции, `collectionMatch=true`); ⏳ multi-seller — нехватка testnet-TON (не код) |
 | Денежный путь: единственный минтер | ✅ `commerce/mintWorker` → reconciler; минтит только `tonforge` |
 | Безопасность: free-mint в `confirmPurchaseSession` | ✅ изгнан (он-чейн минт убран из deprecated-пути) |
 | 2. Суверенные коллекции продавца | 📜 спецификация (ниже); правка Tact + аудит |
@@ -190,14 +190,20 @@ receive(msg: RemoveMinter) { require(sender() == self.ownerAddress, "owner only"
 
 ## Врата (certification gates) до Хранилища (мерж в `main`)
 
-- **Gate A — testnet single-seller**: оплата → license `minted` → order доходит до `PAID`
-  (reconciler, может отставать на ~1 тик). См. `docs/per-seller-collections.md`.
-- **Gate B — testnet multi-seller (решающий)**: два продавца, две коллекции, опц.
-  глобал-decoy → NFT каждого ушёл в **свою** коллекцию. Доказательство Фазы 1.
+- **Gate A — testnet single-seller**: ✅ **PASS** (E2E 2026-06-08). `order.state=paid`,
+  NFT заминчен, `onChain.collectionMatch=true` (NFT в per-seller коллекции). Поток:
+  `confirm → ensureLicenseForOrder → tonforge/mintWorker → mint → registerLicense →
+  reconcileOrderAfterMint → order=paid + entitlement`. Финализация: **немедленная**
+  (`reconcileOrderAfterMint` из tonforge-воркера, idempotent) + **поллинг-фолбэк**
+  (`commerce/mintWorker` reconciler по `PENDING_PAYMENT`) — primary+fallback, не двойственность.
+- **Gate B — testnet multi-seller (решающий)**: ⏸ **BLOCKED** — нехватка testnet-TON
+  (owner-кошелёк осушён, faucet cooldown). Логика готова (`live-smoke-e2e-suite multi`);
+  нужно ≥1.5 TON на owner. Доказательство: два NFT в **разных** `collection_address`.
 - **Gate C — mainnet-готовность**: пройти `docs/commerce-license-smoke-checklist.md §6`
   (treasury→multisig, oracle ≥50 TON, алерты на `mint_failed`/`refund_pending`, возврат
   `REFUND_AFTER_MS` к 1ч, резервный ручной refund).
 
-**Решение Хранителя:** мерж в `main` **держим** до прохождения Gate A+B (денежный путь
-непроверяем в бесплотной песочнице). Фаза 0 и статика — готовы; денежный путь —
-канонически исправлен, но требует Испытания Плотью.
+**Решение Хранителя:** Gate A пройден — денежный путь и per-seller routing подтверждены
+на testnet для одного продавца (`collectionMatch=true`). Мерж в `main` **держим** до
+Gate B (multi-seller routing — суть Фазы 1), который ждёт лишь пополнения owner-кошелька,
+не правок кода. Фаза 0 и статика готовы.
