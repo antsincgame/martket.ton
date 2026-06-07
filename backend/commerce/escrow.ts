@@ -35,7 +35,15 @@ import {
 const ESCROW_GAS_BUFFER = toNano('0.15');
 const MINT_GAS_BUDGET = toNano('0.10');
 const REGISTER_GAS_BUDGET = toNano('0.05');
-const TOTAL_GAS_BUFFER = ESCROW_GAS_BUFFER + MINT_GAS_BUDGET + REGISTER_GAS_BUDGET;
+
+function resolveTotalGasBuffer(): bigint {
+  if (process.env.E2E_LOW_GAS === '1') {
+    return toNano('0.12');
+  }
+  return ESCROW_GAS_BUFFER + MINT_GAS_BUDGET + REGISTER_GAS_BUDGET;
+}
+
+const TOTAL_GAS_BUFFER = resolveTotalGasBuffer();
 
 export const GAS_BREAKDOWN = {
   escrowGasNano: ESCROW_GAS_BUFFER.toString(),
