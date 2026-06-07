@@ -12,7 +12,9 @@
  *   1. Poll orders in `pending_payment` that carry an escrow address.
  *   2. Read the escrow's on-chain state:
  *        - state 1 (FUNDED) + license registered → finalize order → PAID
- *          (+ entitlement) via onMintConfirmed.
+ *          (+ entitlement) via the shared reconcileOrderAfterMint handler — the
+ *          SAME finalization the immediate tonforge path uses (single source of
+ *          truth); this poller is the fallback if that immediate call failed.
  *        - state 3 (CONFIRMED/released) → order FULFILLED.
  *        - state 4 (REFUNDED) → order REFUNDED.
  *   3. If FUNDED but no license yet → do nothing; tonforge/mintWorker will mint
@@ -23,17 +25,12 @@ import { Cell } from '@ton/core';
 import {
   DATABASE_ID,
   COL_ORDERS,
-  COL_ENTITLEMENTS,
-  COL_LISTINGS,
-  COL_LISTING_SECRETS,
-  BUCKET_ASSETS,
   ORDER_STATE,
 } from './constants.js';
-import { databases, ID, Query } from './appwrite.js';
+import { databases, Query } from './appwrite.js';
 import { getNetworkConfig, type TonNetwork } from '../config/network.js';
 import { logger } from '../logger.js';
-import { writeAudit } from './audit.js';
-import { recordLedgerEntry } from '../core/ledgerService.js';
+import { reconcileOrderAfterMint } from './handlers/reconcileOrderAfterMint.js';
 
 const POLL_INTERVAL_MS = parseInt(process.env.MINT_WORKER_POLL_MS || '30000', 10);
 const MAX_ATTEMPTS = 5;
@@ -201,76 +198,22 @@ async function processOrder(
       await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, { state: ORDER_STATE.REFUNDED });
       return;
     case 'finalize':
-      // licenseAddr is non-zero here per decideReconcileAction.
-      await onMintConfirmed(order, licenseAddr!);
+      // licenseAddr is non-zero here per decideReconcileAction. Delegate to the
+      // single finalization handler shared with the immediate tonforge path
+      // (idempotent: it no-ops if the order is already PAID/FULFILLED).
+      await reconcileOrderAfterMint({
+        orderId: order.$id,
+        listingId: order.listingId,
+        buyerWallet: order.buyerWallet,
+        nftAddress: licenseAddr!,
+        escrowAddress: order.escrowAddress ?? '',
+      });
       return;
     case 'wait':
     case 'noop':
       // FUNDED-but-not-minted or unknown state → tonforge/mintWorker owns the mint;
       // a later tick reconciles the order once the license is registered.
       return;
-  }
-}
-
-async function onMintConfirmed(order: PendingOrderRow, licenseAddress: string): Promise<void> {
-  const db = databases();
-
-  const { documents: existingEnt } = await db.listDocuments(DATABASE_ID, COL_ENTITLEMENTS, [
-    Query.equal('orderId', order.$id),
-    Query.limit(1),
-  ]);
-  if (existingEnt.length > 0) {
-    await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
-      state: ORDER_STATE.PAID,
-      licenseAddress,
-    });
-    return;
-  }
-
-  try {
-    const listing = await db.getDocument(DATABASE_ID, COL_LISTINGS, order.listingId);
-    const { documents: secrets } = await db.listDocuments(DATABASE_ID, COL_LISTING_SECRETS, [
-      Query.equal('listingId', order.listingId),
-      Query.limit(1),
-    ]);
-    let payload = (secrets[0]?.deliveryPayload as string) ||
-      'Thank you for your purchase. License NFT minted to your wallet.';
-    if (listing.assetFileId) {
-      payload += `\n\n[File in Appwrite Storage: bucket ${BUCKET_ASSETS}, fileId ${listing.assetFileId}]`;
-    }
-
-    await db.createDocument(DATABASE_ID, COL_ENTITLEMENTS, ID.unique(), {
-      orderId: order.$id,
-      buyerWallet: order.buyerWallet,
-      listingId: order.listingId,
-      deliveryPayload: payload,
-      licenseAddress,
-    });
-
-    await db.updateDocument(DATABASE_ID, COL_ORDERS, order.$id, {
-      state: ORDER_STATE.PAID,
-      licenseAddress,
-    });
-
-    await writeAudit(order.buyerWallet, 'mint_confirmed', 'order', order.$id, {
-      licenseAddress,
-    });
-
-    recordLedgerEntry({
-      entryType: 'mint_license',
-      refType: 'order',
-      refId: order.$id,
-      buyerWallet: order.buyerWallet,
-      amountTonRaw: order.amountRaw,
-      licenseAddress,
-      listingId: order.listingId,
-      productName: order.listingSnapshotTitle ?? (listing['title'] as string) ?? '',
-      escrowAddress: order.escrowAddress ?? null,
-    }).catch((err) => logger.warn('[orderReconciler] ledger mint_license:', err instanceof Error ? err.message : err));
-
-    logger.info(`[orderReconciler] order ${order.$id} finalized: license=${licenseAddress}`);
-  } catch (err) {
-    logger.warn(`[orderReconciler] onMintConfirmed failed for ${order.$id}:`, err instanceof Error ? err.message : err);
   }
 }
 

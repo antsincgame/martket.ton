@@ -176,13 +176,16 @@ receive(msg: RemoveMinter) { require(sender() == self.ownerAddress, "owner only"
   неизменно) и покрыта юнит-тестом (7 кейсов: FUNDED+license→PAID, 3/4→FULFILLED/REFUNDED,
   zero-addr→wait, защита от ложного распознавания реального адреса) — щит денежного пути
   до testnet-сертификации.
+- ✅ Финализация order→PAID **унифицирована**: единственный handler `reconcileOrderAfterMint`
+  (immediate из `tonforge/mintWorker` + fallback из `commerce/mintWorker` делегируют в него);
+  дублёр `onMintConfirmed` удалён. Handler покрыт юнит-тестом (6 кейсов: идемпотентность
+  already-PAID, entitlement-once, omit-fields, not-found, guards). Reconciler сохранён как
+  страховка (primary+fallback — намеренно, не «одна сущность»).
 
 **Остаётся (P2, не блокеры):**
 - 🟡 `TON_USD_FALLBACK` — политика прода: fail-closed (не задавать → заказ падает при
   недоступности цены) vs resilient (задать + санити-бунд: отвергать если отклонение от
   последней цены > X%). Рекомендация — resilient с бундом.
-- 🟡 Архитектура: свернуть order-reconciler в `tonforge/mintWorker` (одна сущность) —
-  после testnet-сертификации.
 - 🟡 Прод-провижн: прогнать `npm run provision:commerce` на прод-Appwrite (создаёт
   `agent_instructions` + `seller_collections`) как часть деплоя.
 
