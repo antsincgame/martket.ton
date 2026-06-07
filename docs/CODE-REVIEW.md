@@ -36,7 +36,7 @@
 | 🟠 P1 | **SSRF через `accountId`** — блоклист только в `custom`-ветке; `accountId` без валидации хоста → fetch на внутренний/чужой хост | `commerce/storageRoutes.ts:42-53`, `validation.ts:90`, `r2/devClient.ts` | ✓ |
 | 🟠 P1 | **USD/TON путаница в payouts** — `amountTon = price_usd`; все TON-агрегаты врут на курс | `core/payoutsRepository.ts:55` | ✓ |
 | 🟠 P1 | **JWT-превью + email в логах** (`[AUTH_AUDIT_BE]` на каждый запрос, info/warn) | `middleware/auth.ts:80-94` | ✓ |
-| 🟠 P1 | **Legacy `confirmPurchaseSession` минтит без верификации платежа** (txHash опционален) — любой владелец кошелька минтит лицензию бесплатно при включённом on-chain | `tonforge/service.ts:272-314` (смонтирован `/api/tonforge`) | ✓ |
+| 🟠 P1 | **Legacy `confirmPurchaseSession` минтит без верификации платежа** (txHash опционален, нет sanctions/AML/KYC) — любой залогиненный кошелёк минтит лицензию бесплатно и драйнит газ оракула при включённом on-chain | `tonforge/service.ts` (смонтирован `/api/tonforge`) | ✓ **(review)** прежний ✓ был лишь `@deprecated`-комментарием — он-чейн минт оставался живым; теперь он-чейн минт убран из этого пути, остаётся только in-memory trial |
 | 🟠 P1 | **Item data-layout дрифт** — `buildItemDataCell` кладёт `burnDeadline` перед `content` и без `registered:Bool` → `computeItemAddress` даёт неверный адрес | `contractSchemas.ts:113-124` vs `licenseItem.tact:54-83` | ✓ |
 | 🟡 P2 | Модератор может править **любые** контент-поля чужого продукта (не только статус) | `routes/products.ts:187-196` | ✓ |
 | 🟡 P2 | `searchProducts` при ошибке fulltext падает в полный скан коллекции (DoS-усилитель) | `core/productRepository.ts:179-199` | |

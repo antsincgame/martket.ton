@@ -19,9 +19,6 @@ import { tonHumanToNanoRaw } from '../commerce/money.js';
 import { logger } from '../logger.js';
 import {
   loadOnchainConfig,
-  mintLicense,
-  pollItemDeployed,
-  registerLicense,
   verifyLicenseOwner,
   type OwnershipResult,
 } from './onchain/index.js';
@@ -275,8 +272,6 @@ export function createTonForgeService(
     if (session.buyerWallet !== payload.buyerWallet) throw new Error('BUYER_WALLET_MISMATCH');
     if (session.state !== 'awaiting_wallet_payment') throw new Error('SESSION_ALREADY_CONFIRMED');
     const app = getAppById(session.appId);
-    const onchain = loadOnchainConfig();
-    const canMintOnchain = Boolean(onchain.enabled && app?.collectionAddress);
     const collectionIndex = nextLicenseIndex(session.appId);
 
     const license: License = {
@@ -286,7 +281,11 @@ export function createTonForgeService(
       escrowAddress: session.escrowAddress,
       appId: session.appId,
       buyerWallet: session.buyerWallet,
-      state: canMintOnchain ? 'mint_pending' : 'trial_active',
+      // SECURITY: this deprecated in-memory path verifies NO payment and has no
+      // sanctions/AML/KYC gate, so it must NEVER mint a real on-chain license —
+      // doing so let any authenticated wallet mint free NFTs and drain the oracle.
+      // Escrow-verified minting lives in commerce/orderRoutes + tonforge/mintWorker.
+      state: 'trial_active',
       purchaseSessionId: session.purchaseSessionId,
       activatedDevices: [],
       trialEndsAt: session.trialEndsAt,
@@ -304,76 +303,7 @@ export function createTonForgeService(
     user.totalLicenses += 1;
     schedulePersist();
 
-    if (canMintOnchain && app) {
-      void mintLicenseAsync(license, app, session).catch((err: unknown) => {
-        logger.error('[tonforge.confirm] mint kickoff failed:', err);
-      });
-    }
-
     return { session, license, app };
-  }
-
-  async function mintLicenseAsync(
-    license: License,
-    app: TonForgeApp,
-    session: PurchaseSession,
-  ): Promise<void> {
-    if (!app.collectionAddress) {
-      logger.warn(`[tonforge.mint] app ${app.appId} has no collectionAddress, skipping mint`);
-      return;
-    }
-    const metadataUri =
-      (app.metadataUriPrefix || `https://cdn.tonforge.org/license-metadata/${app.appId}/`) +
-      `${license.collectionIndex}.json`;
-    try {
-      const trialEndMs = new Date(session.trialEndsAt).getTime();
-      if (!Number.isFinite(trialEndMs)) {
-        throw new Error('INVALID_TRIAL_ENDS_AT');
-      }
-      const burnDeadline = Math.floor(trialEndMs / 1000);
-      const result = await mintLicense({
-        collectionAddress: app.collectionAddress,
-        buyerWallet: session.buyerWallet,
-        escrowAddress: license.escrowAddress,
-        index: BigInt(license.collectionIndex ?? 0),
-        metadataUri,
-        transferLimit: app.license.transferLimit ?? 0,
-        burnDeadline,
-      });
-      license.nftAddress = result.itemAddress;
-      license.mintTxHash = String(result.txQueryId);
-      schedulePersist();
-      logger.info(
-        `[tonforge.mint] queued mint license=${license.licenseId} item=${result.itemAddress} queryId=${result.txQueryId}`,
-      );
-      const ok = await pollItemDeployed({ itemAddress: result.itemAddress });
-      if (ok) {
-        license.state = 'trial_active';
-        license.mintError = null;
-        logger.info(`[tonforge.mint] license ${license.licenseId} active on-chain`);
-        if (license.escrowAddress) {
-          try {
-            await registerLicense({
-              escrowAddress: license.escrowAddress,
-              licenseAddress: result.itemAddress,
-            });
-            logger.info(`[tonforge.mint] registered license on escrow for ${license.licenseId}`);
-          } catch (regErr) {
-            logger.error(`[tonforge.mint] registerLicense failed for ${license.licenseId}:`, regErr);
-          }
-        }
-      } else {
-        license.state = 'mint_failed';
-        license.mintError = 'POLL_TIMEOUT';
-        logger.warn(`[tonforge.mint] poll timeout for license ${license.licenseId}`);
-      }
-      schedulePersist();
-    } catch (err: unknown) {
-      license.state = 'mint_failed';
-      license.mintError = err instanceof Error ? err.message : String(err);
-      schedulePersist();
-      logger.error(`[tonforge.mint] mint failed for license ${license.licenseId}:`, err);
-    }
   }
 
   function listWalletLicenses(wallet: string): License[] {
