@@ -19,6 +19,7 @@ import {
   COL_LISTINGS,
   COL_LISTING_SECRETS,
   COL_ORDERS,
+  COL_SELLER_PROFILES,
   CURRENCY,
   DEFAULT_PLATFORM_FEE_BPS,
   LISTING_STATUS,
@@ -132,6 +133,55 @@ router.post(
     } catch (e) {
       logger.error('[agent] help:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Assistant failed', code: 'AGENT_HELP' });
+    }
+  },
+);
+
+/**
+ * Agent self-registration (B1, machine self-sovereignty). Creates the seller
+ * profile for the TOKEN's wallet so a machine Demiurge can onboard itself up to
+ * the human KYC gate. Safe: the wallet is the token's bound wallet (never the
+ * body), this creates only a profile shell (no KYC, no funds, no minting key),
+ * and it's idempotent. Mirrors the human POST /sellers/register with token auth.
+ *
+ * KYA-aligned (the 2026 "Know Your Agent" standard): the agent's token + scopes
+ * are its scoped mandate; the accountable HUMAN owner still completes KYC and
+ * remains liable — see the `kyc` instruction section. Readable before KYC.
+ */
+router.post(
+  '/sellers/register',
+  apiRequireAgentToken([], { skipKyc: true }),
+  async (req: Request, res: Response) => {
+    try {
+      const wallet = req.agent!.wallet;
+      const body = req.body as { displayName?: string; bio?: string };
+      const displayName =
+        typeof body.displayName === 'string' && body.displayName.trim()
+          ? body.displayName.trim().slice(0, 120)
+          : 'Agent Demiurge';
+      const bio = typeof body.bio === 'string' ? body.bio.slice(0, 2000) : '';
+      const db = databases();
+      const { documents } = await db.listDocuments(DATABASE_ID, COL_SELLER_PROFILES, [
+        Query.equal('wallet', wallet),
+        Query.limit(1),
+      ]);
+      if (documents[0]) {
+        res.json({ data: { profile: documents[0], created: false } });
+        return;
+      }
+      const doc = await db.createDocument(DATABASE_ID, COL_SELLER_PROFILES, ID.unique(), {
+        wallet,
+        displayName,
+        bio,
+      });
+      await writeAudit(wallet, 'agent_seller_register', 'seller', doc.$id, {
+        token: req.agent!.tokenPrefix,
+        displayName,
+      });
+      res.json({ data: { profile: doc, created: true } });
+    } catch (e) {
+      logger.error('[agent] seller register:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Registration failed', code: 'AGENT_SELLER_REGISTER' });
     }
   },
 );
