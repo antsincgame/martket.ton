@@ -11,6 +11,8 @@
     "provision:appwrite": "node scripts/provision-appwrite.mjs",
     "provision:commerce": "node scripts/provision-commerce.mjs",
     "provision:core": "npm run provision-core --prefix backend",
+    "provision:search-index": "node scripts/provision-search-index.mjs",
+    "backfill:ledger-rate": "node scripts/backfill-ledger-rate.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

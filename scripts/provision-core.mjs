@@ -266,6 +266,16 @@ async function setupLegacyProducts(databases) {
     if (e.code === 409) console.log('[core] Индекс scan_status уже есть');
     else throw e;
   }
+  // Fulltext index for the public product search (Query.search('name', q)).
+  // Without it, searchProducts() throws on the primary path and degrades into a
+  // bounded in-memory scan (see backend/core/productRepository.ts).
+  try {
+    await databases.createIndex(DATABASE_ID, 'legacy_products', 'idx_name_fulltext', IndexType.Fulltext, ['name']);
+    console.log('[core] Индекс legacy_products.name (fulltext) — public search');
+  } catch (e) {
+    if (e.code === 409) console.log('[core] Индекс name (fulltext) уже есть');
+    else throw e;
+  }
 }
 
 async function setupScanJobs(databases) {
