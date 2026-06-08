@@ -31,3 +31,4 @@
 - `src/services/tonforgeApi.ts` не менять: фронт уже привязан к каноническим endpoint contracts.
 
 <!-- deploy smoke 2026-06-08 (v2): триггер автодеплоя, без skip-маркера -->
+<!-- deploy 2026-06-08 (v3): rollout #113 — ensureSearchIndex self-heal + ledger null-rate -->
