@@ -261,19 +261,33 @@ testnet-сертификация контура возврата (Gate C, тре
 - ✅ **AML админ-консоль (мокап)** (#103) — `GET /admin/aml-config` + панель; провайдер не
   выбран, реестр кандидатов; `amlStatus/amlEnabled` покрыты. `amlbot.ts` уже был покрыт.
 
-**Остаётся (P2, не блокеры):**
-- 🟡 `/search` fallback тянет до 5000 строк + in-memory скан — ограничить `Query.limit` и
-  провизионить fulltext-индекс (rate-limit уже добавлен, #102).
-- 🟡 Ledger `ton_usd_rate=0` при отказе оракула (`ledgerService.ts:114`) — null/sentinel + re-rate.
-- 🟡 Order `mintAttempts` фильтр — мёртвый «cap» (поле не инкрементится); убрать или инкрементить.
-- 🟡 `escrow.tact` `RegisterLicense` не связывает лицензию с `self.collectionAddress` — он-чейн
-  enforcement per-seller routing (Фаза 2).
-- 🟡 Полный `mintWorker.processOne/processRefund` (mint→register→refund lifecycle) — пока только
-  testnet-сертификация (Gate A/B); юнит-покрыты payout-комплаенс + решения (`decideReconcileAction`,
-  `decideRefundClaim`).
-- 🟡 Human-path `listingRoutes` может перенять collectionAddress-binding хелпер из #104.
-- 🟡 `TON_USD_FALLBACK` — политика прода: fail-closed vs resilient + санити-бунд. Реком. resilient.
-- 🟡 Прод-провижн: `npm run provision:commerce` на прод-Appwrite как часть деплоя.
+**Изгнано (Цепь Маркова P2 — PR #106–#109):**
+- ✅ **Human-path `collectionAddress` binding** (#106) — soft-strict хелпер вынесен в
+  `commerce/collectionBinding.ts` (single source) и применён в `listingRoutes` POST+PATCH;
+  agent-путь импортирует тот же. +5 юнит-тестов.
+- ✅ **Мёртвый order `mintAttempts`-cap изъят** (#107, С-I #4) — поле не инкрементилось, cap был
+  мёртв; его «оживление» застрянило бы заказы с поздним эскроу. Реальный бюджет ретраев живёт на
+  License (`tonforge/mintWorker`).
+- ✅ **`/search` fallback ограничен** (#108, С-III) — деградированный скан ≤1000 свежих строк
+  (вместо 5000); чистый матчер `filterProductsByQuery` + 6 тестов. Fulltext-индекс — на Терру.
+- ✅ **Ledger null-rate** (#109, С-III) — при cold-отказе оракула пишется честный `null` (не
+  сфабрикованный `0`); null = маркер re-rate. End-to-end (тип → CSV → UI) + 2 теста.
+
+**Остаётся — за Вратами или запечатано:**
+- 🔱 `escrow.tact` `RegisterLicense` не связывает лицензию с `self.collectionAddress` — он-чейн
+  enforcement per-seller routing (**Фаза 2 — печать держится**).
+- 🧪 Полный `mintWorker.processOne/processRefund` (mint→register→refund) — покрыт
+  **testnet-сертификацией** (Gate A/B); чистые решения (`decideReconcileAction`,
+  `decideRefundClaim`) + payout-комплаенс уже юнит-покрыты. Эффектную обвязку юнит-тестировать
+  хрупко — оставлено за Вратами.
+
+**Терра — астропатический наряд (ops, локальный Курсор):**
+- 🛰️ `/search` fulltext-индекс на `legacy_products.name` (Appwrite) — снимет деградированный скан
+  целиком (первичный путь `Query.search` перестанет падать в fallback).
+- 🛰️ `TON_USD_FALLBACK` — задать env (resilient + санити-бунд) → закрывает окно ledger null-rate
+  у источника.
+- 🛰️ Ledger re-rate back-fill — джоба по `ton_usd_rate IS NULL` (маркер готов после #109).
+- 🛰️ Прод-провижн: `npm run provision-core` + `provision:commerce` на прод-Appwrite как часть деплоя.
 
 ---
 
