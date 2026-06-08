@@ -149,57 +149,29 @@ R2 и привязывает к листингу.
 
 ---
 
-## 4. Sad path: mint_failed → auto-refund
+## 4. Sad path: mint_failed → **buyer-claim** refund
 
-Цель — убедиться, что при сбое минта buyer получает деньги обратно
-автоматически через `OracleRefund` после `REFUND_AFTER_MS` (1ч).
+> ⚠️ **Изменено (PR #95).** Авто-refund через `OracleRefund` **удалён** — эскроу
+> по дизайну контракта (`RefundIfNotMinted`, `sender()==buyer`) возвращает
+> средства **только покупателю**, оракул не может. Поток теперь:
+> `mint_failed → refund_claimable → (покупатель подписывает) → refund_pending → refunded + заказ REFUNDED`.
+>
+> **Полная сертификация этого пути — в отдельном рунбуке для оператора с живым
+> testnet:** [`refund-cycle-testnet-runbook.md`](./refund-cycle-testnet-runbook.md).
+> Ниже — краткая проверка; детали, негативная матрица и recovery — там.
 
-### 4.1. Сымитировать сбой минта
-
-Самый простой способ:
-1. Временно установить `ORACLE_MNEMONIC=` (пустой) или сломанный адрес
-   collection в Appwrite для тестового листинга.
-2. Оформить покупку как в §3.1.
-3. mintWorker трижды попробует, переведёт лицензию в `mint_failed`:
-   ```
-   [mintWorker] lic_… mint failed (attempt 3/3): <reason>, state=mint_failed
-   ```
-
-### 4.2. Ускорить refund для теста
-
-Чтобы не ждать 60 минут, на время теста уменьшить `REFUND_AFTER_MS` в
-`backend/commerce/constants.ts` (например, до `60_000`) и пересобрать.
-**ВАЖНО**: вернуть значение перед mainnet.
-
-### 4.3. Backend цикл refund
-
-```
-[mintWorker] refund tick: 1 candidate(s)
-[mintWorker] lic_… → OracleRefund sent to escrow EQA…
-[mintWorker] lic_… state=refund_pending
-…спустя ~1 мин…
-[mintWorker] lic_… escrow self-destructed, state=refunded
-```
-
-### 4.4. Frontend MintProgress (refund-ветка)
-
-- [ ] Шаг 2 показывает «Mint failed»
-- [ ] Появляется блок «Refund in progress» с поясняющим текстом
-- [ ] После settlement: «Refund settled to <buyer wallet>»
-- [ ] Скачать **нельзя** (`distributionRoutes` отдаёт 403 на `mint_failed`
-      и `refund_pending`)
-- [ ] В `MyLicensesPanel` бейдж `refunded`
-
-### 4.5. Проверка on-chain
-
-- escrow адрес стал inactive (контракт самоуничтожился)
-- баланс buyer wallet вырос на ~1.7 TON минус gas
-
-### 4.6. Восстановить mainnet-ready значения
-
-- [ ] Вернуть `REFUND_AFTER_MS = 60 * 60 * 1000`
-- [ ] Восстановить `ORACLE_MNEMONIC` / collection
-- [ ] Перезапустить backend
+Кратко:
+1. Сорвать минт (бланк `ORACLE_MNEMONIC` после оплаты, либо non-deployed
+   collection) → license `mint_failed`. **Не** оставлять `collection_address`
+   пустым — order-create отвергнет `400 LISTING_NO_COLLECTION` (PR #94).
+2. Ускорение — **через env, без пересборки**: `MINT_REFUND_AFTER_MS=60000`
+   (вернуть `3600000` перед mainnet). On-chain grace `MINT_GRACE_SEC=600s` — в
+   контракте, не меняется без редеплоя (заложить ~10 мин ожидания).
+3. Воркер: `mint_failed → refund_claimable`. В `MyLicensesPanel` — кнопка
+   **«Вернуть средства»**; покупатель подписывает `RefundIfNotMinted`.
+4. Settle: эскроу самоуничтожается → license `refunded` + **заказ `refunded`**
+   (`finalizeOrderRefund`; reconciler сам не может — эскроу уже null).
+5. On-chain: эскроу inactive; баланс покупателя вырос на ~сумму минус gas.
 
 ---
 
@@ -209,9 +181,10 @@ R2 и привязывает к листингу.
 |---------------------------------------------------------------------|--------------------------------|
 | `GET /licenses/<id>` чужого buyer wallet                            | 404 (или 403 с auth)           |
 | `GET /distribution/<licenseId>` пока state=`mint_pending`           | 403 `LICENSE_NOT_READY`        |
-| `GET /distribution/<licenseId>` при state=`refund_pending`/`refunded` | 403                           |
-| `OracleRefund` от не-treasury (тест из contracts)                   | контракт реджектит             |
-| `OracleRefund` после регистрации license                            | контракт реджектит             |
+| `GET /distribution/<licenseId>` при state=`refund_claimable`/`refund_pending`/`refunded` | 403                           |
+| `RefundIfNotMinted` от не-buyer (тест из contracts)                 | контракт реджектит             |
+| `RefundIfNotMinted` до 600s grace / после регистрации license       | контракт реджектит             |
+| `POST /orders/:id/refund-claim` до grace / не-владельцем            | 409 `GRACE_NOT_ELAPSED` / 403  |
 | Повторный `confirmOrder` для уже подтверждённого                    | 409 `ORDER_ALREADY_CONFIRMED`  |
 
 Контрактные кейсы автоматически покрыты в `contracts/tests/escrow.spec.ts`,
@@ -228,15 +201,20 @@ cd contracts && npm test -- --reporter=default
 Перед переключением `TONFORGE_NETWORK=mainnet`:
 
 - [ ] Все §1–§5 пройдены на testnet и зафиксированы (скриншоты + tx links).
-- [ ] `REFUND_AFTER_MS` = 1ч, `REFUND_SETTLE_TIMEOUT_MS` адекватный.
+- [ ] `MINT_REFUND_AFTER_MS` = 1ч; test-оверрайды (`MINT_REFUND_REVERT_MS`,
+      `MINT_TICK_MS`) сняты.
+- [ ] **Контур возврата сертифицирован на testnet** —
+      [`refund-cycle-testnet-runbook.md`](./refund-cycle-testnet-runbook.md) пройден,
+      tx-линки зафиксированы.
 - [ ] Treasury переведён на multisig.
 - [ ] Oracle wallet получил production-mnemonic (Coolify secret) и
       ≥50 TON баланс.
 - [ ] Метрики mintWorker (успехи/фейлы/refunds) выставлены в логи.
-- [ ] Алерт на >5 `mint_failed` за час и на любой `refund_pending`
-      старше `REFUND_SETTLE_TIMEOUT_MS`.
-- [ ] Резервная процедура: ручной `oracleRefund(escrow)` через
-      `backend/tonforge/onchain/oracleRefund.ts`.
+- [ ] Алерт на >5 `mint_failed` за час и на любой `refund_pending`/`refund_claimable`
+      старше порога.
+- [ ] Возврат — действие **покупателя** (`RefundIfNotMinted`); платформа не может
+      рефандить до минта (контракт запрещает). Резервного admin-refund нет
+      намеренно; для зарегистрированной лицензии — BuyerBurn в trial-окне.
 
 ---
 
@@ -246,12 +224,13 @@ cd contracts && npm test -- --reporter=default
 # Все pending лицензии
 curl -s $BASE/admin/licenses?state=mint_pending | jq
 
-# Все mint_failed (кандидаты на refund)
+# Все mint_failed / refund_claimable (кандидаты на возврат)
 curl -s $BASE/admin/licenses?state=mint_failed | jq
-
-# Forced refund (admin only)
-curl -s -X POST $BASE/admin/licenses/<id>/refund | jq
+curl -s $BASE/admin/licenses?state=refund_claimable | jq
 ```
 
-(Если admin-эндпоинты ещё не вынесены — обращаться напрямую к Appwrite
-console: database `marketplace`, collection `licenses`.)
+Forced admin-refund **нет намеренно** — до минта возврат может инициировать
+только покупатель (`RefundIfNotMinted`, контракт требует `sender()==buyer`).
+Сертификация пути — [`refund-cycle-testnet-runbook.md`](./refund-cycle-testnet-runbook.md).
+(Если admin-эндпоинты ещё не вынесены — Appwrite console: database
+`marketplace`, collection `licenses`.)
