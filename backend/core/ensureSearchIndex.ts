@@ -31,7 +31,9 @@ export async function ensureSearchIndex(): Promise<void> {
     logger.info(`[search-index] created ${COL_LEGACY_PRODUCTS}.${INDEX} (Fulltext on name)`);
   } catch (err: unknown) {
     if ((err as { code?: number })?.code === 409) {
-      logger.debug('[search-index] already exists');
+      // logged at info (not debug) so ops can confirm the index is present in
+      // prod logs on every boot — a 409 is the steady-state, not a problem.
+      logger.info(`[search-index] already exists: ${COL_LEGACY_PRODUCTS}.${INDEX}`);
       return;
     }
     logger.warn(
