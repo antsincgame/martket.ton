@@ -17,6 +17,7 @@ import { databases, storageClient, ID, Query } from './appwrite.js';
 import { tonHumanToNanoRaw } from './money.js';
 import { getTonUsdPrice, usdToTonHuman } from './tonPriceOracle.js';
 import { addressesEqual } from './tonVerify.js';
+import { rejectMismatchedCollection } from './collectionBinding.js';
 import { writeAudit } from './audit.js';
 import { logger } from '../logger.js';
 import { asDoc } from '../domain/appwrite-helpers.js';
@@ -112,6 +113,7 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
       res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
       return;
     }
+    if (await rejectMismatchedCollection(req, res, String(sellerWallet), collectionAddress)) return;
 
     const tonRate = await getTonUsdPrice();
     const tonHuman = usdToTonHuman(Number(priceUsd), tonRate);
@@ -163,6 +165,7 @@ router.patch('/listings/:id', apiRequireAuth(), validateBody(patchListingSchema)
       patch.priceUsd = String(body.priceUsd);
     }
     if (typeof body.collectionAddress === 'string' && body.collectionAddress.length > 0) {
+      if (await rejectMismatchedCollection(req, res, sellerWallet, body.collectionAddress)) return;
       patch.collection_address = body.collectionAddress;
     }
     // Activating a listing requires a valid collection_address — otherwise
