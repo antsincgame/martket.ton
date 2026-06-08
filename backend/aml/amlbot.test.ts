@@ -10,6 +10,8 @@ import {
   evaluateVerdict,
   isCacheFresh,
   checkWalletAml,
+  amlEnabled,
+  amlStatus,
 } from './amlbot.js';
 
 const RAW_ZERO_ADDR = `0:${'0'.repeat(64)}`;
@@ -107,6 +109,22 @@ describe('isCacheFresh', () => {
     expect(isCacheFresh('garbage', 168)).toBe(false);
     expect(isCacheFresh(null, 168)).toBe(false);
     expect(isCacheFresh(undefined, 168)).toBe(false);
+  });
+});
+
+describe('amlStatus / amlEnabled (ops diagnostics, off by default)', () => {
+  it('disabled when AMLBOT_ACCESS_ID is unset', () => {
+    expect(amlEnabled()).toBe(false);
+    expect(amlStatus()).toMatchObject({ enabled: false, threshold: 70, cacheHours: 168, asset: 'TON' });
+  });
+
+  it('enabled with AMLBOT_ACCESS_ID; threshold and cacheHours are clamped', () => {
+    process.env.AMLBOT_ACCESS_ID = 'acc';
+    process.env.AML_RISK_THRESHOLD = '0'; // clamps up to 1
+    process.env.AML_CACHE_HOURS = '999999'; // clamps down to 8760
+    expect(amlEnabled()).toBe(true);
+    const s = amlStatus();
+    expect(s).toMatchObject({ enabled: true, threshold: 1, cacheHours: 8760 });
   });
 });
 
