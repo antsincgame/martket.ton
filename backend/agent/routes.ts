@@ -39,6 +39,9 @@ import { createProductSchema } from '../routes/validation.js';
 import { insertProduct, productToSnakeCase } from '../core/repository.js';
 import { findUserByTonAddress } from '../core/profileRepository.js';
 import { generateId } from '../core/generateId.js';
+import { findSellerCollection } from '../commerce/sellerCollectionRepository.js';
+import { addressesEqual } from '../commerce/tonVerify.js';
+import { resolveNetwork } from '../config/network.js';
 
 const router = express.Router();
 
@@ -55,6 +58,38 @@ const agentLimiter = rateLimit({
   legacyHeaders: false,
 });
 router.use(agentLimiter);
+
+/**
+ * Soft-strict per-seller collection binding (P2). If the seller already has a
+ * DEPLOYED collection in the registry, an agent-supplied `collectionAddress`
+ * must equal it — otherwise the agent could route licenses into another
+ * seller's collection. Sellers without a provisioned collection are NOT blocked
+ * (manual / pre-registry deploys remain valid; minting still needs the platform
+ * owner key, so an arbitrary address is self-defeating, not an attack).
+ *
+ * Returns true (and sends a 403) when the address is rejected.
+ */
+async function rejectMismatchedCollection(
+  req: Request,
+  res: Response,
+  wallet: string,
+  collectionAddress: string,
+): Promise<boolean> {
+  const own = await findSellerCollection(wallet, resolveNetwork(req)).catch(() => null);
+  if (
+    own &&
+    own.status === 'deployed' &&
+    own.collectionAddress &&
+    !addressesEqual(collectionAddress, own.collectionAddress)
+  ) {
+    res.status(403).json({
+      error: 'collectionAddress does not match your provisioned collection',
+      code: 'COLLECTION_MISMATCH',
+    });
+    return true;
+  }
+  return false;
+}
 
 router.get('/me', apiRequireAgentToken(), (req: Request, res: Response) => {
   const a = req.agent!;
@@ -208,6 +243,7 @@ router.post(
         res.status(400).json({ error: 'priceUsd is required', code: 'VALIDATION' });
         return;
       }
+      if (await rejectMismatchedCollection(req, res, wallet, collectionAddress)) return;
 
       const tonRate = await getTonUsdPrice();
       const tonHuman = usdToTonHuman(Number(priceUsd), tonRate);
@@ -272,6 +308,7 @@ router.patch(
         patch.priceUsd = String(body.priceUsd);
       }
       if (typeof body.collectionAddress === 'string' && body.collectionAddress.length > 0) {
+        if (await rejectMismatchedCollection(req, res, wallet, body.collectionAddress)) return;
         patch.collection_address = body.collectionAddress;
       }
       if (patch.status === LISTING_STATUS.ACTIVE) {

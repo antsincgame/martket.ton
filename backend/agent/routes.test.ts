@@ -51,10 +51,14 @@ vi.mock('../commerce/tonPriceOracle.js', () => ({
   getTonUsdPrice: vi.fn().mockResolvedValue(5),
   usdToTonHuman: (usd: number) => String(usd / 5),
 }));
+vi.mock('../commerce/sellerCollectionRepository.js', () => ({
+  findSellerCollection: vi.fn().mockResolvedValue(null),
+}));
 
 import agentRouter from './routes.js';
 import { findUserByTonAddress } from '../core/profileRepository.js';
 import { insertProduct } from '../core/repository.js';
+import { findSellerCollection } from '../commerce/sellerCollectionRepository.js';
 
 // Valid TON addresses (pass tonAddressSchema's Address.parse) reused from fixtures.
 const SELLER = 'EQAjKFSmQeDWBChuG8huGX3JyeMyf85qZgn64AOQeK0msPHU';
@@ -62,6 +66,7 @@ const COLLECTION = 'kQA9mT1B8zY1WnOEbVUrQOL5P9F5pR4wpyhUqT40wAUm1D4-';
 
 const mFind = findUserByTonAddress as unknown as ReturnType<typeof vi.fn>;
 const mInsert = insertProduct as unknown as ReturnType<typeof vi.fn>;
+const mSellerColl = findSellerCollection as unknown as ReturnType<typeof vi.fn>;
 
 function app() {
   const a = express();
@@ -73,6 +78,7 @@ function app() {
 beforeEach(() => {
   vi.clearAllMocks();
   h.agent.wallet = SELLER;
+  mSellerColl.mockResolvedValue(null); // default: seller has no provisioned collection
 });
 
 describe('agent routes — wallet-from-token invariant', () => {
@@ -137,5 +143,68 @@ describe('agent routes — wallet-from-token invariant', () => {
     const res = await request(app()).patch('/listings/lst-1').send({ title: 'New Title' });
     expect(res.status).toBe(200);
     expect(db.updateDocument).toHaveBeenCalled();
+  });
+});
+
+describe('agent routes — per-seller collection binding (soft-strict)', () => {
+  const listingBody = {
+    catalogProductId: 'cat-1',
+    title: 'T',
+    priceUsd: 10,
+    deliveryType: 'url',
+    deliveryPayload: 'https://example.test/build.zip',
+  };
+
+  it('POST /listings: 403 COLLECTION_MISMATCH when the address is not the seller deployed collection', async () => {
+    // Seller already has a deployed collection (SELLER addr); they supply a different one.
+    mSellerColl.mockResolvedValue({ status: 'deployed', collectionAddress: SELLER });
+    const res = await request(app())
+      .post('/listings')
+      .send({ ...listingBody, collectionAddress: COLLECTION });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('COLLECTION_MISMATCH');
+    expect(db.createDocument).not.toHaveBeenCalled();
+  });
+
+  it('POST /listings: allows the seller own deployed collection', async () => {
+    mSellerColl.mockResolvedValue({ status: 'deployed', collectionAddress: COLLECTION });
+    db.createDocument
+      .mockResolvedValueOnce({ $id: 'lst-1', sellerWallet: SELLER, collection_address: COLLECTION })
+      .mockResolvedValueOnce({ $id: 'sec-1' });
+    const res = await request(app())
+      .post('/listings')
+      .send({ ...listingBody, collectionAddress: COLLECTION });
+    expect(res.status).toBe(200);
+  });
+
+  it('POST /listings: allows any collection when the seller has no provisioned one (back-compat)', async () => {
+    mSellerColl.mockResolvedValue(null);
+    db.createDocument
+      .mockResolvedValueOnce({ $id: 'lst-1', sellerWallet: SELLER, collection_address: COLLECTION })
+      .mockResolvedValueOnce({ $id: 'sec-1' });
+    const res = await request(app())
+      .post('/listings')
+      .send({ ...listingBody, collectionAddress: COLLECTION });
+    expect(res.status).toBe(200);
+  });
+
+  it('POST /listings: a non-deployed (pending) registry row does not block (manual / re-provision)', async () => {
+    mSellerColl.mockResolvedValue({ status: 'pending', collectionAddress: SELLER });
+    db.createDocument
+      .mockResolvedValueOnce({ $id: 'lst-1' })
+      .mockResolvedValueOnce({ $id: 'sec-1' });
+    const res = await request(app())
+      .post('/listings')
+      .send({ ...listingBody, collectionAddress: COLLECTION });
+    expect(res.status).toBe(200);
+  });
+
+  it('PATCH /listings/:id: 403 COLLECTION_MISMATCH on a foreign collection for an owned listing', async () => {
+    db.getDocument.mockResolvedValue({ $id: 'lst-1', sellerWallet: SELLER, collection_address: SELLER });
+    mSellerColl.mockResolvedValue({ status: 'deployed', collectionAddress: SELLER });
+    const res = await request(app()).patch('/listings/lst-1').send({ collectionAddress: COLLECTION });
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('COLLECTION_MISMATCH');
+    expect(db.updateDocument).not.toHaveBeenCalled();
   });
 });
