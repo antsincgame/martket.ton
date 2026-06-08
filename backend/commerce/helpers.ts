@@ -5,6 +5,7 @@ import type { AppwriteDoc } from '../domain/appwrite-helpers.js';
 import { str } from '../utils/params.js';
 import { resolveProfile } from '../middleware/auth.js';
 import { addressesEqual } from './tonVerify.js';
+import { constantTimeHashEqual, hashToken } from '../agent/tokenIssuer.js';
 import type { Profile } from '../domain/types.js';
 
 function fieldsToOmit(envKey: string): Set<string> {
@@ -37,7 +38,9 @@ export function omitEntitlementFields<T extends Record<string, unknown>>(payload
 export function commerceAdmin(req: Request, res: Response, next: () => void): void {
   const got = str(req.headers['x-commerce-admin-secret']);
   const need = process.env.COMMERCE_ADMIN_SECRET || '';
-  if (!need || got !== need) {
+  // Constant-time compare over sha256 digests (so neither value nor its length
+  // leaks via a timing side-channel). An unset server secret always denies.
+  if (!need || !constantTimeHashEqual(hashToken(got), hashToken(need))) {
     res.status(403).json({ error: 'Insufficient privileges', code: 'COMMERCE_ADMIN_FORBIDDEN' });
     return;
   }

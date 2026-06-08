@@ -109,13 +109,20 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
     // Per-seller collection (Phase 1): build the escrow around the LISTING's own
     // AppCollection so each seller's licenses are minted into their own
     // collection. The escrow, the license record (ensureLicenseForOrder) and the
-    // mint (tonforge/mintWorker) MUST all reference the same collection — keep
-    // these three in lockstep. Fall back to the global platform collection for
-    // legacy listings that were created before they carried a collection_address.
-    // licenseContentUri — TEP-64 metadata URI, либо из listing либо dynamic.
-    const collectionAddress =
-      (listing['collection_address'] as string | undefined)?.trim() ||
-      netCfg.collectionAddress;
+    // mint (tonforge/mintWorker) MUST all reference the SAME collection. We use
+    // the listing's collection_address as the single source of truth — NO global
+    // fallback: ensureLicenseForOrder reads only the listing's collection and
+    // throws on empty, so a global-backed escrow would be fundable-but-unmintable
+    // (buyer pays, no NFT ever mints). Refuse such orders up front instead.
+    const collectionAddress = (listing['collection_address'] as string | undefined)?.trim() || '';
+    if (!collectionAddress) {
+      res.status(400).json({
+        error: 'Listing has no NFT collection configured; cannot create an order.',
+        code: 'LISTING_NO_COLLECTION',
+      });
+      return;
+    }
+
     // Temp placeholder orderId для licenseContentUri — дальше заменится на настоящий $id.
     // Но ID.unique() даёт нам id заранее, используем его сразу.
     const orderId = ID.unique();
@@ -123,26 +130,23 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
       `https://cdn.example.org/license/${orderId}.json`;
 
     let escrowData: Awaited<ReturnType<typeof computeEscrow>> | null = null;
-    if (collectionAddress) {
-      try {
-        escrowData = await computeEscrow({
-          orderId,
-          buyer: buyerWallet,
-          seller: sellerWallet,
-          treasury,
-          amountNano: amounts.totalAmountNano,
-          sellerAmountNano: amounts.sellerAmountNano,
-          feeNano: amounts.feeNano,
-          trialWindowSec: netCfg.trialWindowSec,
-          collectionAddress,
-          transferLimit: 0,  // soulbound
-          licenseContentUri,
-        });
-      } catch (err) {
-        logger.warn('[commerce] escrow compute failed:', err instanceof Error ? err.message : err);
-      }
-    } else {
-      logger.warn('[commerce] COLLECTION_ADDRESS not configured — escrow disabled');
+    try {
+      escrowData = await computeEscrow({
+        orderId,
+        buyer: buyerWallet,
+        seller: sellerWallet,
+        treasury,
+        amountNano: amounts.totalAmountNano,
+        sellerAmountNano: amounts.sellerAmountNano,
+        feeNano: amounts.feeNano,
+        trialWindowSec: netCfg.trialWindowSec,
+        collectionAddress,
+        transferLimit: 0,  // soulbound
+        licenseContentUri,
+        network: netCfg.network,
+      });
+    } catch (err) {
+      logger.warn('[commerce] escrow compute failed:', err instanceof Error ? err.message : err);
     }
 
     const order = await db.createDocument(DATABASE_ID, COL_ORDERS, orderId, {
@@ -193,7 +197,7 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
           trialWindowSec: netCfg.trialWindowSec,
         } : null,
         gasBreakdown: GAS_BREAKDOWN,
-        nft: { willMint: Boolean(collectionAddress), collectionAddress: collectionAddress || null },
+        nft: { willMint: Boolean(escrowData), collectionAddress },
       },
     });
   } catch (e: unknown) {
