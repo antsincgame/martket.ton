@@ -17,6 +17,7 @@ import DistributionEditor from './DistributionEditor';
 import NoCollectionWarning from './NoCollectionWarning';
 import KycRequiredBanner from './KycRequiredBanner';
 import ApiTokensTab from './ApiTokensTab';
+import OnboardingGuide from './OnboardingGuide';
 
 interface TabDef {
   id: string;
@@ -106,6 +107,7 @@ export default function CommerceSection() {
       {flash.success && <Banner kind="success" message={flash.success} onDismiss={() => setFlash((f) => ({ ...f, success: null }))} />}
 
       <KycRequiredBanner kycStatus={sellerKyc} />
+      <OnboardingGuide wallet={wallet} />
       <NoCollectionWarning wallet={wallet} />
 
       <Tabs activeId={activeTab.id} />
