@@ -2,32 +2,17 @@ import { Address } from '@ton/core';
 import { logger } from '../../logger.js';
 import { getTonClient } from './tonClient.js';
 
-export interface OracleRefundInput {
-  escrowAddress: string;
-}
-
-export interface OracleRefundResult {
-  txSeqno: number;
-}
-
 /**
- * DEPRECATED / UNSUPPORTED. The escrow contract (contracts/src/escrow.tact)
- * has no oracle-triggered refund receiver. The only pre-mint refund is
- * `RefundIfNotMinted` (0x5a8e1f23), which the contract requires to be sent by
- * the BUYER (`sender() == self.buyer`) after the mint grace period — the
- * oracle cannot trigger it.
+ * NOTE: there is intentionally NO oracle-triggered refund. The escrow contract
+ * (contracts/src/escrow.tact) has no oracle refund receiver — the only pre-mint
+ * refund is `RefundIfNotMinted` (0x5a8e1f23), which the contract requires to be
+ * sent by the BUYER (`sender() == self.buyer`) after the mint grace period. The
+ * mint worker therefore marks a stuck license `refund_claimable` and the buyer
+ * reclaims the funds from their library (see backend/commerce/refundClaim.ts).
  *
- * A previous implementation broadcast an invented `OracleRefund` opcode
- * (0xbf21e1ee) that silently bounced on-chain while the DB was optimistically
- * marked `refund_pending`, stranding buyers in a state that never settled. We
- * now fail loudly so the caller surfaces the real path instead.
+ * This module keeps only the on-chain settle poller used to confirm an escrow
+ * has self-destructed.
  */
-export async function oracleRefund(_input: OracleRefundInput): Promise<OracleRefundResult> {
-  throw new Error(
-    'ORACLE_REFUND_UNSUPPORTED: escrow has no oracle refund receiver; ' +
-      'the buyer must call RefundIfNotMinted after the mint grace period',
-  );
-}
 
 export interface PollEscrowSettledOpts {
   escrowAddress: string;

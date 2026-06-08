@@ -7,6 +7,7 @@ import type {
   CreateOrderResponse,
   OrderStatusResponse,
   LicensePublic,
+  RefundClaimInfo,
 } from '../domain/commerce/types';
 
 function commerceBaseUrl(): string {
@@ -188,6 +189,33 @@ export async function fetchCommerceOrder(
     `/orders/${encodeURIComponent(orderId)}?${q}`,
   );
   return result.data;
+}
+
+/**
+ * Buyer-claim refund (Blocker #1). When a mint never completes, the only
+ * pre-mint refund is the buyer's on-chain RefundIfNotMinted. This returns
+ * whether the order is refundable and, if so, the TonConnect message to sign.
+ */
+export async function fetchRefundClaim(orderId: string): Promise<RefundClaimInfo> {
+  const result = await commerceAuthFetch<{ data: RefundClaimInfo }>(
+    `/orders/${encodeURIComponent(orderId)}/refund-claim`,
+  );
+  return result.data;
+}
+
+/** Record the buyer's signed refund claim → license moves to refund_pending. */
+export async function confirmRefundClaim(
+  orderId: string,
+  buyerWallet: string,
+  txHash: string,
+): Promise<void> {
+  await commerceAuthFetch<{ data: { ok: boolean } }>(
+    `/orders/${encodeURIComponent(orderId)}/refund-claim`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ buyerWallet, txHash }),
+    },
+  );
 }
 
 export async function registerSeller(wallet: string, displayName: string, bio?: string): Promise<void> {

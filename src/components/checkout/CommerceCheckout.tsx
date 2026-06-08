@@ -93,7 +93,7 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
       }
       if (attempts >= MINT_POLL_MAX_ATTEMPTS) {
         setError(
-          'Minting taking longer than expected. Your payment is safe — license will appear in your library shortly. You can refresh the page.',
+          'Minting is taking longer than expected. Your payment is safe in escrow — the license will appear in your library shortly. If the mint ultimately fails, you can reclaim your funds from “My Licenses” (Claim refund) once the grace period passes.',
         );
         setPhase('error');
         return;

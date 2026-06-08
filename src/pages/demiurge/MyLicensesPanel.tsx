@@ -15,13 +15,14 @@ import {
   Flame,
   Loader2,
   RefreshCw,
+  RotateCcw,
   Sparkles,
   Wallet as WalletIcon,
 } from 'lucide-react';
 import { useTonConnectUI } from '@tonconnect/ui-react';
-import { beginCell } from '@ton/core';
+import { beginCell, Cell } from '@ton/core';
 import { useAuth } from '../../contexts/AuthContext';
-import { fetchMyLicenses, issueDownloadUrl } from '../../lib/commerceApi';
+import { confirmRefundClaim, fetchMyLicenses, fetchRefundClaim, issueDownloadUrl } from '../../lib/commerceApi';
 import type { LicensePublic, LicenseState } from '../../domain/commerce/types';
 
 type Network = 'mainnet' | 'testnet';
@@ -55,6 +56,7 @@ const STATE_PALETTE: Record<LicenseState, { bg: string; border: string; text: st
   mint_pending: { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-300', label: 'Минт в процессе' },
   minted: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-300', label: 'Активна' },
   mint_failed: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-300', label: 'Ошибка минта' },
+  refund_claimable: { bg: 'bg-amber-500/10', border: 'border-amber-500/40', text: 'text-amber-200', label: 'Можно вернуть' },
   refund_pending: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-300', label: 'Refund в пути' },
   refunded: { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-300', label: 'Возвращена' },
   burned: { bg: 'bg-rose-500/10', border: 'border-rose-500/30', text: 'text-rose-300', label: 'Сожжена' },
@@ -313,6 +315,84 @@ function BuyerBurnButton({
   );
 }
 
+// Derive a short tx hash from the signed BOC for the audit trail.
+function extractMsgHash(boc: string): string {
+  try {
+    const raw = Uint8Array.from(atob(boc), (c) => c.charCodeAt(0));
+    const cells = Cell.fromBoc(raw as never);
+    if (cells.length === 0) return boc.slice(0, 64);
+    const hashBytes = cells[0]!.hash();
+    return Array.from(new Uint8Array(hashBytes)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    return boc.slice(0, 64);
+  }
+}
+
+function canClaimRefund(license: LicensePublic): boolean {
+  // Buyer can reclaim escrowed funds when the mint never completed. The backend
+  // (decideRefundClaim) sets refundClaimable once the on-chain grace elapses.
+  return license.refundClaimable === true && Boolean(license.escrowAddress) && !license.nftAddress;
+}
+
+function RefundClaimButton({
+  license,
+  onClaimed,
+}: {
+  license: LicensePublic;
+  onClaimed: () => void;
+}) {
+  const [tonConnectUI] = useTonConnectUI();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!canClaimRefund(license)) return null;
+
+  const handleClaim = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      // Re-fetch authoritative claim info + the exact message to sign.
+      const info = await fetchRefundClaim(license.orderId);
+      if (!info.claimable || !info.message) {
+        setError(info.reason || 'Возврат пока недоступен.');
+        return;
+      }
+      const result = await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [
+          {
+            address: info.message.address,
+            amount: info.message.amount,
+            payload: info.message.payload,
+          },
+        ],
+      });
+      await confirmRefundClaim(license.orderId, license.buyerWallet, extractMsgHash(result.boc));
+      onClaimed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Транзакция отклонена');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        onClick={() => void handleClaim()}
+        disabled={busy}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 px-3 py-1.5 text-[11px] font-semibold text-amber-200 hover:bg-amber-400/20 transition-colors disabled:opacity-50"
+        title="Минт не завершился — вернуть средства из escrow на ваш кошелёк"
+      >
+        {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+        Вернуть средства
+      </button>
+      {error && <p className="text-[10px] text-rose-300">{error}</p>}
+    </div>
+  );
+}
+
 export default function MyLicensesPanel() {
   const { user } = useAuth();
   const wallet = user?.tonAddress ?? '';
@@ -453,6 +533,7 @@ export default function MyLicensesPanel() {
               <div className="flex items-center justify-start gap-2 flex-wrap pt-1">
                 <DownloadButton license={license} />
                 <ConfirmDeliveryButton license={license} onConfirmed={reload} />
+                <RefundClaimButton license={license} onClaimed={reload} />
               </div>
 
               <BuyerBurnButton license={license} onBurnSent={reload} />

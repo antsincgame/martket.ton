@@ -29,7 +29,13 @@ export const LICENSE_STATE = {
   MINTED: 'minted',
   /** Mint failed after retries; eligible for refund. Download blocked. */
   MINT_FAILED: 'mint_failed',
-  /** Refund worker has broadcast OracleRefund; awaiting on-chain settlement. */
+  /**
+   * Mint failed past the dwell window and never registered an NFT — the buyer
+   * can reclaim the escrowed funds on-chain via RefundIfNotMinted (buyer-only;
+   * the oracle cannot refund pre-mint, by contract design). Download blocked.
+   */
+  REFUND_CLAIMABLE: 'refund_claimable',
+  /** Buyer broadcast RefundIfNotMinted (claim recorded); awaiting on-chain settlement. */
   REFUND_PENDING: 'refund_pending',
   /** Buyer burned the NFT to claim a refund. */
   BURNED: 'burned',

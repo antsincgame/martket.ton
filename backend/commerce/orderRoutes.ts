@@ -4,12 +4,14 @@ import rateLimit from 'express-rate-limit';
 import {
   DATABASE_ID, COL_LISTINGS, COL_LISTING_SECRETS,
   COL_ORDERS, COL_ENTITLEMENTS, BUCKET_ASSETS,
-  ORDER_STATE, LISTING_STATUS, CURRENCY, DEFAULT_PLATFORM_FEE_BPS,
+  ORDER_STATE, LISTING_STATUS, CURRENCY, DEFAULT_PLATFORM_FEE_BPS, LICENSE_STATE,
 } from './constants.js';
 import { databases, ID, Query } from './appwrite.js';
 import { computeOrderAmounts, nanoRawToTonHuman } from './money.js';
 import { verifyPaymentByMemo, verifyPaymentToEscrow, addressesEqual } from './tonVerify.js';
-import { computeEscrow, GAS_BREAKDOWN } from './escrow.js';
+import { computeEscrow, GAS_BREAKDOWN, buildRefundIfNotMintedPayload } from './escrow.js';
+import { findLicenseByOrderId, updateLicense } from './licenseRepository.js';
+import { decideRefundClaim, REFUND_CLAIM_GAS_NANO } from './refundClaim.js';
 import { screenWallet } from '../sanctions/screen.js';
 import { checkWalletAml } from '../aml/amlbot.js';
 import { resolveNetworkConfig } from '../config/network.js';
@@ -512,6 +514,112 @@ router.get('/orders/:id', apiRequireAuth(), async (req: Request, res: Response) 
     res.status(500).json({ error: 'Order retrieval failed', code: 'ORDER_GET' });
   }
 });
+
+// ─── Buyer-claim refund (Blocker #1) ───────────────────────────────
+// When a mint never completes, the escrow's only pre-mint refund is the
+// buyer's RefundIfNotMinted (the oracle cannot refund — by contract design).
+// GET returns whether the order is refundable + the TonConnect message to sign;
+// POST records the buyer's claim (license → refund_pending), after which the
+// refund settle-cycle finalizes the order to REFUNDED once the escrow destructs.
+
+router.get('/orders/:id/refund-claim', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const orderId = str(req.params.id);
+    const db = databases();
+    const order = await db.getDocument(DATABASE_ID, COL_ORDERS, orderId);
+
+    const profile = await resolveProfile(req);
+    const isOwner = profile && addressesEqual(profile.tonAddress ?? '', order['buyerWallet'] as string);
+    if (!isOwner) { res.status(403).json({ error: 'Access denied', code: 'FORBIDDEN' }); return; }
+
+    const license = await findLicenseByOrderId(orderId);
+    if (!license) {
+      res.json({
+        data: {
+          claimable: false, code: 'NO_LICENSE', reason: 'No license exists for this order yet.',
+          availableAt: null, escrowAddress: null, message: null,
+        },
+      });
+      return;
+    }
+
+    const decision = decideRefundClaim(license, Date.now());
+    const canSign = decision.claimable && Boolean(license.escrowAddress);
+    res.json({
+      data: {
+        claimable: decision.claimable,
+        code: decision.code,
+        reason: decision.reason,
+        availableAt: decision.availableAt,
+        escrowAddress: license.escrowAddress || null,
+        message: canSign
+          ? {
+              address: license.escrowAddress,
+              amount: REFUND_CLAIM_GAS_NANO,
+              payload: buildRefundIfNotMintedPayload(),
+            }
+          : null,
+      },
+    });
+  } catch (e: unknown) {
+    const code = appwriteCodeOrZero(e);
+    if (code === 404) { res.status(404).json({ error: 'Order not found', code: 'NOT_FOUND' }); return; }
+    logger.error('[commerce] refund-claim get:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Refund claim lookup failed', code: 'REFUND_CLAIM_GET' });
+  }
+});
+
+router.post(
+  '/orders/:id/refund-claim',
+  apiRequireAuth(),
+  limitConfirm,
+  validateBody(confirmOrderSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const orderId = str(req.params.id);
+      const { buyerWallet, txHash } = req.body as { buyerWallet: string; txHash?: string };
+      const owner = await requireWalletOwner(req, res, buyerWallet);
+      if (!owner) return;
+
+      const db = databases();
+      const order = await db.getDocument(DATABASE_ID, COL_ORDERS, orderId);
+      if (!addressesEqual(order['buyerWallet'] as string, buyerWallet)) {
+        res.status(403).json({ error: 'Wallet does not match the order', code: 'WALLET_MISMATCH' });
+        return;
+      }
+
+      const license = await findLicenseByOrderId(orderId);
+      if (!license) { res.status(404).json({ error: 'No license for this order', code: 'NO_LICENSE' }); return; }
+
+      const decision = decideRefundClaim(license, Date.now());
+      if (!decision.claimable) {
+        res.status(409).json({ error: decision.reason, code: decision.code, availableAt: decision.availableAt });
+        return;
+      }
+
+      // Record the buyer's claim. The settle-cycle confirms the escrow has
+      // self-destructed on-chain and then marks the license refunded + order
+      // refunded; if the claim never lands it reverts to refund_claimable.
+      await updateLicense(license.$id, {
+        state: LICENSE_STATE.REFUND_PENDING,
+        refundTxHash: (txHash || '').slice(0, 128),
+        refundReason: `buyer_claim:${decision.reason}`.slice(0, 200),
+      });
+      await writeAudit(buyerWallet, 'refund_claim', 'order', orderId, {
+        licenseId: license.$id,
+        escrowAddress: license.escrowAddress,
+        txHash: txHash || '',
+      });
+
+      res.json({ data: { ok: true, state: LICENSE_STATE.REFUND_PENDING, escrowAddress: license.escrowAddress } });
+    } catch (e: unknown) {
+      const code = appwriteCodeOrZero(e);
+      if (code === 404) { res.status(404).json({ error: 'Order not found', code: 'NOT_FOUND' }); return; }
+      logger.error('[commerce] refund-claim post:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Refund claim failed', code: 'REFUND_CLAIM_POST' });
+    }
+  },
+);
 
 router.get('/buyers/me/orders', apiRequireAuth(), async (req: Request, res: Response) => {
   try {

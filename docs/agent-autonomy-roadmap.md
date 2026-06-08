@@ -173,23 +173,20 @@ entitlement структурно невозможны; сеть server-pinned (�
 | IV | Тесты / CI / покрытие | **minor-gaps → needs-work** на деньгах/агенте |
 
 **Сводный вердикт:** монолит стоит в фундаменте (счастливый путь денег не теряется/не
-двоится/не крадётся — доказано конструкцией + testnet Gate A/B), но облицовка путей отказа
-ещё не положена. Для testnet/Alpha — годен. Для mainnet-денег блокеры 1–3 ниже — кровь.
+двоится/не крадётся — доказано конструкцией + testnet Gate A/B). Облицовка путей отказа
+**теперь положена по коду** — все три кода-блокера mainnet закрыты (ниже). Остаётся живая
+testnet-сертификация контура возврата (Gate C, требует бродкаста — отдельный прогон).
 
-**Блокеры mainnet (Gate C) — НЕ правим наспех, требуют дизайна/отдельного прохода:**
-1. 🟠 **Контур возврата мёртв** — `oracleRefund()` всегда `throw`'ит
-   (`backend/tonforge/onchain/oracleRefund.ts:25`); при реальном провале минта средства
-   покупателя застревают в эскроу (выход — только ручной buyer-side `RefundIfNotMinted`,
-   UX молчит). Нужен дизайн: buyer-facing claim-refund через `buildRefundIfNotMintedPayload`
-   (`escrow.ts:274`) или real oracle-side pre-mint receiver в `escrow.tact`.
-2. 🟠 **Mainnet-форма адреса эскроу** — `computeEscrow` хардкодит `testOnly:true`
-   (`backend/commerce/escrow.ts:217`); на mainnet строка адреса в TonConnect несёт неверный
-   сетевой бит (кошельки могут отвергнуть). Прокинуть network → `testOnly: network==='testnet'`
-   (зеркало `collectionProvisioner.ts:239`).
-3. 🟠 **Глобал-коллекция fallback в создании заказа** (`backend/commerce/orderRoutes.ts:114`,
-   `|| netCfg.collectionAddress`) — может создать оплачиваемый-но-не-минтуемый эскроу, т.к.
-   `ensureLicenseForOrder` читает только `listing.collection_address` и кидает на пустом.
-   Убрать fallback или отвергать создание заказа при пустом `collection_address`.
+**Блокеры mainnet (Gate C) — ✅ ЗАКРЫТЫ ПО КОДУ (PR #94, #95):**
+1. ✅ **Контур возврата** — `oracleRefund()` упокоен; вместо невозможного оракул-возврата —
+   buyer-claim через `RefundIfNotMinted` (buyer-only by design): новое состояние
+   `refund_claimable`, GET/POST `/orders/:id/refund-claim`, settle-цикл → `refunded` +
+   `finalizeOrderRefund`, кнопка «Вернуть средства» в библиотеке. Без правки контракта. **PR #95.**
+   ⏳ Остаётся: живой testnet-E2E (fund → срыв минта → grace → claim → refunded) — для Варпа.
+2. ✅ **Mainnet-форма адреса эскроу** — `computeEscrow` прокидывает network через чистый
+   `renderEscrowAddress` (`testOnly: network==='testnet'`); +3 теста формы. **PR #94.**
+3. ✅ **Глобал-коллекция fallback** — убран; коллекция листинга = единственный источник
+   истины, заказ без коллекции отвергается `400 LISTING_NO_COLLECTION`. **PR #94.**
 
 ---
 
@@ -210,6 +207,13 @@ entitlement структурно невозможны; сеть server-pinned (�
   проверка нулевого account-hash (`Address.parse(addr).hash.equals(0)`), форма-независимая
   (mainnet EQ/UQ · testnet kQ/0Q · raw). Закрывает finalize-before-mint на testnet-форме нуля;
   непарсируемое → безопасно `wait`. +2 регресс-теста. `backend/commerce/mintWorker.ts`.
+
+**Изгнано (кода-блокеры Gate C — PR #94, #95):**
+- ✅ **Контур возврата** (PR #95) — мёртвый `oracleRefund()` удалён; buyer-claim refund
+  (`refund_claimable` → claim → `refund_pending` → settle → `refunded` + заказ REFUNDED),
+  без правки контракта. `refundClaim.ts`, `finalizeOrderRefund.ts`, `mintWorker`, фронт.
+- ✅ **Mainnet-форма адреса эскроу** (PR #94) — `renderEscrowAddress(addr, network)`.
+- ✅ **Глобал-fallback в создании заказа** (PR #94) — убран, `400 LISTING_NO_COLLECTION`.
 
 **Изгнано (в ветке Фазы 0/1):**
 - ✅ Free-mint через `confirmPurchaseSession` — он-чейн минт убран из deprecated-пути
@@ -285,9 +289,10 @@ entitlement структурно невозможны; сеть server-pinned (�
 - **Gate C — mainnet-готовность** (ОТДЕЛЬНО от мержа — это ops-активация mainnet, не код):
   `docs/commerce-license-smoke-checklist.md §6` (treasury→multisig, oracle ≥50 TON, алерты
   на `mint_failed`/`refund_pending`, `REFUND_AFTER_MS`=1ч, резервный ручной refund).
-  **Код-блокеры до денег на mainnet (аудит 2026-06-08):** (1) починить контур возврата,
-  (2) mainnet-форма адреса эскроу, (3) убрать глобал-коллекцию fallback — см. секцию
-  «Аудит 4 сервиторов» выше. Промотировать refund/payout/negative testnet-чеки в сертификацию.
+  **Код-блокеры до денег на mainnet (аудит 2026-06-08): ✅ ВСЕ ЗАКРЫТЫ** —
+  (1) контур возврата (PR #95), (2) mainnet-форма адреса (PR #94), (3) глобал-fallback
+  (PR #94). Остаётся живой testnet-E2E контура возврата + промотирование
+  refund/payout/negative testnet-чеков в сертификацию (требуют бродкаста — Варп/Терра).
 
 **Решение Хранителя:** **Gate A + B пройдены — Врата мержа открыты.** Денежный путь и
 per-seller routing **certified на testnet** (single + multi-seller). Фаза 0 live, статика

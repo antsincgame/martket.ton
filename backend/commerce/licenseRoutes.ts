@@ -18,10 +18,15 @@ import {
   listBuyerLicenses,
   type LicenseRecord,
 } from './licenseRepository.js';
+import { decideRefundClaim } from './refundClaim.js';
 
 const router = express.Router();
 
 function publicView(license: LicenseRecord) {
+  // Derived buyer-claim refund status so the library can render a "Claim
+  // refund" action without a second round-trip (the order endpoint serves the
+  // signable tx). The escrow contract remains the final authority.
+  const refund = decideRefundClaim(license, Date.now());
   return {
     id: license.$id,
     orderId: license.orderId,
@@ -41,6 +46,9 @@ function publicView(license: LicenseRecord) {
     mintedAt: license.mintedAt,
     burnedAt: license.burnedAt,
     refundedAt: license.refundedAt,
+    refundClaimable: refund.claimable,
+    refundAvailableAt: refund.availableAt,
+    refundReason: license.refundReason || null,
     createdAt: license.$createdAt,
     updatedAt: license.$updatedAt,
   };
