@@ -3,6 +3,7 @@ import { resolveProfile, apiRequireAuth, requireAdmin, requireSuperAdmin, requir
 import { validateBody } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { str } from '../utils/params.js';
+import { csvRow } from '../utils/csv.js';
 import { createAuditLogSchema } from './validation.js';
 import * as repo from '../core/repository.js';
 import { profileToSnakeCase, updateProfile } from '../core/repository.js';
@@ -546,20 +547,22 @@ router.get(
       'geo_kyc_match', 'jurisdiction', 'compliance_status',
       'product_name', 'escrow_address', 'license_address', 'notes',
     ];
-    const csvRows = entries.map((e) => [
+    // Every cell goes through csvRow → quoted, quote-escaped, and formula-injection
+    // neutralized. Several columns (product_name, wallets, notes) carry
+    // seller/agent/wallet-supplied text, so this is required, not cosmetic.
+    const csvRows = entries.map((e) => csvRow([
       e.id, e.createdAt, e.entryType, e.refType, e.refId,
       e.amountUsd, e.amountTonRaw, e.tonUsdRate,
       e.platformFeeUsd, e.platformFeeTonRaw,
       e.buyerWallet ?? '', e.sellerWallet ?? '', e.txHash ?? '',
       e.buyerCountry ?? '', e.buyerIpCountry ?? '', e.sellerCountry ?? '',
       e.geoKycMatch, e.jurisdiction, e.complianceStatus,
-      `"${(e.productName || '').replace(/"/g, '""')}"`,
-      e.escrowAddress ?? '', e.licenseAddress ?? '', `"${(e.notes || '').replace(/"/g, '""')}"`,
-    ]);
+      e.productName ?? '', e.escrowAddress ?? '', e.licenseAddress ?? '', e.notes ?? '',
+    ]));
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="ledger-export.csv"');
-    res.send([csvHeaders.join(','), ...csvRows.map((r) => r.join(','))].join('\n'));
+    res.send([csvRow(csvHeaders), ...csvRows].join('\n'));
   }),
 );
 
