@@ -15,7 +15,18 @@ import type { LicenseRecord } from '../licenseRepository.js';
 import { writeAudit } from '../audit.js';
 import { omitEntitlementFields, omitOrderFields } from '../helpers.js';
 import { recordLedgerEntry } from '../../core/ledgerService.js';
+import { isUniqueViolation } from '../../domain/appwrite-helpers.js';
 import { logger } from '../../logger.js';
+
+// Terminal order states this reconciler must never overwrite. PAID/FULFILLED
+// are the happy ends; REFUNDED/CANCELLED guard against a late/replayed mint
+// confirmation flipping a refunded or cancelled order back to PAID.
+const TERMINAL_ORDER_STATES = new Set<string>([
+  ORDER_STATE.PAID,
+  ORDER_STATE.FULFILLED,
+  ORDER_STATE.REFUNDED,
+  ORDER_STATE.CANCELLED,
+]);
 
 export async function reconcileOrderAfterMint(
   license: Pick<
@@ -37,7 +48,7 @@ export async function reconcileOrderAfterMint(
   }
 
   const currentState = String(order['state'] || '');
-  if (currentState === ORDER_STATE.PAID || currentState === ORDER_STATE.FULFILLED) {
+  if (TERMINAL_ORDER_STATES.has(currentState)) {
     return { reconciled: true, orderState: currentState };
   }
 
@@ -60,18 +71,26 @@ export async function reconcileOrderAfterMint(
       payload += `\n\n[File in Appwrite Storage: bucket ${BUCKET_ASSETS}, fileId ${listing['assetFileId']}]`;
     }
 
-    await db.createDocument(
-      DATABASE_ID,
-      COL_ENTITLEMENTS,
-      ID.unique(),
-      omitEntitlementFields({
-        orderId: license.orderId,
-        buyerWallet: license.buyerWallet,
-        listingId: license.listingId,
-        deliveryPayload: payload,
-        licenseAddress,
-      }),
-    );
+    try {
+      await db.createDocument(
+        DATABASE_ID,
+        COL_ENTITLEMENTS,
+        ID.unique(),
+        omitEntitlementFields({
+          orderId: license.orderId,
+          buyerWallet: license.buyerWallet,
+          listingId: license.listingId,
+          deliveryPayload: payload,
+          licenseAddress,
+        }),
+      );
+    } catch (err) {
+      // A concurrent finalizer (the immediate tonforge path racing the polling
+      // commerce reconciler) may have created the entitlement between our check
+      // and this insert. The unique `orderId` index makes that a no-op, not an
+      // error — only re-throw genuine failures.
+      if (!isUniqueViolation(err)) throw err;
+    }
   }
 
   await db.updateDocument(

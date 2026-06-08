@@ -114,4 +114,28 @@ describe('reconcileOrderAfterMint', () => {
     expect(payload).toHaveProperty('state', ORDER_STATE.PAID);
     expect(payload).not.toHaveProperty('licenseAddress');
   });
+
+  it('never re-PAIDs an already-terminal order (REFUNDED / CANCELLED)', async () => {
+    for (const term of [ORDER_STATE.REFUNDED, ORDER_STATE.CANCELLED]) {
+      vi.clearAllMocks();
+      mockOrderState(term);
+      mockEntitlements([]);
+      const r = await reconcileOrderAfterMint(LICENSE);
+      expect(r).toEqual({ reconciled: true, orderState: term });
+      expect(mocks.createDocument).not.toHaveBeenCalled();
+      expect(mocks.updateDocument).not.toHaveBeenCalled();
+    }
+  });
+
+  it('treats a concurrent entitlement insert (409) as a no-op and still finalizes the order', async () => {
+    mocks.createDocument.mockRejectedValueOnce({ code: 409 });
+    const r = await reconcileOrderAfterMint(LICENSE);
+    expect(r).toEqual({ reconciled: true, orderState: ORDER_STATE.PAID });
+    expect(mocks.updateDocument).toHaveBeenCalledTimes(1); // order still finalized → PAID
+  });
+
+  it('re-throws a non-unique entitlement insert failure', async () => {
+    mocks.createDocument.mockRejectedValueOnce(new Error('network down'));
+    await expect(reconcileOrderAfterMint(LICENSE)).rejects.toThrow('network down');
+  });
 });

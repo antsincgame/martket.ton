@@ -27,6 +27,7 @@ import {
 } from '../licenseRepository.js';
 import { LICENSE_STATE } from '../constants.js';
 import { triggerMintLoop } from '../../tonforge/mintWorker.js';
+import { isUniqueViolation } from '../../domain/appwrite-helpers.js';
 import { logger } from '../../logger.js';
 
 export interface OrderLike {
@@ -67,18 +68,30 @@ export async function ensureLicenseForOrder(
 
   const collectionIndex = await countLicensesForCollection(collectionAddress).catch(() => 0);
 
-  const license = await createLicense({
-    orderId: order.$id,
-    listingId: order.listingId,
-    catalogProductId: listing.catalogProductId || '',
-    buyerWallet: order.buyerWallet,
-    sellerWallet: listing.sellerWallet || '',
-    escrowAddress: order.escrowAddress || '',
-    collectionAddress,
-    trialEndsAt,
-    collectionIndex,
-    initialState: LICENSE_STATE.MINT_PENDING,
-  });
+  let license: LicenseRecord;
+  try {
+    license = await createLicense({
+      orderId: order.$id,
+      listingId: order.listingId,
+      catalogProductId: listing.catalogProductId || '',
+      buyerWallet: order.buyerWallet,
+      sellerWallet: listing.sellerWallet || '',
+      escrowAddress: order.escrowAddress || '',
+      collectionAddress,
+      trialEndsAt,
+      collectionIndex,
+      initialState: LICENSE_STATE.MINT_PENDING,
+    });
+  } catch (err) {
+    // A concurrent confirm may have created the license between our find and
+    // this insert; the unique `orderId` index makes the loser a no-op. Return
+    // the winner's record instead of throwing.
+    if (isUniqueViolation(err)) {
+      const raced = await findLicenseByOrderId(order.$id);
+      if (raced) return raced;
+    }
+    throw err;
+  }
 
   triggerMintLoop().catch((err) =>
     logger.warn('[ensureLicense] mint trigger:', err instanceof Error ? err.message : err),
