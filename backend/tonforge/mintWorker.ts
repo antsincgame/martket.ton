@@ -9,10 +9,14 @@
  * Refund cycle (every TICK_INTERVAL_MS):
  *   1. Find licenses stuck in `mint_failed` for > REFUND_AFTER_MS with no
  *      registered NFT and a valid escrow address.
- *   2. Send OracleRefund to escrow (treasury-only path inside the contract).
- *   3. Mark license `refund_pending`.
- *   4. Poll registered escrow contracts in `refund_pending` until they
- *      self-destruct → mark `refunded` + set `refundedAt`.
+ *   2. Mark them `refund_claimable` — the escrow's only pre-mint refund is the
+ *      BUYER-initiated `RefundIfNotMinted` (the oracle cannot refund pre-mint,
+ *      by contract design). The buyer claims it from their library; that POST
+ *      records the claim and moves the license to `refund_pending`.
+ *   3. Poll escrow contracts in `refund_pending` until they self-destruct →
+ *      mark license `refunded` + set `refundedAt`, and finalize the order to
+ *      REFUNDED. If the escrow is still funded after a dwell (the claim never
+ *      landed), revert to `refund_claimable` so the buyer can retry.
  *
  * Two activation modes:
  *   - Periodic tick (`startMintWorker()` on server boot).
@@ -37,8 +41,9 @@ import { withLock } from '../commerce/distributedLock.js';
 import { loadOnchainConfig } from './onchain/config.js';
 import { mintLicense, pollItemDeployed } from './onchain/mintLicense.js';
 import { registerLicense } from './onchain/registerLicense.js';
-import { oracleRefund, pollEscrowSettled } from './onchain/oracleRefund.js';
+import { pollEscrowSettled } from './onchain/oracleRefund.js';
 import { timeoutRelease, checkEscrowAlive } from './onchain/timeoutRelease.js';
+import { finalizeOrderRefund } from '../commerce/handlers/finalizeOrderRefund.js';
 import { screenWallet } from '../sanctions/screen.js';
 import { checkWalletAml } from '../aml/amlbot.js';
 
@@ -66,6 +71,10 @@ const MAX_ATTEMPTS = envInt('MINT_MAX_ATTEMPTS', 3);
 const POLL_TIMEOUT_MS = envInt('MINT_POLL_TIMEOUT_MS', 60_000);
 const REFUND_AFTER_MS = envInt('MINT_REFUND_AFTER_MS', 60 * 60 * 1000);
 const REFUND_SETTLE_TIMEOUT_MS = envInt('MINT_SETTLE_TIMEOUT_MS', 90_000);
+// How long a license may sit in `refund_pending` with the escrow still funded
+// (the buyer's claim never landed) before we revert it to `refund_claimable`
+// so the buyer can retry. Guards against a bogus/abandoned claim confirm.
+const REFUND_REVERT_AFTER_MS = envInt('MINT_REFUND_REVERT_MS', 15 * 60 * 1000);
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
@@ -198,51 +207,64 @@ async function processRefund(license: LicenseRecord): Promise<void> {
     return;
   }
   if (license.nftAddress) {
-    // OracleRefund is rejected once a license is registered. The buyer must
-    // initiate BuyerBurn on the NFT itself. Mark the license accordingly so
-    // we stop trying.
+    // Once a license is registered the contract rejects RefundIfNotMinted; the
+    // buyer must instead burn the NFT (BuyerBurn → RefundOnBurn). Note it so we
+    // stop reconsidering this record in the failed-mint sweep.
     await updateLicense(license.$id, {
       mintError: 'NFT_REGISTERED_USE_BURN',
     });
-    logger.warn(`[mintWorker.refund] license ${license.$id} has NFT, cannot oracle-refund`);
+    logger.warn(`[mintWorker.refund] license ${license.$id} has NFT, buyer must BuyerBurn`);
     return;
   }
 
-  try {
-    const result = await oracleRefund({ escrowAddress: license.escrowAddress });
-    await updateLicense(license.$id, {
-      state: LICENSE_STATE.REFUND_PENDING,
-      refundTxHash: String(result.txSeqno),
-      refundReason: license.mintError
-        ? `auto:${license.mintError.slice(0, 200)}`
-        : 'auto:mint-failed-timeout',
-      mintError: '',
-    });
-    logger.info(
-      `[mintWorker.refund] OracleRefund broadcast license=${license.$id} escrow=${license.escrowAddress} seqno=${result.txSeqno}`,
-    );
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await updateLicense(license.$id, { mintError: `REFUND_BROADCAST_FAILED: ${msg.slice(0, 800)}` });
-    logger.error(`[mintWorker.refund] oracleRefund failed license=${license.$id}: ${msg}`);
-  }
+  // The escrow's only pre-mint refund is the buyer's RefundIfNotMinted (the
+  // oracle cannot trigger it). Surface the claim to the buyer rather than
+  // broadcasting an impossible oracle refund: mark the license claimable so the
+  // buyer's library shows a "Claim refund" action.
+  await updateLicense(license.$id, {
+    state: LICENSE_STATE.REFUND_CLAIMABLE,
+    refundReason: license.mintError
+      ? `mint_failed:${license.mintError.slice(0, 200)}`
+      : 'mint_failed_timeout',
+  });
+  logger.info(
+    `[mintWorker.refund] license ${license.$id} → refund_claimable (buyer can reclaim escrow ${license.escrowAddress})`,
+  );
 }
 
 async function processRefundConfirm(license: LicenseRecord): Promise<void> {
   if (!license.escrowAddress) return;
-  const settled = await pollEscrowSettled({
-    escrowAddress: license.escrowAddress,
-    timeoutMs: REFUND_SETTLE_TIMEOUT_MS,
-  });
-  if (!settled) {
-    logger.warn(`[mintWorker.refund] escrow not yet settled for license ${license.$id}`);
+
+  const alive = await checkEscrowAlive({ escrowAddress: license.escrowAddress });
+  if (alive === 'unknown') {
+    logger.warn(`[mintWorker.refund] settle state query failed for license ${license.$id}, will retry`);
     return;
   }
-  await updateLicense(license.$id, {
-    state: LICENSE_STATE.REFUNDED,
-    refundedAt: new Date().toISOString(),
-  });
-  logger.info(`[mintWorker.refund] license ${license.$id} fully refunded on-chain`);
+
+  if (alive === 'destroyed') {
+    // The buyer's RefundIfNotMinted landed: escrow returned its balance and
+    // self-destructed. Settle the license and finalize the order (the
+    // order-reconciler can't, since the escrow is now unreadable).
+    await updateLicense(license.$id, {
+      state: LICENSE_STATE.REFUNDED,
+      refundedAt: new Date().toISOString(),
+    });
+    await finalizeOrderRefund(license.orderId).catch((err) =>
+      logger.warn(`[mintWorker.refund] order finalize failed license=${license.$id}:`, err),
+    );
+    logger.info(`[mintWorker.refund] license ${license.$id} fully refunded on-chain`);
+    return;
+  }
+
+  // Escrow still funded — the claim hasn't landed. If it's been pending too
+  // long (bogus/abandoned confirm), revert to claimable so the buyer can retry.
+  const pendingSinceMs = Date.parse(license.$updatedAt);
+  if (Number.isFinite(pendingSinceMs) && Date.now() - pendingSinceMs > REFUND_REVERT_AFTER_MS) {
+    await updateLicense(license.$id, { state: LICENSE_STATE.REFUND_CLAIMABLE });
+    logger.warn(
+      `[mintWorker.refund] license ${license.$id} claim did not land in ${REFUND_REVERT_AFTER_MS}ms → reverted to refund_claimable`,
+    );
+  }
 }
 
 // Троттлинг warn-логов по задержанным выплатам: payout-цикл тикает каждые
@@ -367,10 +389,10 @@ export async function triggerRefundLoop(): Promise<void> {
 
   // Single lock for both phases — they share the same per-license state.
   await withLock('refund-cycle', 10 * 60 * 1000, async () => {
-    // Phase A: failed mints older than REFUND_AFTER_MS → broadcast OracleRefund.
+    // Phase A: failed mints older than REFUND_AFTER_MS → mark buyer-claimable.
     const candidates = await listRefundCandidates(REFUND_AFTER_MS, 25);
     if (candidates.length > 0) {
-      logger.info(`[mintWorker.refund] broadcasting refund for ${candidates.length} license(s)`);
+      logger.info(`[mintWorker.refund] marking ${candidates.length} license(s) refund_claimable`);
       for (const lic of candidates) {
         try {
           await processRefund(lic);

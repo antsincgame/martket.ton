@@ -4,10 +4,7 @@ export { getOracleWallet, getOracleAddressString } from './oracleWallet.js';
 export { mintLicense, pollItemDeployed, type MintLicenseInput, type MintLicenseResult } from './mintLicense.js';
 export { registerLicense, type RegisterLicenseInput, type RegisterLicenseResult } from './registerLicense.js';
 export {
-  oracleRefund,
   pollEscrowSettled,
-  type OracleRefundInput,
-  type OracleRefundResult,
   type PollEscrowSettledOpts,
 } from './oracleRefund.js';
 export {

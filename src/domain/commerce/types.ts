@@ -79,6 +79,7 @@ export type LicenseState =
   | 'mint_pending'
   | 'minted'
   | 'mint_failed'
+  | 'refund_claimable'
   | 'refund_pending'
   | 'burned'
   | 'refunded';
@@ -102,8 +103,23 @@ export interface LicensePublic {
   mintedAt: string | null;
   burnedAt: string | null;
   refundedAt: string | null;
+  /** Buyer can reclaim escrowed funds on-chain (mint never completed). */
+  refundClaimable?: boolean;
+  /** ISO time the on-chain grace period elapses (claim becomes valid). */
+  refundAvailableAt?: string | null;
+  refundReason?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface RefundClaimInfo {
+  claimable: boolean;
+  code: string;
+  reason: string;
+  availableAt: string | null;
+  escrowAddress: string | null;
+  /** TonConnect message the buyer signs to reclaim funds, when claimable. */
+  message: { address: string; amount: string; payload: string } | null;
 }
 
 /**
