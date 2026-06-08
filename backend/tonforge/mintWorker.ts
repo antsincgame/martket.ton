@@ -37,6 +37,7 @@ import {
   type LicenseRecord,
 } from '../commerce/licenseRepository.js';
 import { LICENSE_STATE } from '../commerce/constants.js';
+import { licenseMetadataBaseUrl } from '../config/metadata.js';
 import { withLock } from '../commerce/distributedLock.js';
 import { loadOnchainConfig } from './onchain/config.js';
 import { mintLicense, pollItemDeployed } from './onchain/mintLicense.js';
@@ -83,7 +84,7 @@ let startupSweepDone = false;
 function buildMetadataUri(license: LicenseRecord, base?: string): string {
   const prefix =
     (base && base.trim()) ||
-    `https://cdn.tonforge.org/license-metadata/${license.catalogProductId || license.listingId}/`;
+    `${licenseMetadataBaseUrl()}/${license.catalogProductId || license.listingId}/`;
   const sep = prefix.endsWith('/') ? '' : '/';
   return `${prefix}${sep}${license.collectionIndex}.json`;
 }
