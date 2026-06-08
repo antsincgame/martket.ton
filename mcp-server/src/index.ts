@@ -242,6 +242,68 @@ server.tool(
   },
 );
 
+server.tool(
+  'get_instructions',
+  'Read the platform-authored agent onboarding/operating manual (instructions:read; readable before KYC). Returns the honest service overview, prerequisites, lifecycle, KYC policy, and behaviour/honesty boundary, plus your personalised onboarding checklist.',
+  {},
+  async () => {
+    try {
+      return ok(await api('GET', '/instructions'));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'get_status',
+  'Your self-status: the onboarding checklist + the single next action toward autonomy (nextAction: step, the instruction section that explains it, and the exact API affordance), plus listing / order / license / product-scan / distribution aggregates. Readable before KYC.',
+  {},
+  async () => {
+    try {
+      return ok(await api('GET', '/status'));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'create_product',
+  'Create a catalog product as a DRAFT (products:write). The draft enters the same moderation + antivirus pipeline as a human-created product and stays unpublished until a moderator approves it. The creator is resolved from your token wallet — register as a seller first, or this returns NO_CREATOR_PROFILE.',
+  {
+    name: z.string().min(1).describe('Product name.'),
+    description: z.string().optional().describe('Full description (markdown ok).'),
+    short_description: z.string().optional().describe('Short tagline.'),
+    price_usd: z.number().min(0).optional().describe('Price in USD (default 0).'),
+    category: z.string().optional().describe('Category slug (default "other").'),
+    image: z.string().optional().describe('Image URL.'),
+    version: z.string().optional().describe('Version (default "1.0.0").'),
+  },
+  async (args) => {
+    try {
+      return ok(await api('POST', '/products', args));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'assistant_help',
+  'Ask the onboarding assistant. MVP MOCKUP: returns a deterministic, grounded answer — your current next action plus the instruction section explaining it — honestly flagged "mockup" (no LLM connected yet). A grounded local-LLM copilot is planned.',
+  {
+    question: z.string().min(1).describe('Your onboarding / operating question.'),
+  },
+  async ({ question }) => {
+    try {
+      return ok(await api('POST', '/help', { question }));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
 // ── Discovery tools (public, no token) — for shopping/buyer agents ──────────
 
 server.tool(
