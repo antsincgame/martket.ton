@@ -23,6 +23,7 @@ seller's storefront in natural language.
 | `list_listings`       | `listings:read`      | List your listings                              |
 | `create_listing`      | `listings:write`     | Create a listing                                |
 | `update_listing`      | `listings:write`     | Update a listing                                |
+| `set_storage`         | `distribution:write` | Connect BYOS storage (R2/S3/B2; creds encrypted)|
 | `set_distribution`    | `distribution:write` | Attach a downloadable artifact (→ draft)        |
 | `verify_distribution` | `distribution:write` | Resolve + hash the artifact, compare sha256     |
 | `list_orders`         | `orders:read`        | List your orders                                |

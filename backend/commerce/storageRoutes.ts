@@ -13,8 +13,8 @@
  */
 
 import express, { type Request, type Response } from 'express';
-import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
-import { databases, ID, Query } from './appwrite.js';
+import { HeadBucketCommand } from '@aws-sdk/client-s3';
+import { databases } from './appwrite.js';
 import { DATABASE_ID, COL_SELLER_PROFILES } from './constants.js';
 import { apiRequireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
@@ -22,87 +22,17 @@ import { writeAudit } from './audit.js';
 import { logger } from '../logger.js';
 import { setStorageSchema } from './validation.js';
 import { requireWalletOwner } from './helpers.js';
-import { encryptCreds, isStorageEncryptionConfigured } from '../r2/devCredentials.js';
+import { findSellerByWallet, saveSellerStorage } from './storageService.js';
 import { invalidateDevS3Cache } from '../r2/devClient.js';
 import { str } from '../utils/params.js';
 
 const router = express.Router();
-
-const SSRF_BLOCKED_PATTERNS = [
-  /^https?:\/\/localhost/i,
-  /^https?:\/\/127\./,
-  /^https?:\/\/0\./,
-  /^https?:\/\/10\./,
-  /^https?:\/\/172\.(1[6-9]|2\d|3[01])\./,
-  /^https?:\/\/192\.168\./,
-  /^https?:\/\/169\.254\./,
-  /^https?:\/\/\[/,
-];
-
-function endpointFor(provider: string, accountId: string, custom?: string): string {
-  if (custom && custom.startsWith('https://')) {
-    if (SSRF_BLOCKED_PATTERNS.some((p) => p.test(custom))) {
-      throw new Error('Endpoint targets a private/reserved IP range');
-    }
-    return custom;
-  }
-  if (provider === 'cloudflare-r2') return `https://${accountId}.r2.cloudflarestorage.com`;
-  if (provider === 'b2') return 'https://s3.us-west-002.backblazeb2.com';
-  if (provider === 's3') return `https://s3.${accountId}.amazonaws.com`;
-  throw new Error('Unknown provider');
-}
-
-function regionFor(provider: string, accountId: string): string {
-  if (provider === 'cloudflare-r2') return 'auto';
-  if (provider === 'b2') return 'us-west-002';
-  if (provider === 's3') return accountId || 'us-east-1';
-  return 'auto';
-}
-
-async function findSellerByWallet(wallet: string) {
-  const db = databases();
-  const { documents } = await db.listDocuments(DATABASE_ID, COL_SELLER_PROFILES, [
-    Query.equal('wallet', [wallet]),
-    Query.limit(1),
-  ]);
-  return documents[0] || null;
-}
-
-async function probeBucket(opts: {
-  provider: string;
-  accountId: string;
-  bucket: string;
-  endpoint: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  try {
-    const client = new S3Client({
-      region: regionFor(opts.provider, opts.accountId),
-      endpoint: opts.endpoint,
-      credentials: {
-        accessKeyId: opts.accessKeyId,
-        secretAccessKey: opts.secretAccessKey,
-      },
-      forcePathStyle: opts.provider !== 's3',
-    });
-    await client.send(new HeadBucketCommand({ Bucket: opts.bucket }));
-    return { ok: true };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'unknown';
-    return { ok: false, error: msg.slice(0, 500) };
-  }
-}
 
 router.post(
   '/storage',
   apiRequireAuth(),
   validateBody(setStorageSchema),
   async (req: Request, res: Response) => {
-    if (!isStorageEncryptionConfigured()) {
-      res.status(503).json({ error: 'STORAGE_ENCRYPTION_KEY is not configured', code: 'NO_ENCRYPTION_KEY' });
-      return;
-    }
     const body = req.body as {
       wallet: string;
       provider: 'cloudflare-r2' | 's3' | 'b2';
@@ -116,75 +46,24 @@ router.post(
     const owner = await requireWalletOwner(req, res, body.wallet);
     if (!owner) return;
 
-    const endpoint = endpointFor(body.provider, body.accountId, body.endpoint);
-    const probe = await probeBucket({
-      provider: body.provider,
-      accountId: body.accountId,
-      bucket: body.bucket,
-      endpoint,
-      accessKeyId: body.accessKeyId,
-      secretAccessKey: body.secretAccessKey,
-    });
-    if (!probe.ok) {
-      res.status(400).json({
-        error: 'Bucket probe failed',
-        code: 'BUCKET_PROBE_FAILED',
-        details: probe.error,
-      });
+    const result = await saveSellerStorage(
+      body.wallet,
+      body,
+      owner.displayName || owner.name || 'Demiurge',
+    );
+    if (!result.ok) {
+      res.status(result.status).json(
+        result.code === 'BUCKET_PROBE_FAILED'
+          ? { error: 'Bucket probe failed', code: result.code, details: result.error }
+          : { error: result.error || 'Storage save failed', code: result.code },
+      );
       return;
     }
-
-    const enc = encryptCreds({
-      accessKeyId: body.accessKeyId,
-      secretAccessKey: body.secretAccessKey,
-    });
-
-    const db = databases();
-    const existing = await findSellerByWallet(body.wallet);
-    const updates: Record<string, unknown> = {
-      storage_provider: body.provider,
-      storage_account_id: body.accountId,
-      storage_bucket: body.bucket,
-      storage_endpoint: endpoint,
-      storage_creds_iv: enc.iv,
-      storage_creds_tag: enc.tag,
-      storage_creds_ciphertext: enc.ciphertext,
-      storage_status: 'connected',
-      storage_last_check_at: new Date().toISOString(),
-      storage_last_error: '',
-      storage_public_base_url: body.publicBaseUrl || '',
-    };
-
-    let docId: string;
-    if (existing) {
-      docId = existing.$id;
-      await db.updateDocument(DATABASE_ID, COL_SELLER_PROFILES, docId, updates);
-    } else {
-      const created = await db.createDocument(DATABASE_ID, COL_SELLER_PROFILES, ID.unique(), {
-        wallet: body.wallet,
-        displayName: owner.displayName || owner.name || 'Demiurge',
-        bio: '',
-        ...updates,
-      });
-      docId = created.$id;
-    }
-    invalidateDevS3Cache(docId);
-    invalidateDevS3Cache(body.wallet);
-    await writeAudit(body.wallet, 'storage_set', 'seller', docId, {
+    await writeAudit(body.wallet, 'storage_set', 'seller', result.docId, {
       provider: body.provider,
       bucket: body.bucket,
     });
-
-    res.json({
-      data: {
-        status: 'connected',
-        provider: body.provider,
-        accountId: body.accountId,
-        bucket: body.bucket,
-        endpoint,
-        publicBaseUrl: body.publicBaseUrl || '',
-      },
-    });
+    res.json({ data: result.data });
   },
 );
 

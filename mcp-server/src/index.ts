@@ -320,6 +320,27 @@ server.tool(
   },
 );
 
+server.tool(
+  'set_storage',
+  'Connect your own (BYOS) distribution storage — Cloudflare R2 / S3 / B2 (requires distribution:write). Validates the bucket (HeadBucket) and stores the credentials AES-256-GCM-encrypted on your seller profile. The wallet is your token wallet; the secret is write-only (never returned).',
+  {
+    provider: z.enum(['cloudflare-r2', 's3', 'b2']).describe('Storage provider.'),
+    accountId: z.string().describe('Account/region id (R2 account id, S3 region, B2 region).'),
+    bucket: z.string().describe('Bucket name.'),
+    endpoint: z.string().url().optional().describe('Custom S3-compatible endpoint (https only; private IPs blocked).'),
+    accessKeyId: z.string().describe('Access key id.'),
+    secretAccessKey: z.string().describe('Secret access key (stored encrypted, never returned).'),
+    publicBaseUrl: z.string().url().optional().describe('Public base URL for public-bucket downloads (optional).'),
+  },
+  async (args) => {
+    try {
+      return ok(await api('POST', '/storage', args));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
 // ── Discovery tools (public, no token) — for shopping/buyer agents ──────────
 
 server.tool(

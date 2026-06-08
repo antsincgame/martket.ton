@@ -54,11 +54,13 @@ vi.mock('../commerce/tonPriceOracle.js', () => ({
 vi.mock('../commerce/sellerCollectionRepository.js', () => ({
   findSellerCollection: vi.fn().mockResolvedValue(null),
 }));
+vi.mock('../commerce/storageService.js', () => ({ saveSellerStorage: vi.fn() }));
 
 import agentRouter from './routes.js';
 import { findUserByTonAddress } from '../core/profileRepository.js';
 import { insertProduct } from '../core/repository.js';
 import { findSellerCollection } from '../commerce/sellerCollectionRepository.js';
+import { saveSellerStorage } from '../commerce/storageService.js';
 
 // Valid TON addresses (pass tonAddressSchema's Address.parse) reused from fixtures.
 const SELLER = 'EQAjKFSmQeDWBChuG8huGX3JyeMyf85qZgn64AOQeK0msPHU';
@@ -67,6 +69,7 @@ const COLLECTION = 'kQA9mT1B8zY1WnOEbVUrQOL5P9F5pR4wpyhUqT40wAUm1D4-';
 const mFind = findUserByTonAddress as unknown as ReturnType<typeof vi.fn>;
 const mInsert = insertProduct as unknown as ReturnType<typeof vi.fn>;
 const mSellerColl = findSellerCollection as unknown as ReturnType<typeof vi.fn>;
+const mSaveStorage = saveSellerStorage as unknown as ReturnType<typeof vi.fn>;
 
 function app() {
   const a = express();
@@ -229,5 +232,28 @@ describe('agent routes — self-registration (B1, machine self-sovereignty)', ()
     expect(res.status).toBe(200);
     expect(res.body.data.created).toBe(false);
     expect(db.createDocument).not.toHaveBeenCalled();
+  });
+
+  it('POST /storage: connects BYOS via the shared helper using the TOKEN wallet (body wallet ignored)', async () => {
+    mSaveStorage.mockResolvedValue({
+      ok: true,
+      docId: 'sp-1',
+      data: { status: 'connected', provider: 'cloudflare-r2', accountId: 'acc', bucket: 'my-bucket', endpoint: 'https://acc.r2.cloudflarestorage.com', publicBaseUrl: '' },
+    });
+    const res = await request(app())
+      .post('/storage')
+      .send({ provider: 'cloudflare-r2', accountId: 'acc', bucket: 'my-bucket', accessKeyId: 'k', secretAccessKey: 's', wallet: 'EQattacker' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('connected');
+    expect(mSaveStorage.mock.calls[0][0]).toBe(SELLER); // wallet from token, never the body
+  });
+
+  it('POST /storage: surfaces a BUCKET_PROBE_FAILED from the helper as 400', async () => {
+    mSaveStorage.mockResolvedValue({ ok: false, status: 400, code: 'BUCKET_PROBE_FAILED', error: 'AccessDenied' });
+    const res = await request(app())
+      .post('/storage')
+      .send({ provider: 's3', accountId: 'us-east-1', bucket: 'my-bucket', accessKeyId: 'k', secretAccessKey: 's' });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('BUCKET_PROBE_FAILED');
   });
 });

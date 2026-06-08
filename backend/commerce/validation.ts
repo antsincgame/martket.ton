@@ -112,6 +112,10 @@ export const setStorageSchema = z.object({
   publicBaseUrl: z.string().url().max(255).optional(),
 });
 
+// Agent self-service storage: identical to setStorageSchema but WITHOUT `wallet`
+// — the agent's wallet comes from its token, never the request body.
+export const agentSetStorageSchema = setStorageSchema.omit({ wallet: true });
+
 // ── Distribution manifest ──────────────────────────────────────────
 export const setDistributionSchema = z.object({
   wallet: z.string().min(1),
