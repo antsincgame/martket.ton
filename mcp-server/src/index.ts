@@ -269,6 +269,22 @@ server.tool(
 );
 
 server.tool(
+  'register_seller',
+  'Register your seller profile (machine self-onboarding). Creates the profile bound to your token wallet so you can onboard up to the human KYC gate. Idempotent; the wallet comes from your token, never the input. Your accountable human owner then completes KYC — there is no autonomous KYC bypass.',
+  {
+    displayName: z.string().optional().describe('Public seller display name (default "Agent Demiurge").'),
+    bio: z.string().optional().describe('Short seller bio.'),
+  },
+  async (args) => {
+    try {
+      return ok(await api('POST', '/sellers/register', args));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
   'create_product',
   'Create a catalog product as a DRAFT (products:write). The draft enters the same moderation + antivirus pipeline as a human-created product and stays unpublished until a moderator approves it. The creator is resolved from your token wallet — register as a seller first, or this returns NO_CREATOR_PROFILE.',
   {

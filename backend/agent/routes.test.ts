@@ -208,3 +208,26 @@ describe('agent routes — per-seller collection binding (soft-strict)', () => {
     expect(db.updateDocument).not.toHaveBeenCalled();
   });
 });
+
+describe('agent routes — self-registration (B1, machine self-sovereignty)', () => {
+  it('POST /sellers/register: creates the seller profile from the TOKEN wallet (body wallet ignored)', async () => {
+    db.listDocuments.mockResolvedValueOnce({ documents: [] });
+    db.createDocument.mockResolvedValueOnce({ $id: 'sp-1', wallet: SELLER, displayName: 'My Bot' });
+    const res = await request(app())
+      .post('/sellers/register')
+      .send({ displayName: 'My Bot', wallet: 'EQattacker', sellerWallet: 'EQattacker' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.created).toBe(true);
+    const payload = db.createDocument.mock.calls[0][3];
+    expect(payload.wallet).toBe(SELLER); // from token, never the body
+    expect(payload.displayName).toBe('My Bot');
+  });
+
+  it('POST /sellers/register: idempotent — returns existing (created:false), no create', async () => {
+    db.listDocuments.mockResolvedValueOnce({ documents: [{ $id: 'sp-1', wallet: SELLER }] });
+    const res = await request(app()).post('/sellers/register').send({});
+    expect(res.status).toBe(200);
+    expect(res.body.data.created).toBe(false);
+    expect(db.createDocument).not.toHaveBeenCalled();
+  });
+});
