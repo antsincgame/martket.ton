@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { logger } from './logger.js';
 import { isCoreConfigured } from './core/appwriteServer.js';
+import { ensureSearchIndex } from './core/ensureSearchIndex.js';
 import { mahakalaHeaders, logShieldStatus } from './middleware/mahakala.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { requestLogger } from './middleware/requestLogger.js';
@@ -445,6 +446,9 @@ async function start(): Promise<void> {
     logger.info(`Health: http://localhost:${PORT}/api/health`);
     logger.info('Auth: Appwrite | Database: Appwrite | Model: Demiurge');
     logShieldStatus();
+    // Self-heal schema that needs prod creds (only present in-container): the
+    // public-search fulltext index. Post-listen + guarded — never affects boot.
+    void ensureSearchIndex();
   });
 
   let shuttingDown = false;
