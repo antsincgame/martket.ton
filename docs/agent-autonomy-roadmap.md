@@ -243,35 +243,37 @@ testnet-сертификация контура возврата (Gate C, тре
   already-PAID, entitlement-once, omit-fields, not-found, guards). Reconciler сохранён как
   страховка (primary+fallback — намеренно, не «одна сущность»).
 
-**Остаётся (P2, не блокеры) — по аудиту 4 сервиторов:**
-- 🟡 `reconcileOrderAfterMint` терминальный guard (`:40`) не включает REFUNDED/CANCELLED —
-  defense-in-depth против позднего реплея (С-I #5).
-- 🟡 Конкурентные финализаторы кидают на unique-индексе вместо no-op — ловить 409
-  (`isUniqueViolation`) как успех; шумные, но безвредные логи (С-I #6).
-- 🟡 Agent/human-supplied `collectionAddress` не привязан к коллекции продавца — валидировать
-  против `seller_collections` (status `deployed`) перед записью листинга (С-II / С-III).
-- 🟡 Публичный `GET /api/products/search` без rate-limit + fallback тянет до 5000 строк и
-  скан-фильтрует in-memory — добавить read-лимитер, ограничить fallback `Query.limit`,
-  провизионить fulltext-индекс (С-III).
-- 🟡 Ledger `ton_usd_rate=0` при отказе оракула (`ledgerService.ts:114`) — писать null/sentinel
-  + флаг на re-rate, не `0` (С-III). Связано с `TON_USD_FALLBACK` ниже.
-- 🟡 `escrow.tact` `RegisterLicense` не связывает лицензию с `self.collectionAddress` —
-  per-seller routing без он-чейн enforcement (Фаза 2, С-I #7).
-- 🟡 Order `mintAttempts` фильтр — мёртвый «cap» (поле никогда не инкрементится); убрать или
-  инкрементить (С-I #4).
-- 🟡 `config.ts:29` дефолт `TON_NETWORK='testnet'` vs `network.ts:80` дефолт `'mainnet'` —
-  выровнять (низкий риск, ops задают явно) (С-III).
-- 🟡 **Тёмная материя тестов** (С-IV) — добавить юнит-тесты на: `agentAuth` (скоупы/KYC/
-  rate-limit/`skipKyc`), хендлеры маршрутов (инвариант wallet-from-token, `NO_CREATOR_PROFILE`,
-  `NOT_OWNER`), `provisionSellerCollection` (идемпотентность/`pending→deployed/failed`),
-  реальный `mintWorker.processOne/Refund/Payout` (+ AML/sanctions HOLD перед TimeoutRelease),
-  golden-cell на `buildMintLicensePayload` (байт-лейаут). Промотировать refund/payout/negative
-  testnet-чеки в Gate C.
-- 🟡 `TON_USD_FALLBACK` — политика прода: fail-closed (не задавать → заказ падает при
-  недоступности цены) vs resilient (задать + санити-бунд: отвергать если отклонение от
-  последней цены > X%). Рекомендация — resilient с бундом.
-- 🟡 Прод-провижн: прогнать `npm run provision:commerce` на прод-Appwrite (создаёт
-  `agent_instructions` + `seller_collections`) как часть деплоя.
+**Изгнано (тёмная материя тестов + P2-харднинг + AML — PR #97–#104):**
+- ✅ **Тёмная материя тестов** (С-IV) — ~536 → 606 тестов: `agentAuth` (#97, 11 кейсов:
+  скоупы/импликация/**wallet-from-token**/санкции 451/KYC 403/`skipKyc`/auth-rate-limit) ·
+  agent-хендлеры (#99, supertest: wallet-from-token на уровне handler, `NO_CREATOR_PROFILE`,
+  `NOT_OWNER`) · payout-комплаенс `mintWorker` (#101, **AML/sanctions HOLD** перед
+  TimeoutRelease) · golden-cell `buildMintLicensePayload` (#101, байт-лейаут) ·
+  `provisionSellerCollection` gate+идемпотентность (#101). +`supertest` как devDep.
+- ✅ **terminal-guard REFUNDED/CANCELLED** (#102) — поздний реплей не перезапишет терминальный заказ.
+- ✅ **409-no-op конкурентных финализаторов** (#102) — `isUniqueViolation` вынесен в
+  `domain/appwrite-helpers` (single source); entitlement+license insert → no-op на гонке.
+- ✅ **`/search` rate-limit** (#102) — публичный поиск под per-IP лимитером (120/15 мин).
+- ✅ **agent `collectionAddress` → `seller_collections`** (#104) — мягко-строго: deployed-коллекция
+  обязана совпасть (`403 COLLECTION_MISMATCH`); без коллекции — пропуск (back-compat).
+- ✅ **`TON_NETWORK` split-brain** (#98) — `onchain/config` делегирует в `resolveNetwork()`
+  (единый источник); + `cdn.example.org` плейсхолдер → env `LICENSE_METADATA_BASE_URL`.
+- ✅ **AML админ-консоль (мокап)** (#103) — `GET /admin/aml-config` + панель; провайдер не
+  выбран, реестр кандидатов; `amlStatus/amlEnabled` покрыты. `amlbot.ts` уже был покрыт.
+
+**Остаётся (P2, не блокеры):**
+- 🟡 `/search` fallback тянет до 5000 строк + in-memory скан — ограничить `Query.limit` и
+  провизионить fulltext-индекс (rate-limit уже добавлен, #102).
+- 🟡 Ledger `ton_usd_rate=0` при отказе оракула (`ledgerService.ts:114`) — null/sentinel + re-rate.
+- 🟡 Order `mintAttempts` фильтр — мёртвый «cap» (поле не инкрементится); убрать или инкрементить.
+- 🟡 `escrow.tact` `RegisterLicense` не связывает лицензию с `self.collectionAddress` — он-чейн
+  enforcement per-seller routing (Фаза 2).
+- 🟡 Полный `mintWorker.processOne/processRefund` (mint→register→refund lifecycle) — пока только
+  testnet-сертификация (Gate A/B); юнит-покрыты payout-комплаенс + решения (`decideReconcileAction`,
+  `decideRefundClaim`).
+- 🟡 Human-path `listingRoutes` может перенять collectionAddress-binding хелпер из #104.
+- 🟡 `TON_USD_FALLBACK` — политика прода: fail-closed vs resilient + санити-бунд. Реком. resilient.
+- 🟡 Прод-провижн: `npm run provision:commerce` на прод-Appwrite как часть деплоя.
 
 ---
 
