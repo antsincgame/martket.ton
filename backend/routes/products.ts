@@ -16,6 +16,9 @@ import { tonHumanToNanoRaw } from '../commerce/money.js';
 const router = express.Router();
 
 const strictLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false });
+// Public search is unauthenticated and can hit an expensive full-scan fallback;
+// bound per-IP so it can't be hammered. Generous enough for a type-ahead UI.
+const searchLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false });
 
 router.get(
   '/',
@@ -27,6 +30,7 @@ router.get(
 
 router.get(
   '/search',
+  searchLimiter,
   asyncHandler(async (req, res) => {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     if (!q || q.length < 2) {

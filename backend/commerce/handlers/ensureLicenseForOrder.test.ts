@@ -116,4 +116,32 @@ describe('ensureLicenseForOrder', () => {
       expect.objectContaining({ collectionIndex: 0 }),
     );
   });
+
+  it('returns the raced license when a concurrent create trips the unique index (409)', async () => {
+    const raced = { $id: 'lic_raced', state: LICENSE_STATE.MINT_PENDING } as never;
+    (findLicenseByOrderId as unknown as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(null) // initial check: none yet
+      .mockResolvedValueOnce(raced); // after the 409: the winner's record
+    (countLicensesForCollection as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+    (createLicense as unknown as ReturnType<typeof vi.fn>).mockRejectedValue({ code: 409 });
+
+    const result = await ensureLicenseForOrder(
+      order,
+      { collection_address: VALID_COLLECTION },
+      '2099-01-01T00:00:00.000Z',
+    );
+
+    expect(result).toBe(raced);
+    expect(triggerMintLoop).not.toHaveBeenCalled(); // the loser does not re-trigger the mint
+  });
+
+  it('re-throws a non-unique createLicense failure', async () => {
+    (findLicenseByOrderId as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (countLicensesForCollection as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+    (createLicense as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('db down'));
+
+    await expect(
+      ensureLicenseForOrder(order, { collection_address: VALID_COLLECTION }, '2099-01-01T00:00:00.000Z'),
+    ).rejects.toThrow('db down');
+  });
 });

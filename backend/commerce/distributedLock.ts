@@ -24,22 +24,12 @@
 import { databases, ID, Query } from './appwrite.js';
 import { DATABASE_ID, COL_WORKER_LOCKS } from './constants.js';
 import { logger } from '../logger.js';
+import { isUniqueViolation } from '../domain/appwrite-helpers.js';
 import { randomUUID } from 'node:crypto';
 
 const OWNER_ID = `${process.pid}-${randomUUID().slice(0, 8)}`;
 
 export type LockReleaser = () => Promise<void>;
-
-function isUniqueViolation(err: unknown): boolean {
-  // Appwrite returns code 409 with a "Document with the requested ID already
-  // exists" / "duplicate index" message when a unique index trips. Match on
-  // either, plus generic "already exists" for forward-compat.
-  const msg = err instanceof Error ? err.message : String(err);
-  if (typeof err === 'object' && err !== null && 'code' in err) {
-    if ((err as { code: number }).code === 409) return true;
-  }
-  return msg.includes('already exists') || msg.includes('duplicate');
-}
 
 /**
  * Try to acquire a named lock. Returns a releaser function on success,
