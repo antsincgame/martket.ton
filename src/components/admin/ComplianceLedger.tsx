@@ -35,7 +35,7 @@ interface LedgerEntry {
   sellerProfileId: string | null;
   amountUsd: number;
   amountTonRaw: string;
-  tonUsdRate: number;
+  tonUsdRate: number | null;
   platformFeeUsd: number;
   platformFeeTonRaw: string;
   txHash: string | null;
@@ -531,7 +531,7 @@ function ExpandedRow({ entry }: { entry: LedgerEntry }) {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <DetailField label="REF_ID" value={entry.refId} mono />
           <DetailField label="PRODUCT" value={entry.productName || '---'} />
-          <DetailField label="RATE" value={`1 TON = $${entry.tonUsdRate.toFixed(4)}`} mono accent={CYBER.voltageYellow} />
+          <DetailField label="RATE" value={entry.tonUsdRate != null ? `1 TON = $${entry.tonUsdRate.toFixed(4)}` : 'unavailable'} mono accent={CYBER.voltageYellow} />
           <DetailField label="BUYER" value={truncAddr(entry.buyerWallet)} mono accent={CYBER.electricBlue} />
           <DetailField label="SELLER" value={truncAddr(entry.sellerWallet)} mono accent={CYBER.hotMagenta} />
           <DetailField label="FEE" value={`${formatUsd(entry.platformFeeUsd)} / ${formatTon(entry.platformFeeTonRaw)} TON`} mono accent={CYBER.voltageYellow} />

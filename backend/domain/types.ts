@@ -399,7 +399,8 @@ export interface LedgerEntry {
   sellerProfileId: string | null;
   amountUsd: number;
   amountTonRaw: string;
-  tonUsdRate: number;
+  /** TON/USD rate at record time; null when the oracle was unavailable (re-rate marker). */
+  tonUsdRate: number | null;
   platformFeeUsd: number;
   platformFeeTonRaw: string;
   txHash: string | null;

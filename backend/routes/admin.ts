@@ -552,7 +552,7 @@ router.get(
     // seller/agent/wallet-supplied text, so this is required, not cosmetic.
     const csvRows = entries.map((e) => csvRow([
       e.id, e.createdAt, e.entryType, e.refType, e.refId,
-      e.amountUsd, e.amountTonRaw, e.tonUsdRate,
+      e.amountUsd, e.amountTonRaw, e.tonUsdRate ?? '',
       e.platformFeeUsd, e.platformFeeTonRaw,
       e.buyerWallet ?? '', e.sellerWallet ?? '', e.txHash ?? '',
       e.buyerCountry ?? '', e.buyerIpCountry ?? '', e.sellerCountry ?? '',

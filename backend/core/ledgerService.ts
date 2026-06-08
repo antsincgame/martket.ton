@@ -111,7 +111,20 @@ export interface RecordLedgerParams {
 
 export async function recordLedgerEntry(params: RecordLedgerParams): Promise<LedgerEntry | null> {
   try {
-    const tonUsdRate = await getTonUsdPrice().catch(() => 0);
+    // On a cold oracle failure (all providers down, no stale cache, no
+    // TON_USD_FALLBACK) record the rate as null — an honest "unknown" — instead
+    // of a fabricated 0 that would corrupt this compliance/accounting record.
+    // Null also doubles as the re-rate marker: a back-fill can target
+    // `ton_usd_rate IS NULL` later (no separate flag needed).
+    let tonUsdRate: number | null = null;
+    try {
+      tonUsdRate = await getTonUsdPrice();
+    } catch {
+      logger.warn(
+        '[ledger] TON/USD rate unavailable — recording entry with null rate ' +
+          '(back-fill later or set TON_USD_FALLBACK)',
+      );
+    }
 
     const geoCountry = lookupCountryByIp(params.buyerIp);
     const resolution = resolveCountryConflict(geoCountry, params.buyerKycCountry ?? null);
