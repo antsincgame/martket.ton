@@ -12,6 +12,7 @@
  */
 
 import { Address, beginCell, Cell, type StateInit, contractAddress, toNano } from '@ton/core';
+import type { TonNetwork } from '../config/network.js';
 import {
   coerceBuildAddress,
   coerceBuildCell,
@@ -107,6 +108,7 @@ export interface EscrowOrderParams {
   collectionAddress: string;
   transferLimit?: number;        // 0 = soulbound (default), 1+ = transferable
   licenseContentUri: string;     // ipfs:// или https:// URI for NFT metadata
+  network: TonNetwork;           // resolved server network — controls the rendered address form
 }
 
 export interface EscrowComputeResult {
@@ -159,6 +161,17 @@ function resolveAmountSplit(params: EscrowOrderParams): { seller: bigint; fee: b
   const fee = (total * feeBps) / 10000n;
   const seller = total - fee;
   return { seller, fee, total };
+}
+
+/**
+ * Render an escrow deposit address in the friendly form for `network`
+ * (mainnet EQ/UQ vs testnet kQ/0Q). Non-bounceable — an escrow deposit must
+ * not bounce back to the buyer. Hardcoding the testnet flag (the prior bug)
+ * makes a mainnet escrow address carry the testnet bit, which TonConnect
+ * wallets and explorers may reject or mis-display.
+ */
+export function renderEscrowAddress(addr: Address, network: TonNetwork): string {
+  return addr.toString({ testOnly: network === 'testnet', bounceable: false });
 }
 
 export async function computeEscrow(params: EscrowOrderParams): Promise<EscrowComputeResult> {
@@ -214,7 +227,7 @@ export async function computeEscrow(params: EscrowOrderParams): Promise<EscrowCo
   }
 
   return {
-    escrowAddress: escrowAddr.toString({ testOnly: true, bounceable: false }),
+    escrowAddress: renderEscrowAddress(escrowAddr, params.network),
     stateInitBase64: stateInitCell.toBoc().toString('base64'),
     payloadBase64: payloadCell.toBoc().toString('base64'),
     totalAmountRaw: totalAmount.toString(),
