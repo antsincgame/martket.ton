@@ -415,4 +415,30 @@ export async function fetchSellerKycStatus(wallet: string): Promise<SellerKycSta
   return result.data;
 }
 
+// Mirrors backend/agent/status.ts NextAction + OnboardingChecklist (Copilot-Lite).
+export interface OnboardingNextAction {
+  step: 'kyc' | 'storage' | 'create_product' | 'verify_distribution' | 'done';
+  message: string;
+  section: string;
+  api: { method: string; path: string } | null;
+  ui: { label: string; hint: string };
+  external: string | null;
+}
+export interface SellerOnboarding {
+  kyc: { status: string; ok: boolean };
+  storage: { status: string; connected: boolean; provider: string | null };
+  catalog: { listings: number; hasListings: boolean };
+  distribution: { configured: boolean; verified: boolean };
+  readyToSell: boolean;
+  nextStep: string | null;
+  nextAction: OnboardingNextAction;
+}
+
+export async function fetchSellerOnboarding(wallet: string): Promise<SellerOnboarding> {
+  const result = await commerceAuthFetch<{ data: { onboarding: SellerOnboarding } }>(
+    `/sellers/${encodeURIComponent(wallet)}/onboarding`,
+  );
+  return result.data.onboarding;
+}
+
 export { CommerceApiError };
