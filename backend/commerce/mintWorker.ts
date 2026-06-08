@@ -33,7 +33,6 @@ import { logger } from '../logger.js';
 import { reconcileOrderAfterMint } from './handlers/reconcileOrderAfterMint.js';
 
 const POLL_INTERVAL_MS = parseInt(process.env.MINT_WORKER_POLL_MS || '30000', 10);
-const MAX_ATTEMPTS = 5;
 const MAX_ORDERS_PER_TICK = 20;
 
 let running = false;
@@ -108,7 +107,6 @@ interface PendingOrderRow extends Record<string, unknown> {
   sellerNetAmountRaw?: string;
   state: string;
   escrowAddress?: string;
-  mintAttempts?: number;
   tonTxHash?: string;
   listingSnapshotTitle?: string;
   licenseContentUri?: string;
@@ -130,10 +128,15 @@ async function processTick(network: TonNetwork): Promise<void> {
     Query.limit(MAX_ORDERS_PER_TICK * 3),
   ]);
 
+  // No per-order attempt cap here: the reconciler only reads on-chain escrow
+  // state and must keep checking a PENDING_PAYMENT order until its escrow
+  // resolves (funds → finalize, releases → fulfilled, refunds → refunded).
+  // A cap on `order.mintAttempts` was dead (the field is never incremented), and
+  // *activating* it would strand orders whose escrow settles after N ticks. The
+  // real mint retry-budget lives on the License (tonforge/mintWorker).
   const orders = documents
     .map((d) => d as unknown as PendingOrderRow)
     .filter((o) => typeof o.escrowAddress === 'string' && o.escrowAddress.length > 0)
-    .filter((o) => (o.mintAttempts ?? 0) < MAX_ATTEMPTS)
     .slice(0, MAX_ORDERS_PER_TICK);
 
   if (orders.length === 0) return;
