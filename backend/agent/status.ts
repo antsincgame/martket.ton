@@ -15,12 +15,16 @@ import {
   COL_SELLER_PROFILES,
   COL_LISTINGS,
   COL_ORDERS,
+  COL_LICENSES,
 } from '../commerce/constants.js';
+import { findUserByTonAddress } from '../core/profileRepository.js';
+import { listProductsByCreator } from '../core/productRepository.js';
 import { logger } from '../logger.js';
 
 /** First-page cap when sampling listings/orders for a status snapshot. */
 const PAGE = 100;
 const ORDERS_PAGE = 500;
+const LICENSES_PAGE = 500;
 
 export interface OnboardingChecklist {
   kyc: { status: string; ok: boolean };
@@ -37,6 +41,10 @@ export interface AgentStatus {
   onboarding: OnboardingChecklist;
   listings: { total: number; byStatus: Record<string, number> };
   orders: { total: number; byState: Record<string, number> };
+  /** License NFTs minted for this seller's sales, by lifecycle state. */
+  licenses: { total: number; byState: Record<string, number> };
+  /** Catalog products this agent authored, by antivirus scan status. */
+  products: { total: number; byScanStatus: Record<string, number> };
   distribution: { configured: number; verified: number; needsAttention: number };
 }
 
@@ -148,6 +156,39 @@ export async function buildAgentStatus(wallet: string): Promise<AgentStatus> {
     }
   }
 
+  // Licenses minted for this seller's sales, by lifecycle state (mint_pending,
+  // minted, mint_failed, refund_*, burned, refunded). `License.sellerWallet` is
+  // the authoritative link from a license back to the seller.
+  let licenses = { total: 0, byState: {} as Record<string, number> };
+  try {
+    const licRes = await databases().listDocuments(DATABASE_ID, COL_LICENSES, [
+      Query.equal('sellerWallet', wallet),
+      Query.limit(LICENSES_PAGE),
+    ]);
+    licenses = {
+      total: licRes.total,
+      byState: countBy(licRes.documents as Array<Record<string, unknown>>, 'state'),
+    };
+  } catch (err) {
+    logger.debug('[agent-status] licenses aggregate failed:', err instanceof Error ? err.message : err);
+  }
+
+  // Catalog products this agent authored, by antivirus scan status. Products live
+  // in the core DB keyed by the seller's catalog profile id (creator_id).
+  let products = { total: 0, byScanStatus: {} as Record<string, number> };
+  try {
+    const creator = await findUserByTonAddress(wallet);
+    if (creator) {
+      const prods = await listProductsByCreator(creator.id);
+      products = {
+        total: prods.length,
+        byScanStatus: countBy(prods as unknown as Array<Record<string, unknown>>, 'scanStatus'),
+      };
+    }
+  } catch (err) {
+    logger.debug('[agent-status] products aggregate failed:', err instanceof Error ? err.message : err);
+  }
+
   const configured = snap.listings.filter(
     (l) => Boolean(l['distribution_kind']) && l['distribution_kind'] !== 'none',
   ).length;
@@ -161,6 +202,8 @@ export async function buildAgentStatus(wallet: string): Promise<AgentStatus> {
     onboarding,
     listings: { total: snap.listingsTotal, byStatus },
     orders,
+    licenses,
+    products,
     distribution: { configured, verified, needsAttention },
   };
 }
