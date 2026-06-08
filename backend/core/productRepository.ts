@@ -94,11 +94,11 @@ export function productToSnakeCase(p: Product): Record<string, unknown> {
   };
 }
 
-export async function listProductsByStatus(status: string): Promise<Product[]> {
+export async function listProductsByStatus(status: string, scanLimit = 5000): Promise<Product[]> {
   const res = await databases().listDocuments(CORE_DATABASE_ID, COL_LEGACY_PRODUCTS, [
     Query.equal('status', status),
     Query.orderDesc('$createdAt'),
-    Query.limit(5000),
+    Query.limit(scanLimit),
   ]);
   return res.documents.map((d) => mapProduct(asDoc(d)));
 }
@@ -205,6 +205,32 @@ export async function renameCategory(oldSlug: string, newSlug: string): Promise<
   return products.length;
 }
 
+/**
+ * Degraded-mode search cap. When the `name` fulltext index is unavailable and
+ * `searchProducts` falls back to an in-memory substring scan, only this many of
+ * the most-recent published products are fetched — so a public, unauthenticated
+ * request cannot force a full-collection (up to 5000-row) fetch + scan. The
+ * fulltext index (the primary path) remains the real solution.
+ */
+const SEARCH_FALLBACK_SCAN_LIMIT = 1000;
+
+/**
+ * Pure substring matcher for the degraded-mode search fallback: case-insensitive
+ * match of `query` against a product's name / short-description / description /
+ * category, capped to `max` results. Exported for unit tests.
+ */
+export function filterProductsByQuery(products: Product[], query: string, max: number): Product[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  return products
+    .filter((p) =>
+      [p.name, p.shortDescription, p.description, p.category]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(q)),
+    )
+    .slice(0, Math.max(0, max));
+}
+
 export async function searchProducts(query: string, limit = 50): Promise<Product[]> {
   const max = Math.min(limit, 200);
   try {
@@ -215,16 +241,11 @@ export async function searchProducts(query: string, limit = 50): Promise<Product
     ]);
     return res.documents.map((d) => mapProduct(asDoc(d)));
   } catch {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    const products = await listProductsByStatus('published');
-    return products
-      .filter((p) =>
-        [p.name, p.shortDescription, p.description, p.category]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(q)),
-      )
-      .slice(0, max);
+    // Degraded mode (no fulltext index on `name`): scan only a bounded window of
+    // the most-recent published products, never the full collection.
+    if (!query.trim()) return [];
+    const products = await listProductsByStatus('published', SEARCH_FALLBACK_SCAN_LIMIT);
+    return filterProductsByQuery(products, query, max);
   }
 }
 
