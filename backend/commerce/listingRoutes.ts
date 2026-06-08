@@ -26,6 +26,7 @@ import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
 import { sellerRegisterSchema, createListingSchema, patchListingSchema } from './validation.js';
 import { mapListingPublic, appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
+import { buildOnboardingChecklist } from '../agent/status.js';
 import { requireSellerKyc } from './handlers/requireSellerKyc.js';
 import {
   createDiditSession,
@@ -355,6 +356,22 @@ router.get('/sellers/:wallet/kyc-status', apiRequireAuth(), async (req: Request,
   } catch (e: unknown) {
     logger.error('[commerce] kyc status:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Failed to fetch KYC status', code: 'KYC_STATUS' });
+  }
+});
+
+// Copilot-Lite, human face: the seller's own onboarding checklist + next action,
+// computed from the SAME derive logic the agent's GET /api/v1/agent/status uses.
+// A human Demiurge gets identical guidance to a machine one — one shared brain.
+router.get('/sellers/:wallet/onboarding', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const wallet = str(req.params.wallet);
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
+    const onboarding = await buildOnboardingChecklist(wallet);
+    res.json({ data: { onboarding } });
+  } catch (e: unknown) {
+    logger.error('[commerce] seller onboarding:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to load onboarding', code: 'SELLER_ONBOARDING' });
   }
 });
 

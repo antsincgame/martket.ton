@@ -26,14 +26,36 @@ const PAGE = 100;
 const ORDERS_PAGE = 500;
 const LICENSES_PAGE = 500;
 
+/**
+ * Copilot-Lite (deterministic, no LLM): the single next step toward autonomy,
+ * tied to the instruction section that explains it and a concrete affordance —
+ * the exact agent-API call for a machine, and the UI action for a human. One
+ * structure, two equal faces (Agent API + Demiurge UI): a human and a machine
+ * Demiurge get identical guidance.
+ */
+export interface NextAction {
+  step: 'kyc' | 'storage' | 'create_product' | 'verify_distribution' | 'done';
+  message: string;
+  /** Instruction section (GET /api/v1/agent/instructions) that explains this step. */
+  section: string;
+  /** Machine affordance: the agent-API call to make next (`:id` = your listing id). */
+  api: { method: string; path: string } | null;
+  /** Human affordance: a label + where to act in the Demiurge UI. */
+  ui: { label: string; hint: string };
+  /** Off-platform prerequisite the platform cannot do for you, or null. */
+  external: string | null;
+}
+
 export interface OnboardingChecklist {
   kyc: { status: string; ok: boolean };
   storage: { status: string; connected: boolean; provider: string | null };
   catalog: { listings: number; hasListings: boolean };
   distribution: { configured: boolean; verified: boolean };
   readyToSell: boolean;
-  /** The single most useful next action, or null when fully onboarded. */
+  /** The single most useful next step as a sentence, or null when fully onboarded. */
   nextStep: string | null;
+  /** Structured, actionable form of the next step (Copilot-Lite). */
+  nextAction: NextAction;
 }
 
 export interface AgentStatus {
@@ -88,6 +110,65 @@ async function loadSnapshot(wallet: string): Promise<SellerSnapshot> {
   };
 }
 
+/**
+ * Map the onboarding checklist to the single structured next action. Pure +
+ * exported for tests. Mirrors the `nextStep` ladder but adds the instruction
+ * section, the machine API affordance, and the human UI affordance — so the
+ * Demiurge (human or machine) is guided to autonomy through one shared brain.
+ */
+export function deriveNextAction(
+  o: Pick<OnboardingChecklist, 'kyc' | 'storage' | 'catalog' | 'distribution'>,
+): NextAction {
+  if (!o.kyc.ok) {
+    return {
+      step: 'kyc',
+      message: 'Complete identity verification (KYC) via your human owner before publishing.',
+      section: 'kyc',
+      api: null,
+      ui: { label: 'Verify identity', hint: 'Demiurge → verification' },
+      external: 'A real human owner/operator completes KYC.',
+    };
+  }
+  if (!o.storage.connected && !o.distribution.configured) {
+    return {
+      step: 'storage',
+      message: 'Connect distribution storage (R2/S3/B2) or attach a GitHub release.',
+      section: 'prerequisites',
+      api: { method: 'PUT', path: '/api/v1/agent/listings/:id/distribution' },
+      ui: { label: 'Connect distribution', hint: 'Demiurge → distribution' },
+      external: 'Provision Cloudflare R2 / S3 / B2, or prepare a GitHub release.',
+    };
+  }
+  if (!o.catalog.hasListings) {
+    return {
+      step: 'create_product',
+      message: 'Create your first product draft.',
+      section: 'onboarding',
+      api: { method: 'POST', path: '/api/v1/agent/products' },
+      ui: { label: 'Create a draft product', hint: 'Demiurge → new product' },
+      external: null,
+    };
+  }
+  if (!o.distribution.verified) {
+    return {
+      step: 'verify_distribution',
+      message: 'Attach and verify a distribution manifest on a listing.',
+      section: 'onboarding',
+      api: { method: 'PUT', path: '/api/v1/agent/listings/:id/distribution' },
+      ui: { label: 'Attach & verify distribution', hint: 'Demiurge → listing → distribution' },
+      external: null,
+    };
+  }
+  return {
+    step: 'done',
+    message: 'You are onboarded. Sell honestly, keep your source healthy, and invite buyers to review after delivery.',
+    section: 'behavior',
+    api: null,
+    ui: { label: 'Start selling', hint: 'Demiurge → listings' },
+    external: null,
+  };
+}
+
 function deriveOnboarding(snap: SellerSnapshot): OnboardingChecklist {
   const kycStatus = (snap.profile?.['kyc_status'] as string) || 'none';
   const kycOk = kycStatus === 'approved';
@@ -117,7 +198,7 @@ function deriveOnboarding(snap: SellerSnapshot): OnboardingChecklist {
     nextStep = 'Attach and verify a distribution manifest on a listing.';
   }
 
-  return {
+  const checklist: Omit<OnboardingChecklist, 'nextAction'> = {
     kyc: { status: kycStatus, ok: kycOk },
     storage: { status: storageStatus, connected: storageConnected, provider: storageProvider },
     catalog: { listings: snap.listingsTotal, hasListings },
@@ -125,6 +206,7 @@ function deriveOnboarding(snap: SellerSnapshot): OnboardingChecklist {
     readyToSell,
     nextStep,
   };
+  return { ...checklist, nextAction: deriveNextAction(checklist) };
 }
 
 /** Lightweight onboarding checklist (used by `/instructions` and `/status`). */
