@@ -1,7 +1,7 @@
 # План: автономия агента + per-seller коллекции (TonForge)
 
 > Живой роадмап. Поднят из плана агента в Кодекс репозитория, чтобы быть общим
-> Свитком. Статусы отражают состояние ветки `claude/funny-dijkstra-KIPtO` (PR #90).
+> Свитком. Статусы отражают `main` (Фаза 0 — closed-with-notes; см. ниже).
 
 ## Видение (зачем)
 
@@ -10,6 +10,12 @@
 бота-продавца**, при этом KYC проходится честно через реального человека-владельца
 (не блокер, но и не обход). Движение к **суверенному агенту-продавцу фазами**, не
 ломая денежный путь.
+
+**Поверхность продукта — MCP-сервер TonForge** (`mcp-server/`, `tonforge-agent`), а
+НЕ «обычный API». Agent API — это бэкенд; первичный интерфейс для ИИ-ассистентов
+(Claude Desktop/Code, Cursor, Windsurf…) — набор **MCP-инструментов**, которыми агент
+управляет витриной продавца на естественном языке. Всякий примитив автономии должен
+быть выражен как MCP-tool, а не только как HTTP-маршрут.
 
 Ключевой факт контракта: `contracts/src/appCollection.tact:54` →
 `require(sender() == self.ownerAddress, "Only collection owner can mint")`. Отдельной
@@ -74,15 +80,30 @@
 4. **Онбординг-состояние выводится** из живого состояния (kyc/storage/listings/
    distribution), не хранится отдельными полями/коллекцией: единый источник истины.
 
-### Следующий рубеж — Слой 3 (копилот на LLM)
-`POST /api/v1/agent/help { question }` → **локальная LLM через LM Studio**
-(OpenAI-совместимый эндпоинт — **не Anthropic**): `LLM_BASE_URL` + `LLM_MODEL`
-(+ опц. `LLM_API_KEY`). Заземление: корпус инструкций (context-stuff, малый доверенный) +
-live `/status`, **цитаты** + исполнимый `suggestedAction`. Key/URL-gated: мягко
-«unavailable» без конфига. Backend в Coolify должен дотянуться до LM Studio
-(туннель/проброс с Терры).
+### MCP-поверхность (продукт) — покрытие
+`mcp-server/` (`tonforge-agent`) уже отдаёт 10 tools: `whoami`, `list/create/update_listing`,
+`set/verify_distribution`, `list_orders`, `search_products`, `get_product`, `list_offers`.
+**Примитивы Фазы 0 ещё НЕ выражены как MCP-tools (план):**
+- `get_instructions` — онбординг-канал 0.1 (`GET /agent/instructions`).
+- `get_status` — `/status` 0.3 + **Копилот-Lite `nextAction`** (пробел C). Одним tool
+  агент видит прогресс и точный следующий шаг.
+- `create_product` — черновик товара 0.2 (`POST /agent/products`).
+- `assistant_help` — АИ-ассистент (ниже).
 
-**Фаза 0 — closed-with-notes.**
+### АИ-Ассистент — Слой 3 (в MVP — **МОКАП**)
+**MVP:** `assistant_help` (MCP-tool + `POST /api/v1/agent/help`) — **мокап**, по образцу
+AML-консоли (#103). Возвращает **заземлённую детерминированную** структуру (`nextAction` +
+релевантная секция инструкций + честная пометка `assistant: "mockup — LLM не подключён"`),
+**без живой LLM**. Так MCP-поверхность уже несёт ассистент-tool, но не врёт о возможностях.
+
+**Пост-MVP (активация):** подключить **локальную LLM через LM Studio** (OpenAI-совместимый
+эндпоинт — **не Anthropic**): `LLM_BASE_URL` + `LLM_MODEL` (+ опц. `LLM_API_KEY`).
+Заземление: корпус инструкций (context-stuff, малый доверенный) + live `/status`, **цитаты**
++ исполнимый `suggestedAction`. URL-gated: без конфига остаётся мокапом. Backend в Coolify
+должен дотянуться до LM Studio (туннель/проброс с Терры).
+
+**Фаза 0 — closed-with-notes.** Остаток MVP — выразить примитивы 0.1–0.3 + ассистент-мокап
+как MCP-tools (поверхность продукта).
 
 ---
 
