@@ -32,3 +32,5 @@
 
 <!-- deploy smoke 2026-06-08 (v2): триггер автодеплоя, без skip-маркера -->
 <!-- deploy 2026-06-08 (v3): rollout #113 — ensureSearchIndex self-heal + ledger null-rate -->
+
+<!-- deploy 2026-06-08 (v4): rollout #114 — search-index already-exists now logged at info -->
