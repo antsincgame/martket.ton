@@ -1,4 +1,5 @@
 import express, { type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { DATABASE_ID, COL_ORDERS, COL_AUDIT } from './constants.js';
 import { databases, Query } from './appwrite.js';
 import { writeAudit } from './audit.js';
@@ -15,6 +16,18 @@ import { findSellerCollection } from './sellerCollectionRepository.js';
 import type { TonNetwork } from '../config/network.js';
 
 const router = express.Router();
+
+// Bound abuse of the secret-gated admin surface — also slows any attempt to
+// brute-force COMMERCE_ADMIN_SECRET (which the constant-time compare in
+// commerceAdmin further hardens). Scoped to /admin so the public /config below
+// is unaffected.
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+router.use('/admin', adminLimiter);
 
 router.get('/config', (_req: Request, res: Response) => {
   const treasury = process.env.TREASURY_WALLET_ADDRESS || '';

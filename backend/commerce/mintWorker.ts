@@ -21,7 +21,7 @@
  *      and register, and a later tick reconciles the order.
  */
 
-import { Cell } from '@ton/core';
+import { Address, Cell } from '@ton/core';
 import {
   DATABASE_ID,
   COL_ORDERS,
@@ -156,9 +156,21 @@ export type ReconcileAction =
   | { kind: 'wait' }       // FUNDED but no license yet → tonforge/mintWorker owns the mint
   | { kind: 'noop' };      // unknown/other escrow state → nothing to reconcile
 
-// Escrow license_address getter returns the EQ/UQ form; the zero address (no
-// license registered yet) renders as EQAAAA…/UQAAAA….
-const ZERO_LICENSE_RE = /^EQAAAAA|^UQAAAAA/;
+// The escrow's license_address getter can render in ANY TON form (mainnet
+// EQ/UQ, testnet kQ/0Q, raw `0:…`), so detect "no LicenseItem registered yet"
+// STRUCTURALLY — by the 256-bit account hash being all-zero — never by a string
+// prefix. A prefix regex silently mis-classifies a testnet-form zero as a real
+// license and would finalize the order BEFORE any NFT exists. An empty or
+// unparseable value is treated as not-yet-minted (the safe direction: wait).
+const ZERO_ACCOUNT_HASH = Buffer.alloc(32);
+function isZeroLicenseAddress(licenseAddress: string | null): boolean {
+  if (!licenseAddress) return true;
+  try {
+    return Address.parse(licenseAddress).hash.equals(ZERO_ACCOUNT_HASH);
+  } catch {
+    return true;
+  }
+}
 
 /**
  * Pure reconciliation decision (the order-state machine). Given the on-chain
@@ -173,8 +185,7 @@ export function decideReconcileAction(
   if (escrowState === 3) return { kind: 'fulfilled' };
   if (escrowState === 4) return { kind: 'refunded' };
   if (escrowState !== 1) return { kind: 'noop' };
-  const isZero = !licenseAddress || ZERO_LICENSE_RE.test(licenseAddress);
-  return isZero ? { kind: 'wait' } : { kind: 'finalize' };
+  return isZeroLicenseAddress(licenseAddress) ? { kind: 'wait' } : { kind: 'finalize' };
 }
 
 async function processOrder(
