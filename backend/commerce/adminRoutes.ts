@@ -13,7 +13,20 @@ import { str } from '../utils/params.js';
 import { listInstructionsForAdmin, upsertInstruction } from '../agent/instructions.js';
 import { provisionSellerCollection, ProvisionConfigError } from './collectionProvisioner.js';
 import { findSellerCollection } from './sellerCollectionRepository.js';
+import { amlStatus } from '../aml/amlbot.js';
 import type { TonNetwork } from '../config/network.js';
+
+/**
+ * AML / sanctions provider registry. Only AMLBot is wired today; the rest are a
+ * MOCKUP for the admin console — the provider is not finalised, so the panel
+ * surfaces the candidate set and the live config without committing to one.
+ */
+const AML_PROVIDERS = [
+  { id: 'amlbot', name: 'AMLBot', wired: true, note: 'TON wallet risk scoring (active)' },
+  { id: 'chainalysis', name: 'Chainalysis', wired: false, note: 'Under evaluation' },
+  { id: 'elliptic', name: 'Elliptic', wired: false, note: 'Under evaluation' },
+  { id: 'trm', name: 'TRM Labs', wired: false, note: 'Under evaluation' },
+] as const;
 
 const router = express.Router();
 
@@ -36,6 +49,24 @@ router.get('/config', (_req: Request, res: Response) => {
       treasuryAddress: treasury,
       platformFeeBpsDefault: DEFAULT_PLATFORM_FEE_BPS,
       currencyTon: CURRENCY.TON,
+    },
+  });
+});
+
+// AML / compliance config for the admin console (mockup-aware). Read-only:
+// reflects the live env-driven AML status plus the candidate provider registry.
+router.get('/admin/aml-config', commerceAdmin, (_req: Request, res: Response) => {
+  const status = amlStatus();
+  res.json({
+    data: {
+      status,
+      activeProvider: status.enabled ? 'amlbot' : 'none',
+      providers: AML_PROVIDERS,
+      gate: {
+        failOpen: true,
+        blocksAtOrAbove: status.threshold,
+        note: 'Fail-open: provider/network errors never block a trade; only a confirmed high-risk verdict (score ≥ threshold) does. Sanctions screening is separate and always enforced.',
+      },
     },
   });
 });
