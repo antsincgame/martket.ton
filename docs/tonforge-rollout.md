@@ -30,4 +30,4 @@
 - `backend/tonforge/router.ts` сохранить как HTTP boundary, меняется только service/repository.
 - `src/services/tonforgeApi.ts` не менять: фронт уже привязан к каноническим endpoint contracts.
 
-<!-- deploy smoke 2026-06-08: проверка автодеплоя после транзиентного сбоя api.github.com -->
+<!-- deploy smoke 2026-06-08 (v2): триггер автодеплоя, без skip-маркера -->
