@@ -1,4 +1,5 @@
 import { logger } from '../../logger.js';
+import { resolveNetwork } from '../../config/network.js';
 
 /**
  * On-chain integration config. All values come from env so we can swap
@@ -26,7 +27,12 @@ function env(name: string, fallback = ''): string {
 }
 
 export function loadOnchainConfig(): OnchainConfig {
-  const network = env('TON_NETWORK', 'testnet') === 'mainnet' ? 'mainnet' : 'testnet';
+  // Single source of truth for the active network: config/network.ts (pinned by
+  // TON_NETWORK, defaults to mainnet). Previously this module hard-coded its own
+  // `testnet` default for the SAME env var — when TON_NETWORK was unset, commerce
+  // pinned mainnet while the mint worker ran testnet (split-brain). Delegating
+  // here keeps the two halves of the money path on one network.
+  const network = resolveNetwork();
   const defaultEndpoint =
     network === 'mainnet'
       ? 'https://toncenter.com/api/v2/jsonRPC'

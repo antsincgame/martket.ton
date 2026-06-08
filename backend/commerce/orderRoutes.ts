@@ -15,6 +15,7 @@ import { decideRefundClaim, REFUND_CLAIM_GAS_NANO } from './refundClaim.js';
 import { screenWallet } from '../sanctions/screen.js';
 import { checkWalletAml } from '../aml/amlbot.js';
 import { resolveNetworkConfig } from '../config/network.js';
+import { licenseMetadataBaseUrl } from '../config/metadata.js';
 import { writeAudit } from './audit.js';
 import { logger } from '../logger.js';
 import { recordLedgerEntry } from '../core/ledgerService.js';
@@ -127,7 +128,7 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
     // Но ID.unique() даёт нам id заранее, используем его сразу.
     const orderId = ID.unique();
     const licenseContentUri = (listing['licenseContentUri'] as string) ||
-      `https://cdn.example.org/license/${orderId}.json`;
+      `${licenseMetadataBaseUrl()}/${orderId}.json`;
 
     let escrowData: Awaited<ReturnType<typeof computeEscrow>> | null = null;
     try {
