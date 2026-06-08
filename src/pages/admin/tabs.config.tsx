@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Bug,
   BookOpen,
+  ScrollText,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -20,6 +21,7 @@ const SecurityMonitor = lazy(() => import('../../components/SecurityMonitor'));
 const RealUserManagement = lazy(() => import('../../components/RealUserManagement'));
 const AuditLogs = lazy(() => import('../../components/AuditLogs'));
 const CommerceAdminPanel = lazy(() => import('../../components/admin/CommerceAdminPanel'));
+const AgentInstructionsPanel = lazy(() => import('../../components/admin/AgentInstructionsPanel'));
 const ProductModerationQueue = lazy(() => import('../../components/admin/ProductModerationQueue'));
 const ResendSettings = lazy(() => import('../../components/admin/ResendSettings'));
 const CategoryManagement = lazy(() => import('../../components/admin/CategoryManagement'));
@@ -60,6 +62,7 @@ export const ADMIN_TABS: readonly AdminTab[] = [
   { id: 'categories', label: 'Categories', icon: Folder, component: CategoryManagement, requiredPermission: { resource: 'categories', action: 'read' } },
   { id: 'ledger', label: 'Ledger', icon: BookOpen, component: ComplianceLedger, requiredPermission: { resource: '*', action: 'read' } },
   { id: 'commerce', label: 'Commerce', icon: Coins, component: CommerceAdminPanel, requiredPermission: { resource: 'products', action: 'read' } },
+  { id: 'agent-docs', label: 'Agent Docs', icon: ScrollText, component: AgentInstructionsPanel, requiredPermission: { resource: 'products', action: 'read' } },
   { id: 'email', label: 'Email', icon: Mail, component: ResendSettings, requiredPermission: { resource: '*', action: 'update' } },
   { id: 'support', label: 'Support', icon: MessageCircle, component: SupportAdmin, requiredPermission: { resource: '*', action: 'read' } },
   { id: 'errors', label: 'Errors', icon: Bug, component: ClientErrorsPanel, requiredPermission: { resource: 'audit_logs', action: 'read' } },
