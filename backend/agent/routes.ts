@@ -35,6 +35,7 @@ import { agentCreateListingSchema, patchListingSchema } from '../commerce/valida
 import { validateBody } from '../middleware/validate.js';
 import { getInstructionSections } from './instructions.js';
 import { buildAgentStatus, buildOnboardingChecklist } from './status.js';
+import { buildAssistantReply } from './assistant.js';
 import { createProductSchema } from '../routes/validation.js';
 import { insertProduct, productToSnakeCase } from '../core/repository.js';
 import { findUserByTonAddress } from '../core/profileRepository.js';
@@ -105,6 +106,32 @@ router.get(
     } catch (e) {
       logger.error('[agent] status:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Failed to load status', code: 'AGENT_STATUS' });
+    }
+  },
+);
+
+/**
+ * Onboarding assistant — MVP MOCKUP (no LLM). Grounded + deterministic: returns
+ * the agent's current next action and cites the instruction section explaining
+ * it, honestly flagged `assistant: "mockup"`. Readable before KYC (`skipKyc`) so
+ * an onboarding agent can ask for help. The real grounded copilot (local LLM via
+ * LM Studio) is a post-MVP activation.
+ */
+router.post(
+  '/help',
+  apiRequireAgentToken(['instructions:read'], { skipKyc: true }),
+  async (req: Request, res: Response) => {
+    try {
+      const raw = (req.body as { question?: unknown })?.question;
+      const question = typeof raw === 'string' ? raw.slice(0, 2000) : '';
+      const [sections, onboarding] = await Promise.all([
+        getInstructionSections(),
+        buildOnboardingChecklist(req.agent!.wallet),
+      ]);
+      res.json({ data: buildAssistantReply(question, sections, onboarding) });
+    } catch (e) {
+      logger.error('[agent] help:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Assistant failed', code: 'AGENT_HELP' });
     }
   },
 );

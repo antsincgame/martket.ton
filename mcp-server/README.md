@@ -15,6 +15,10 @@ seller's storefront in natural language.
 | Tool                  | Scope needed         | Does                                            |
 | --------------------- | -------------------- | ----------------------------------------------- |
 | `whoami`              | any                  | Show the token's wallet, scopes, prefix         |
+| `get_instructions`    | `instructions:read`  | Onboarding/operating manual (pre-KYC)           |
+| `get_status`          | any                  | Onboarding checklist + next action + aggregates |
+| `create_product`      | `products:write`     | Create a catalog product draft (→ moderation)   |
+| `assistant_help`      | `instructions:read`  | Onboarding assistant (MVP **mockup**, no LLM)   |
 | `list_listings`       | `listings:read`      | List your listings                              |
 | `create_listing`      | `listings:write`     | Create a listing                                |
 | `update_listing`      | `listings:write`     | Update a listing                                |
