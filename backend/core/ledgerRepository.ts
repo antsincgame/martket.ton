@@ -18,7 +18,7 @@ function mapEntry(doc: AppwriteDoc): LedgerEntry {
     sellerProfileId: (doc['seller_profile_id'] as string) ?? null,
     amountUsd: (doc['amount_usd'] as number) ?? 0,
     amountTonRaw: (doc['amount_ton_raw'] as string) ?? '0',
-    tonUsdRate: (doc['ton_usd_rate'] as number) ?? 0,
+    tonUsdRate: typeof doc['ton_usd_rate'] === 'number' ? (doc['ton_usd_rate'] as number) : null,
     platformFeeUsd: (doc['platform_fee_usd'] as number) ?? 0,
     platformFeeTonRaw: (doc['platform_fee_ton_raw'] as string) ?? '0',
     txHash: (doc['tx_hash'] as string) ?? null,
@@ -48,7 +48,7 @@ export interface InsertLedgerParams {
   seller_profile_id?: string | null;
   amount_usd?: number;
   amount_ton_raw?: string;
-  ton_usd_rate?: number;
+  ton_usd_rate?: number | null;
   platform_fee_usd?: number;
   platform_fee_ton_raw?: string;
   tx_hash?: string | null;
@@ -81,7 +81,7 @@ export async function insertLedgerEntry(params: InsertLedgerParams): Promise<Led
       seller_profile_id: params.seller_profile_id ?? null,
       amount_usd: params.amount_usd ?? 0,
       amount_ton_raw: params.amount_ton_raw ?? '0',
-      ton_usd_rate: params.ton_usd_rate ?? 0,
+      ton_usd_rate: typeof params.ton_usd_rate === 'number' ? params.ton_usd_rate : null,
       platform_fee_usd: params.platform_fee_usd ?? 0,
       platform_fee_ton_raw: params.platform_fee_ton_raw ?? '0',
       tx_hash: params.tx_hash ?? null,
