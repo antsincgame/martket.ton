@@ -32,7 +32,7 @@ import { writeAudit } from '../commerce/audit.js';
 import { logger } from '../logger.js';
 import { str } from '../utils/params.js';
 import { apiRequireAgentToken } from './agentAuth.js';
-import { agentCreateListingSchema, patchListingSchema } from '../commerce/validation.js';
+import { agentCreateListingSchema, patchListingSchema, agentSetStorageSchema } from '../commerce/validation.js';
 import { validateBody } from '../middleware/validate.js';
 import { getInstructionSections } from './instructions.js';
 import { buildAgentStatus, buildOnboardingChecklist } from './status.js';
@@ -42,6 +42,7 @@ import { insertProduct, productToSnakeCase } from '../core/repository.js';
 import { findUserByTonAddress } from '../core/profileRepository.js';
 import { generateId } from '../core/generateId.js';
 import { rejectMismatchedCollection } from '../commerce/collectionBinding.js';
+import { saveSellerStorage } from '../commerce/storageService.js';
 
 const router = express.Router();
 
@@ -182,6 +183,50 @@ router.post(
     } catch (e) {
       logger.error('[agent] seller register:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Registration failed', code: 'AGENT_SELLER_REGISTER' });
+    }
+  },
+);
+
+/**
+ * Agent BYOS storage config (B2). Connects the agent's own R2/S3/B2 bucket for
+ * private distribution — wallet from the TOKEN (never the body), credentials
+ * validated (HeadBucket) and stored AES-256-GCM-encrypted via the SAME
+ * `saveSellerStorage` path as the human surface (DRY). Scope: distribution:write.
+ */
+router.post(
+  '/storage',
+  apiRequireAgentToken(['distribution:write']),
+  validateBody(agentSetStorageSchema),
+  async (req: Request, res: Response) => {
+    try {
+      const wallet = req.agent!.wallet;
+      const body = req.body as {
+        provider: 'cloudflare-r2' | 's3' | 'b2';
+        accountId: string;
+        bucket: string;
+        endpoint?: string;
+        accessKeyId: string;
+        secretAccessKey: string;
+        publicBaseUrl?: string;
+      };
+      const result = await saveSellerStorage(wallet, body, 'Agent Demiurge');
+      if (!result.ok) {
+        res.status(result.status).json(
+          result.code === 'BUCKET_PROBE_FAILED'
+            ? { error: 'Bucket probe failed', code: result.code, details: result.error }
+            : { error: result.error || 'Storage save failed', code: result.code },
+        );
+        return;
+      }
+      await writeAudit(wallet, 'agent_storage_set', 'seller', result.docId, {
+        token: req.agent!.tokenPrefix,
+        provider: body.provider,
+        bucket: body.bucket,
+      });
+      res.json({ data: result.data });
+    } catch (e) {
+      logger.error('[agent] storage:', e instanceof Error ? e.message : e);
+      res.status(500).json({ error: 'Storage save failed', code: 'AGENT_STORAGE' });
     }
   },
 );
