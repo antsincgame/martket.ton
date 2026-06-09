@@ -4,7 +4,9 @@
  * Mint cycle (every TICK_INTERVAL_MS):
  *   1. Mint LicenseItem on-chain via the oracle wallet.
  *   2. Poll until the new contract is active.
- *   3. RegisterLicense on the Escrow so it knows which NFT can trigger refund.
+ *   3. Подтверждаем саморегистрацию LicenseItem в Escrow через геттер
+ *      license_address (раньше здесь oracle шлёт RegisterLicense — он
+ *      баунсится, см. R1 в аудите).
  *
  * Refund cycle (every TICK_INTERVAL_MS):
  *   1. Find licenses stuck in `mint_failed` for > REFUND_AFTER_MS with no
@@ -41,7 +43,7 @@ import { licenseMetadataBaseUrl } from '../config/metadata.js';
 import { withLock } from '../commerce/distributedLock.js';
 import { loadOnchainConfig } from './onchain/config.js';
 import { mintLicense, pollItemDeployed } from './onchain/mintLicense.js';
-import { registerLicense } from './onchain/registerLicense.js';
+import { pollLicenseRegistered } from './onchain/escrowState.js';
 import { pollEscrowSettled } from './onchain/oracleRefund.js';
 import { timeoutRelease, checkEscrowAlive } from './onchain/timeoutRelease.js';
 import { finalizeOrderRefund } from '../commerce/handlers/finalizeOrderRefund.js';
@@ -79,6 +81,7 @@ const REFUND_REVERT_AFTER_MS = envInt('MINT_REFUND_REVERT_MS', 15 * 60 * 1000);
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let running = false;
+let cyclesRunning = false;
 let startupSweepDone = false;
 
 function buildMetadataUri(license: LicenseRecord, base?: string): string {
@@ -99,15 +102,17 @@ async function processOne(license: LicenseRecord): Promise<void> {
     return;
   }
 
-  await updateLicense(license.$id, {
-    mintAttempts: license.mintAttempts + 1,
-    lastMintAttemptAt: new Date().toISOString(),
-  });
-
   let nftAddress = license.nftAddress;
   let mintTxHash = license.mintTxHash;
 
   if (!nftAddress) {
+    // Считаем попытку ТОЛЬКО при реальном минте, а не на тиках ожидания
+    // саморегистрации — иначе register-poll инфлейтит mintAttempts до MAX
+    // и живая лицензия с уже заминченным NFT упадёт в mint_failed.
+    await updateLicense(license.$id, {
+      mintAttempts: license.mintAttempts + 1,
+      lastMintAttemptAt: new Date().toISOString(),
+    });
     // Persist a queryId BEFORE broadcast so we have an audit trail even
     // when the process dies between the broadcast and the success update.
     // (Strict de-dup is left to the deterministic on-chain deploy: a
@@ -165,18 +170,22 @@ async function processOne(license: LicenseRecord): Promise<void> {
   }
 
   if (license.escrowAddress) {
-    try {
-      await registerLicense({
-        escrowAddress: license.escrowAddress,
-        licenseAddress: nftAddress,
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // The NFT exists; we just couldn't bind it to escrow yet. Stay in
-      // mint_pending so the next tick retries register, but the buyer
-      // already has the NFT in their wallet.
-      await updateLicense(license.$id, { mintError: `REGISTER_FAILED: ${msg.slice(0, 800)}` });
-      logger.error(`[mintWorker] register failed license=${license.$id}: ${msg}`);
+    // LicenseItem саморегистрируется в эскроу при минте (контракт требует
+    // sender()==licenseAddress, поэтому oracle зарегистрировать НЕ может — см.
+    // R1 в аудите). Здесь лишь ПОДТВЕРЖДАЕМ саморегистрацию через геттер
+    // license_address. Пока не зарегистрировано — остаёмся mint_pending и повторим
+    // на следующем тике (NFT уже у покупателя; refund-петля BuyerBurn→
+    // RefundOnBurn замкнётся только после регистрации).
+    const registered = await pollLicenseRegistered({
+      escrowAddress: license.escrowAddress,
+      licenseAddress: nftAddress,
+      timeoutMs: POLL_TIMEOUT_MS,
+    });
+    if (!registered) {
+      await updateLicense(license.$id, { mintError: 'AWAITING_SELF_REGISTER' });
+      logger.warn(
+        `[mintWorker] license ${license.$id} ждёт саморегистрации в эскроу ${license.escrowAddress}`,
+      );
       return;
     }
   }
@@ -438,6 +447,27 @@ export async function triggerPayoutLoop(): Promise<void> {
   });
 }
 
+/**
+ * Сериализованный запуск всех трёх циклов.
+ *
+ * Все три цикла шлют транзакции с ОДНОГО oracle-кошелька. Параллельный
+ * запуск (mint + payout в одном окне) вызывал гонку seqno — getSeqno()
+ * возвращал один и тот же номер для двух транзакций. Сериализация устраняет.
+ */
+async function runAllCyclesSequential(): Promise<void> {
+  if (cyclesRunning) return;
+  cyclesRunning = true;
+  try {
+    await triggerMintLoop();
+    await triggerRefundLoop();
+    await triggerPayoutLoop();
+  } catch (err) {
+    logger.error('[mintWorker] cycle runner failed:', err);
+  } finally {
+    cyclesRunning = false;
+  }
+}
+
 export function startMintWorker(): void {
   if (timer) return;
   const cfg = loadOnchainConfig();
@@ -446,9 +476,7 @@ export function startMintWorker(): void {
     return;
   }
   timer = setInterval(() => {
-    triggerMintLoop().catch((err) => logger.error('[mintWorker] tick failed:', err));
-    triggerRefundLoop().catch((err) => logger.error('[mintWorker.refund] tick failed:', err));
-    triggerPayoutLoop().catch((err) => logger.error('[mintWorker.payout] tick failed:', err));
+    void runAllCyclesSequential();
   }, TICK_INTERVAL_MS);
   logger.info(
     `[mintWorker] started tick=${TICK_INTERVAL_MS}ms maxAttempts=${MAX_ATTEMPTS} ` +
@@ -456,12 +484,12 @@ export function startMintWorker(): void {
       `settleTimeout=${REFUND_SETTLE_TIMEOUT_MS}ms staleAfter=${STALE_AFTER_MS}ms`,
   );
 
-  // Startup sweep — run all three cycles immediately, without waiting the
-  // first TICK_INTERVAL_MS. This recovers in-flight licenses quickly after
-  // a deploy or process restart.
+  // Startup sweep — run all three cycles immediately (сериализованно), without
+  // waiting the first TICK_INTERVAL_MS. This recovers in-flight licenses
+  // quickly after a deploy or process restart.
   if (!startupSweepDone) {
     startupSweepDone = true;
-    Promise.allSettled([triggerMintLoop(), triggerRefundLoop(), triggerPayoutLoop()])
+    void runAllCyclesSequential()
       .then(() => logger.info('[mintWorker] startup sweep complete'))
       .catch((err) => logger.error('[mintWorker] startup sweep failed:', err));
   }
