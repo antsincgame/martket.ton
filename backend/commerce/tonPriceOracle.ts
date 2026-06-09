@@ -1,21 +1,28 @@
 /**
  * TON/USD price oracle with cascading providers and 15-minute cache.
  *
- * Single source of truth for TON↔USD conversion across the entire commerce
- * backend: listing creation, order pricing, and the public /api/ton-price
- * endpoint all consume this module.
+ * Единый источник истины для конвертации TON↔USD во всём commerce-бэкенде:
+ * создание листингов, расчёт заказов и публичный /api/ton-price берут цену отсюда.
  *
- * Provider chain (first success wins):
- *   1. CoinCap v2 — free, 200 req/min, no key
- *   2. CoinMarketRate — free, no registration
+ * Цепочка провайдеров (первый успех выигрывает):
+ *   1. CoinGecko      — бесплатный, без ключа
+ *   2. Binance        — бесплатный публичный тикер TONUSDT
+ *   3. CoinMarketRate — бесплатный, без регистрации (последний резерв)
  *
- * With a 15 min cache a single instance makes at most 4 requests/hour.
+ * Любая цена вне коридора [MIN_SANE_USD, MAX_SANE_USD] считается невалидной
+ * (защита от битого/манипулированного ответа провайдера).
+ *
+ * При 15-минутном кэше один инстанс делает не более ~4 запросов/час.
  */
 
 import { logger } from '../logger.js';
 
 const CACHE_TTL_MS = 15 * 60_000;
 const FETCH_TIMEOUT_MS = 8_000;
+
+// Разумный коридор цены TON в USD. Значения вне него отбрасываются.
+const MIN_SANE_USD = 0.1;
+const MAX_SANE_USD = 100;
 
 interface PriceCache {
   usd: number;
@@ -30,20 +37,37 @@ async function fetchWithTimeout(url: string, timeoutMs = FETCH_TIMEOUT_MS): Prom
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, { signal: controller.signal });
+    return await fetch(url, { signal: controller.signal, headers: { accept: 'application/json' } });
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function fetchFromCoinCap(): Promise<number> {
-  const url = 'https://api.coincap.io/v2/assets/toncoin';
-  const res = await fetchWithTimeout(url);
-  if (!res.ok) throw new Error(`CoinCap HTTP ${res.status}`);
-  const data = (await res.json()) as { data?: { priceUsd?: string } };
-  const price = Number(data?.data?.priceUsd);
-  if (!price || price <= 0) throw new Error('CoinCap returned invalid price');
+/** Проверка, что цена положительна и в разумном коридоре. Бросает при невалидной. */
+function assertSane(price: number, provider: string): number {
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error(`${provider} returned non-positive price`);
+  }
+  if (price < MIN_SANE_USD || price > MAX_SANE_USD) {
+    throw new Error(`${provider} price $${price} out of sane range [${MIN_SANE_USD}, ${MAX_SANE_USD}]`);
+  }
   return price;
+}
+
+async function fetchFromCoinGecko(): Promise<number> {
+  const url = 'https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd';
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`);
+  const data = (await res.json()) as { 'the-open-network'?: { usd?: number } };
+  return assertSane(Number(data?.['the-open-network']?.usd), 'CoinGecko');
+}
+
+async function fetchFromBinance(): Promise<number> {
+  const url = 'https://api.binance.com/api/v3/ticker/price?symbol=TONUSDT';
+  const res = await fetchWithTimeout(url);
+  if (!res.ok) throw new Error(`Binance HTTP ${res.status}`);
+  const data = (await res.json()) as { price?: string };
+  return assertSane(Number(data?.price), 'Binance');
 }
 
 async function fetchFromCoinMarketRate(): Promise<number> {
@@ -51,9 +75,7 @@ async function fetchFromCoinMarketRate(): Promise<number> {
   const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`CoinMarketRate HTTP ${res.status}`);
   const data = (await res.json()) as { price?: number; data?: { price?: number } };
-  const price = Number(data?.price ?? data?.data?.price);
-  if (!price || price <= 0) throw new Error('CoinMarketRate returned invalid price');
-  return price;
+  return assertSane(Number(data?.price ?? data?.data?.price), 'CoinMarketRate');
 }
 
 interface PriceProvider {
@@ -62,7 +84,8 @@ interface PriceProvider {
 }
 
 const providers: PriceProvider[] = [
-  { name: 'CoinCap', fetch: fetchFromCoinCap },
+  { name: 'CoinGecko', fetch: fetchFromCoinGecko },
+  { name: 'Binance', fetch: fetchFromBinance },
   { name: 'CoinMarketRate', fetch: fetchFromCoinMarketRate },
 ];
 
@@ -97,7 +120,7 @@ export async function getTonUsdPrice(): Promise<number> {
       return cache.usd;
     }
     const fallback = Number(process.env.TON_USD_FALLBACK);
-    if (Number.isFinite(fallback) && fallback > 0) {
+    if (Number.isFinite(fallback) && fallback >= MIN_SANE_USD && fallback <= MAX_SANE_USD) {
       logger.warn(`[tonPriceOracle] using TON_USD_FALLBACK=$${fallback.toFixed(4)}`);
       cache = {
         usd: fallback,

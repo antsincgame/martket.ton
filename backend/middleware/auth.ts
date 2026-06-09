@@ -70,28 +70,28 @@ export function extractBearerToken(req: HasGet): string | null {
  * Validates an Appwrite session JWT and returns the underlying account.
  *
  * Returns null on any failure (missing/invalid/expired token, network error).
- * Errors are logged at debug-level — auth failures are expected during
- * normal operation (anonymous requests, expired tokens).
+ * Auth-failure and audit logs are kept at debug level and never include the
+ * user's email or any fragment of the token (PII / token material must not
+ * leak into server logs).
  */
 async function resolveAppwriteUser(token: string): Promise<CachedUser | null> {
   const now = Date.now();
   const cached = tokenCache.get(token);
   if (cached && cached.expiresAt > now) {
-    logger.info(`[AUTH_AUDIT_BE] resolveAppwriteUser — cache hit for user ${cached.user.$id}`);
+    logger.debug(`[auth] resolveAppwriteUser — cache hit user=${cached.user.$id}`);
     return cached.user;
   }
   try {
-    logger.info('[AUTH_AUDIT_BE] resolveAppwriteUser — verifying JWT with Appwrite...');
+    logger.debug('[auth] resolveAppwriteUser — verifying JWT with Appwrite');
     const client = createUserContextClient(token);
     const user = await new Account(client).get();
-    logger.info(`[AUTH_AUDIT_BE] resolveAppwriteUser — JWT valid, user: ${user.$id} (${user.email})`);
+    logger.debug(`[auth] resolveAppwriteUser — JWT valid user=${user.$id}`);
     tokenCache.set(token, { user, expiresAt: now + TOKEN_CACHE_TTL_MS });
     pruneTokenCache(now);
     return user;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    logger.warn(`[AUTH_AUDIT_BE] resolveAppwriteUser — JWT REJECTED: ${msg.slice(0, 300)}`);
-    logger.warn(`[AUTH_AUDIT_BE] token preview: ${token.slice(0, 20)}...${token.slice(-10)}`);
+    logger.debug(`[auth] resolveAppwriteUser — JWT rejected: ${msg.slice(0, 200)}`);
     return null;
   }
 }
@@ -201,23 +201,23 @@ export function apiRequireAuth() {
   return (req: Request, res: Response, next: NextFunction): void => {
     const token = extractBearerToken(req);
     if (!token) {
-      logger.warn(`[AUTH_AUDIT_BE] apiRequireAuth — no Bearer token on ${req.method} ${req.path}`);
+      logger.debug(`[auth] apiRequireAuth — no Bearer token on ${req.method} ${req.path}`);
       res.status(401).json({ success: false, message: 'Unauthorized' });
       return;
     }
-    logger.info(`[AUTH_AUDIT_BE] apiRequireAuth — validating token for ${req.method} ${req.path}`);
+    logger.debug(`[auth] apiRequireAuth — validating token for ${req.method} ${req.path}`);
     resolveAppwriteUser(token)
       .then((user) => {
         if (!user) {
-          logger.warn(`[AUTH_AUDIT_BE] apiRequireAuth — 401 on ${req.method} ${req.path} (token invalid)`);
+          logger.debug(`[auth] apiRequireAuth — 401 on ${req.method} ${req.path} (token invalid)`);
           res.status(401).json({ success: false, message: 'Authentication failed' });
           return;
         }
-        logger.info(`[AUTH_AUDIT_BE] apiRequireAuth — OK user=${user.$id} for ${req.method} ${req.path}`);
+        logger.debug(`[auth] apiRequireAuth — OK user=${user.$id} for ${req.method} ${req.path}`);
         next();
       })
       .catch((err: Error) => {
-        logger.error(`[AUTH_AUDIT_BE] apiRequireAuth error on ${req.method} ${req.path}:`, err.message);
+        logger.error(`[auth] apiRequireAuth error on ${req.method} ${req.path}:`, err.message);
         res.status(401).json({ success: false, message: 'Authentication failed' });
       });
   };
