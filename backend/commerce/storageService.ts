@@ -5,6 +5,8 @@
  * identical probing, SSRF guarding, AES-256-GCM encryption, and persistence.
  * The plaintext secret never leaves memory; only the encrypted record is stored.
  */
+import dns from 'node:dns/promises';
+import net from 'node:net';
 import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { databases, ID, Query } from './appwrite.js';
 import { DATABASE_ID, COL_SELLER_PROFILES } from './constants.js';
@@ -33,6 +35,60 @@ export function endpointFor(provider: string, accountId: string, custom?: string
   if (provider === 'b2') return 'https://s3.us-west-002.backblazeb2.com';
   if (provider === 's3') return `https://s3.${accountId}.amazonaws.com`;
   throw new Error('Unknown provider');
+}
+
+/**
+ * Приватный/зарезервированный ли IP (v4/v6). Используется для SSRF-защиты.
+ */
+function isPrivateIp(ip: string): boolean {
+  const v = ip.toLowerCase();
+  if (v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80')) {
+    return true;
+  }
+  const mapped = v.startsWith('::ffff:') ? v.slice(7) : v;
+  const m = mapped.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return false;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  if (a === 10 || a === 127 || a === 0) return true;
+  if (a === 169 && b === 254) return true; // link-local / метаданные облака
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+  return false;
+}
+
+/**
+ * Резолвит custom-endpoint и проверяет КАЖДЫЙ адрес против приватных
+ * диапазонов. Закрывает DNS-rebinding (evil.com → 169.254.169.254) и числовые/
+ * hex-обходы (http://2130706433/), которые регекс-фильтр не ловит.
+ */
+async function assertEndpointNotPrivate(endpoint: string): Promise<void> {
+  let host: string;
+  try {
+    host = new URL(endpoint).hostname;
+  } catch {
+    throw new Error('Malformed endpoint URL');
+  }
+  // Голый числовой/hex хост — не DNS-имя и не валидный dotted-IP: отклоняем.
+  if (/^(0x[0-9a-f]+|\d+)$/i.test(host)) {
+    throw new Error('Numeric/non-DNS host is not allowed');
+  }
+  if (net.isIP(host)) {
+    if (isPrivateIp(host)) throw new Error('Endpoint targets a private/reserved IP');
+    return;
+  }
+  let addrs: { address: string }[];
+  try {
+    addrs = await dns.lookup(host, { all: true });
+  } catch {
+    throw new Error('Endpoint host does not resolve');
+  }
+  for (const a of addrs) {
+    if (isPrivateIp(a.address)) {
+      throw new Error('Endpoint resolves to a private/reserved IP');
+    }
+  }
 }
 
 function regionFor(provider: string, accountId: string): string {
@@ -121,6 +177,15 @@ export async function saveSellerStorage(
     endpoint = endpointFor(input.provider, input.accountId, input.endpoint);
   } catch (err) {
     return { ok: false, status: 400, code: 'BAD_ENDPOINT', error: err instanceof Error ? err.message : 'bad endpoint' };
+  }
+  // Для custom-endpoint — резолв + проверка приватных диапазонов (дефолтные
+  // r2/s3/b2 эндпоинты строятся из accountId и безопасны по построению).
+  if (input.endpoint) {
+    try {
+      await assertEndpointNotPrivate(endpoint);
+    } catch (err) {
+      return { ok: false, status: 400, code: 'BAD_ENDPOINT', error: err instanceof Error ? err.message : 'bad endpoint' };
+    }
   }
   const probe = await probeBucket({
     provider: input.provider,

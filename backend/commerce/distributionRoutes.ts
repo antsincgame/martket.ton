@@ -316,12 +316,13 @@ router.get('/listings/:id/download', apiRequireAuth(), async (req: Request, res:
     //   - a license record exists for (buyer, listing)
     //   - state == minted
     //   - nftAddress is set (the NFT actually deployed on-chain)
+    //   - и артефакт не помечен антивирусом как malicious/suspicious (scan_status)
     //
     // Anything else is a hard deny — no "legacy fallback" anymore. Without
     // a real NFT the buyer-burn refund guarantee does not apply, so giving
     // out the file would let a buyer keep both the product and the money.
     const license = await findLicenseByBuyerAndListing(wallet, doc.$id);
-    const gate = decideDownloadGate(license);
+    const gate = decideDownloadGate(license, doc.scan_status);
     if (gate.kind === 'deny') {
       const body: Record<string, unknown> = { error: gate.message, code: gate.code };
       if (gate.licenseId) body.licenseId = gate.licenseId;
