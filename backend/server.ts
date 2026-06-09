@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { logger } from './logger.js';
 import { isCoreConfigured } from './core/appwriteServer.js';
 import { ensureSearchIndex } from './core/ensureSearchIndex.js';
+import { runPermissionHardenIfRequested } from './core/bootHarden.js';
 import { mahakalaHeaders, logShieldStatus } from './middleware/mahakala.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { requestLogger } from './middleware/requestLogger.js';
@@ -35,7 +36,7 @@ if (!isCoreConfigured()) {
   logger.warn('Appwrite core not configured — auth & database endpoints will fail');
 }
 
-// ─── Security middleware ────────────────────────────────────────────
+// ─── Security middleware ──────────────────────────────────
 
 /**
  * Content Security Policy — hardened.
@@ -97,7 +98,7 @@ app.use('/api/products', mutateLimiter);
 app.use('/api/admin', mutateLimiter);
 app.use('/api/support', mutateLimiter);
 
-// ─── Pre-auth routes ────────────────────────────────────────────────
+// ─── Pre-auth routes ───────────────────────────────────
 
 /**
  * Health endpoint.
@@ -152,7 +153,7 @@ app.get('/api/ready', (_req, res) => {
   res.status(ready ? 200 : 503).json({ ready });
 });
 
-// ─── Body parsing ───────────────────────────────────────────────────
+// ─── Body parsing ──────────────────────────────────────
 
 /**
  * JSON parsing for normal API traffic.
@@ -220,7 +221,7 @@ function originGuard(
 
 app.use(originGuard);
 
-// ─── Client error reporting (pre-auth, rate-limited) ────────────────
+// ─── Client error reporting (pre-auth, rate-limited) ────────────
 
 const clientErrorLimiter = rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
 
@@ -271,7 +272,7 @@ app.get('/api/ton-price', async (_req, res) => {
   }
 });
 
-// ─── Route modules ──────────────────────────────────────────────────
+// ─── Route modules ──────────────────────────────────────
 
 app.use('/api', adminRoutes);
 app.use('/api', profileRoutes);
@@ -283,7 +284,7 @@ app.use('/api', payoutRoutes);
 app.use('/api', supportRoutes);
 app.use('/api/tonforge', tonForgeRouter);
 
-// ─── Optional sub-routers (JS — loaded dynamically) ─────────────────
+// ─── Optional sub-routers (JS — loaded dynamically) ─────────────
 
 const failedRouters: Array<{ mount: string; module: string; error: string; timestamp: string }> = [];
 
@@ -333,14 +334,14 @@ app.get('/api/admin/router-status', (req, res) => {
   });
 });
 
-// ─── Error handler ──────────────────────────────────────────────────
+// ─── Error handler ──────────────────────────────────────
 
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error(`Unhandled error on ${req.method} ${req.path} [${req.requestId || '-'}]:`, err.message, err.stack);
   res.status(500).json({ success: false, message: 'Internal server error', requestId: req.requestId });
 });
 
-// ─── Bootstrap ──────────────────────────────────────────────────────
+// ─── Bootstrap ────────────────────────────────────────
 
 async function bootstrapTonForge(): Promise<void> {
   try {
@@ -449,6 +450,9 @@ async function start(): Promise<void> {
     // Self-heal schema that needs prod creds (only present in-container): the
     // public-search fulltext index. Post-listen + guarded — never affects boot.
     void ensureSearchIndex();
+    // One-shot ACL hardening when RUN_PERMISSION_HARDEN=1 (post-listen, guarded,
+    // идемпотентно). Снять флаг после применения. Никогда не роняет бут.
+    void runPermissionHardenIfRequested();
   });
 
   let shuttingDown = false;
