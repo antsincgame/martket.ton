@@ -27,6 +27,7 @@ import { str } from '../utils/params.js';
 import { sellerRegisterSchema, createListingSchema, patchListingSchema } from './validation.js';
 import { mapListingPublic, appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
 import { buildOnboardingChecklist } from '../agent/status.js';
+import { getInstructionSections } from '../agent/instructions.js';
 import { requireSellerKyc } from './handlers/requireSellerKyc.js';
 import {
   createDiditSession,
@@ -38,6 +39,20 @@ const router = express.Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 52_428_800 },
+});
+
+// C1, human↔machine parity: the SAME platform-authored operating manual a machine
+// reads at GET /api/v1/agent/instructions, surfaced to humans in the Demiurge UI.
+// Public + read-only — the channel is honest, not covert (no checklist/PII here,
+// only the static sections).
+router.get('/operating-manual', async (_req: Request, res: Response) => {
+  try {
+    const sections = await getInstructionSections();
+    res.json({ data: { sections } });
+  } catch (e: unknown) {
+    logger.error('[commerce] operating-manual:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to load manual', code: 'OPERATING_MANUAL' });
+  }
 });
 
 router.get('/listings/catalog/:catalogProductId', async (req: Request, res: Response) => {

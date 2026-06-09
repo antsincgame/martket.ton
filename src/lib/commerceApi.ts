@@ -117,6 +117,21 @@ export async function fetchSellerListings(wallet: string): Promise<CommerceListi
   return parsed.data.data.listings;
 }
 
+// The platform-authored operating manual — the SAME sections a machine agent
+// reads at GET /api/v1/agent/instructions (human↔machine parity).
+export interface ManualSection {
+  section: string;
+  title: string;
+  body: string;
+  order: number;
+}
+export async function fetchOperatingManual(): Promise<ManualSection[]> {
+  const res = await fetch(commerceUrl('/operating-manual'));
+  const parsed = await parseJson<{ data: { sections: ManualSection[] } }>(res);
+  if (!parsed.ok) throw new CommerceApiError({ message: parsed.error });
+  return parsed.data.data.sections;
+}
+
 // ─── Authenticated (JWT via commerceAuthFetch) ─────────────────────────
 
 export async function createCommerceOrder(

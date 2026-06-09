@@ -18,6 +18,7 @@ import NoCollectionWarning from './NoCollectionWarning';
 import KycRequiredBanner from './KycRequiredBanner';
 import ApiTokensTab from './ApiTokensTab';
 import OnboardingGuide from './OnboardingGuide';
+import OperatingManual from './OperatingManual';
 
 interface TabDef {
   id: string;
@@ -32,6 +33,7 @@ const TABS: TabDef[] = [
   { id: 'publishing', path: 'publishing', label: 'Publishing', description: 'KYC, Artifact Scan, and new app release' },
   { id: 'storage', path: 'storage', label: 'Storage', description: 'Bring Your Own R2/S3 — host builds on your bucket' },
   { id: 'api-tokens', path: 'api-tokens', label: 'API Tokens', description: 'Personal access tokens for AI agents (Agent API)' },
+  { id: 'guide', path: 'guide', label: 'Guide', description: 'Operating manual — the same guide AI agents read' },
 ];
 
 interface FlashState {
@@ -141,6 +143,7 @@ export default function CommerceSection() {
         />
         <Route path="storage" element={<StorageSettings wallet={wallet} />} />
         <Route path="api-tokens" element={<ApiTokensTab workspace={workspace} />} />
+        <Route path="guide" element={<OperatingManual />} />
         <Route path="listings/:listingId/distribution" element={<DistributionRoute wallet={wallet} />} />
         <Route path="*" element={<Navigate to="listings" replace />} />
       </Routes>
