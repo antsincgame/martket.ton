@@ -7,7 +7,10 @@
  */
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import http from 'node:http';
+import https from 'node:https';
 import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { databases, ID, Query } from './appwrite.js';
 import { DATABASE_ID, COL_SELLER_PROFILES } from './constants.js';
 import { encryptCreds, isStorageEncryptionConfigured } from '../r2/devCredentials.js';
@@ -63,7 +66,7 @@ function isPrivateIp(ip: string): boolean {
  * диапазонов. Закрывает DNS-rebinding (evil.com → 169.254.169.254) и числовые/
  * hex-обходы (http://2130706433/), которые регекс-фильтр не ловит.
  */
-async function assertEndpointNotPrivate(endpoint: string): Promise<void> {
+async function assertEndpointNotPrivate(endpoint: string): Promise<string[]> {
   let host: string;
   try {
     host = new URL(endpoint).hostname;
@@ -76,7 +79,7 @@ async function assertEndpointNotPrivate(endpoint: string): Promise<void> {
   }
   if (net.isIP(host)) {
     if (isPrivateIp(host)) throw new Error('Endpoint targets a private/reserved IP');
-    return;
+    return [host];
   }
   let addrs: { address: string }[];
   try {
@@ -89,6 +92,37 @@ async function assertEndpointNotPrivate(endpoint: string): Promise<void> {
       throw new Error('Endpoint resolves to a private/reserved IP');
     }
   }
+  // Return the validated addresses so the actual S3 connection can be PINNED to
+  // them (M-3). Re-resolving inside the SDK would reopen a DNS-rebinding TOCTOU:
+  // a host that answered public here could answer 169.254.169.254 at connect.
+  return addrs.map((a) => a.address);
+}
+
+/**
+ * Build an https/http Agent whose DNS `lookup` only ever returns one of the
+ * already-validated public IPs (and re-checks privateness defensively). Passed
+ * to the S3 client so it connects to the IP we vetted, not whatever DNS says at
+ * connect time. TLS SNI/host stays the original hostname, so cert validation and
+ * SigV4 signing are unaffected.
+ */
+function makePinnedHandler(allowedIps: string[]): NodeHttpHandler {
+  const allow = new Set(allowedIps);
+  const pinnedLookup = (
+    _hostname: string,
+    _options: unknown,
+    callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
+  ): void => {
+    const ip = allowedIps[0]!;
+    if (!allow.has(ip) || isPrivateIp(ip)) {
+      callback(new Error('Pinned address rejected'), '', 0);
+      return;
+    }
+    callback(null, ip, net.isIP(ip) === 6 ? 6 : 4);
+  };
+  // Node's Agent accepts a `lookup` option forwarded to net.connect.
+  const httpsAgent = new https.Agent({ lookup: pinnedLookup as never });
+  const httpAgent = new http.Agent({ lookup: pinnedLookup as never });
+  return new NodeHttpHandler({ httpsAgent, httpAgent });
 }
 
 function regionFor(provider: string, accountId: string): string {
@@ -116,6 +150,8 @@ export async function probeBucket(opts: {
   endpoint: string;
   accessKeyId: string;
   secretAccessKey: string;
+  /** Validated public IPs to pin the connection to (M-3, SSRF TOCTOU). */
+  pinnedIps?: string[];
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const client = new S3Client({
@@ -123,6 +159,9 @@ export async function probeBucket(opts: {
       endpoint: opts.endpoint,
       credentials: { accessKeyId: opts.accessKeyId, secretAccessKey: opts.secretAccessKey },
       forcePathStyle: opts.provider !== 's3',
+      ...(opts.pinnedIps && opts.pinnedIps.length > 0
+        ? { requestHandler: makePinnedHandler(opts.pinnedIps) }
+        : {}),
     });
     await client.send(new HeadBucketCommand({ Bucket: opts.bucket }));
     return { ok: true };
@@ -180,9 +219,10 @@ export async function saveSellerStorage(
   }
   // Для custom-endpoint — резолв + проверка приватных диапазонов (дефолтные
   // r2/s3/b2 эндпоинты строятся из accountId и безопасны по построению).
+  let pinnedIps: string[] | undefined;
   if (input.endpoint) {
     try {
-      await assertEndpointNotPrivate(endpoint);
+      pinnedIps = await assertEndpointNotPrivate(endpoint);
     } catch (err) {
       return { ok: false, status: 400, code: 'BAD_ENDPOINT', error: err instanceof Error ? err.message : 'bad endpoint' };
     }
@@ -194,6 +234,8 @@ export async function saveSellerStorage(
     endpoint,
     accessKeyId: input.accessKeyId,
     secretAccessKey: input.secretAccessKey,
+    // Pin the connection to the IP we just validated (custom endpoints only).
+    pinnedIps,
   });
   if (!probe.ok) {
     return { ok: false, status: 400, code: 'BUCKET_PROBE_FAILED', error: probe.error };
