@@ -7,6 +7,7 @@ import { logger } from '../logger.js';
 import { CURRENCY } from './constants.js';
 import { DEFAULT_PLATFORM_FEE_BPS } from './constants.js';
 import { commerceAdmin } from './helpers.js';
+import { resolveNetwork } from '../config/network.js';
 import { validateBody } from '../middleware/validate.js';
 import { orderStateSchema, agentInstructionSchema, provisionCollectionSchema } from './validation.js';
 import { str } from '../utils/params.js';
@@ -49,6 +50,10 @@ router.get('/config', (_req: Request, res: Response) => {
       treasuryAddress: treasury,
       platformFeeBpsDefault: DEFAULT_PLATFORM_FEE_BPS,
       currencyTon: CURRENCY.TON,
+      // M-14: expose the server's pinned TON network so the frontend can match
+      // it instead of defaulting to mainnet — otherwise the UI renders mainnet
+      // explorer links / address forms for testnet escrows (and vice versa).
+      network: resolveNetwork(),
     },
   });
 });

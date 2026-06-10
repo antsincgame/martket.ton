@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from 'react';
+import { fetchCommerceConfig } from '../lib/commerceApi';
+import { logger } from '../lib/logger';
 
 export type TonNetwork = 'mainnet' | 'testnet';
 
@@ -31,6 +33,32 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
   const setNetwork = useCallback((n: TonNetwork) => {
     setNetworkRaw(n);
     try { localStorage.setItem(STORAGE_KEY, n); } catch { /* noop */ }
+  }, []);
+
+  // M-14: the backend pins the TON network (TON_NETWORK) and ignores the
+  // client's requested network on the money path. Reconcile the UI to that
+  // authoritative value so explorer links, address forms and the network badge
+  // reflect the network escrows actually settle on — instead of the local
+  // default/toggle drifting (mainnet UI over a testnet backend).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const cfg = await fetchCommerceConfig();
+        const serverNet = cfg?.network;
+        if (!cancelled && (serverNet === 'mainnet' || serverNet === 'testnet')) {
+          setNetworkRaw((cur) => {
+            if (cur !== serverNet) {
+              try { localStorage.setItem(STORAGE_KEY, serverNet); } catch { /* noop */ }
+            }
+            return serverNet;
+          });
+        }
+      } catch (err) {
+        logger.warn('[network] could not reconcile to server network:', err);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const toggleNetwork = useCallback(() => {

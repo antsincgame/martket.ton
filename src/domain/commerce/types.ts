@@ -23,6 +23,8 @@ export interface CommerceConfigResponse {
   treasuryAddress: string;
   platformFeeBpsDefault: number;
   currencyTon: string;
+  /** Server's pinned TON network (authoritative for the money path). */
+  network?: 'mainnet' | 'testnet';
 }
 
 export interface EscrowInfo {
