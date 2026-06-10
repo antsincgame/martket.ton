@@ -115,6 +115,29 @@ export const AUDIT_LOG_CLIENT_ACTIONS = [
 
 export const SUPPORT_TICKET_STATUSES = ['open', 'in_progress', 'waiting', 'resolved', 'closed'] as const;
 export const SUPPORT_TICKET_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
+export const SUPPORT_TICKET_CATEGORIES = ['general', 'billing', 'technical', 'abuse', 'kyc', 'other'] as const;
+
+// User-facing ticket creation. category/priority are constrained to the same
+// enums the moderator UI expects, so a user can't store bogus values (e.g.
+// priority:'urgent') to jump the queue or break the admin view.
+export const createSupportTicketSchema = z.object({
+  subject: z.string().min(1).max(200),
+  message: z.string().min(1).max(5000),
+  category: z.enum(SUPPORT_TICKET_CATEGORIES).optional(),
+  priority: z.enum(SUPPORT_TICKET_PRIORITIES).optional(),
+  product_id: z.string().max(200).nullable().optional(),
+});
+
+export const addSupportMessageSchema = z.object({
+  message: z.string().min(1).max(5000),
+});
+
+// Admin compliance-ledger status change. notes is capped so an admin can't
+// write an unbounded blob into a compliance record.
+export const ledgerStatusSchema = z.object({
+  status: z.enum(['clean', 'review', 'reported', 'flagged']),
+  notes: z.string().max(1000).optional(),
+});
 
 /**
  * Schema for moderator-side ticket updates. Status/priority are constrained

@@ -4,7 +4,7 @@ import { validateBody } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { str } from '../utils/params.js';
 import { csvRow } from '../utils/csv.js';
-import { createAuditLogSchema } from './validation.js';
+import { createAuditLogSchema, ledgerStatusSchema } from './validation.js';
 import * as repo from '../core/repository.js';
 import { profileToSnakeCase, updateProfile } from '../core/repository.js';
 import { generateId } from '../core/generateId.js';
@@ -584,14 +584,10 @@ router.patch(
   '/admin/ledger/:id/status',
   apiRequireAuth(),
   requireAdmin,
+  validateBody(ledgerStatusSchema),
   asyncHandler(async (req, res) => {
-    const { status, notes } = req.body as { status?: string; notes?: string };
-    const validStatuses: ComplianceStatus[] = ['clean', 'review', 'reported', 'flagged'];
-    if (!status || !validStatuses.includes(status as ComplianceStatus)) {
-      res.status(400).json({ success: false, message: 'Invalid status' });
-      return;
-    }
-    const entry = await updateComplianceStatus(str(req.params.id), status as ComplianceStatus, notes);
+    const { status, notes } = req.body as { status: ComplianceStatus; notes?: string };
+    const entry = await updateComplianceStatus(str(req.params.id), status, notes);
     res.json({ success: true, data: entry });
   }),
 );

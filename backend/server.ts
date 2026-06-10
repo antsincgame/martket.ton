@@ -121,6 +121,13 @@ app.use('/api/purchases', authLimiter);
 app.use('/api/products', mutateLimiter);
 app.use('/api/admin', mutateLimiter);
 app.use('/api/support', mutateLimiter);
+// The most privilege-critical admin mutations live OUTSIDE the /api/admin
+// prefix (role flips, (de)activation, profile verification, audit-log reads)
+// and would otherwise only hit the loose globalLimiter. They are role-guarded,
+// but cap them with the strict mutate budget as defense-in-depth.
+app.use('/api/users', mutateLimiter);
+app.use('/api/profiles', mutateLimiter);
+app.use('/api/audit-logs', mutateLimiter);
 
 // ─── Pre-auth routes ───────────────────────────────────
 

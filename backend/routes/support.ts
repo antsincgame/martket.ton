@@ -5,31 +5,38 @@ import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
 import { logger } from '../logger.js';
 import * as support from '../core/supportRepository.js';
-import { patchSupportTicketSchema } from './validation.js';
+import {
+  patchSupportTicketSchema,
+  createSupportTicketSchema,
+  addSupportMessageSchema,
+} from './validation.js';
 
 const router = express.Router();
 
 router.post(
   '/support/tickets',
   apiRequireAuth(),
+  validateBody(createSupportTicketSchema),
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
     if (!profile) {
       res.status(403).json({ success: false, message: 'Profile not found' });
       return;
     }
-    const { subject, category, priority, product_id, message } = req.body as Record<string, unknown>;
-    if (!subject || typeof subject !== 'string' || !message || typeof message !== 'string') {
-      res.status(400).json({ success: false, message: 'subject and message are required' });
-      return;
-    }
+    const { subject, category, priority, product_id, message } = req.body as {
+      subject: string;
+      message: string;
+      category?: string;
+      priority?: string;
+      product_id?: string | null;
+    };
     const ticket = await support.createTicket({
       userId: profile.id,
-      subject: String(subject).slice(0, 200),
-      category: typeof category === 'string' ? category : 'other',
-      priority: typeof priority === 'string' ? priority : 'normal',
-      productId: typeof product_id === 'string' ? product_id : null,
-      initialMessage: String(message).slice(0, 5000),
+      subject,
+      category: category ?? 'other',
+      priority: priority ?? 'normal',
+      productId: product_id ?? null,
+      initialMessage: message,
     });
     logger.info(`[support] Ticket created by ${profile.id}: ${ticket?.id}`);
     res.json({ success: true, data: ticket ? support.ticketToSnakeCase(ticket) : null });
@@ -77,6 +84,7 @@ router.get(
 router.post(
   '/support/tickets/:id/messages',
   apiRequireAuth(),
+  validateBody(addSupportMessageSchema),
   asyncHandler(async (req, res) => {
     const profile = await resolveProfile(req);
     if (!profile) {
