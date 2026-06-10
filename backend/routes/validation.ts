@@ -56,6 +56,23 @@ export const createPurchaseSchema = z.object({
   tx_hash: z.string().max(200).nullable().optional(),
 });
 
+// Wallet linking now requires a TON Connect ton_proof (see linkWalletSchema).
+// The generic profile PATCH only accepts ton_address=null (unlink); a non-null
+// value is rejected with PROOF_REQUIRED.
+export const linkWalletSchema = z.object({
+  ton_address: z.string().min(48).max(100),
+  public_key: z.string().regex(/^[0-9a-fA-F]{64}$/, 'public_key must be 32-byte hex'),
+  proof: z.object({
+    timestamp: z.number().int().nonnegative(),
+    domain: z.object({
+      lengthBytes: z.number().int().nonnegative(),
+      value: z.string().max(255),
+    }),
+    signature: z.string().max(512),
+    payload: z.string().min(8).max(256),
+  }),
+});
+
 export const patchProfileSchema = z.object({
   ton_address: z.string().max(100).nullable().optional(),
   display_name: displayName().optional(),
