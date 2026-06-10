@@ -428,6 +428,27 @@ export interface SellerKycStatus {
   kycRejectionReason: string | null;
 }
 
+export interface SellerAnalytics {
+  totals: {
+    salesCount: number;
+    grossRevenueTon: string;
+    sellerNetTon: string;
+    platformFeesTon: string;
+    refundsCount: number;
+    refundedTon: string;
+    pendingCount: number;
+  };
+  byState: Record<string, number>;
+  topProducts: { listingId: string; title: string; salesCount: number; sellerNetTon: string }[];
+}
+
+export async function fetchSellerAnalytics(wallet: string): Promise<SellerAnalytics> {
+  const result = await commerceAuthFetch<{ data: SellerAnalytics }>(
+    `/sellers/${encodeURIComponent(wallet)}/analytics`,
+  );
+  return result.data;
+}
+
 export async function fetchSellerKycStatus(wallet: string): Promise<SellerKycStatus> {
   const result = await commerceAuthFetch<{ data: SellerKycStatus }>(
     `/sellers/${encodeURIComponent(wallet)}/kyc-status`,

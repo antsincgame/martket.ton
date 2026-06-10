@@ -17,6 +17,7 @@ import DistributionEditor from './DistributionEditor';
 import NoCollectionWarning from './NoCollectionWarning';
 import KycRequiredBanner from './KycRequiredBanner';
 import KycVerificationWidget from './KycVerificationWidget';
+import SellerAnalyticsCard from './SellerAnalyticsCard';
 import ApiTokensTab from './ApiTokensTab';
 import OnboardingGuide from './OnboardingGuide';
 import OperatingManual from './OperatingManual';
@@ -118,6 +119,7 @@ export default function CommerceSection() {
         />
       )}
       <OnboardingGuide wallet={wallet} />
+      {sellerKyc?.kycStatus === 'approved' && <SellerAnalyticsCard wallet={wallet} />}
       <NoCollectionWarning wallet={wallet} />
 
       <Tabs activeId={activeTab.id} />
