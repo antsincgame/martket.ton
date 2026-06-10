@@ -47,6 +47,7 @@ import { pollLicenseRegistered } from './onchain/escrowState.js';
 import { pollEscrowSettled } from './onchain/oracleRefund.js';
 import { timeoutRelease, checkEscrowAlive } from './onchain/timeoutRelease.js';
 import { finalizeOrderRefund } from '../commerce/handlers/finalizeOrderRefund.js';
+import { dispatchWebhook } from '../commerce/webhooks.js';
 import { screenWallet } from '../sanctions/screen.js';
 import { checkWalletAml } from '../aml/amlbot.js';
 
@@ -299,12 +300,26 @@ function logPayoutHold(licenseId: string, message: string): void {
  *   2. Escrow still active: send TimeoutRelease. Mark releasedAt only after
  *      escrow self-destructs.
  */
+/** Notify the seller's webhook that an escrow released to them (fire-and-forget). */
+function emitPayoutReleased(license: LicenseRecord, releasedAt: string): void {
+  if (!license.sellerWallet) return;
+  void dispatchWebhook(license.sellerWallet, 'payout.released', {
+    licenseId: license.$id,
+    orderId: license.orderId,
+    listingId: license.listingId,
+    escrowAddress: license.escrowAddress,
+    releasedAt,
+  });
+}
+
 async function processPayout(license: LicenseRecord): Promise<void> {
   if (!license.escrowAddress) return;
 
   const alive = await checkEscrowAlive({ escrowAddress: license.escrowAddress });
   if (alive === 'destroyed') {
-    await updateLicense(license.$id, { releasedAt: new Date().toISOString() });
+    const releasedAt = new Date().toISOString();
+    await updateLicense(license.$id, { releasedAt });
+    emitPayoutReleased(license, releasedAt);
     logger.info(`[mintWorker.payout] escrow already settled for license ${license.$id}`);
     return;
   }
@@ -349,7 +364,9 @@ async function processPayout(license: LicenseRecord): Promise<void> {
       timeoutMs: REFUND_SETTLE_TIMEOUT_MS,
     });
     if (settled) {
-      await updateLicense(license.$id, { releasedAt: new Date().toISOString() });
+      const releasedAt = new Date().toISOString();
+      await updateLicense(license.$id, { releasedAt });
+      emitPayoutReleased(license, releasedAt);
       logger.info(`[mintWorker.payout] license ${license.$id} payout settled`);
     }
   } catch (err: unknown) {

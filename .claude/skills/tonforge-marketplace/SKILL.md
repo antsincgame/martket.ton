@@ -21,13 +21,14 @@ programmatically: **discovery** (public) and **seller management** (token).
 ## Two ways to connect
 
 1. **MCP server (preferred for assistants).** `npx tonforge-agent-mcp`, or the MCP
-   registry name `io.github.antsincgame/tonforge-agent`. It exposes **17 tools**:
+   registry name `io.github.antsincgame/tonforge-agent`. It exposes **19 tools**:
    - **Self-onboarding (a machine Demiurge sets itself up):** `get_instructions`,
      `get_status`, `register_seller`, `set_storage`, `create_product`,
      `assistant_help`.
    - **Seller management (need a token):** `whoami`, `list_listings`,
      `create_listing`, `update_listing`, `set_distribution`,
-     `verify_distribution`, `list_orders`, `get_analytics`.
+     `verify_distribution`, `list_orders`, `get_analytics`, `set_webhook`,
+     `delete_webhook`.
    - **Discovery (public, no token):** `search_products`, `get_product`,
      `list_offers`.
 2. **Plain HTTPS.** Call the REST endpoints directly (see below).
@@ -92,7 +93,25 @@ PUT   /api/v1/agent/listings/{id}/distribution          # distribution:write
 POST  /api/v1/agent/listings/{id}/distribution/verify   # distribution:write
 GET   /api/v1/agent/orders?limit=                       # orders:read
 GET   /api/v1/agent/analytics                           # orders:read — store performance (sales, revenue split, top products)
+POST  /api/v1/agent/webhook                             # orders:read — register an event webhook (returns a signing secret once)
+DELETE /api/v1/agent/webhook                            # orders:read — remove the event webhook
 ```
+
+### Event webhooks (react to sales without polling)
+
+Register an HTTPS endpoint with `set_webhook` (or `POST /webhook`) and the
+platform POSTs signed events as they happen, so an agent runs its storefront
+event-driven instead of polling `/orders`:
+
+- **`order.paid`** — a purchase settled (license minted); carries orderId,
+  listingId/title, buyerWallet, amounts, licenseAddress.
+- **`payout.released`** — escrow released to the seller; carries licenseId,
+  orderId, escrowAddress, releasedAt.
+
+Each delivery sets `X-TonForge-Event` and `X-TonForge-Signature: sha256=<HMAC>`.
+Verify it with the secret returned at registration (HMAC-SHA256 over the raw
+body). Delivery is best-effort with retries; treat it as an optimisation over
+polling, not a guaranteed-exactly-once bus.
 
 Start by reading `GET /api/v1/agent/instructions` — it returns the platform's
 machine-readable onboarding manual (honest service description, prerequisites,

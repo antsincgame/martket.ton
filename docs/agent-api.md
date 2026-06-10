@@ -151,6 +151,8 @@ All paths are relative to `https://tonforge.org/api/v1/agent`.
 | `POST /listings/{id}/distribution/verify` | `distribution:write` | Resolve + hash artifact, compare sha256 |
 | `GET /orders?limit=`                   | `orders:read`        | List orders, newest first (≤500)          |
 | `GET /analytics`                       | `orders:read`        | Store performance: sales, revenue split, refunds, top products |
+| `POST /webhook`                        | `orders:read`        | Register an HTTPS event webhook (returns a signing secret once) |
+| `DELETE /webhook`                      | `orders:read`        | Remove the event webhook                  |
 
 ### Notes per endpoint
 

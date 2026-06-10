@@ -44,6 +44,7 @@ import { generateId } from '../core/generateId.js';
 import { rejectMismatchedCollection } from '../commerce/collectionBinding.js';
 import { saveSellerStorage } from '../commerce/storageService.js';
 import { loadSellerAnalytics } from '../commerce/sellerAnalytics.js';
+import { setSellerWebhook, clearSellerWebhook, validateWebhookUrl } from '../commerce/webhooks.js';
 
 const router = express.Router();
 
@@ -595,6 +596,48 @@ router.get('/analytics', apiRequireAgentToken(['orders:read']), async (req: Requ
   } catch (e) {
     logger.error('[agent] analytics:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Failed to compute analytics', code: 'AGENT_ANALYTICS' });
+  }
+});
+
+// Register/replace the seller's event webhook (order.paid, payout.released).
+// Returns a signing secret ONCE. Event-driven automation: react to sales without
+// polling. The URL must be HTTPS and not resolve to a private IP (SSRF guard).
+router.post('/webhook', apiRequireAgentToken(['orders:read']), async (req: Request, res: Response) => {
+  try {
+    const url = typeof (req.body as { url?: unknown })?.url === 'string' ? (req.body as { url: string }).url.trim() : '';
+    if (!url) {
+      res.status(400).json({ error: 'url is required', code: 'VALIDATION' });
+      return;
+    }
+    const valid = await validateWebhookUrl(url);
+    if (!valid.ok) {
+      res.status(400).json({ error: `Invalid webhook URL: ${valid.reason}`, code: 'BAD_WEBHOOK_URL' });
+      return;
+    }
+    const { secret } = await setSellerWebhook(req.agent!.wallet, url);
+    res.json({ data: { url, secret, events: ['order.paid', 'payout.released'] } });
+  } catch (e) {
+    const code = e instanceof Error ? e.message : '';
+    if (code === 'SELLER_NOT_REGISTERED') {
+      res.status(404).json({ error: 'Register as a seller first', code: 'NOT_REGISTERED' });
+      return;
+    }
+    if (code === 'WEBHOOK_NOT_PROVISIONED') {
+      res.status(503).json({ error: 'Webhooks not provisioned on this deployment', code: 'WEBHOOK_NOT_PROVISIONED' });
+      return;
+    }
+    logger.error('[agent] set webhook:', code);
+    res.status(500).json({ error: 'Failed to set webhook', code: 'AGENT_WEBHOOK' });
+  }
+});
+
+router.delete('/webhook', apiRequireAgentToken(['orders:read']), async (req: Request, res: Response) => {
+  try {
+    await clearSellerWebhook(req.agent!.wallet);
+    res.json({ data: { cleared: true } });
+  } catch (e) {
+    logger.error('[agent] clear webhook:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to clear webhook', code: 'AGENT_WEBHOOK' });
   }
 });
 

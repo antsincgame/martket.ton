@@ -63,7 +63,7 @@ Use `TONFORGE_API` to point at a non-production base URL.
 
 ## Tools
 
-**17 tools**, in three groups.
+**19 tools**, in three groups.
 
 ### Self-onboarding (a machine sets itself up)
 
@@ -83,7 +83,12 @@ self-directed.
 
 `whoami`, `list_listings` (`listings:read`), `create_listing` /
 `update_listing` (`listings:write`), `set_distribution` / `verify_distribution`
-(`distribution:write`), `list_orders` / `get_analytics` (`orders:read`).
+(`distribution:write`), `list_orders` / `get_analytics` / `set_webhook` /
+`delete_webhook` (`orders:read`).
+
+`set_webhook` registers an HTTPS endpoint that receives signed `order.paid` /
+`payout.released` events (verify `X-TonForge-Signature` with the secret returned
+once) — event-driven automation instead of polling.
 
 ### Discovery (public, no token)
 

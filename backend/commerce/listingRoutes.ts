@@ -27,6 +27,7 @@ import { str } from '../utils/params.js';
 import { sellerRegisterSchema, createListingSchema, patchListingSchema } from './validation.js';
 import { mapListingPublic, appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
 import { loadSellerAnalytics } from './sellerAnalytics.js';
+import { setSellerWebhook, clearSellerWebhook, validateWebhookUrl } from './webhooks.js';
 import { buildOnboardingChecklist } from '../agent/status.js';
 import { getInstructionSections } from '../agent/instructions.js';
 import { requireSellerKyc } from './handlers/requireSellerKyc.js';
@@ -421,6 +422,46 @@ router.get('/sellers/:wallet/analytics', apiRequireAuth(), async (req: Request, 
   } catch (e: unknown) {
     logger.error('[commerce] seller analytics:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Failed to compute analytics', code: 'SELLER_ANALYTICS' });
+  }
+});
+
+// Seller event webhook (human Demiurge parity with the agent surface). Owner-only.
+router.post('/sellers/:wallet/webhook', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const wallet = str(req.params.wallet);
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
+    const url = typeof (req.body as { url?: unknown })?.url === 'string' ? (req.body as { url: string }).url.trim() : '';
+    if (!url) {
+      res.status(400).json({ error: 'url is required', code: 'VALIDATION' });
+      return;
+    }
+    const valid = await validateWebhookUrl(url);
+    if (!valid.ok) {
+      res.status(400).json({ error: `Invalid webhook URL: ${valid.reason}`, code: 'BAD_WEBHOOK_URL' });
+      return;
+    }
+    const { secret } = await setSellerWebhook(wallet, url);
+    res.json({ data: { url, secret, events: ['order.paid', 'payout.released'] } });
+  } catch (e: unknown) {
+    const code = e instanceof Error ? e.message : '';
+    if (code === 'SELLER_NOT_REGISTERED') { res.status(404).json({ error: 'Register as a seller first', code: 'NOT_REGISTERED' }); return; }
+    if (code === 'WEBHOOK_NOT_PROVISIONED') { res.status(503).json({ error: 'Webhooks not provisioned', code: 'WEBHOOK_NOT_PROVISIONED' }); return; }
+    logger.error('[commerce] set webhook:', code);
+    res.status(500).json({ error: 'Failed to set webhook', code: 'SELLER_WEBHOOK' });
+  }
+});
+
+router.delete('/sellers/:wallet/webhook', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const wallet = str(req.params.wallet);
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
+    await clearSellerWebhook(wallet);
+    res.json({ data: { cleared: true } });
+  } catch (e: unknown) {
+    logger.error('[commerce] clear webhook:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to clear webhook', code: 'SELLER_WEBHOOK' });
   }
 });
 

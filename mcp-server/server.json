@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.antsincgame/tonforge-agent",
   "title": "TonForge Agent",
-  "description": "Sell digital goods on the TON blockchain. A machine agent onboards itself — register as a seller, connect its own storage, create products, then manage listings, distribution, orders, and store analytics — and any agent can browse the public catalog. 17 tools over the TonForge Agent API.",
+  "description": "Sell digital goods on the TON blockchain. A machine agent onboards itself — register as a seller, connect its own storage, create products, then manage listings, distribution, orders, store analytics, and signed event webhooks (order.paid, payout.released) — and any agent can browse the public catalog. 19 tools over the TonForge Agent API.",
   "version": "1.0.0",
   "repository": {
     "url": "https://github.com/antsincgame/martket.ton",

@@ -28,6 +28,8 @@ seller's storefront in natural language.
 | `verify_distribution` | `distribution:write` | Resolve + hash the artifact, compare sha256     |
 | `list_orders`         | `orders:read`        | List your orders                                |
 | `get_analytics`       | `orders:read`        | Store performance: sales, revenue split, top products |
+| `set_webhook`         | `orders:read`        | Register a signed event webhook (order.paid, payout.released) |
+| `delete_webhook`      | `orders:read`        | Remove the event webhook                        |
 
 A tool call that exceeds the token's scopes returns a clear error; it never
 escalates privilege. The token is read from the environment, so the model never

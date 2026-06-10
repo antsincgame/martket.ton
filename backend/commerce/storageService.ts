@@ -41,9 +41,10 @@ export function endpointFor(provider: string, accountId: string, custom?: string
 }
 
 /**
- * Приватный/зарезервированный ли IP (v4/v6). Используется для SSRF-защиты.
+ * Приватный/зарезервированный ли IP (v4/v6). Используется для SSRF-защиты
+ * (BYOS-эндпоинты И исходящие вебхуки — оба бьют по seller-контролируемым URL).
  */
-function isPrivateIp(ip: string): boolean {
+export function isPrivateIp(ip: string): boolean {
   const v = ip.toLowerCase();
   if (v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80')) {
     return true;

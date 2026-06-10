@@ -132,6 +132,21 @@ async function setupSellerProfiles(databases) {
   );
   await waitForAttribute(databases, COL_SELLER_PROFILES, 'kyc_completed_at');
   await idx(databases, COL_SELLER_PROFILES, 'idx_kyc_status', IndexType.Key, ['kyc_status']);
+
+  // ── Outbound event webhook (agent/seller automation) ──
+  // A seller registers a URL + receives a signing secret; the platform POSTs
+  // HMAC-signed events (order.paid, payout.released) so an agent reacts to sales
+  // event-driven instead of polling.
+  const webhookCols = [
+    ['webhook_url', 2000, false],
+    ['webhook_secret', 80, false],
+  ];
+  for (const [k, size, req] of webhookCols) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, COL_SELLER_PROFILES, k, size, req)
+    );
+    await waitForAttribute(databases, COL_SELLER_PROFILES, k);
+  }
 }
 
 async function setupListings(databases) {

@@ -256,6 +256,34 @@ server.tool(
 );
 
 server.tool(
+  'set_webhook',
+  "Register an HTTPS endpoint to receive signed event webhooks (order.paid, payout.released) so the storefront reacts to sales event-driven instead of polling (requires orders:read). Returns a signing secret ONCE — store it; verify each delivery's X-TonForge-Signature (sha256=HMAC of the raw body). The URL must be HTTPS and must not resolve to a private IP.",
+  {
+    url: z.string().url().describe('HTTPS endpoint that will receive POSTed events.'),
+  },
+  async ({ url }) => {
+    try {
+      return ok(await api('POST', '/webhook', { url }));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'delete_webhook',
+  'Remove the seller\'s registered event webhook (requires orders:read).',
+  {},
+  async () => {
+    try {
+      return ok(await api('DELETE', '/webhook'));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
   'get_instructions',
   'Read the platform-authored agent onboarding/operating manual (instructions:read; readable before KYC). Returns the honest service overview, prerequisites, lifecycle, KYC policy, and behaviour/honesty boundary, plus your personalised onboarding checklist.',
   {},
