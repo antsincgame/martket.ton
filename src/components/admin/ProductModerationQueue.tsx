@@ -3,6 +3,7 @@ import { CheckCircle, XCircle, Ban, Eye, Loader2, ShieldCheck, ShieldAlert, Refr
 import { useAuth } from '../../contexts/AuthContext';
 import { storeApiUrl } from '../../lib/storeApi';
 import { logger } from '../../lib/logger';
+import { useToast } from '../ui/Toast';
 
 type ScanStatus = 'pending' | 'scanning' | 'clean' | 'suspicious' | 'malicious' | 'error';
 
@@ -70,6 +71,7 @@ export default function ProductModerationQueue() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const fetchPending = useCallback(async () => {
     setLoading(true);
@@ -103,12 +105,14 @@ export default function ProductModerationQueue() {
       setProducts((prev) => prev.filter((p) => p.id !== productId));
       setRejectTarget(null);
       setRejectReason('');
+      toast('success', status === 'rejected' ? 'Product rejected' : 'Product approved');
     } catch (err) {
       logger.error('[mod-queue] action failed:', err);
+      toast('error', err instanceof Error ? err.message : 'Moderation action failed');
     } finally {
       setActionId(null);
     }
-  }, [authFetch]);
+  }, [authFetch, toast]);
 
   const handleRescan = useCallback(async (productId: string) => {
     setActionId(productId);
@@ -125,12 +129,14 @@ export default function ProductModerationQueue() {
       setProducts((prev) => prev.map((p) => (
         p.id === productId ? { ...p, scan_status: 'pending' as ScanStatus } : p
       )));
+      toast('info', 'Re-scan queued');
     } catch (err) {
       logger.error('[mod-queue] rescan failed:', err);
+      toast('error', err instanceof Error ? err.message : 'Re-scan failed');
     } finally {
       setActionId(null);
     }
-  }, [authFetch]);
+  }, [authFetch, toast]);
 
   if (loading) {
     return (
