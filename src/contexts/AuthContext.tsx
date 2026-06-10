@@ -64,7 +64,7 @@ function useAuthInternal(): AuthContextValue {
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchProfile = useCallback(async () => {
-    logger.warn('[AUTH_AUDIT] fetchProfile — START');
+    logger.info('[AUTH_AUDIT] fetchProfile — START');
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -78,46 +78,46 @@ function useAuthInternal(): AuthContextValue {
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
       ]);
       if (currentUser && !controller.signal.aborted) {
-        logger.warn('[AUTH_AUDIT] fetchProfile — Appwrite user confirmed, setting isSignedIn=true', {
+        logger.info('[AUTH_AUDIT] fetchProfile — Appwrite user confirmed, setting isSignedIn=true', {
           id: currentUser.$id, email: currentUser.email,
         });
         setIsSignedIn(true);
       } else {
-        logger.warn('[AUTH_AUDIT] fetchProfile — getCurrentUser returned null or aborted');
+        logger.info('[AUTH_AUDIT] fetchProfile — getCurrentUser returned null or aborted');
       }
     } catch (err: unknown) {
-      logger.warn('[AUTH_AUDIT] fetchProfile — getCurrentUser exception:', err instanceof Error ? err.message : err);
+      logger.info('[AUTH_AUDIT] fetchProfile — getCurrentUser exception:', err instanceof Error ? err.message : err);
     }
 
     const timeout = setTimeout(() => {
-      logger.warn('[AUTH_AUDIT] fetchProfile — 8s TIMEOUT fired, aborting');
+      logger.info('[AUTH_AUDIT] fetchProfile — 8s TIMEOUT fired, aborting');
       controller.abort();
     }, 8000);
 
     const tryFetch = async (attempt: number): Promise<ProfileRow | null> => {
       if (controller.signal.aborted) {
-        logger.warn(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — skipped (aborted)`);
+        logger.info(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — skipped (aborted)`);
         return null;
       }
-      logger.warn(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — requesting JWT`);
+      logger.info(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — requesting JWT`);
       const token = await getJwt();
       if (!token || controller.signal.aborted) {
-        logger.warn(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — JWT is null or aborted`, { hasToken: !!token });
+        logger.info(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — JWT is null or aborted`, { hasToken: !!token });
         return null;
       }
       const url = storeApiUrl('/api/session/profile');
-      logger.warn(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — calling ${url}`);
+      logger.info(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — calling ${url}`);
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
         signal: controller.signal,
       });
       if (!res.ok) {
-        logger.warn(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — response ${res.status} ${res.statusText}`);
+        logger.info(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — response ${res.status} ${res.statusText}`);
         if (res.status === 401) setError('Authentication expired — please sign in again');
         return null;
       }
       const body = (await res.json()) as { success?: boolean; data?: ProfileRow };
-      logger.warn(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — response OK`, {
+      logger.info(`[AUTH_AUDIT] fetchProfile.tryFetch(${attempt}) — response OK`, {
         success: body.success,
         hasData: !!body.data,
         role: body.data?.role,
@@ -129,23 +129,23 @@ function useAuthInternal(): AuthContextValue {
     try {
       let data = await tryFetch(1);
       if (!data && !controller.signal.aborted) {
-        logger.warn('[AUTH_AUDIT] fetchProfile — first attempt returned null, retrying in 1.5s');
+        logger.info('[AUTH_AUDIT] fetchProfile — first attempt returned null, retrying in 1.5s');
         await new Promise(r => setTimeout(r, 1500));
         data = await tryFetch(2);
       }
       if (controller.signal.aborted) {
-        logger.warn('[AUTH_AUDIT] fetchProfile — aborted, not updating state');
+        logger.info('[AUTH_AUDIT] fetchProfile — aborted, not updating state');
         return;
       }
       if (data) {
         const u = profileRowToAuthenticatedUser(data);
-        logger.warn('[AUTH_AUDIT] fetchProfile — SUCCESS, user mapped', {
+        logger.info('[AUTH_AUDIT] fetchProfile — SUCCESS, user mapped', {
           id: u.id, email: u.email, roles: u.roles.map(r => typeof r === 'string' ? r : r.name),
         });
         setProfile(u);
         setSession(createSession(u));
       } else {
-        logger.warn('[AUTH_AUDIT] fetchProfile — no profile data, user will appear as signed-out');
+        logger.info('[AUTH_AUDIT] fetchProfile — no profile data, user will appear as signed-out');
         setProfile(null);
         setSession(null);
       }
@@ -154,14 +154,14 @@ function useAuthInternal(): AuthContextValue {
       const msg = err instanceof DOMException && err.name === 'AbortError'
         ? 'Profile request timed out'
         : (err instanceof Error ? err.message : 'Failed to fetch profile');
-      logger.warn('[AUTH_AUDIT] fetchProfile — EXCEPTION:', msg);
+      logger.info('[AUTH_AUDIT] fetchProfile — EXCEPTION:', msg);
       setError(msg);
       setProfile(null);
       setSession(null);
     } finally {
       clearTimeout(timeout);
       setIsLoadingProfile(false);
-      logger.warn('[AUTH_AUDIT] fetchProfile — END');
+      logger.info('[AUTH_AUDIT] fetchProfile — END');
     }
   }, []);
 
@@ -170,7 +170,7 @@ function useAuthInternal(): AuthContextValue {
   // Appwrite never leaves the user staring at a spinner forever.
   useEffect(() => {
     let cancelled = false;
-    logger.warn('[AUTH_AUDIT] AuthContext mount — checking Appwrite session');
+    logger.info('[AUTH_AUDIT] AuthContext mount — checking Appwrite session');
     (async () => {
       let user = null;
       try {
@@ -179,14 +179,14 @@ function useAuthInternal(): AuthContextValue {
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
         ]);
       } catch (err: unknown) {
-        logger.warn('[AUTH_AUDIT] mount — getCurrentUser exception:', err instanceof Error ? err.message : err);
+        logger.info('[AUTH_AUDIT] mount — getCurrentUser exception:', err instanceof Error ? err.message : err);
       }
       if (cancelled) {
-        logger.warn('[AUTH_AUDIT] mount — cancelled during getCurrentUser');
+        logger.info('[AUTH_AUDIT] mount — cancelled during getCurrentUser');
         return;
       }
       const signed = !!user;
-      logger.warn('[AUTH_AUDIT] mount — session check complete', {
+      logger.info('[AUTH_AUDIT] mount — session check complete', {
         signed,
         userId: user?.$id,
         email: user?.email,
@@ -209,7 +209,8 @@ function useAuthInternal(): AuthContextValue {
     logger.warn('[SecurityEvent]', { ...event, id: String(Date.now()), timestamp: new Date() });
   }, []);
   const logAuditEvent = useCallback((a: string, r: string, result: string, m?: Record<string, unknown>) => {
-    logger.warn('[Audit]', { action: a, resource: r, result, metadata: m, at: new Date().toISOString() });
+    // Dev-only: metadata may carry PII; keep it out of the prod console / Sentry.
+    logger.info('[Audit]', { action: a, resource: r, result, metadata: m, at: new Date().toISOString() });
   }, []);
   const logout = useCallback(async () => {
     await appwriteLogout();
@@ -250,7 +251,7 @@ function useAuthInternal(): AuthContextValue {
   const stateKey = `loading=${isLoading}|signed=${isSignedIn}|profile=${!!profile}|appLoaded=${isAppwriteLoaded}|profLoading=${isLoadingProfile}`;
   if (stateKey !== prevStateRef.current) {
     prevStateRef.current = stateKey;
-    logger.warn('[AUTH_AUDIT] state →', {
+    logger.info('[AUTH_AUDIT] state →', {
       isLoading,
       isSignedIn,
       hasProfile: !!profile,

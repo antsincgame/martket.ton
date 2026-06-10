@@ -19,38 +19,40 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     if (processedRef.current) {
-      logger.warn('[AUTH_AUDIT] AuthCallbackPage — skipping duplicate effect run');
+      // Dev-only trace (logger.info is a no-op in production).
+      logger.info('[AUTH_AUDIT] AuthCallbackPage — skipping duplicate effect run');
       return;
     }
     const userId = params.get('userId') || '';
     const secret = params.get('secret') || '';
-    logger.warn('[AUTH_AUDIT] AuthCallbackPage effect fired', {
-      userId: userId || '(empty)',
+    // H-7: never log the full URL — it carries `?secret=<live session token>`.
+    // Log only the (non-sensitive) length, dev-only.
+    logger.info('[AUTH_AUDIT] AuthCallbackPage effect fired', {
+      hasUserId: Boolean(userId),
       secretLen: secret.length,
-      url: window.location.href,
     });
     if (!userId || !secret) {
-      logger.warn('[AUTH_AUDIT] AuthCallbackPage — missing userId or secret');
+      logger.info('[AUTH_AUDIT] AuthCallbackPage — missing userId or secret');
       setError('Invalid sign-in link. Please request a new one.');
       return;
     }
     processedRef.current = true;
     (async () => {
       try {
-        logger.warn('[AUTH_AUDIT] step 1/4 — calling completeOAuthCallback');
+        logger.info('[AUTH_AUDIT] step 1/4 — calling completeOAuthCallback');
         await completeOAuthCallback(userId, secret);
 
-        logger.warn('[AUTH_AUDIT] step 2/4 — session created, waiting 500ms for propagation');
+        logger.info('[AUTH_AUDIT] step 2/4 — session created, waiting 500ms for propagation');
         await new Promise(r => setTimeout(r, 500));
 
-        logger.warn('[AUTH_AUDIT] step 3/4 — calling fetchProfile');
+        logger.info('[AUTH_AUDIT] step 3/4 — calling fetchProfile');
         await fetchProfile();
 
-        logger.warn('[AUTH_AUDIT] step 4/4 — navigating to /');
+        logger.info('[AUTH_AUDIT] step 4/4 — navigating to /');
         navigate('/', { replace: true });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Sign-in failed';
-        logger.warn('[AUTH_AUDIT] AuthCallbackPage — FATAL error in OAuth flow:', msg);
+        logger.error('[AUTH_AUDIT] AuthCallbackPage — error in OAuth flow:', msg);
         setError(msg);
       }
     })();

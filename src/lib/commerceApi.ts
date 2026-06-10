@@ -11,8 +11,13 @@ import type {
 } from '../domain/commerce/types';
 
 function commerceBaseUrl(): string {
-  const raw = import.meta.env.VITE_COMMERCE_API_URL || 'http://localhost:8081';
-  return raw.replace(/\/$/, '');
+  const raw = (import.meta.env.VITE_COMMERCE_API_URL || 'http://localhost:8081').replace(/\/$/, '');
+  // The commerce path below already carries the `/api` prefix. The shipped
+  // config sets VITE_COMMERCE_API_URL=/api (docker-compose / coolify), so without
+  // this dedupe every call became `/api/api/v1/commerce/...` → 404 (the entire
+  // commerce surface — checkout, listings, licenses, refunds — was dead). Mirror
+  // storeApi.ts's dedupe.
+  return raw.endsWith('/api') ? raw.slice(0, -'/api'.length) : raw;
 }
 
 export function commerceUrl(path: string): string {
