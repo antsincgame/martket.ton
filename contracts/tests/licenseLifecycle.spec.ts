@@ -146,12 +146,12 @@ describe('License lifecycle v4 (Option C — backend-driven)', () => {
     expect(deployTx).toBeTruthy();
     const itemAddress = (deployTx!.inMessage!.info as { dest: Address }).dest;
 
-    // NOTE: LicenseItem в init получил escrow.address (не oracle!). Но
-    // self-register срабатывает на пустое тело (receive() без параметров),
-    // а Collection шлёт "License minted".asComment() — это cell с opcode=0,
-    // не null body. Поэтому RegisterLicense отправляется не в ходе mint-tx,
-    // а позже — первым эмпти-сообщением от Collection. В тесте refund cycle
-    // мы симулируем этот шаг через blockchain.sender(collection.address).
+    // K-1/CON-01 fix: регистрация выполняется самой Collection в ходе mint-tx
+    // (RegisterLicense → Escrow, привязанный к collectionAddress). Никаких
+    // ручных шагов «self-register» больше не нужно — escrow знает свой license
+    // сразу после минта.
+    const registered = await escrow.getLicenseAddress();
+    expect(registered.equals(itemAddress)).toBe(true);
 
     return { itemAddress, burnDeadline };
   }
@@ -195,7 +195,7 @@ describe('License lifecycle v4 (Option C — backend-driven)', () => {
   //   3. BuyerBurn от buyer.address → LicenseItem → RefundOnBurn → Escrow.
   //   4. Escrow переходит в REFUNDED и шлёт средства buyer'у.
 
-  it('full refund cycle: pay → mint → BuyerBurn → escrow refunds buyer', async () => {
+  it('full refund cycle: pay → mint → BuyerBurn → escrow refunds buyer + confirms burn', async () => {
     const { itemAddress, burnDeadline } = await payAndMint();
 
     // Пересобираем SandboxContract<LicenseItem> с тем же init-ключом что
@@ -212,21 +212,13 @@ describe('License lifecycle v4 (Option C — backend-driven)', () => {
     expect(itemInit.address.equals(itemAddress)).toBe(true);
     const item = blockchain.openContract(itemInit);
 
-    // 2. Self-register: empty message от collection.address. Используем
-    //    blockchain.sender() чтобы симулировать sender от адреса коллекции.
-    await item.send(
-      blockchain.sender(collection.address),
-      { value: toNano('0.1') },
-      null, // empty body → triggers receive() → RegisterLicense → Escrow
-    );
-
-    // licenseAddress теперь зарегистрирован в Escrow
-    const registered = await escrow.getLicenseAddress();
-    expect(registered.equals(itemAddress)).toBe(true);
+    // Регистрация уже выполнена Collection в ходе payAndMint (см. выше) —
+    // ручной self-register больше не нужен.
 
     const buyerBalanceBefore = await buyer.getBalance();
 
-    // 3. BuyerBurn от buyer'а (типизированное сообщение).
+    // BuyerBurn от buyer'а (типизированное сообщение). Теперь двухфазный:
+    // item → RefundOnBurn → escrow → (refund buyer + BurnConfirmed) → item burns.
     const burnRes = await item.send(
       buyer.getSender(),
       { value: toNano('0.2') },
@@ -247,9 +239,19 @@ describe('License lifecycle v4 (Option C — backend-driven)', () => {
       success: true,
     });
 
-    // После RefundOnBurn Escrow делает SendRemainingBalance|SendDestroyIfZero,
-    // т.е. контракт self-destructs. getState() на уничтоженный контракт бросит,
-    // поэтому проверяем только что buyer получил деньги (это доказывает refund).
+    // Escrow должен был подтвердить сжигание (BurnConfirmed → item)
+    expect(burnRes.transactions).toHaveTransaction({
+      from: escrow.address,
+      to: itemAddress,
+      success: true,
+    });
+
+    // А item, получив BurnConfirmed, должен самоуничтожиться (вернув остаток
+    // владельцу). Проверяем, что аккаунт айтема больше не active.
+    const itemState = await blockchain.getContract(itemAddress);
+    expect(itemState.accountState?.type).not.toBe('active');
+
+    // Покупатель получил возврат.
     expect(await buyer.getBalance()).toBeGreaterThan(buyerBalanceBefore);
   });
 

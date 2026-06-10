@@ -9,6 +9,13 @@ message(0x70e30189) RegisterLicense { licenseAddress: Address; }
 message(0x9b3c2d45) RefundOnBurn {}
 message(0x5a8e1f23) RefundIfNotMinted {}
 
+// BurnConfirmed — outgoing message Escrow → LicenseItem. Подтверждает, что
+// RefundOnBurn принят и средства покупателю отправлены, после чего LicenseItem
+// безопасно самоуничтожается. Двухфазный burn закрывает дыру, где item
+// уничтожался ДО подтверждения возврата (атакующий/отказ эскроу → покупатель
+// терял и NFT, и деньги). Объявлен здесь, импортируется licenseItem.tact.
+message(0x6f1d2e83) BurnConfirmed {}
+
 // MintLicense — outgoing message от oracle-кошелька в Collection.
 // Объявлен здесь чтобы opcode/структура были в одном месте
 // (appCollection.tact импортирует этот тип).
@@ -138,21 +145,41 @@ contract Escrow with Deployable {
         self.releaseFunds();
     }
 
-    // ─── Register license address (called by LicenseItem on deploy) ──
-
+    // ─── Register license address (relayed by the bound collection) ──
+    //
+    // CON-01 fix: регистрацию выполняет ТОЛЬКО привязанная коллекция
+    // (self.collectionAddress), которая знает реальный адрес заминченного
+    // LicenseItem. Раньше проверка `sender() == msg.licenseAddress` позволяла
+    // атакующему задеплоить свой контракт и зарегистрировать его на чужом
+    // FUNDED-эскроу, блокируя оба пути возврата покупателя (front-run → кража).
     receive(msg: RegisterLicense) {
         require(self.state == STATE_FUNDED, "Not funded");
         require(self.licenseAddress == newAddress(0, 0), "License already registered");
-        require(sender() == msg.licenseAddress, "Sender must match license address");
+        require(sender() == self.collectionAddress, "Only bound collection");
         self.licenseAddress = msg.licenseAddress;
     }
 
     // ─── Refund triggered by LicenseItem burn ────────────────────────
-
+    //
+    // Двухфазный burn: отправляем средства покупателю И подтверждаем сжигание
+    // самой лицензии (BurnConfirmed), чтобы LicenseItem уничтожился только
+    // ПОСЛЕ гарантированного возврата. Временной гейт держит окно возврата в
+    // одном источнике истины (эскроу), исключая гонку с TimeoutRelease.
     receive(msg: RefundOnBurn) {
         require(self.state == STATE_FUNDED, "Not funded");
         require(sender() == self.licenseAddress, "Only registered license");
+        require(now() <= self.paidAt + self.trialWindowSec, "Trial window closed");
         self.state = STATE_REFUNDED;
+
+        // Сначала уведомляем лицензию (фикс. value), затем остаток — покупателю.
+        send(SendParameters{
+            to: self.licenseAddress,
+            value: ton("0.02"),
+            mode: SendPayGasSeparately,
+            bounce: false,
+            body: BurnConfirmed{}.toCell(),
+        });
+
         send(SendParameters{
             to: self.buyer,
             value: 0,

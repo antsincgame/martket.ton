@@ -13,7 +13,7 @@
  *   DEPLOYER_MNEMONIC - 24-word seed phrase
  */
 
-import { Address, toNano } from '@ton/core';
+import { Address, beginCell, toNano } from '@ton/core';
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { Escrow } from '../build/Escrow_Escrow';
 
@@ -41,14 +41,28 @@ async function main() {
   const seller = Address.parse('EQBvW8Z5huBkMJYdnfAEM5JqTNkuWX3diqYENkWsIL0XggGG');
   const treasury = Address.parse('EQBvW8Z5huBkMJYdnfAEM5JqTNkuWX3diqYENkWsIL0XggGG');
 
+  // Демонстрационная сделка: 1 TON = 0.85 продавцу + 0.15 комиссия (split
+  // обязан совпасть с amountNano, иначе init упадёт на require). Escrow.init
+  // принимает 11 параметров (v4): + trialWindowSec, collectionAddress,
+  // transferLimit, licenseContent — реальный деплой делает backend per-order.
+  const amount = toNano('1');
+  const sellerAmount = toNano('0.85');
+  const feeAmount = amount - sellerAmount;
+  const collection = Address.parse('EQBvW8Z5huBkMJYdnfAEM5JqTNkuWX3diqYENkWsIL0XggGG');
+  const licenseContent = beginCell().storeStringTail('ipfs://example-license').endCell();
+
   const escrow = await Escrow.fromInit(
     1n,
     buyer,
     seller,
     treasury,
-    toNano('1'),
-    500n,
+    amount,
+    sellerAmount,
+    feeAmount,
     3600n,
+    collection,
+    0n,
+    licenseContent,
   );
 
   console.log(`Escrow address: ${escrow.address.toString()}`);

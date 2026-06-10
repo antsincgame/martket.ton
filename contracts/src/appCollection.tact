@@ -52,7 +52,7 @@ contract AppCollection with Deployable {
 
     receive(msg: MintLicense) {
         require(sender() == self.ownerAddress, "Only collection owner can mint");
-        require(context().value >= ton("0.1"), "Insufficient gas for mint");
+        require(context().value >= ton("0.12"), "Insufficient gas for mint");
 
         let index: Int = self.nextItemIndex;
 
@@ -68,14 +68,30 @@ contract AppCollection with Deployable {
 
         let itemAddress: Address = contractAddress(licenseInit);
 
+        // Деплой айтема с ПУСТЫМ телом (его поглощает no-op receive() айтема).
+        // Прежде слался "License minted".asComment() — текстовый комментарий с
+        // opcode=0, который НЕ матчился пустым receive() айтема: регистрация не
+        // происходила, а деплой аварийно завершался (K-1). Теперь регистрацию
+        // выполняет сама Collection ниже.
         send(SendParameters{
             to: itemAddress,
-            value: 0,
-            mode: SendRemainingValue,
+            value: ton("0.05"),
+            mode: SendPayGasSeparately,
             bounce: false,
             code: licenseInit.code,
             data: licenseInit.data,
-            body: "License minted".asComment(),
+        });
+
+        // CON-01 fix: Collection (привязанная коллекция эскроу) регистрирует
+        // реальный адрес заминченного айтема. Escrow проверяет
+        // sender() == self.collectionAddress, поэтому подделать регистрацию
+        // нельзя. Это замыкает refund-петлю BuyerBurn → RefundOnBurn → Escrow.
+        send(SendParameters{
+            to: msg.escrowAddress,
+            value: ton("0.05"),
+            mode: SendPayGasSeparately,
+            bounce: false,
+            body: RegisterLicense{ licenseAddress: itemAddress }.toCell(),
         });
 
         self.nextItemIndex = index + 1;
