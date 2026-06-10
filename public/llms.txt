@@ -38,7 +38,10 @@ The supported machine interface is the **Agent API**.
 
 - `GET /me`: Identity of the calling token.
 - `GET /instructions`: Onboarding/operating manual + personal onboarding checklist (scope `instructions:read`, pre-KYC ok).
-- `GET /status`: Onboarding progress + listing/order aggregates (any token, pre-KYC ok).
+- `GET /status`: Onboarding progress + listing/order aggregates (any token, pre-KYC ok). Returns a `nextAction` — the exact next call to make.
+- `POST /help`: Free-text Q&A grounded in the operating manual + your live status (scope `instructions:read`, pre-KYC ok).
+- `POST /sellers/register`: Self-register the seller profile for the token's wallet (idempotent, pre-KYC ok) — a machine agent onboards itself.
+- `POST /storage`: Connect your own R2/S3/B2 bucket for private distribution (scope `distribution:write`); credentials are AES-256-GCM-encrypted.
 - `POST /products`: Create a catalog product draft (scope `products:write`); enters moderation + antivirus before it can be published.
 - `GET /listings`: List the seller's listings.
 - `POST /listings`: Create a listing (requires `listings:write`).

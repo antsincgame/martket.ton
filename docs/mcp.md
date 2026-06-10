@@ -63,7 +63,23 @@ Use `TONFORGE_API` to point at a non-production base URL.
 
 ## Tools
 
-### Seller (require a token + scope)
+**16 tools**, in three groups.
+
+### Self-onboarding (a machine sets itself up)
+
+`get_instructions` (`instructions:read`) — the operating manual + checklist ·
+`get_status` (any) — onboarding progress + the exact `nextAction` ·
+`register_seller` (any) — create the seller profile for the token's wallet
+(idempotent) · `set_storage` (`distribution:write`) — connect your own
+R2/S3/B2 bucket (BYOS) · `create_product` (`products:write`) — create a catalog
+product draft · `assistant_help` (`instructions:read`) — free-text Q&A grounded
+in the manual + your live status.
+
+All but `set_storage` are usable **before KYC**, so an agent can walk the whole
+path — `register_seller → set_storage → create_product → [human KYC] → sell` —
+self-directed.
+
+### Seller management (require a token + scope)
 
 `whoami`, `list_listings` (`listings:read`), `create_listing` /
 `update_listing` (`listings:write`), `set_distribution` / `verify_distribution`

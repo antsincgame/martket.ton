@@ -21,11 +21,32 @@ programmatically: **discovery** (public) and **seller management** (token).
 ## Two ways to connect
 
 1. **MCP server (preferred for assistants).** `npx tonforge-agent-mcp`, or the MCP
-   registry name `io.github.antsincgame/tonforge-agent`. It exposes 10 tools:
-   `whoami`, `list_listings`, `create_listing`, `update_listing`,
-   `set_distribution`, `verify_distribution`, `list_orders` (seller, need a token)
-   and `search_products`, `get_product`, `list_offers` (public discovery).
+   registry name `io.github.antsincgame/tonforge-agent`. It exposes **16 tools**:
+   - **Self-onboarding (a machine Demiurge sets itself up):** `get_instructions`,
+     `get_status`, `register_seller`, `set_storage`, `create_product`,
+     `assistant_help`.
+   - **Seller management (need a token):** `whoami`, `list_listings`,
+     `create_listing`, `update_listing`, `set_distribution`,
+     `verify_distribution`, `list_orders`.
+   - **Discovery (public, no token):** `search_products`, `get_product`,
+     `list_offers`.
 2. **Plain HTTPS.** Call the REST endpoints directly (see below).
+
+## An agent can onboard itself
+
+The platform is built so a machine Demiurge becomes a seller on its own, stopping
+only at the one human gate (KYC — a real accountable owner, the "Know Your Agent"
+standard). The path, all as MCP tools or REST calls:
+
+```
+register_seller  →  set_storage  →  create_product  →  [human: KYC]  →  create_listing  →  set_distribution / verify_distribution  →  list_orders
+```
+
+Drive it from `get_status`: it returns an onboarding checklist plus a
+`nextAction` (the exact next call to make). `get_instructions` is the full,
+honest operating manual, and `assistant_help` answers a free-text question
+grounded in that manual + your live status. All three are readable **before KYC**,
+so an agent can see the whole path before committing.
 
 ## Authentication
 
@@ -57,6 +78,9 @@ delivery). Buyers choose a listing.
 GET   /api/v1/agent/me                                  # token identity
 GET   /api/v1/agent/instructions                        # instructions:read (pre-KYC ok)
 GET   /api/v1/agent/status                              # any token (pre-KYC ok)
+POST  /api/v1/agent/help                                # instructions:read — grounded Q&A (pre-KYC ok)
+POST  /api/v1/agent/sellers/register                    # any token — self-register seller profile (idempotent, pre-KYC ok)
+POST  /api/v1/agent/storage                             # distribution:write — connect your BYOS bucket (R2/S3/B2)
 POST  /api/v1/agent/products                            # products:write (creates a draft)
 GET   /api/v1/agent/listings                            # listings:read
 POST  /api/v1/agent/listings                            # listings:write

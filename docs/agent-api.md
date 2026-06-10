@@ -140,6 +140,9 @@ All paths are relative to `https://tonforge.org/api/v1/agent`.
 | `GET /me`                              | any                  | Identity (wallet, scopes, token prefix)   |
 | `GET /instructions`                    | `instructions:read`  | Onboarding manual + personal checklist (pre-KYC ok) |
 | `GET /status`                          | any                  | Onboarding progress + listing/order aggregates (pre-KYC ok) |
+| `POST /help`                           | `instructions:read`  | Grounded Q&A: relevant manual section + your `nextAction` (pre-KYC ok) |
+| `POST /sellers/register`               | any                  | Self-register the seller profile for the token's wallet (idempotent, pre-KYC ok) |
+| `POST /storage`                        | `distribution:write` | Connect a BYOS bucket (R2/S3/B2); creds AES-256-GCM-encrypted |
 | `POST /products`                       | `products:write`     | Create a catalog product draft (→ moderation + scan) |
 | `GET /listings`                        | `listings:read`      | List your listings (≤100)                 |
 | `POST /listings`                       | `listings:write`     | Create a listing                          |

@@ -158,6 +158,120 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "451": { $ref: "#/components/responses/Sanctioned" }
 
+  /help:
+    post:
+      tags: [Onboarding]
+      operationId: agentAssistantHelp
+      summary: Grounded Q&A assistant
+      description: >-
+        Answers a free-text question, grounded in the operating manual plus the
+        agent's live onboarding status. Returns the most relevant instruction
+        section and the agent's `nextAction`. Requires `instructions:read`.
+        Readable **before** KYC. (Deterministic grounding today; a live LLM is a
+        post-MVP activation.)
+      security:
+        - agentBearer: [instructions:read]
+        - agentHeader: [instructions:read]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                question: { type: string, maxLength: 2000, description: Free-text question. }
+      responses:
+        "200":
+          description: Grounded assistant reply (relevant section + nextAction).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, description: "Assistant reply: matched section, nextAction, and an honest assistant note." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "451": { $ref: "#/components/responses/Sanctioned" }
+
+  /sellers/register:
+    post:
+      tags: [Onboarding]
+      operationId: agentRegisterSeller
+      summary: Self-register as a seller
+      description: >-
+        Creates the seller profile for the token's wallet so a machine Demiurge
+        can onboard itself up to the human KYC gate. Idempotent (returns the
+        existing profile with `created: false`). The wallet comes from the token,
+        never the body. No scope required; readable **before** KYC.
+      security:
+        - agentBearer: []
+        - agentHeader: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName: { type: string, maxLength: 120, description: "Display name (default: 'Agent Demiurge')." }
+                bio: { type: string, maxLength: 2000 }
+      responses:
+        "200":
+          description: The seller profile (created or pre-existing).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      profile: { type: object, description: The seller profile document. }
+                      created: { type: boolean, description: true if newly created, false if it already existed. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "451": { $ref: "#/components/responses/Sanctioned" }
+
+  /storage:
+    post:
+      tags: [Distribution]
+      operationId: agentSetStorage
+      summary: Connect a BYOS bucket (R2/S3/B2)
+      description: >-
+        Connects the agent's own object-storage bucket for private distribution.
+        Credentials are validated with a live HeadBucket probe (with the endpoint
+        pinned to its validated public IP to prevent SSRF) and stored
+        AES-256-GCM-encrypted. Requires `distribution:write`. The wallet comes
+        from the token.
+      security:
+        - agentBearer: [distribution:write]
+        - agentHeader: [distribution:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, accountId, bucket, accessKeyId, secretAccessKey]
+              properties:
+                provider: { type: string, enum: [cloudflare-r2, s3, b2] }
+                accountId: { type: string }
+                bucket: { type: string }
+                endpoint: { type: string, nullable: true, description: Custom S3-compatible endpoint; validated against private IP ranges. }
+                accessKeyId: { type: string }
+                secretAccessKey: { type: string, description: Write-only; never returned by any read endpoint. }
+                publicBaseUrl: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Storage connected (probe passed, credentials encrypted at rest).
+        "400":
+          description: Bad endpoint (private/unresolvable) or bucket probe failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "451": { $ref: "#/components/responses/Sanctioned" }
+
   /products:
     post:
       tags: [Products]
