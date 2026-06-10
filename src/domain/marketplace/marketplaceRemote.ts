@@ -11,6 +11,7 @@ import {
   getHomeSpotlightProductsForProducts,
 } from './catalog';
 import { CATALOG_LISTING_PRODUCTS, getSeedDetailOrNull } from './seed';
+import { fetchPublishedCatalogProducts } from './publishedProducts';
 import { slugify } from '../../utils/slugify';
 import type {
   CatalogListingProduct,
@@ -57,13 +58,24 @@ function seedFallback(): MarketplaceInventoryLoad {
   return buildFromProducts(CATALOG_LISTING_PRODUCTS, 'seed');
 }
 
-function mergeWithSeed(appwriteProducts: CatalogListingProduct[]): CatalogListingProduct[] {
-  const existingIds = new Set(appwriteProducts.map((p) => p.id));
-  const seedExtras = CATALOG_LISTING_PRODUCTS.filter((p) => !existingIds.has(p.id));
+/** Append `extra` products that aren't already present (dedupe by id). */
+function mergeUnique(
+  base: CatalogListingProduct[],
+  extra: CatalogListingProduct[],
+): CatalogListingProduct[] {
+  const ids = new Set(base.map((p) => p.id));
+  const additions = extra.filter((p) => !ids.has(p.id));
+  return additions.length > 0 ? [...base, ...additions] : base;
+}
+
+function mergeWithSeed(liveProducts: CatalogListingProduct[]): CatalogListingProduct[] {
+  const seedExtras = CATALOG_LISTING_PRODUCTS.filter(
+    (p) => !liveProducts.some((lp) => lp.id === p.id),
+  );
   if (seedExtras.length > 0) {
-    logger.info(`[marketplace] Merged ${seedExtras.length} seed products with ${appwriteProducts.length} Appwrite products`);
+    logger.info(`[marketplace] Merged ${seedExtras.length} seed products with ${liveProducts.length} live products`);
   }
-  return [...appwriteProducts, ...seedExtras];
+  return [...liveProducts, ...seedExtras];
 }
 
 async function loadMarketplaceInventory(): Promise<MarketplaceInventoryLoad> {
@@ -73,11 +85,25 @@ async function loadMarketplaceInventory(): Promise<MarketplaceInventoryLoad> {
   }
   try {
     const appwriteProducts = await fetchListingProducts();
-    const merged = mergeWithSeed(appwriteProducts);
+
+    // H-9: also pull seller products published via the backend API. Without this,
+    // products created through the seller/TonForge flow (core.legacy_products)
+    // never reached the storefront, which only read marketplace.products. Kept
+    // fail-safe: a fetch/parse error here must NOT break the storefront, so we
+    // fall back to just the Appwrite products.
+    let published: CatalogListingProduct[] = [];
+    try {
+      published = await fetchPublishedCatalogProducts();
+    } catch (err) {
+      logger.warn('[marketplace] Failed to load published API products (continuing):', err);
+    }
+
+    const live = mergeUnique(appwriteProducts, published);
+    const merged = mergeWithSeed(live);
     if (merged.length === 0) {
       return { products: [], categorySummaries: [], spotlight: [], source: 'empty' };
     }
-    return buildFromProducts(merged, appwriteProducts.length > 0 ? 'appwrite' : 'seed');
+    return buildFromProducts(merged, live.length > 0 ? 'appwrite' : 'seed');
   } catch (err) {
     logger.warn('[marketplace] Failed to load from Appwrite, using seed fallback:', err);
     return seedFallback();
@@ -96,18 +122,43 @@ export function productSlug(product: CatalogListingProduct): string {
   return slugify(product.name);
 }
 
+/**
+ * Synthesize a ProductDetail from a catalog row already in the loaded inventory.
+ * H-9: products pulled from /api/products live in the catalog grid but not in
+ * marketplace.products / seed, so fetchProductDetailById misses them — without
+ * this fallback their detail page 404s. Fills the detail-only fields with
+ * sensible defaults derived from the catalog row.
+ */
+async function detailFromInventory(id: string): Promise<ProductDetail | null> {
+  const inventory = await getMarketplaceInventoryOnce();
+  const p = inventory.products.find((x) => x.id === id);
+  if (!p) return null;
+  return {
+    ...p,
+    longDescription: p.description,
+    reviewStatsCount: p.reviewCount ?? 0,
+    images: [p.image],
+    version: '1.0.0',
+    size: '',
+    platforms: p.platforms ?? [],
+    requirements: '',
+    lastUpdated: p.releaseDate ?? '',
+    tags: p.tags ?? [],
+  };
+}
+
 export async function resolveProductDetail(slugOrId: string | undefined): Promise<ProductDetail | null> {
   if (!slugOrId) return null;
   const id = await resolveIdFromSlug(slugOrId);
   if (!isAppwriteConfigured) {
-    return getSeedDetailOrNull(id);
+    return getSeedDetailOrNull(id) ?? (await detailFromInventory(id));
   }
   try {
     const detail = await fetchProductDetailById(id);
-    return detail ?? getSeedDetailOrNull(id);
+    return detail ?? getSeedDetailOrNull(id) ?? (await detailFromInventory(id));
   } catch (err) {
     logger.warn('[marketplace] Failed to load product from Appwrite:', err);
-    return getSeedDetailOrNull(id);
+    return getSeedDetailOrNull(id) ?? (await detailFromInventory(id));
   }
 }
 
