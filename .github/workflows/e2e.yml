@@ -59,11 +59,15 @@ jobs:
             backend/package-lock.json
 
       - name: Verify required secrets are present
+        # M-13: reference the secrets via env vars, never interpolate
+        # ${{ secrets.* }} into the shell command line (that transits the value
+        # through the command string — exposed by set -x, a parse error, or the
+        # process list). The values are already mapped to env at the job level.
         run: |
           missing=""
-          [[ -z "${{ secrets.APPWRITE_PROJECT_ID }}" ]] && missing="$missing APPWRITE_PROJECT_ID"
-          [[ -z "${{ secrets.APPWRITE_API_KEY }}" ]] && missing="$missing APPWRITE_API_KEY"
-          [[ -z "${{ secrets.JWT_SECRET }}" ]] && missing="$missing JWT_SECRET"
+          [[ -z "$APPWRITE_PROJECT_ID" ]] && missing="$missing APPWRITE_PROJECT_ID"
+          [[ -z "$APPWRITE_API_KEY" ]] && missing="$missing APPWRITE_API_KEY"
+          [[ -z "$JWT_SECRET" ]] && missing="$missing JWT_SECRET"
           if [[ -n "$missing" ]]; then
             echo "::warning::Missing secrets:$missing — E2E will skip backend assertions"
           fi
