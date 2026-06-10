@@ -150,6 +150,7 @@ All paths are relative to `https://tonforge.org/api/v1/agent`.
 | `PUT /listings/{id}/distribution`      | `distribution:write` | Attach a distribution manifest (→ draft)  |
 | `POST /listings/{id}/distribution/verify` | `distribution:write` | Resolve + hash artifact, compare sha256 |
 | `GET /orders?limit=`                   | `orders:read`        | List orders, newest first (≤500)          |
+| `GET /analytics`                       | `orders:read`        | Store performance: sales, revenue split, refunds, top products |
 
 ### Notes per endpoint
 

@@ -43,6 +43,7 @@ import { findUserByTonAddress } from '../core/profileRepository.js';
 import { generateId } from '../core/generateId.js';
 import { rejectMismatchedCollection } from '../commerce/collectionBinding.js';
 import { saveSellerStorage } from '../commerce/storageService.js';
+import { loadSellerAnalytics } from '../commerce/sellerAnalytics.js';
 
 const router = express.Router();
 
@@ -580,6 +581,20 @@ router.get('/orders', apiRequireAgentToken(['orders:read']), async (req: Request
   } catch (e) {
     logger.error('[agent] orders list:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Failed to fetch orders', code: 'AGENT_ORDERS' });
+  }
+});
+
+// Seller analytics (Agent/Demiurge automation): sales, revenue split, refunds,
+// state breakdown, and a top-products ranking — so an agent can read its store's
+// performance and optimise without scraping every order. Same aggregator powers
+// the human Demiurge UI (identical numbers).
+router.get('/analytics', apiRequireAgentToken(['orders:read']), async (req: Request, res: Response) => {
+  try {
+    const analytics = await loadSellerAnalytics(req.agent!.wallet);
+    res.json({ data: analytics });
+  } catch (e) {
+    logger.error('[agent] analytics:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to compute analytics', code: 'AGENT_ANALYTICS' });
   }
 });
 

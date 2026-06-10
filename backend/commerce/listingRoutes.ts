@@ -26,6 +26,7 @@ import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
 import { sellerRegisterSchema, createListingSchema, patchListingSchema } from './validation.js';
 import { mapListingPublic, appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
+import { loadSellerAnalytics } from './sellerAnalytics.js';
 import { buildOnboardingChecklist } from '../agent/status.js';
 import { getInstructionSections } from '../agent/instructions.js';
 import { requireSellerKyc } from './handlers/requireSellerKyc.js';
@@ -404,6 +405,22 @@ router.get('/sellers/:wallet/onboarding', apiRequireAuth(), async (req: Request,
   } catch (e: unknown) {
     logger.error('[commerce] seller onboarding:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Failed to load onboarding', code: 'SELLER_ONBOARDING' });
+  }
+});
+
+// Seller analytics for the human Demiurge UI — same aggregator as the agent
+// endpoint (`GET /api/v1/agent/analytics`), so machine and human see identical
+// store performance. Owner-only.
+router.get('/sellers/:wallet/analytics', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const wallet = str(req.params.wallet);
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
+    const analytics = await loadSellerAnalytics(wallet);
+    res.json({ data: analytics });
+  } catch (e: unknown) {
+    logger.error('[commerce] seller analytics:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to compute analytics', code: 'SELLER_ANALYTICS' });
   }
 });
 

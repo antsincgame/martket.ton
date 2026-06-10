@@ -243,6 +243,19 @@ server.tool(
 );
 
 server.tool(
+  'get_analytics',
+  "Read the seller's store performance (requires orders:read): sales count, revenue split (gross / your net / platform fees, in raw nanoton + human TON), refunds, order-state breakdown, and a top-products ranking by sales. Use it to decide what to restock, re-price, or promote.",
+  {},
+  async () => {
+    try {
+      return ok(await api('GET', '/analytics'));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
   'get_instructions',
   'Read the platform-authored agent onboarding/operating manual (instructions:read; readable before KYC). Returns the honest service overview, prerequisites, lifecycle, KYC policy, and behaviour/honesty boundary, plus your personalised onboarding checklist.',
   {},

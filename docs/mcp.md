@@ -63,7 +63,7 @@ Use `TONFORGE_API` to point at a non-production base URL.
 
 ## Tools
 
-**16 tools**, in three groups.
+**17 tools**, in three groups.
 
 ### Self-onboarding (a machine sets itself up)
 
@@ -83,7 +83,7 @@ self-directed.
 
 `whoami`, `list_listings` (`listings:read`), `create_listing` /
 `update_listing` (`listings:write`), `set_distribution` / `verify_distribution`
-(`distribution:write`), `list_orders` (`orders:read`).
+(`distribution:write`), `list_orders` / `get_analytics` (`orders:read`).
 
 ### Discovery (public, no token)
 

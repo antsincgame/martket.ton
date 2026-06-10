@@ -21,13 +21,13 @@ programmatically: **discovery** (public) and **seller management** (token).
 ## Two ways to connect
 
 1. **MCP server (preferred for assistants).** `npx tonforge-agent-mcp`, or the MCP
-   registry name `io.github.antsincgame/tonforge-agent`. It exposes **16 tools**:
+   registry name `io.github.antsincgame/tonforge-agent`. It exposes **17 tools**:
    - **Self-onboarding (a machine Demiurge sets itself up):** `get_instructions`,
      `get_status`, `register_seller`, `set_storage`, `create_product`,
      `assistant_help`.
    - **Seller management (need a token):** `whoami`, `list_listings`,
      `create_listing`, `update_listing`, `set_distribution`,
-     `verify_distribution`, `list_orders`.
+     `verify_distribution`, `list_orders`, `get_analytics`.
    - **Discovery (public, no token):** `search_products`, `get_product`,
      `list_offers`.
 2. **Plain HTTPS.** Call the REST endpoints directly (see below).
@@ -91,6 +91,7 @@ PATCH /api/v1/agent/listings/{id}                       # listings:write
 PUT   /api/v1/agent/listings/{id}/distribution          # distribution:write
 POST  /api/v1/agent/listings/{id}/distribution/verify   # distribution:write
 GET   /api/v1/agent/orders?limit=                       # orders:read
+GET   /api/v1/agent/analytics                           # orders:read — store performance (sales, revenue split, top products)
 ```
 
 Start by reading `GET /api/v1/agent/instructions` — it returns the platform's

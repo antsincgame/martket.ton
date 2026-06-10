@@ -538,6 +538,44 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /analytics:
+    get:
+      tags: [Orders]
+      operationId: getSellerAnalytics
+      summary: Seller store analytics
+      description: >-
+        Aggregated store performance for the calling wallet's listings: sales
+        count, revenue split (gross / seller net / platform fees, raw nanoton +
+        human TON), refunds, an order-state breakdown, and a top-products ranking
+        by sales. Read-only. Requires `orders:read`.
+      security:
+        - agentBearer: [orders:read]
+        - agentHeader: [orders:read]
+      responses:
+        "200":
+          description: Aggregated analytics.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      totals:
+                        type: object
+                        description: Sales count, gross/net/fee revenue (raw + human), refunds, pending.
+                      byState:
+                        type: object
+                        description: Order count per state (paid, fulfilled, refunded, …).
+                      topProducts:
+                        type: array
+                        description: Listings ranked by sales count.
+                        items: { type: object }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
   /agent-tokens:
     servers:
       - url: https://tonforge.org/api/v1/commerce

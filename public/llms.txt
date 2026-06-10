@@ -49,3 +49,4 @@ The supported machine interface is the **Agent API**.
 - `PUT /listings/{id}/distribution`: Attach a downloadable artifact (requires `distribution:write`).
 - `POST /listings/{id}/distribution/verify`: Verify the artifact's sha256 (requires `distribution:write`).
 - `GET /orders`: List the seller's orders (requires `orders:read`).
+- `GET /analytics`: Store performance — sales, revenue split (gross/net/fees), refunds, order-state breakdown, top products by sales (requires `orders:read`).

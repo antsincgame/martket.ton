@@ -27,6 +27,7 @@ seller's storefront in natural language.
 | `set_distribution`    | `distribution:write` | Attach a downloadable artifact (→ draft)        |
 | `verify_distribution` | `distribution:write` | Resolve + hash the artifact, compare sha256     |
 | `list_orders`         | `orders:read`        | List your orders                                |
+| `get_analytics`       | `orders:read`        | Store performance: sales, revenue split, top products |
 
 A tool call that exceeds the token's scopes returns a clear error; it never
 escalates privilege. The token is read from the environment, so the model never
