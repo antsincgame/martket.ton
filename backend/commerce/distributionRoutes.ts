@@ -29,6 +29,7 @@ import { setDistributionSchema } from './validation.js';
 import { requireWalletOwner } from './helpers.js';
 import { findLicenseByBuyerAndListing } from './licenseRepository.js';
 import { decideDownloadGate } from './handlers/downloadGate.js';
+import { isVtConfigured } from '../scan/virustotal.js';
 import { requireSellerKyc } from './handlers/requireSellerKyc.js';
 import { getAdapter, verifyManifest } from '../distribution/index.js';
 import {
@@ -322,7 +323,10 @@ router.get('/listings/:id/download', apiRequireAuth(), async (req: Request, res:
     // a real NFT the buyer-burn refund guarantee does not apply, so giving
     // out the file would let a buyer keep both the product and the money.
     const license = await findLicenseByBuyerAndListing(wallet, doc.$id);
-    const gate = decideDownloadGate(license, doc.scan_status);
+    // Fail-closed when antivirus scanning is configured (M-8): require a `clean`
+    // verdict, so a manifest swapped after approval (scan_status → idle) cannot
+    // serve an unscanned build.
+    const gate = decideDownloadGate(license, doc.scan_status, isVtConfigured());
     if (gate.kind === 'deny') {
       const body: Record<string, unknown> = { error: gate.message, code: gate.code };
       if (gate.licenseId) body.licenseId = gate.licenseId;

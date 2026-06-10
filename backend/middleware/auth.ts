@@ -122,6 +122,7 @@ export async function resolveProfile(req: Request): Promise<Profile | null> {
     // would have done. New profiles get the default `demiurge` role.
     profile = await repo.upsertProfileForAppwriteUser(user.$id, {
       email: user.email || null,
+      emailVerified: user.emailVerification === true,
       name: user.name || (user.email ? user.email.split('@')[0] : 'Demiurge'),
       role: 'demiurge',
     });

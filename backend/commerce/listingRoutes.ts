@@ -131,6 +131,10 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
     }
     if (await rejectMismatchedCollection(req, res, String(sellerWallet), collectionAddress)) return;
 
+    // Platform fee is platform policy: never store below the configured minimum
+    // (a seller could otherwise pass platformFeeBps:0 → zero commission).
+    const feeBps = Math.max(Number(platformFeeBps) || DEFAULT_PLATFORM_FEE_BPS, DEFAULT_PLATFORM_FEE_BPS);
+
     const tonRate = await getTonUsdPrice();
     const tonHuman = usdToTonHuman(Number(priceUsd), tonRate);
     const priceAmountRaw = tonHumanToNanoRaw(tonHuman);
@@ -140,7 +144,7 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
     const listing = await db.createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), {
       sellerWallet, catalogProductId, title, description,
       currency: CURRENCY.TON,
-      priceAmountRaw, priceUsd: String(priceUsd), decimals, platformFeeBps,
+      priceAmountRaw, priceUsd: String(priceUsd), decimals, platformFeeBps: feeBps,
       status: LISTING_STATUS.ACTIVE, deliveryType, assetFileId,
       collection_address: collectionAddress,
     });

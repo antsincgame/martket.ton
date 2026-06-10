@@ -333,6 +333,10 @@ router.post(
       }
       if (await rejectMismatchedCollection(req, res, wallet, collectionAddress)) return;
 
+      // Platform fee is platform policy — clamp up to the configured minimum so
+      // an agent can't set platformFeeBps:0 and pay zero commission.
+      const feeBps = Math.max(Number(platformFeeBps) || DEFAULT_PLATFORM_FEE_BPS, DEFAULT_PLATFORM_FEE_BPS);
+
       const tonRate = await getTonUsdPrice();
       const tonHuman = usdToTonHuman(Number(priceUsd), tonRate);
       const priceAmountRaw = tonHumanToNanoRaw(tonHuman);
@@ -347,7 +351,7 @@ router.post(
         priceAmountRaw,
         priceUsd: String(priceUsd),
         decimals,
-        platformFeeBps,
+        platformFeeBps: feeBps,
         status: LISTING_STATUS.ACTIVE,
         deliveryType,
         assetFileId: '',

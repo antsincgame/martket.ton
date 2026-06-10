@@ -7,11 +7,23 @@ export interface Logger {
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 
+function safeStringify(a: unknown): string {
+  // JSON.stringify throws on circular refs (and on BigInt). The logger must
+  // never throw from inside an error handler, so fall back gracefully.
+  try {
+    return JSON.stringify(a, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)) ?? String(a);
+  } catch {
+    return '[unserializable]';
+  }
+}
+
 function formatStructured(level: string, args: unknown[]): string {
   const entry: Record<string, unknown> = {
     ts: new Date().toISOString(),
     level,
-    msg: args.map((a) => (a instanceof Error ? a.message : typeof a === 'string' ? a : JSON.stringify(a))).join(' '),
+    msg: args
+      .map((a) => (a instanceof Error ? a.message : typeof a === 'string' ? a : safeStringify(a)))
+      .join(' '),
   };
   const firstErr = args.find((a): a is Error => a instanceof Error);
   if (firstErr?.stack) entry.stack = firstErr.stack;

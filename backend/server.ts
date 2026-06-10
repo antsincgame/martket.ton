@@ -28,6 +28,30 @@ import tonForgeRouter from './tonforge/router.js';
 const app = express();
 const PORT = process.env.PORT || 8081;
 
+/**
+ * Constant-time secret comparison over fixed-length SHA-256 digests. Plain `===`
+ * on a secret leaks length/prefix via response timing; digesting both sides to a
+ * fixed 32 bytes lets `crypto.timingSafeEqual` run without throwing on length
+ * mismatch. Used for the health/router-status admin tokens.
+ */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const da = crypto.createHash('sha256').update(a).digest();
+  const db = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(da, db);
+}
+
+// Process-level safety net: a single missed `.catch()` in a background worker
+// (ledger writes, audit, mint/payout ticks) would otherwise terminate the
+// process on Node 22. Log to stderr (and Sentry, already wired) and keep
+// serving for rejections; uncaught exceptions are logged before the default
+// crash so they are diagnosable.
+process.on('unhandledRejection', (reason) => {
+  logger.error('[unhandledRejection]', reason instanceof Error ? reason : String(reason));
+});
+process.on('uncaughtException', (err) => {
+  logger.error('[uncaughtException]', err);
+});
+
 app.set('trust proxy', 1);
 app.use(requestIdMiddleware);
 app.use(requestLogger);
@@ -116,7 +140,8 @@ app.get('/api/health', async (req, res) => {
   const isProd = process.env.NODE_ENV === 'production';
   const wantDetail = req.query.detailed === '1';
   const detailToken = (process.env.HEALTH_DETAIL_TOKEN || '').trim();
-  const tokenOk = !!detailToken && req.get('x-health-token') === detailToken;
+  const providedToken = (req.get('x-health-token') || '').trim();
+  const tokenOk = !!detailToken && !!providedToken && timingSafeEqualStr(providedToken, detailToken);
   const showDetail = !isProd || (wantDetail && tokenOk);
 
   if (!showDetail) {
@@ -320,7 +345,8 @@ async function mountOptionalRouters(): Promise<void> {
 
 app.get('/api/admin/router-status', (req, res) => {
   const token = (process.env.HEALTH_DETAIL_TOKEN || '').trim();
-  if (!token || req.get('x-health-token') !== token) {
+  const provided = (req.get('x-health-token') || '').trim();
+  if (!token || !provided || !timingSafeEqualStr(provided, token)) {
     res.status(403).json({ success: false, message: 'Forbidden' });
     return;
   }

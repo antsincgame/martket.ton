@@ -151,6 +151,13 @@ export async function updateProfile(
 
 interface UpsertPayload {
   email?: string | null;
+  /**
+   * Whether `email` has been verified by the auth provider. Only a VERIFIED
+   * email may be used as a merge key against an existing profile (M-5):
+   * otherwise an attacker asserting an unverified victim email would re-bind
+   * the victim's profile (ton_address, role, purchases) to their own account.
+   */
+  emailVerified?: boolean;
   ton_address?: string | null;
   name?: string | null;
   display_name?: string | null;
@@ -179,7 +186,11 @@ export async function upsertProfileForAppwriteUser(
 ): Promise<Profile | null> {
   const doUpsert = async (): Promise<Profile | null> => {
     const byAccount = await findUserByAppwriteId(appwriteUserId);
-    const byEmail = payload.email ? await findUserByEmail(payload.email) : null;
+    // M-5: only merge into an existing profile by email when that email is
+    // VERIFIED. An unverified/attacker-asserted email must never re-bind an
+    // existing profile to a new Appwrite account (account takeover).
+    const byEmail =
+      payload.email && payload.emailVerified ? await findUserByEmail(payload.email) : null;
     const existing = byAccount ?? byEmail ?? null;
 
     const data: Record<string, unknown> = {

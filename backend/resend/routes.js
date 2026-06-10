@@ -294,8 +294,11 @@ router.post(
       if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
 
       const users = await repo.listUsers();
+      // repo.listUsers() returns camelCase Profile objects (isActive), so the
+      // old `u.is_active` was always undefined → zero recipients. Use isActive
+      // (treating undefined as active, matching the profile default).
       const recipients = users
-        .filter((u) => u.is_active && u.email)
+        .filter((u) => u.isActive !== false && u.email)
         .map((u) => u.email);
 
       await campRepo.updateStatus(campaign.id, 'sending', { recipientCount: recipients.length });

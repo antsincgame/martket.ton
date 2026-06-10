@@ -25,6 +25,7 @@ import {
 import { touchLastUsedAt, type AgentTokenRecord } from './tokenRepository.js';
 import { screenWallet } from '../sanctions/screen.js';
 import { requireSellerKyc } from '../commerce/handlers/requireSellerKyc.js';
+import { findUserByTonAddress } from '../core/profileRepository.js';
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -161,6 +162,25 @@ export function apiRequireAgentToken(
       });
       return;
     }
+
+    // M-4: banning a user (is_active=false) is the documented single choke-point
+    // for JWT requests, but agent tokens bypassed it entirely — a banned seller
+    // kept full Agent API access until each token was individually revoked.
+    // Resolve the token's wallet to its profile and reject deactivated accounts.
+    try {
+      const profile = await findUserByTonAddress(record.wallet);
+      if (profile && profile.isActive === false) {
+        res.status(403).json({
+          success: false,
+          message: 'Account is deactivated.',
+          code: 'ACCOUNT_DEACTIVATED',
+        });
+        return;
+      }
+    } catch (err) {
+      logger.warn('[agentAuth] is_active lookup failed:', err instanceof Error ? err.message : err);
+    }
+
     if (!opts.skipKyc) {
       const kyc = await requireSellerKyc(record.wallet);
       if (!kyc.ok) {

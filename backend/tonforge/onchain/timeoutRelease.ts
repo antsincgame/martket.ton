@@ -1,7 +1,7 @@
-import { Address, internal, SendMode } from '@ton/core';
+import { Address } from '@ton/core';
 import { logger } from '../../logger.js';
 import { loadOnchainConfig } from './config.js';
-import { getOracleWallet } from './oracleWallet.js';
+import { sendFromOracle } from './oracleWallet.js';
 import { getTonClient } from './tonClient.js';
 import { buildTimeoutReleasePayload } from './contractSchemas.js';
 
@@ -34,21 +34,11 @@ export async function timeoutRelease(input: TimeoutReleaseInput): Promise<Timeou
   const escrow = Address.parse(input.escrowAddress);
   const payload = buildTimeoutReleasePayload();
 
-  const oracle = await getOracleWallet();
-  const seqno = await oracle.wallet.getSeqno();
-  await oracle.wallet.sendTransfer({
-    seqno,
-    secretKey: oracle.secretKey,
-    sendMode: SendMode.PAY_GAS_SEPARATELY,
-    messages: [
-      internal({
-        to: escrow,
-        value: 50_000_000n, // 0.05 TON for gas
-        bounce: true,
-        body: payload,
-      }),
-    ],
-  });
+  // Serialized through the single-flight oracle wallet (H-3) so a payout never
+  // collides on seqno with an on-demand mint.
+  const seqno = await sendFromOracle([
+    { to: escrow, value: 50_000_000n /* 0.05 TON for gas */, bounce: true, body: payload },
+  ]);
 
   logger.info(`[onchain.release] sent TimeoutRelease escrow=${escrow.toString()} seqno=${seqno}`);
   return { txSeqno: seqno };

@@ -25,12 +25,19 @@ export type GateDecision =
 /**
  * @param license   запись лицензии для (buyer, listing)
  * @param scanStatus статус антивирус-проверки артефакта дистрибуции
- *   (listings.scan_status). Известно-плохой вердикт блокирует скачивание
- *   независимо от состояния лицензии.
+ *   (listings.scan_status).
+ * @param scanRequired когда true (антивирус сконфигурирован), гейт работает
+ *   FAIL-CLOSED: отдаём только при вердикте `clean`. Это закрывает M-8 —
+ *   продавец, сменивший manifest после одобрения, сбрасывает scan_status в
+ *   `idle`, и без fail-closed незсканированный (возможно вредоносный) билд
+ *   утекал бы покупателям. Когда антивирус НЕ настроен (scanRequired=false),
+ *   блокируем лишь известно-плохие вердикты, чтобы не убить дистрибуцию там,
+ *   где сканирование вообще не включено.
  */
 export function decideDownloadGate(
   license: LicenseLike | null,
   scanStatus?: string,
+  scanRequired = false,
 ): GateDecision {
   if (!license) {
     return {
@@ -41,14 +48,27 @@ export function decideDownloadGate(
     };
   }
   // Антивирус-гейт: артефакт с вердиктом malicious/suspicious не отдаём,
-  // даже если лицензия валидна. Статусы clean/idle/scanning/oversize_skip/error
-  // не блокируют (скан мог быть не настроен или ещё идёт).
+  // даже если лицензия валидна.
   if (scanStatus === 'malicious' || scanStatus === 'suspicious') {
     return {
       kind: 'deny',
       status: 403,
       code: 'SCAN_BLOCKED',
       message: 'Download blocked: artifact failed the antivirus check',
+      licenseId: license.$id,
+    };
+  }
+  // Fail-closed: при включённом антивирусе отдаём ТОЛЬКО `clean`. Любой другой
+  // статус (idle/scanning/error/oversize_skip) — отказ до свежего скана.
+  if (scanRequired && scanStatus !== 'clean') {
+    return {
+      kind: 'deny',
+      status: scanStatus === 'scanning' ? 425 : 403,
+      code: scanStatus === 'scanning' ? 'SCAN_IN_PROGRESS' : 'SCAN_REQUIRED',
+      message:
+        scanStatus === 'scanning'
+          ? 'Antivirus scan in progress; try again shortly'
+          : 'Download blocked: artifact has not passed an antivirus scan',
       licenseId: license.$id,
     };
   }

@@ -9,7 +9,7 @@ import {
 import { databases, ID, Query } from './appwrite.js';
 import { computeOrderAmounts, nanoRawToTonHuman } from './money.js';
 import { verifyPaymentByMemo, verifyPaymentToEscrow, addressesEqual } from './tonVerify.js';
-import { computeEscrow, GAS_BREAKDOWN, buildRefundIfNotMintedPayload } from './escrow.js';
+import { computeEscrow, GAS_BREAKDOWN, buildRefundIfNotMintedPayload, verifyEscrowFunded } from './escrow.js';
 import { findLicenseByOrderId, updateLicense } from './licenseRepository.js';
 import { decideRefundClaim, REFUND_CLAIM_GAS_NANO } from './refundClaim.js';
 import { screenWallet } from '../sanctions/screen.js';
@@ -101,7 +101,12 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
     }
 
     const sellerPriceRaw = listing['priceAmountRaw'] as string;       // Seller's ask
-    const feeBps = (listing['platformFeeBps'] as number) ?? DEFAULT_PLATFORM_FEE_BPS;
+    // Platform fee is a PLATFORM policy, never below the configured minimum.
+    // The seller-supplied platformFeeBps (validated 0..10000) could otherwise be
+    // set to 0 to pay zero commission — clamp it up to DEFAULT_PLATFORM_FEE_BPS
+    // here, at the authoritative money point, regardless of what's stored.
+    const storedFeeBps = (listing['platformFeeBps'] as number) ?? DEFAULT_PLATFORM_FEE_BPS;
+    const feeBps = Math.max(storedFeeBps, DEFAULT_PLATFORM_FEE_BPS);
     const amounts = computeOrderAmounts(sellerPriceRaw, feeBps);       // { seller, fee, total }
     const sellerWallet = listing['sellerWallet'] as string;
 
@@ -287,7 +292,30 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
         });
         return;
       }
+
+      // H-4: verifyPaymentToEscrow only proves SOME buyer→escrow tx with
+      // value >= amount landed; it does NOT prove the escrow contract reached
+      // FUNDED (a tx with no/invalid PayEscrow body, or a bounce, leaves state
+      // INIT). Minting an NFT against a non-FUNDED escrow gives the buyer a
+      // license the escrow can never pay the seller for. Require state==FUNDED
+      // on-chain before recording the funding / creating the license.
+      const funded = await verifyEscrowFunded(escrowAddress);
+      if (!funded.ok) {
+        res.status(409).json({
+          error: 'Escrow is not in FUNDED state on-chain yet',
+          code: 'ESCROW_NOT_FUNDED',
+          reason: funded.reason || 'UNKNOWN',
+          state: funded.state,
+        });
+        return;
+      }
+
       const realTxHash = check.txHash || '';
+      // M-6: confirm is idempotent for the ledger. The order intentionally stays
+      // PENDING_PAYMENT (the mint worker picks it up), so a repeated confirm
+      // re-enters this block — record escrow_fund only on the FIRST confirm,
+      // detected by an empty stored tonTxHash, to avoid duplicate ledger rows.
+      const alreadyConfirmed = Boolean((order['tonTxHash'] as string | undefined)?.trim());
 
       // НЕ переводим state в PAID здесь! Mint worker фильтрует по
       // state == PENDING_PAYMENT для автоматической обработки. После успешного
@@ -302,7 +330,7 @@ router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(
         escrowAddress,
       });
 
-      {
+      if (!alreadyConfirmed) {
         const amountRaw = (order['amountRaw'] as string) || '0';
         const sellerNetRaw = (order['sellerNetAmountRaw'] as string) || '0';
         let platformFeeTonRaw = '0';
