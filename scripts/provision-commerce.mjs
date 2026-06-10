@@ -399,6 +399,8 @@ async function setupLicenses(databases) {
   await idx(databases, COL_LICENSES, 'idx_buyer_state', IndexType.Key, ['buyerWallet', 'state']);
   await idx(databases, COL_LICENSES, 'idx_state', IndexType.Key, ['state']);
   await idx(databases, COL_LICENSES, 'idx_listing', IndexType.Key, ['listingId']);
+  // Verified-purchase review gate: query by (buyerWallet, catalogProductId).
+  await idx(databases, COL_LICENSES, 'idx_lic_buyer_catalog', IndexType.Key, ['buyerWallet', 'catalogProductId']);
 }
 
 async function setupAudit(databases) {

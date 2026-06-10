@@ -29,6 +29,16 @@ export const tonAddressSchema = z
     { message: 'Invalid TON address (bad checksum or format). Expected EQ/UQ/kQ/0Q prefix.' },
   );
 
+export const createReviewSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().min(1).max(5000),
+});
+
+export const moderateReviewSchema = z.object({
+  status: z.enum(['visible', 'hidden']),
+  reason: z.string().max(1000).optional(),
+});
+
 export const createListingSchema = z.object({
   sellerWallet: z.string().min(1),
   catalogProductId: z.string().min(1),

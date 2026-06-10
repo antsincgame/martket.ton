@@ -172,6 +172,19 @@ async function setupReviews(databases) {
     databases.createStringAttribute(DATABASE_ID, COL_REVIEWS, 'reviewDate', 32, true)
   );
   await waitForAttribute(databases, COL_REVIEWS, 'reviewDate');
+  // Verified-buyer write-path (one review per buyer per product, moderation).
+  await ignoreConflict(() => databases.createStringAttribute(DATABASE_ID, COL_REVIEWS, 'buyerWallet', 128, false));
+  await waitForAttribute(databases, COL_REVIEWS, 'buyerWallet');
+  await ignoreConflict(() => databases.createBooleanAttribute(DATABASE_ID, COL_REVIEWS, 'verified', false, false));
+  await waitForAttribute(databases, COL_REVIEWS, 'verified');
+  await ignoreConflict(() => databases.createStringAttribute(DATABASE_ID, COL_REVIEWS, 'status', 16, false, 'visible'));
+  await waitForAttribute(databases, COL_REVIEWS, 'status');
+  await ignoreConflict(() => databases.createStringAttribute(DATABASE_ID, COL_REVIEWS, 'moderator_id', 64, false));
+  await waitForAttribute(databases, COL_REVIEWS, 'moderator_id');
+  await ignoreConflict(() => databases.createStringAttribute(DATABASE_ID, COL_REVIEWS, 'moderation_reason', 1000, false));
+  await waitForAttribute(databases, COL_REVIEWS, 'moderation_reason');
+  await ignoreConflict(() => databases.createDatetimeAttribute(DATABASE_ID, COL_REVIEWS, 'moderated_at', false));
+  await waitForAttribute(databases, COL_REVIEWS, 'moderated_at');
 }
 
 /**
@@ -182,6 +195,7 @@ async function setupIndexes(databases) {
     [COL_PRODUCTS, 'idx_category_slug', IndexType.Key, ['categorySlug']],
     [COL_PRODUCTS, 'idx_featured', IndexType.Key, ['isFeatured']],
     [COL_REVIEWS, 'idx_review_product', IndexType.Key, ['productId']],
+    [COL_REVIEWS, 'uniq_review_buyer_product', IndexType.Unique, ['productId', 'buyerWallet']],
     [COL_CATEGORIES, 'idx_category_slug_unique', IndexType.Unique, ['slug']],
   ];
   for (const [collectionId, key, type, attributes] of defs) {

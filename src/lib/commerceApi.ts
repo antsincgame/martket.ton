@@ -449,6 +449,64 @@ export async function fetchSellerAnalytics(wallet: string): Promise<SellerAnalyt
   return result.data;
 }
 
+// ─── Reviews & ratings ───────────────────────────────────────────
+
+export interface ReviewApiItem {
+  id: string;
+  author: string;
+  rating: number;
+  comment: string;
+  helpful: number;
+  date: string;
+  verified: boolean;
+}
+
+export interface ReviewAggregate {
+  averageRating: number;
+  count: number;
+  histogram: Record<string, number>;
+}
+
+export async function fetchProductReviews(
+  catalogProductId: string,
+): Promise<{ reviews: ReviewApiItem[]; aggregate: ReviewAggregate }> {
+  const res = await fetch(commerceUrl(`/products/${encodeURIComponent(catalogProductId)}/reviews`), {
+    headers: { ...networkHeader() },
+  });
+  const parsed = await parseJson<{ data: { reviews: ReviewApiItem[]; aggregate: ReviewAggregate } }>(res);
+  if (!parsed.ok) return { reviews: [], aggregate: { averageRating: 0, count: 0, histogram: {} } };
+  return parsed.data.data;
+}
+
+export async function checkCanReview(
+  catalogProductId: string,
+): Promise<{ canReview: boolean; alreadyReviewed: boolean; reason?: string }> {
+  const result = await commerceAuthFetch<{ data: { canReview: boolean; alreadyReviewed: boolean; reason?: string } }>(
+    `/products/${encodeURIComponent(catalogProductId)}/can-review`,
+  );
+  return result.data;
+}
+
+export async function submitReview(
+  catalogProductId: string,
+  rating: number,
+  comment: string,
+): Promise<{ review: ReviewApiItem; aggregate: ReviewAggregate }> {
+  const result = await commerceAuthFetch<{ data: { review: ReviewApiItem; aggregate: ReviewAggregate } }>(
+    `/products/${encodeURIComponent(catalogProductId)}/reviews`,
+    { method: 'POST', body: JSON.stringify({ rating, comment }) },
+  );
+  return result.data;
+}
+
+export async function markReviewHelpful(reviewId: string): Promise<number> {
+  const result = await commerceAuthFetch<{ data: { helpful: number } }>(
+    `/reviews/${encodeURIComponent(reviewId)}/helpful`,
+    { method: 'POST', body: '{}' },
+  );
+  return result.data.helpful;
+}
+
 export async function fetchSellerKycStatus(wallet: string): Promise<SellerKycStatus> {
   const result = await commerceAuthFetch<{ data: SellerKycStatus }>(
     `/sellers/${encodeURIComponent(wallet)}/kyc-status`,
