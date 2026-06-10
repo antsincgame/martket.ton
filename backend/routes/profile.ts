@@ -8,6 +8,7 @@ import { patchProfileSchema, kycLiteSchema, linkWalletSchema } from './validatio
 import * as repo from '../core/repository.js';
 import { profileToSnakeCase } from '../core/repository.js';
 import { isBlockedCountry } from '../commerce/handlers/blockedCountries.js';
+import { resolveNetwork } from '../config/network.js';
 import {
   verifyTonProof,
   issueWalletChallenge,
@@ -169,6 +170,20 @@ router.post(
       return;
     }
 
+    // Canonicalize to the user-friendly, network-correct form (non-bounceable,
+    // the convention for wallet addresses) so the stored ton_address matches
+    // what the rest of the app (useTonAddress / exact-match lookups) uses, and
+    // the uniqueness check below can't be evaded with an alternate encoding.
+    let canonicalAddress = body.ton_address;
+    try {
+      const { Address } = await import('@ton/core');
+      canonicalAddress = Address.parse(body.ton_address).toString({
+        urlSafe: true,
+        bounceable: false,
+        testOnly: resolveNetwork() === 'testnet',
+      });
+    } catch { /* fall back to the raw input; verifyTonProof re-parses anyway */ }
+
     // 2. The proof must be a valid signature binding this key to this address.
     const verdict = verifyTonProof({
       address: body.ton_address,
@@ -181,14 +196,14 @@ router.post(
       return;
     }
 
-    // 3. One wallet per account.
-    const existing = await repo.findUserByTonAddress(body.ton_address);
+    // 3. One wallet per account (checked against the canonical form).
+    const existing = await repo.findUserByTonAddress(canonicalAddress);
     if (existing && existing.id !== profile.id) {
       res.status(409).json({ success: false, message: 'This TON wallet is already linked to another account' });
       return;
     }
 
-    await repo.updateProfile(profile.id, { ton_address: body.ton_address });
+    await repo.updateProfile(profile.id, { ton_address: canonicalAddress });
     const updated = await repo.findUserById(profile.id);
     res.json({ success: true, data: updated ? profileToSnakeCase(updated) : null });
   }),

@@ -61,8 +61,15 @@ router.post(
         res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
         return;
       }
+      // F2 fix: store the wallet in the SAME canonical form the profile uses
+      // (owner.tonAddress), not the client-supplied string. TON addresses have
+      // several valid encodings; requireWalletOwner accepts any via normalized
+      // comparison, but the agentAuth ban-check (M-4) does an EXACT-string
+      // findUserByTonAddress(record.wallet) — a non-canonical encoding would
+      // miss the profile and silently skip the deactivation check.
+      const canonicalWallet = owner.tonAddress ?? body.wallet;
       const issued = await issueToken({
-        wallet: body.wallet,
+        wallet: canonicalWallet,
         name: body.name,
         scopes: body.scopes as AgentScope[],
         ttlDays: body.ttlDays ?? 90,

@@ -167,6 +167,9 @@ export function apiRequireAgentToken(
     // for JWT requests, but agent tokens bypassed it entirely — a banned seller
     // kept full Agent API access until each token was individually revoked.
     // Resolve the token's wallet to its profile and reject deactivated accounts.
+    // F3 fix: FAIL CLOSED. A lookup error must not grant access (a transient
+    // Appwrite error previously let a banned wallet through). record.wallet is
+    // now stored canonically (F2), so a found profile is authoritative.
     try {
       const profile = await findUserByTonAddress(record.wallet);
       if (profile && profile.isActive === false) {
@@ -178,7 +181,13 @@ export function apiRequireAgentToken(
         return;
       }
     } catch (err) {
-      logger.warn('[agentAuth] is_active lookup failed:', err instanceof Error ? err.message : err);
+      logger.error('[agentAuth] is_active lookup failed — denying (fail-closed):', err instanceof Error ? err.message : err);
+      res.status(503).json({
+        success: false,
+        message: 'Account status check unavailable, try again',
+        code: 'STATUS_CHECK_FAILED',
+      });
+      return;
     }
 
     if (!opts.skipKyc) {

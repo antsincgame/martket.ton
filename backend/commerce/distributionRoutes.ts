@@ -28,7 +28,7 @@ import { logger } from '../logger.js';
 import { setDistributionSchema } from './validation.js';
 import { requireWalletOwner } from './helpers.js';
 import { findLicenseByBuyerAndListing } from './licenseRepository.js';
-import { decideDownloadGate } from './handlers/downloadGate.js';
+import { decideDownloadGate, decideScanGate } from './handlers/downloadGate.js';
 import { isVtConfigured } from '../scan/virustotal.js';
 import { requireSellerKyc } from './handlers/requireSellerKyc.js';
 import { getAdapter, verifyManifest } from '../distribution/index.js';
@@ -300,6 +300,16 @@ router.get('/listings/:id/download', apiRequireAuth(), async (req: Request, res:
   const isOwner = doc.sellerWallet === wallet;
   const role = profile.role;
   const isStaff = role === 'admin' || role === 'super_admin' || role === 'moderator';
+
+  // Antivirus gate applies to EVERYONE (distribution #1): a reviewing moderator
+  // or the seller must never be handed a known-bad / unscanned build — they are
+  // the most likely to open it. The license/entitlement gate below stays
+  // buyer-scoped, but the scan verdict is enforced before any short-circuit.
+  const scanDenial = decideScanGate(doc.scan_status, isVtConfigured());
+  if (scanDenial) {
+    res.status(scanDenial.status).json({ error: scanDenial.message, code: scanDenial.code });
+    return;
+  }
 
   // For buyers: require an entitlement (purchase) for this listing
   if (!isOwner && !isStaff) {

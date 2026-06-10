@@ -4,7 +4,7 @@ const express = require('express');
 const { Resend } = require('resend');
 const { logger } = require('../logger');
 const repo = require('../core/repository');
-const { requireAdmin: requireAdminRole, apiRequireAuth } = require('../middleware/auth');
+const { requireAdmin: requireAdminRole, requireSuperAdmin, apiRequireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -211,7 +211,10 @@ router.delete(
 router.post(
   '/campaigns',
   apiRequireAuth(),
-  requireAdminRole,
+  // Mass email to the whole user base is super_admin-only: a single over-
+  // privileged/compromised admin should not be able to blast every user
+  // (phishing via the verified domain). Was requireAdminRole.
+  requireSuperAdmin,
   async (req, res) => {
     const { templateId, audience, scheduledAt } = req.body;
     if (!templateId) return res.status(400).json({ success: false, message: 'templateId required' });
@@ -276,7 +279,8 @@ router.delete(
 router.post(
   '/campaigns/:id/send',
   apiRequireAuth(),
-  requireAdminRole,
+  // super_admin-only: this dispatches email to every recipient. Was requireAdminRole.
+  requireSuperAdmin,
   async (req, res) => {
     const resend = getResendClient();
     if (!resend) {
