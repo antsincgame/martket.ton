@@ -183,13 +183,21 @@ app.get('/api/ready', (_req, res) => {
 /**
  * JSON parsing for normal API traffic.
  *
- * We skip a few endpoints that must receive the raw bytes:
- *   - `/api/admin/resend/webhook/inbound` validates a svix signature
- *     against the exact body Resend sent, so it uses `express.raw`
- *     locally inside the router.
+ * We skip endpoints that must receive the raw bytes for signature verification:
+ *   - `/api/admin/resend/webhook/inbound` validates a svix signature against the
+ *     exact body Resend sent.
+ *   - `/api/v1/commerce/sellers/kyc/webhook` validates a Ballerine HMAC over the
+ *     raw body (H-2). Without this exemption the global parser consumed the
+ *     stream and the route's express.raw saw a parsed object, so the HMAC was
+ *     computed over "[object Object]" — always failing / forgeable.
+ * Both routes mount their own `express.raw` locally.
  */
+const RAW_BODY_PATHS = new Set([
+  '/api/admin/resend/webhook/inbound',
+  '/api/v1/commerce/sellers/kyc/webhook',
+]);
 app.use((req, res, next) => {
-  if (req.path === '/api/admin/resend/webhook/inbound') return next();
+  if (RAW_BODY_PATHS.has(req.path)) return next();
   return express.json({ limit: '256kb' })(req, res, next);
 });
 

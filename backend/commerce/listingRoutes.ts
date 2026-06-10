@@ -30,10 +30,11 @@ import { buildOnboardingChecklist } from '../agent/status.js';
 import { getInstructionSections } from '../agent/instructions.js';
 import { requireSellerKyc } from './handlers/requireSellerKyc.js';
 import {
-  createDiditSession,
-  verifyDiditWebhookSignature,
-  handleDiditWebhook,
-} from './handlers/diditIntegration.js';
+  createBallerineSession,
+  verifyBallerineWebhookSignature,
+  handleBallerineWebhook,
+  isBallerineConfigured,
+} from './handlers/ballerineIntegration.js';
 
 const router = express.Router();
 const upload = multer({
@@ -264,7 +265,7 @@ router.post('/listings/:id/asset', apiRequireAuth(), upload.single('file'), asyn
   }
 });
 
-// ── Didit KYC: create verification session ────────────────────────
+// ── Ballerine KYC: create verification session ────────────────────
 router.post('/sellers/kyc/session', apiRequireAuth(), async (req: Request, res: Response) => {
   try {
     const { wallet } = req.body as { wallet?: string };
@@ -274,6 +275,14 @@ router.post('/sellers/kyc/session', apiRequireAuth(), async (req: Request, res: 
     }
     const owner = await requireWalletOwner(req, res, wallet);
     if (!owner) return;
+
+    if (!isBallerineConfigured()) {
+      res.status(503).json({
+        error: 'Automated KYC is not configured; use the manual verification form.',
+        code: 'KYC_PROVIDER_DISABLED',
+      });
+      return;
+    }
 
     const db = databases();
     const { documents } = await db.listDocuments(DATABASE_ID, COL_SELLER_PROFILES, [
@@ -295,29 +304,33 @@ router.post('/sellers/kyc/session', apiRequireAuth(), async (req: Request, res: 
     const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost';
     const callbackUrl = `${protocol}://${host}/api/v1/commerce/sellers/kyc/webhook`;
 
-    const result = await createDiditSession(wallet, callbackUrl);
+    const result = await createBallerineSession(wallet, callbackUrl);
     res.json({ data: { sessionId: result.sessionId, url: result.url } });
   } catch (e: unknown) {
-    logger.error('[commerce] didit session:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Failed to create KYC session', code: 'DIDIT_SESSION' });
+    logger.error('[commerce] ballerine session:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to create KYC session', code: 'KYC_SESSION' });
   }
 });
 
-// ── Didit KYC: webhook receiver ───────────────────────────────────
+// ── Ballerine KYC: webhook receiver ───────────────────────────────
 
 /**
- * Express middleware that authenticates an incoming Didit webhook via its HMAC
- * signature BEFORE the handler runs. Fail-closed: a missing/invalid signature
- * (or an unconfigured DIDIT_WEBHOOK_SECRET) is rejected with 401 and the handler
- * never executes. Verification lives here, in a dedicated guard, so the route
- * body carries no request-controlled security branch.
+ * Express middleware that authenticates an incoming Ballerine webhook via its
+ * HMAC signature BEFORE the handler runs. Fail-closed: a missing/invalid
+ * signature (or an unconfigured BALLERINE_WEBHOOK_SECRET) is rejected with 401.
+ *
+ * The HMAC is computed over the RAW body bytes. server.ts exempts this exact
+ * path from the global express.json() parser, so `express.raw` below receives
+ * the unconsumed stream — previously (Didit) the global parser ran first and the
+ * signature was verified against a stringified object (always failing / forgeable).
  */
-function requireValidDiditSignature(req: Request, res: Response, next: NextFunction): void {
-  const signature = (req.headers['x-webhook-signature'] as string | undefined)
-    || (req.headers['x-payload-digest'] as string | undefined);
+function requireValidBallerineSignature(req: Request, res: Response, next: NextFunction): void {
+  const signature = (req.headers['x-ballerine-signature'] as string | undefined)
+    || (req.headers['x-webhook-signature'] as string | undefined)
+    || (req.headers['x-hmac-signature'] as string | undefined);
   const rawBody = req.body as Buffer;
-  if (!signature || !verifyDiditWebhookSignature(rawBody, signature)) {
-    logger.warn('[didit] webhook rejected: missing or invalid signature');
+  if (!signature || !verifyBallerineWebhookSignature(rawBody, signature)) {
+    logger.warn('[ballerine] webhook rejected: missing or invalid signature');
     res.status(401).json({ error: 'Invalid signature' });
     return;
   }
@@ -325,22 +338,22 @@ function requireValidDiditSignature(req: Request, res: Response, next: NextFunct
 }
 
 // Per-IP cap on the public webhook endpoint. Generous enough for legitimate
-// Didit delivery (low-frequency, retried on 429) while bounding floods of
-// forged requests before they reach body-parsing / signature verification.
+// Ballerine delivery (low-frequency, retried) while bounding floods of forged
+// requests before they reach body-parsing / signature verification.
 const limitWebhook = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
 
 router.post(
   '/sellers/kyc/webhook',
   limitWebhook,
   express.raw({ type: '*/*' }),
-  requireValidDiditSignature,
+  requireValidBallerineSignature,
   async (req: Request, res: Response) => {
     try {
       const payload = JSON.parse((req.body as Buffer).toString('utf-8'));
-      const result = await handleDiditWebhook(payload);
+      const result = await handleBallerineWebhook(payload);
       res.json({ ok: true, processed: result.processed });
     } catch (e: unknown) {
-      logger.error('[didit] webhook error:', e instanceof Error ? e.message : e);
+      logger.error('[ballerine] webhook error:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Webhook processing failed' });
     }
   },

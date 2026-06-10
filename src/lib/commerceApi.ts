@@ -400,16 +400,16 @@ export async function adminCommerceFetch(
   return json;
 }
 
-// ── Didit KYC (seller verification) ──────────────────────────────
+// ── KYC (seller verification, provider: Ballerine) ───────────────
 
-export interface DiditSessionResponse {
+export interface KycSessionResponse {
   sessionId: string;
   url: string;
   alreadyApproved?: boolean;
 }
 
-export async function createKycSession(wallet: string): Promise<DiditSessionResponse> {
-  const result = await commerceAuthFetch<{ data: DiditSessionResponse }>('/sellers/kyc/session', {
+export async function createKycSession(wallet: string): Promise<KycSessionResponse> {
+  const result = await commerceAuthFetch<{ data: KycSessionResponse }>('/sellers/kyc/session', {
     method: 'POST',
     body: JSON.stringify({ wallet }),
   });
