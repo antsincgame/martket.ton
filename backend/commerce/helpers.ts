@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import { nanoRawToTonHuman } from './money.js';
-import { CURRENCY } from './constants.js';
+import { nanoRawToTonHuman, computeOrderAmounts } from './money.js';
+import { CURRENCY, DEFAULT_PLATFORM_FEE_BPS } from './constants.js';
 import type { AppwriteDoc } from '../domain/appwrite-helpers.js';
 import { str } from '../utils/params.js';
 import { resolveProfile } from '../middleware/auth.js';
@@ -69,6 +69,17 @@ export async function requireWalletOwner(
 }
 
 export function mapListingPublic(doc: AppwriteDoc) {
+  const priceRaw = doc['priceAmountRaw'] as string;
+  const isTon = doc['currency'] === CURRENCY.TON;
+  // Authoritative buyer-facing total = seller price + platform fee, with the fee
+  // clamped to the platform minimum exactly as order creation does (K-2). Surfaced
+  // on the public offer so a shopping agent (and the storefront) sees the real
+  // amount to pay without re-deriving the money math or missing the clamp.
+  const effectiveFeeBps = Math.max(
+    Number(doc['platformFeeBps'] ?? DEFAULT_PLATFORM_FEE_BPS),
+    DEFAULT_PLATFORM_FEE_BPS,
+  );
+  const amounts = isTon && priceRaw ? computeOrderAmounts(priceRaw, effectiveFeeBps) : null;
   return {
     id: doc.$id,
     sellerWallet: doc['sellerWallet'] as string,
@@ -76,17 +87,20 @@ export function mapListingPublic(doc: AppwriteDoc) {
     title: doc['title'] as string,
     description: doc['description'] as string,
     currency: doc['currency'] as string,
-    priceAmountRaw: doc['priceAmountRaw'] as string,
+    priceAmountRaw: priceRaw,
     priceUsd: (doc['priceUsd'] as string) || null,
     decimals: doc['decimals'] as number,
     platformFeeBps: doc['platformFeeBps'] as number,
+    // Effective (clamped) fee + the buyer's total-to-pay (TON only).
+    effectivePlatformFeeBps: effectiveFeeBps,
+    platformFeeRaw: amounts ? amounts.feeNano : null,
+    platformFeeTonHuman: amounts ? nanoRawToTonHuman(amounts.feeNano) : null,
+    buyerTotalRaw: amounts ? amounts.totalAmountNano : null,
+    buyerTotalTonHuman: amounts ? nanoRawToTonHuman(amounts.totalAmountNano) : null,
     status: doc['status'] as string,
     deliveryType: doc['deliveryType'] as string,
     assetFileId: (doc['assetFileId'] as string) || '',
-    priceTonHuman:
-      doc['currency'] === CURRENCY.TON
-        ? nanoRawToTonHuman(doc['priceAmountRaw'] as string)
-        : undefined,
+    priceTonHuman: isTon ? nanoRawToTonHuman(priceRaw) : undefined,
     distributionKind: (doc['distribution_kind'] as string) || 'none',
     distributionState: (doc['distribution_state'] as string) || null,
     distributionSha256: (doc['distribution_sha256'] as string) || null,

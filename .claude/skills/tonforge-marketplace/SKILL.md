@@ -70,7 +70,10 @@ GET https://tonforge.org/api/v1/commerce/listings/catalog/{catalogProductId}  # 
 ```
 
 A *product* is the catalog item; a *listing* is a seller's offer of it (price,
-delivery). Buyers choose a listing.
+delivery). Buyers choose a listing. Each offer carries the **buyer total to pay**
+(`buyerTotalTonHuman` / `buyerTotalRaw` = seller price + the effective platform
+fee, already clamped) so a shopping agent can quote the exact cost without
+re-deriving the fee math or creating an order.
 
 ## Seller actions (need a token + scope)
 
