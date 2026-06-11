@@ -39,7 +39,15 @@ import { requireBuyerKycLite } from '../commerce/handlers/requireBuyerKycLite.js
 import { verifyLicenseOwner } from '../tonforge/onchain/verifyOwnership.js';
 import { getAgentTokenById, revokeAgentToken, listAgentTokensForWallet } from './tokenRepository.js';
 import { issueToken } from './tokenIssuer.js';
-import { parseScopes } from './scopes.js';
+import { parseScopes, type AgentScope } from './scopes.js';
+
+/**
+ * Scopes a buyer token carries. `orders:buy` is the capability; the read-only
+ * `instructions:read` rides along so a buyer agent can orient itself — read
+ * the operating manual, poll get_status, ask the assistant — instead of
+ * operating blind. Deliberately NO seller write scopes.
+ */
+export const BUYER_TOKEN_SCOPES: AgentScope[] = ['orders:buy', 'instructions:read'];
 
 const router = express.Router();
 const limitMutate = rateLimit({
@@ -105,6 +113,13 @@ router.post(
         res.status(400).json({ error: 'agentWallet is not a valid TON address', code: 'BAD_ADDRESS' });
         return;
       }
+      // F2 pattern: when the agent wallet IS the owner's own wallet, store the
+      // PROFILE's encoding, not ours — the agentAuth ban-check (M-4) resolves
+      // the token wallet to a profile by EXACT string, and a re-encoded form
+      // would miss it and silently skip the deactivation check.
+      if (addressesEqual(agentWallet, ownerWallet)) {
+        agentWallet = ownerWallet;
+      }
 
       for (const wallet of [ownerWallet, agentWallet]) {
         const screen = screenWallet(wallet);
@@ -133,7 +148,7 @@ router.post(
       const issued = await issueToken({
         wallet: agentWallet,
         name: body.name,
-        scopes: ['orders:buy'],
+        scopes: BUYER_TOKEN_SCOPES,
         ttlDays: body.ttlDays ?? 90,
       });
       await writeAudit(ownerWallet, 'buyer_agent_token_issue', 'agent_token', issued.record.$id, {

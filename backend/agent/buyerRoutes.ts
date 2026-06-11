@@ -20,6 +20,7 @@
  */
 
 import express, { type Request, type Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import * as crypto from 'node:crypto';
 import { databases, ID, Query } from '../commerce/appwrite.js';
 import {
@@ -52,6 +53,11 @@ const DOWNLOAD_RATE_LIMIT_PER_DAY = 20;
 
 const requireBuyerScope = () => apiRequireAgentToken(['orders:buy'], { skipKyc: true });
 
+// Same per-IP bounds the human money routes carry (defence in depth on top of
+// the router-wide limiter and the 600/15min per-token limit in the middleware).
+const limitCreateOrder = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false });
+const limitConfirm = rateLimit({ windowMs: 15 * 60 * 1000, max: 40, standardHeaders: true, legacyHeaders: false });
+
 const buyerCreateOrderSchema = z.object({
   listingId: z.string().min(1, 'listingId is required'),
 });
@@ -66,6 +72,7 @@ const buyerCreateOrderSchema = z.object({
 router.post(
   '/orders',
   requireBuyerScope(),
+  limitCreateOrder,
   validateBody(buyerCreateOrderSchema),
   async (req: Request, res: Response) => {
     const { listingId } = req.body as { listingId: string };
@@ -115,6 +122,7 @@ router.post(
 router.post(
   '/orders/:id/confirm',
   requireBuyerScope(),
+  limitConfirm,
   async (req: Request, res: Response) => {
     const result = await confirmOrderCore({
       orderId: str(req.params.id),

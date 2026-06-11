@@ -746,8 +746,8 @@ paths:
         ton_proof-bound wallet and Lite KYC. Verifies ON-CHAIN (TEP-85 get_nft_data)
         that the agent wallet's owner is the caller's verified wallet — e.g. a TON
         Agentic Wallet (agents.ton.org) whose owner key the caller holds. Returns a
-        `tfa_` token with the single scope `orders:buy`, bound to the wallet the
-        agent pays from. Plaintext shown exactly once.
+        `tfa_` token with scopes `orders:buy` + read-only `instructions:read`,
+        bound to the wallet the agent pays from. Plaintext shown exactly once.
       security:
         - sessionJwt: []
       requestBody:

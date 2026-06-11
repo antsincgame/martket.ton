@@ -5,9 +5,21 @@ vi.mock('../tonforge/onchain/verifyOwnership.js', () => ({
 }));
 
 import { verifyLicenseOwner } from '../tonforge/onchain/verifyOwnership.js';
-import { proveAgentWalletOwnership } from './buyerTokenRoutes.js';
+import { proveAgentWalletOwnership, BUYER_TOKEN_SCOPES } from './buyerTokenRoutes.js';
 
 const mockVerify = vi.mocked(verifyLicenseOwner);
+
+describe('BUYER_TOKEN_SCOPES', () => {
+  it('grants the buy capability plus read-only orientation, never seller writes', () => {
+    expect(BUYER_TOKEN_SCOPES).toContain('orders:buy');
+    expect(BUYER_TOKEN_SCOPES).toContain('instructions:read');
+    for (const s of BUYER_TOKEN_SCOPES) {
+      // Any future addition here must stay read-only or buy-side: a buyer
+      // token must never be able to mutate listings, products, or storage.
+      expect(['orders:buy', 'instructions:read']).toContain(s);
+    }
+  });
+});
 
 describe('proveAgentWalletOwnership', () => {
   beforeEach(() => {

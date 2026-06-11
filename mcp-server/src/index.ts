@@ -26,6 +26,10 @@ const TOKEN = process.env.TONFORGE_AGENT_TOKEN;
 // the wallet the agent PAYS from — e.g. a TON Agentic Wallet). Falls back to
 // TONFORGE_AGENT_TOKEN so a single dual-scope token also works.
 const BUYER_TOKEN = process.env.TONFORGE_BUYER_TOKEN ?? TOKEN;
+// Identity/onboarding tools (whoami, get_instructions, get_status,
+// assistant_help) accept ANY valid token server-side — fall back to the buyer
+// token so a buyer-only setup isn't blind to the manual and its own status.
+const ANY_TOKEN = TOKEN ?? process.env.TONFORGE_BUYER_TOKEN;
 // A hung connection must fail the tool call, not hang the agent's turn forever.
 const FETCH_TIMEOUT_MS = 30_000;
 // Site origin (e.g. https://tonforge.org) for the PUBLIC discovery endpoints,
@@ -149,7 +153,7 @@ server.tool(
   {},
   async () => {
     try {
-      return ok(await api('GET', '/me'));
+      return ok(await api('GET', '/me', undefined, ANY_TOKEN));
     } catch (e) {
       return fail(e);
     }
@@ -312,7 +316,7 @@ server.tool(
   {},
   async () => {
     try {
-      return ok(await api('GET', '/instructions'));
+      return ok(await api('GET', '/instructions', undefined, ANY_TOKEN));
     } catch (e) {
       return fail(e);
     }
@@ -325,7 +329,7 @@ server.tool(
   {},
   async () => {
     try {
-      return ok(await api('GET', '/status'));
+      return ok(await api('GET', '/status', undefined, ANY_TOKEN));
     } catch (e) {
       return fail(e);
     }
@@ -377,7 +381,7 @@ server.tool(
   },
   async ({ question }) => {
     try {
-      return ok(await api('POST', '/help', { question }));
+      return ok(await api('POST', '/help', { question }, ANY_TOKEN));
     } catch (e) {
       return fail(e);
     }

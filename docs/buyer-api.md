@@ -109,8 +109,9 @@ POST /api/v1/commerce/buyer-agent-tokens
 
 Issuance verifies **on-chain** (TEP-85 `get_nft_data`) that the agent wallet's
 owner is the caller's verified wallet, so nobody can bind a stranger's wallet
-and download its purchases. The returned `tfa_…` token carries only
-`orders:buy` and is bound to the wallet the agent pays from.
+and download its purchases. The returned `tfa_…` token carries `orders:buy`
+plus read-only `instructions:read` (manual / status / assistant) and is bound
+to the wallet the agent pays from.
 
 **The purchase loop (agent, autonomous).** All under
 `https://tonforge.org/api/v1/agent`, `Authorization: Bearer <buyer token>`:

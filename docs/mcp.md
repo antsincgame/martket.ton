@@ -108,7 +108,9 @@ payment instructions — send `amountNanoton` to the escrow address **with the
 returned `stateInitBase64` + `payloadBase64` attached** (a plain comment
 transfer will not fund the escrow); execute that with your wallet tooling
 (e.g. `npx @ton/mcp`), then `confirm_order`. Set the token via
-`TONFORGE_BUYER_TOKEN` (falls back to `TONFORGE_AGENT_TOKEN`).
+`TONFORGE_BUYER_TOKEN` (falls back to `TONFORGE_AGENT_TOKEN`). Buyer tokens
+also carry read-only `instructions:read`, so in a buyer-only setup `whoami`,
+`get_instructions`, `get_status`, and `assistant_help` still work.
 
 ### Discovery-only mode
 

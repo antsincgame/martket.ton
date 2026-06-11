@@ -360,7 +360,8 @@ function FreshTokenBanner({
 // (agents.ton.org): the agent holds the operator key, you keep the owner key.
 // Issuance proves ON-CHAIN that the agent wallet's owner is your verified
 // wallet, and requires your Lite KYC (enforced server-side). The token's only
-// scope is orders:buy — it can never touch listings or move YOUR funds.
+// scopes are orders:buy + read-only instructions:read — it can never touch
+// listings or move YOUR funds.
 
 function BuyerTokensSection() {
   const wallet = useTonAddress();
@@ -416,7 +417,8 @@ function BuyerTokensSection() {
             <a href="https://agents.ton.org/" target="_blank" rel="noreferrer" className="text-[#00F5FF] hover:underline">
               TON Agentic Wallet
             </a>
-            ). Scope <code className="font-mono">orders:buy</code> only — issuance proves on-chain that the
+            ). Scopes <code className="font-mono">orders:buy</code> + read-only{' '}
+            <code className="font-mono">instructions:read</code> — issuance proves on-chain that the
             agent wallet is yours, and needs your Lite KYC. Set the token as{' '}
             <code className="font-mono">TONFORGE_BUYER_TOKEN</code> in the agent&apos;s MCP environment.
           </p>

@@ -242,9 +242,11 @@ POST /api/v1/commerce/buyer-agent-tokens
 
 Issuance verifies on-chain (TEP-85 `get_nft_data`) that the agent wallet's
 owner **is** the caller's verified wallet — so nobody can bind a stranger's
-wallet and download its purchases. The returned `tfa_…` token carries only
-`orders:buy` and is bound to the wallet the agent pays from.
-(`DELETE /buyer-agent-tokens/{id}` revokes, same ownership proof.)
+wallet and download its purchases. The returned `tfa_…` token carries
+`orders:buy` plus read-only `instructions:read` (so the agent can read the
+manual, poll `GET /status`, and ask `POST /help`) and is bound to the wallet
+the agent pays from. (`DELETE /buyer-agent-tokens/{id}` revokes,
+`GET /buyer-agent-tokens?agentWallet=…` lists — same ownership proof.)
 
 **The purchase loop (agent, autonomous):**
 
