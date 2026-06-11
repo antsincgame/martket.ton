@@ -175,11 +175,13 @@ All paths are relative to `https://tonforge.org/api/v1/agent`.
   rate at creation time. `deliveryPayload` (the buyer-facing secret) is stored
   separately and **never** returned by read endpoints. `collectionAddress` is
   mandatory: every purchase mints a license NFT into it, and downloads are gated
-  on that mint. `sellerWallet` must be present to pass validation but is
-  overridden with the token's wallet.
-- **`PATCH /listings/{id}`** — send any subset of fields. Activating a listing
-  (`status: "active"`) requires a non-empty `collectionAddress`, existing or
-  supplied in the same call.
+  on that mint. Do **not** send `sellerWallet` — the seller is always the
+  token's wallet. Optional `salePriceUsd`/`saleEndsAt` start a discount.
+- **`PATCH /listings/{id}`** — send any subset of fields. `status` is one of
+  `draft` / `active` / `paused`; activating a listing requires a non-empty
+  `collectionAddress` (existing or supplied in the same call) and approved KYC.
+  `salePriceUsd` below the list price starts/updates a discount; `0`/`null`
+  clears it.
 - **Distribution** — `PUT …/distribution` sets the manifest and moves the
   listing to `draft`; follow with `POST …/distribution/verify` to confirm the
   artifact resolves and its sha256 matches (→ `verified`, else `manifest_drift`).
@@ -209,7 +211,6 @@ curl -s -X POST "$TONFORGE_API/listings" \
   -H "Authorization: Bearer $TONFORGE_AGENT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "sellerWallet": "EQC…",
     "catalogProductId": "prod_123",
     "title": "My digital good",
     "description": "Created by my agent",

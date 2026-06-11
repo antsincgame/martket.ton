@@ -836,36 +836,40 @@ components:
         currency: { type: string, example: TON }
         priceUsd: { type: string }
         priceAmountRaw: { type: string, description: Price in nanotons (integer string). }
-        status: { type: string, enum: [active, inactive, draft] }
+        status: { type: string, enum: [draft, active, paused, suspended], description: '`suspended` is ops-set; sellers move between draft/active/paused.' }
         deliveryType: { type: string }
         collection_address: { type: string }
+        saleActive: { type: boolean, description: True while a discount is live (sale price below list and not expired). }
+        salePriceUsd: { type: number, nullable: true }
+        salePriceTonHuman: { type: string, nullable: true, description: Discounted seller price in TON while the sale is active. }
+        saleEndsAt: { type: string, nullable: true, format: date-time }
+        discountPercent: { type: integer, description: Rounded percent off the list price; 0 when no sale is active. }
 
     CreateListingRequest:
       type: object
-      required: [sellerWallet, catalogProductId, title, priceUsd, deliveryType, deliveryPayload, collectionAddress]
+      required: [catalogProductId, title, priceUsd, deliveryType, deliveryPayload, collectionAddress]
       properties:
-        sellerWallet:
-          type: string
-          description: >-
-            Required by request validation, but the server **overrides** it with the
-            token's wallet. Send your own wallet to avoid confusion.
         catalogProductId: { type: string }
         title: { type: string, minLength: 1, maxLength: 200 }
         description: { type: string, maxLength: 5000, default: "" }
         priceUsd: { type: number, exclusiveMinimum: 0, description: Converted to TON at the current oracle rate. }
+        salePriceUsd: { type: number, exclusiveMinimum: 0, description: Optional launch discount — a USD price strictly below priceUsd. }
+        saleEndsAt: { type: string, format: date-time, description: Optional ISO end time for the sale. }
         deliveryType: { type: string }
         deliveryPayload: { type: string, description: The secret delivered to buyers; never echoed back. }
         collectionAddress: { type: string, description: Pre-deployed AppCollection address; mandatory to mint license NFTs on purchase. }
-        platformFeeBps: { type: integer, minimum: 0, maximum: 10000 }
+        platformFeeBps: { type: integer, minimum: 0, maximum: 10000, description: Clamped up to the platform minimum — cannot reduce the platform fee below policy. }
 
     PatchListingRequest:
       type: object
       description: Any subset of these fields. Empty `collectionAddress` is rejected.
       properties:
-        status: { type: string, enum: [active, inactive, draft] }
+        status: { type: string, enum: [draft, active, paused], description: Activation requires a collection address (existing or supplied) and approved KYC. }
         title: { type: string, maxLength: 200 }
         description: { type: string, maxLength: 5000 }
         priceUsd: { type: number, exclusiveMinimum: 0 }
+        salePriceUsd: { type: number, nullable: true, description: Positive value below priceUsd starts/updates a discount; 0 or null clears it. }
+        saleEndsAt: { type: string, nullable: true, format: date-time, description: ISO end time for the sale; null clears it. }
         deliveryPayload: { type: string }
         collectionAddress: { type: string }
 

@@ -20,7 +20,6 @@ curl -fsS "$API/orders?limit=10" "${AUTH[@]}" | jq '.data.orders'
 # curl -fsS -X POST "$API/listings" "${AUTH[@]}" \
 #   -H "Content-Type: application/json" \
 #   -d '{
-#     "sellerWallet": "EQC…",
 #     "catalogProductId": "prod_123",
 #     "title": "My digital good",
 #     "priceUsd": 9.99,

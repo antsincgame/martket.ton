@@ -67,7 +67,10 @@ export const agentCreateListingSchema = createListingSchema.omit({ sellerWallet:
 export const patchListingSchema = z
   .object({
     sellerWallet: z.string().optional(),
-    status: z.string().optional(),
+    // Seller-settable states only. `suspended` is ops/migration-set, never
+    // accepted from a seller or agent; arbitrary strings would put the listing
+    // in a state no storefront filter or lifecycle check recognises.
+    status: z.enum(['draft', 'active', 'paused']).optional(),
     title: z.string().max(200).optional(),
     description: z.string().max(5000).optional(),
     priceUsd: z.number().positive().optional(),

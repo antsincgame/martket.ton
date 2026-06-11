@@ -21,6 +21,8 @@ import { z } from 'zod';
 
 const BASE = process.env.TONFORGE_API ?? 'https://tonforge.org/api/v1/agent';
 const TOKEN = process.env.TONFORGE_AGENT_TOKEN;
+// A hung connection must fail the tool call, not hang the agent's turn forever.
+const FETCH_TIMEOUT_MS = 30_000;
 // Site origin (e.g. https://tonforge.org) for the PUBLIC discovery endpoints,
 // derived from BASE so a TONFORGE_API override (staging, etc.) carries over.
 const ORIGIN = new URL(BASE).origin;
@@ -59,6 +61,7 @@ async function api(method: string, path: string, body?: unknown): Promise<unknow
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
   const text = await res.text();
@@ -86,7 +89,10 @@ async function api(method: string, path: string, body?: unknown): Promise<unknow
  * commerce (`{ data }`) envelopes expose `.data`, so we unwrap it uniformly.
  */
 async function publicGet(path: string): Promise<unknown> {
-  const res = await fetch(`${ORIGIN}${path}`, { headers: { Accept: 'application/json' } });
+  const res = await fetch(`${ORIGIN}${path}`, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   const text = await res.text();
   let json: unknown;
   try {
@@ -149,11 +155,8 @@ server.tool(
 
 server.tool(
   'create_listing',
-  'Create a new active listing owned by the token\'s wallet (requires listings:write). priceUsd is converted to TON at the current oracle rate.',
+  "Create a new active listing owned by the token's wallet — the seller wallet always comes from your token, never from input (requires listings:write). priceUsd is converted to TON at the current oracle rate.",
   {
-    sellerWallet: z
-      .string()
-      .describe("Your wallet. Required for validation, but overridden server-side with the token's wallet."),
     catalogProductId: z.string(),
     title: z.string().max(200),
     priceUsd: z.number().positive(),
@@ -176,10 +179,10 @@ server.tool(
 
 server.tool(
   'update_listing',
-  'Update fields on a listing you own (requires listings:write). Setting status to "active" requires a collectionAddress (existing or supplied here).',
+  'Update fields on a listing you own (requires listings:write). Setting status to "active" requires a collectionAddress (existing or supplied here); "paused" hides the listing from buyers without losing its setup.',
   {
     id: z.string().describe('Listing id.'),
-    status: z.enum(['active', 'inactive', 'draft']).optional(),
+    status: z.enum(['active', 'paused', 'draft']).optional(),
     title: z.string().max(200).optional(),
     description: z.string().max(5000).optional(),
     priceUsd: z.number().positive().optional(),
@@ -205,7 +208,7 @@ server.tool(
     manifest: z
       .record(z.any())
       .describe('Distribution manifest object (kind r2|github, sha256, …); see docs/byos-distribution.md.'),
-    ttlSec: z.number().int().positive().optional().describe('Signed-URL TTL in seconds (default 3600).'),
+    ttlSec: z.number().int().min(60).max(21600).optional().describe('Signed-URL TTL in seconds, 60–21600 (default 3600).'),
   },
   async ({ id, manifest, ttlSec }) => {
     try {

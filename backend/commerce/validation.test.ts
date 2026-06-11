@@ -100,4 +100,19 @@ describe('patchListingSchema', () => {
   it('accepts a valid replacement collectionAddress', () => {
     expect(patchListingSchema.safeParse({ collectionAddress: VALID_EQ }).success).toBe(true);
   });
+
+  it('accepts each seller-settable status', () => {
+    for (const status of ['draft', 'active', 'paused']) {
+      expect(patchListingSchema.safeParse({ status }).success).toBe(true);
+    }
+  });
+
+  it('rejects statuses outside the seller lifecycle', () => {
+    // 'suspended' is ops-set only; 'inactive' has never been a real state
+    // (it used to leak in from the MCP tool enum); arbitrary strings would
+    // create listings no storefront filter recognises.
+    for (const status of ['suspended', 'inactive', 'banana', '']) {
+      expect(patchListingSchema.safeParse({ status }).success).toBe(false);
+    }
+  });
 });

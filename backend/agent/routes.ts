@@ -26,7 +26,7 @@ import {
 } from '../commerce/constants.js';
 import { tonHumanToNanoRaw } from '../commerce/money.js';
 import { getTonUsdPrice, usdToTonHuman } from '../commerce/tonPriceOracle.js';
-import { mapListingPublic, omitListingFields } from '../commerce/helpers.js';
+import { mapListingPublic, omitListingFields, appwriteCodeOrZero } from '../commerce/helpers.js';
 import { asDoc } from '../domain/appwrite-helpers.js';
 import { writeAudit } from '../commerce/audit.js';
 import { logger } from '../logger.js';
@@ -472,6 +472,10 @@ router.patch(
       });
       res.json({ data: { listing: mapListingPublic(updated) } });
     } catch (e) {
+      if (appwriteCodeOrZero(e) === 404) {
+        res.status(404).json({ error: 'Listing not found', code: 'NOT_FOUND' });
+        return;
+      }
       logger.error('[agent] listing update:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Listing update failed', code: 'AGENT_LISTING_UPDATE' });
     }
@@ -512,7 +516,10 @@ router.put(
         distribution_sha256: stored.sha256,
         distribution_filename: stored.filename || '',
         distribution_state: 'draft',
-        distribution_ttl_sec: body.ttlSec || 3600,
+        // Same 60..21600s bounds the human surface enforces via
+        // setDistributionSchema — the stored value must match the contract
+        // even though download-time code clamps again.
+        distribution_ttl_sec: Math.min(21600, Math.max(60, Number(body.ttlSec) || 3600)),
         scan_status: 'idle',
         scan_sha256: '',
       });
@@ -521,6 +528,10 @@ router.put(
       });
       res.json({ data: { ok: true, state: 'draft' } });
     } catch (e) {
+      if (appwriteCodeOrZero(e) === 404) {
+        res.status(404).json({ error: 'Listing not found', code: 'NOT_FOUND' });
+        return;
+      }
       logger.error('[agent] distribution set:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Distribution update failed', code: 'AGENT_DISTRIBUTION' });
     }
@@ -575,6 +586,10 @@ router.post(
       });
       res.json({ data: { matches: result.matches, sha256: result.sha256, size: result.size, state: newState } });
     } catch (e) {
+      if (appwriteCodeOrZero(e) === 404) {
+        res.status(404).json({ error: 'Listing not found', code: 'NOT_FOUND' });
+        return;
+      }
       logger.error('[agent] distribution verify:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Verification failed', code: 'AGENT_VERIFY' });
     }
