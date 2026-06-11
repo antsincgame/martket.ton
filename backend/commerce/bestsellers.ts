@@ -16,6 +16,7 @@ export interface OrderForBestseller {
   state: string;
   listingId: string;
   createdAt: string;
+  buyerWallet: string;
 }
 
 export interface BestsellerEntry {
@@ -28,7 +29,7 @@ export interface BestsellerEntry {
 export function computeBestsellers(
   orders: OrderForBestseller[],
   listingToCatalog: Map<string, string>,
-  opts: { sinceIso?: string; limit?: number } = {},
+  opts: { sinceIso?: string; limit?: number; listingToSeller?: Map<string, string> } = {},
 ): BestsellerEntry[] {
   const counts = new Map<string, number>();
   for (const o of orders) {
@@ -36,6 +37,10 @@ export function computeBestsellers(
     if (opts.sinceIso && o.createdAt < opts.sinceIso) continue;
     const catalogId = listingToCatalog.get(o.listingId);
     if (!catalogId) continue; // listing without a catalog mapping → skip
+    // Exclude self-purchases (buyer == listing's seller) so a seller can't
+    // inflate their own product's rank by buying it.
+    const seller = opts.listingToSeller?.get(o.listingId);
+    if (seller && o.buyerWallet && seller === o.buyerWallet) continue;
     counts.set(catalogId, (counts.get(catalogId) ?? 0) + 1);
   }
   const ranked = [...counts.entries()]
@@ -65,9 +70,12 @@ export async function loadBestsellers(opts: { windowDays?: number; limit?: numbe
       Query.limit(5000),
     ]);
     const listingToCatalog = new Map<string, string>();
+    const listingToSeller = new Map<string, string>();
     for (const l of listings) {
       const cpid = String(l['catalogProductId'] ?? '');
       if (cpid) listingToCatalog.set(String(l.$id), cpid);
+      const seller = String(l['sellerWallet'] ?? '');
+      if (seller) listingToSeller.set(String(l.$id), seller);
     }
 
     // Successful orders (cross-seller). Read counts only.
@@ -82,9 +90,10 @@ export async function loadBestsellers(opts: { windowDays?: number; limit?: numbe
       state: String(o['state'] ?? ''),
       listingId: String(o['listingId'] ?? ''),
       createdAt: String(o.$createdAt ?? ''),
+      buyerWallet: String(o['buyerWallet'] ?? ''),
     }));
 
-    const data = computeBestsellers(rows, listingToCatalog, { sinceIso, limit });
+    const data = computeBestsellers(rows, listingToCatalog, { sinceIso, limit, listingToSeller });
     cache.set(key, { at: Date.now(), data });
     return data;
   } catch (err) {

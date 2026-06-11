@@ -9,7 +9,7 @@ const L2C = new Map<string, string>([
 ]);
 
 function o(p: Partial<OrderForBestseller>): OrderForBestseller {
-  return { state: 'paid', listingId: 'lstA', createdAt: '2026-06-01T00:00:00.000Z', ...p };
+  return { state: 'paid', listingId: 'lstA', createdAt: '2026-06-01T00:00:00.000Z', buyerWallet: 'EQbuyer', ...p };
 }
 
 describe('computeBestsellers', () => {
@@ -43,6 +43,20 @@ describe('computeBestsellers', () => {
       { sinceIso: '2026-06-01T00:00:00.000Z' },
     );
     expect(ranked).toEqual([{ catalogProductId: 'prodB', salesCount: 1 }]);
+  });
+
+  it('excludes self-purchases (buyer == listing seller) from the rank', () => {
+    const listingToSeller = new Map<string, string>([['lstA', 'EQalice'], ['lstB', 'EQbob']]);
+    const ranked = computeBestsellers(
+      [
+        o({ listingId: 'lstA', buyerWallet: 'EQalice' }), // seller buying own → excluded
+        o({ listingId: 'lstA', buyerWallet: 'EQreal' }),  // real buyer → counts
+        o({ listingId: 'lstB', buyerWallet: 'EQbob' }),   // seller buying own → excluded
+      ],
+      L2C,
+      { listingToSeller },
+    );
+    expect(ranked).toEqual([{ catalogProductId: 'prodA', salesCount: 1 }]);
   });
 
   it('applies the limit', () => {

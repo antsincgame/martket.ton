@@ -107,18 +107,22 @@ export async function createReview(input: {
   return fromDoc(doc);
 }
 
+/** Set a review's moderation status. Returns the review's productId so the
+ *  caller can recompute the product aggregate (a hidden review must drop out
+ *  of the denormalised rating). */
 export async function setReviewStatus(
   id: string,
   status: 'visible' | 'hidden',
   moderatorId: string,
   reason: string,
-): Promise<void> {
-  await databases().updateDocument(DATABASE_ID, COL_REVIEWS, id, {
+): Promise<string> {
+  const doc = await databases().updateDocument(DATABASE_ID, COL_REVIEWS, id, {
     status,
     moderator_id: moderatorId,
     moderation_reason: reason,
     moderated_at: new Date().toISOString(),
   });
+  return String(doc.productId || '');
 }
 
 export async function incrementHelpful(id: string): Promise<number> {

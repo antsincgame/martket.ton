@@ -10,6 +10,10 @@ import { listWishlistByUser, addWishlist, removeWishlist } from '../core/wishlis
 
 const router = express.Router();
 
+// Bounds to keep the per-user collection from being abused as unbounded storage.
+const MAX_PRODUCT_ID_LEN = 64; // Appwrite attribute size
+const MAX_WISHLIST_ITEMS = 500;
+
 router.get(
   '/session/wishlist',
   apiRequireAuth(),
@@ -34,8 +38,15 @@ router.post(
       return;
     }
     const productId = str(req.params.productId);
-    if (!productId) {
-      res.status(400).json({ success: false, message: 'productId required' });
+    if (!productId || productId.length > MAX_PRODUCT_ID_LEN) {
+      res.status(400).json({ success: false, message: 'Invalid productId' });
+      return;
+    }
+    // Cap the wishlist size so a user can't script unbounded junk rows. Skip the
+    // count when the item is already saved (idempotent re-add stays cheap).
+    const existing = await listWishlistByUser(profile.id);
+    if (!existing.some((i) => i.catalogProductId === productId) && existing.length >= MAX_WISHLIST_ITEMS) {
+      res.status(400).json({ success: false, message: 'Wishlist is full', code: 'WISHLIST_FULL' });
       return;
     }
     await addWishlist(profile.id, productId);

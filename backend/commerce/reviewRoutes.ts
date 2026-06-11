@@ -135,7 +135,10 @@ router.patch(
       const id = str(req.params.id);
       const { status, reason } = req.body as { status: 'visible' | 'hidden'; reason?: string };
       const profile = await resolveProfile(req);
-      await setReviewStatus(id, status, profile?.id || 'moderator', reason || '');
+      const productId = await setReviewStatus(id, status, profile?.id || 'moderator', reason || '');
+      // Hiding/restoring a review changes the visible set → recompute the
+      // denormalised product rating so the storefront card reflects it.
+      if (productId) await recomputeAndDenormalizeRating(productId).catch(() => {});
       await writeAudit(profile?.id || 'moderator', 'review_moderate', 'review', id, { status }).catch(() => {});
       res.json({ data: { id, status } });
     } catch (e) {
