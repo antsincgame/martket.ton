@@ -48,33 +48,83 @@ export function runOracleExclusive<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
-async function waitForSeqnoBump(
-  wallet: OpenedContract<WalletContractV4>,
-  prevSeqno: number,
-  timeoutMs = 30_000,
+// Last seqno we submitted an external message with. Used to confirm prior sends
+// landed BEFORE issuing the next one (B-1) — see sendFromOracle.
+let lastSubmittedSeqno: number | null = null;
+
+/** Test seam: reset the in-process seqno tracking. */
+export function __resetOracleSeqnoTracking(): void {
+  lastSubmittedSeqno = null;
+}
+
+/** Minimal wallet surface the seqno logic needs (testable). */
+export interface SeqnoSource {
+  getSeqno(): Promise<number>;
+}
+
+async function waitForSeqnoAtLeast(
+  wallet: SeqnoSource,
+  target: number,
+  timeoutMs = 60_000,
   intervalMs = 1_500,
-): Promise<void> {
+): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, intervalMs));
     try {
       const s = await wallet.getSeqno();
-      if (s > prevSeqno) return;
+      if (s >= target) return true;
     } catch {
       // transient RPC error — retry until deadline
     }
+    if (Date.now() >= deadline) break;
+    await new Promise((r) => setTimeout(r, intervalMs));
   }
-  logger.warn(`[onchain.oracle] seqno did not bump from ${prevSeqno} within ${timeoutMs}ms`);
+  return false;
+}
+
+/**
+ * Decide the seqno for the next send: first confirm the PREVIOUS send landed
+ * (chain seqno advanced past `lastSubmitted`), then read the fresh seqno. Throws
+ * if the prior send is stuck. Pure of wallet internals — unit-tested. (B-1)
+ */
+export async function resolveNextSeqno(
+  wallet: SeqnoSource,
+  lastSubmitted: number | null,
+  opts: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<number> {
+  let onchain = await wallet.getSeqno();
+  if (lastSubmitted !== null && onchain <= lastSubmitted) {
+    const confirmed = await waitForSeqnoAtLeast(wallet, lastSubmitted + 1, opts.timeoutMs, opts.intervalMs);
+    if (!confirmed) {
+      throw new Error(
+        `oracle: previous send (seqno ${lastSubmitted}) not confirmed on-chain; refusing to send and risk a seqno collision`,
+      );
+    }
+    onchain = await wallet.getSeqno();
+  }
+  return onchain;
 }
 
 /**
  * Send one external message (carrying `messages` internal transfers) from the
- * oracle wallet, serialized so seqnos never collide. Returns the seqno used.
+ * oracle wallet, serialized so seqnos never collide (B-1). Returns the seqno used.
+ *
+ * The collision bug this prevents: right after a send, `getSeqno()` still
+ * reports the OLD seqno until the tx is included on-chain. If the next serialized
+ * send read that stale value it would reuse the seqno; the wallet accepts one
+ * external message and silently drops the other → a lost mint or payout.
+ *
+ * Fix: before reading a seqno for a NEW send, wait for the chain to confirm our
+ * PREVIOUS send (seqno advanced to lastSubmittedSeqno+1). We do NOT wait on the
+ * current send's own confirmation — the business layer verifies that
+ * (pollItemDeployed for mints, escrow state for releases), so a slow-to-land
+ * send is never mis-counted as a failure. We only throw if a prior send is
+ * genuinely stuck, which correctly blocks (and retries) rather than colliding.
  */
 export async function sendFromOracle(messages: OracleMessage[]): Promise<number> {
   return runOracleExclusive(async () => {
     const oracle = await getOracleWallet();
-    const seqno = await oracle.wallet.getSeqno();
+    const seqno = await resolveNextSeqno(oracle.wallet, lastSubmittedSeqno);
     await oracle.wallet.sendTransfer({
       seqno,
       secretKey: oracle.secretKey,
@@ -83,7 +133,7 @@ export async function sendFromOracle(messages: OracleMessage[]): Promise<number>
         internal({ to: m.to, value: m.value, bounce: m.bounce, body: m.body }),
       ),
     });
-    await waitForSeqnoBump(oracle.wallet, seqno);
+    lastSubmittedSeqno = seqno;
     return seqno;
   });
 }

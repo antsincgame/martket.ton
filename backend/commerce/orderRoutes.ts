@@ -160,6 +160,19 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
       logger.warn('[commerce] escrow compute failed:', err instanceof Error ? err.message : err);
     }
 
+    // B-3 fix: a configured collection means this is a v4 escrow order. If
+    // computeEscrow failed, we must NOT fall through to the legacy treasury-by-
+    // memo path on confirm — that path routes the buyer's FULL payment (seller +
+    // fee) to treasury with no on-chain split and no mechanism to ever pay the
+    // seller. Refuse the order instead of silently misrouting the seller's funds.
+    if (!escrowData) {
+      res.status(503).json({
+        error: 'Could not prepare the on-chain escrow for this order. Please retry shortly.',
+        code: 'ESCROW_COMPUTE_FAILED',
+      });
+      return;
+    }
+
     const order = await db.createDocument(DATABASE_ID, COL_ORDERS, orderId, {
       listingId,
       buyerWallet,
@@ -172,7 +185,7 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
       state: ORDER_STATE.PENDING_PAYMENT,
       listingSnapshotTitle: listing['title'],
       // v4 escrow tracking поля (нужны mint worker'у)
-      escrowAddress: escrowData?.escrowAddress || '',
+      escrowAddress: escrowData.escrowAddress,
       licenseContentUri,
       mintAttempts: 0,
       licenseAddress: '',

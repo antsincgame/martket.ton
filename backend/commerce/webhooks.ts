@@ -15,6 +15,7 @@
 import crypto from 'node:crypto';
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import { Agent } from 'undici';
 import { databases } from './appwrite.js';
 import { DATABASE_ID, COL_SELLER_PROFILES } from './constants.js';
 import { findSellerByWallet, isPrivateIp } from './storageService.js';
@@ -114,14 +115,62 @@ export async function clearSellerWebhook(wallet: string): Promise<void> {
     .catch((err) => logger.warn('[webhooks] clear failed:', err instanceof Error ? err.message : err));
 }
 
+/**
+ * Resolve a webhook host to a single VALIDATED public IP at SEND time. Throws if
+ * the host is private/unresolvable. (SSRF — registration-time validation alone is
+ * insufficient because DNS can be re-pointed afterwards.)
+ */
+async function resolveValidatedPublicIp(host: string): Promise<string> {
+  if (/^(0x[0-9a-f]+|\d+)$/i.test(host)) throw new Error('Numeric host not allowed');
+  if (net.isIP(host)) {
+    if (isPrivateIp(host)) throw new Error('Private/reserved IP');
+    return host;
+  }
+  const addrs = await dns.lookup(host, { all: true });
+  if (addrs.length === 0) throw new Error('Host does not resolve');
+  for (const a of addrs) {
+    if (isPrivateIp(a.address)) throw new Error('Host resolves to a private/reserved IP');
+  }
+  return addrs[0]!.address;
+}
+
 async function postOnce(url: string, body: string, headers: Record<string, string>, timeoutMs: number): Promise<number> {
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:') throw new Error('HTTPS required');
+  // C-SSRF fix: re-validate the host and PIN the TCP connection to the vetted
+  // public IP, so a DNS-rebind between validation and connect can't redirect us
+  // to 169.254.169.254 / localhost. TLS SNI stays the original hostname (cert
+  // validation intact). Redirects are NOT followed — a 3xx counts as a failed
+  // delivery rather than a chance to bounce to an internal address.
+  const pinnedIp = await resolveValidatedPublicIp(parsed.hostname);
+  const dispatcher = new Agent({
+    connect: {
+      lookup: (
+        _hostname: string,
+        _options: unknown,
+        cb: (err: NodeJS.ErrnoException | null, address: string, family: number) => void,
+      ) => {
+        if (isPrivateIp(pinnedIp)) { cb(new Error('pinned ip rejected'), '', 0); return; }
+        cb(null, pinnedIp, net.isIP(pinnedIp) === 6 ? 6 : 4);
+      },
+    },
+  });
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      signal: controller.signal,
+      redirect: 'manual',
+      // node/undici-specific: route this request through the pinned-IP dispatcher.
+      dispatcher,
+    } as RequestInit & { dispatcher: Agent });
     return res.status;
   } finally {
     clearTimeout(t);
+    dispatcher.close().catch(() => undefined);
   }
 }
 
