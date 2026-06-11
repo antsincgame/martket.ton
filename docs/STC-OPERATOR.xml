@@ -168,6 +168,12 @@
     <step order="1" name="LLM-ассистент">
       <action>Подними LM Studio (или совместимый OpenAI-API сервер), сделай его достижимым из Coolify-бэкенда; задай LLM_BASE_URL и LLM_MODEL — assistant_help перестанет быть мокапом.</action>
     </step>
+    <step order="1b" name="Telegram Mini App (дверь C — код уже готов)">
+      <action>Зарегистрируй Mini App: в @BotFather → /newbot (если бота нет) → /newapp → укажи URL https://tonforge.org и короткое имя (напр. store). Получишь ссылку вида https://t.me/&lt;бот&gt;/store.</action>
+      <action>В Coolify задай VITE_TG_BOT_URL=этой ссылкой и сделай redeploy — TonConnect начнёт возвращать пользователя в Mini App после подписи в кошельке.</action>
+      <verify>Открой ссылку в Telegram: витрина открывается во весь экран с тёмной шапкой; подключение кошелька и покупка проходят; в Telegram Web (web.telegram.org) витрина тоже открывается (frame-ancestors настроен).</verify>
+      <why>900M+ аудитория Telegram — это и есть «сначала здесь». Кошельки Telegram (Wallet, Tonkeeper) живут в том же приложении — путь до оплаты короче некуда.</why>
+    </step>
     <step order="2" name="Индексация">
       <action>tonforge.org сейчас НЕ находится поиском (проверено: выдачу держат Getgems/TON Diamonds/Fragment/MRKT). Сделай: Google Search Console + sitemap; пост о запуске в TON-комьюнити (TON Society, dev-чаты); листинг в каталоги ton.app / tonscan apps.</action>
     </step>

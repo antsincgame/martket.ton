@@ -1,5 +1,6 @@
 import React, { Component, type ReactNode, type ErrorInfo } from 'react';
 import { TonConnectUIProvider } from '@tonconnect/ui-react';
+import { isTelegramMiniApp } from '../lib/telegramMiniApp';
 
 /**
  * TonConnect requires a publicly fetchable manifest. In dev (localhost or any
@@ -22,6 +23,22 @@ function getManifestUrl(): string {
     return 'https://tonforge.org/tonconnect-manifest.json';
   }
   return new URL('/tonconnect-manifest.json', origin).toString();
+}
+
+/**
+ * Inside a Telegram Mini App, jumping out to a wallet (Tonkeeper, Wallet) to
+ * sign would otherwise strand the user there. `twaReturnUrl` tells TonConnect
+ * which t.me link re-opens this Mini App after signing. Set
+ * `VITE_TG_BOT_URL` (e.g. https://t.me/tonforge_bot/store) once the bot is
+ * registered with BotFather; without it we let TonConnect use its default
+ * back-navigation.
+ */
+function getTwaReturnUrl(): `${string}://${string}` | undefined {
+  if (!isTelegramMiniApp()) return undefined;
+  const url = import.meta.env.VITE_TG_BOT_URL;
+  return url && String(url).startsWith('https://t.me/')
+    ? (String(url) as `${string}://${string}`)
+    : undefined;
 }
 
 interface FallbackState {
@@ -58,8 +75,12 @@ class TonConnectSafeProvider extends Component<{ children: ReactNode }, Fallback
         </div>
       );
     }
+    const twaReturnUrl = getTwaReturnUrl();
     return (
-      <TonConnectUIProvider manifestUrl={getManifestUrl()}>
+      <TonConnectUIProvider
+        manifestUrl={getManifestUrl()}
+        actionsConfiguration={twaReturnUrl ? { twaReturnUrl } : undefined}
+      >
         {this.props.children}
       </TonConnectUIProvider>
     );
