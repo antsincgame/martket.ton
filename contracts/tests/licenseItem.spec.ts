@@ -363,6 +363,63 @@ describe('LicenseItem v4 contract', () => {
     expect(contractState.accountState?.type).toBe('active');
   });
 
+  // ─── FinalizeBurn (A-1 recovery for a lost BurnConfirmed) ─────────
+
+  it('owner can FinalizeBurn a stuck burn after the deadline', async () => {
+    const item = await deploySoulbound(100);
+    // BuyerBurn sets burnRequested; the treasury-stub escrow never replies
+    // BurnConfirmed → the item would otherwise be stuck forever.
+    await item.send(owner.getSender(), { value: toNano('0.2') }, { $$type: 'BuyerBurn', queryId: 1n });
+    expect(await item.getBurnRequested()).toBe(true);
+
+    blockchain.now = blockchain.now! + 200; // past burnDeadline
+
+    const result = await item.send(
+      owner.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'FinalizeBurn', queryId: 2n },
+    );
+    expect(result.transactions).toHaveTransaction({ from: item.address, to: owner.address, success: true });
+    const state = await blockchain.getContract(item.address);
+    expect(state.accountState?.type).not.toBe('active');
+  });
+
+  it('rejects FinalizeBurn before the deadline', async () => {
+    const item = await deploySoulbound(3600);
+    await item.send(owner.getSender(), { value: toNano('0.2') }, { $$type: 'BuyerBurn', queryId: 1n });
+    const result = await item.send(
+      owner.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'FinalizeBurn', queryId: 2n },
+    );
+    expect(result.transactions).toHaveTransaction({ from: owner.address, to: item.address, success: false });
+    const state = await blockchain.getContract(item.address);
+    expect(state.accountState?.type).toBe('active');
+  });
+
+  it('rejects FinalizeBurn from a non-owner', async () => {
+    const item = await deploySoulbound(100);
+    await item.send(owner.getSender(), { value: toNano('0.2') }, { $$type: 'BuyerBurn', queryId: 1n });
+    blockchain.now = blockchain.now! + 200;
+    const result = await item.send(
+      outsider.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'FinalizeBurn', queryId: 2n },
+    );
+    expect(result.transactions).toHaveTransaction({ from: outsider.address, to: item.address, success: false });
+  });
+
+  it('rejects FinalizeBurn when no burn is in progress', async () => {
+    const item = await deploySoulbound(100);
+    blockchain.now = blockchain.now! + 200;
+    const result = await item.send(
+      owner.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'FinalizeBurn', queryId: 2n },
+    );
+    expect(result.transactions).toHaveTransaction({ from: owner.address, to: item.address, success: false });
+  });
+
   it('rejects BuyerBurn after deadline', async () => {
     const item = await deploySoulbound(100);
 

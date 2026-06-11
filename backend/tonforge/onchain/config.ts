@@ -59,7 +59,7 @@ export function loadOnchainConfig(): OnchainConfig {
     oracleMnemonic,
     licenseItemCodeBoc,
     appCollectionCodeBoc,
-    mintGasNano: BigInt(env('LICENSE_MINT_GAS_NANO', '150000000')),
+    mintGasNano: BigInt(env('LICENSE_MINT_GAS_NANO', '250000000')),
     burnGasNano: BigInt(env('LICENSE_BURN_GAS_NANO', '70000000')),
   };
 }

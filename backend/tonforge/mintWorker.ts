@@ -43,7 +43,7 @@ import { licenseMetadataBaseUrl } from '../config/metadata.js';
 import { withLock } from '../commerce/distributedLock.js';
 import { loadOnchainConfig } from './onchain/config.js';
 import { mintLicense, pollItemDeployed } from './onchain/mintLicense.js';
-import { pollLicenseRegistered } from './onchain/escrowState.js';
+import { pollLicenseRegistered, getEscrowBurnDeadline } from './onchain/escrowState.js';
 import { pollEscrowSettled } from './onchain/oracleRefund.js';
 import { timeoutRelease, checkEscrowAlive } from './onchain/timeoutRelease.js';
 import { finalizeOrderRefund } from '../commerce/handlers/finalizeOrderRefund.js';
@@ -128,6 +128,16 @@ async function processOne(license: LicenseRecord): Promise<void> {
       }
     }
     try {
+      // A-2: align the item's burnDeadline with the escrow's ON-CHAIN window
+      // (paidAt + trialWindowSec). Fall back to the off-chain estimate only if
+      // the escrow can't be read (the estimate is paid-at-confirm, slightly
+      // looser than the chain window — acceptable as a fallback).
+      const onchainDeadline = await getEscrowBurnDeadline(license.escrowAddress);
+      const burnDeadline =
+        onchainDeadline ??
+        (license.trialEndsAt
+          ? Math.floor(new Date(license.trialEndsAt).getTime() / 1000)
+          : Math.floor(Date.now() / 1000) + 7 * 24 * 3600);
       const result = await mintLicense({
         collectionAddress: license.collectionAddress,
         buyerWallet: license.buyerWallet,
@@ -135,9 +145,7 @@ async function processOne(license: LicenseRecord): Promise<void> {
         index: BigInt(license.collectionIndex),
         metadataUri: buildMetadataUri(license),
         transferLimit: 0,
-        burnDeadline: license.trialEndsAt
-          ? Math.floor(new Date(license.trialEndsAt).getTime() / 1000)
-          : Math.floor(Date.now() / 1000) + 7 * 24 * 3600,
+        burnDeadline,
       });
       nftAddress = result.itemAddress;
       mintTxHash = String(result.txQueryId);

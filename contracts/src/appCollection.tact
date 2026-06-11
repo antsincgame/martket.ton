@@ -52,7 +52,12 @@ contract AppCollection with Deployable {
 
     receive(msg: MintLicense) {
         require(sender() == self.ownerAddress, "Only collection owner can mint");
-        require(context().value >= ton("0.12"), "Insufficient gas for mint");
+        // A-3: floor raised so the item deploy cannot underfund on mainnet fee
+        // spikes. Deploy and RegisterLicense are independent messages — an
+        // underfunded deploy that fails while RegisterLicense still binds would
+        // leave the escrow pointing at a non-existent item (both buyer refund
+        // paths then blocked). Generous gas makes the deploy reliable.
+        require(context().value >= ton("0.2"), "Insufficient gas for mint");
 
         let index: Int = self.nextItemIndex;
 
@@ -75,7 +80,7 @@ contract AppCollection with Deployable {
         // выполняет сама Collection ниже.
         send(SendParameters{
             to: itemAddress,
-            value: ton("0.05"),
+            value: ton("0.08"),
             mode: SendPayGasSeparately,
             bounce: false,
             code: licenseInit.code,

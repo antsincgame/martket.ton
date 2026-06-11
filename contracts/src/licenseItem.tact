@@ -49,6 +49,15 @@ message(0x7a1b3c5d) BuyerBurn {
     queryId: Int as uint64;
 }
 
+// Owner recovery for a stuck two-phase burn (A-1). If BuyerBurn was accepted by
+// the escrow (refund issued) but the BurnConfirmed reply was lost, the item is
+// left burnRequested=true with no way to finalize. After burnDeadline — by which
+// point a refund has settled or the burn window has closed — the owner may
+// finalize and reclaim the item's residual balance.
+message(0x6b2e4d1a) FinalizeBurn {
+    queryId: Int as uint64;
+}
+
 // ─── Contract ────────────────────────────────────────────────────────
 
 contract LicenseItem with Deployable {
@@ -188,6 +197,24 @@ contract LicenseItem with Deployable {
     // валидным, покупатель может повторить позже (в пределах burnDeadline).
     bounced(msg: RefundOnBurn) {
         self.burnRequested = false;
+    }
+
+    // A-1 recovery: finalize a burn whose BurnConfirmed was lost. Gated on owner
+    // + burnRequested + past burnDeadline, so the refund (if RefundOnBurn was
+    // accepted) has already settled and the burn window is closed — no double
+    // refund is possible (the escrow is REFUNDED, rejecting any further refund).
+    receive(msg: FinalizeBurn) {
+        require(sender() == self.ownerAddress, "Only owner can finalize");
+        require(self.burnRequested, "No burn in progress");
+        require(now() > self.burnDeadline, "Wait until trial window closes");
+
+        send(SendParameters{
+            to: self.ownerAddress,
+            value: 0,
+            mode: SendRemainingBalance | SendDestroyIfZero,
+            bounce: false,
+            body: "License burn finalized".asComment(),
+        });
     }
 
     // ─── TEP-62 GetStaticData ────────────────────────────────────────
