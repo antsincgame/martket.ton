@@ -39,6 +39,8 @@ const COLLECTION_TARGETS = [
   // backend reads it via the service key and the frontend never touches it
   // directly, so server-only is safe and closes a purchase-history leak.
   ['core', 'purchases', 'Purchases', SERVER_ONLY, false],
+  // Buyer wishlist — private per-user saved products; backend-only access.
+  ['core', 'wishlists', 'Wishlists', SERVER_ONLY, false],
 ];
 
 // [bucketId, name, permissions]

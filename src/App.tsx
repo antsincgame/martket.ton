@@ -13,6 +13,7 @@ import TonConnectWrapper from './components/TonConnectWrapper';
 import { ToastProvider } from './components/ui/Toast';
 import { SearchProvider } from './contexts/SearchContext';
 import { NetworkProvider } from './contexts/NetworkContext';
+import { WishlistProvider } from './contexts/WishlistContext';
 import { queryClient } from './lib/queryClient';
 import CookieConsent from './components/CookieConsent';
 import ScrollToTop from './components/ScrollToTop';
@@ -70,6 +71,7 @@ const AdminDashboard = lazyRetry(() => import('./pages/AdminDashboard'));
 const ModeratorPanel = lazyRetry(() => import('./pages/ModeratorPanel'));
 const DeveloperPage = lazyRetry(() => import('./pages/DeveloperPage'));
 const OrdersPage = lazyRetry(() => import('./pages/OrdersPage'));
+const WishlistPage = lazyRetry(() => import('./pages/WishlistPage'));
 const ReceiptPage = lazyRetry(() => import('./pages/ReceiptPage'));
 const TermsOfService = lazyRetry(() => import('./pages/legal/TermsOfService'));
 const PrivacyPolicy = lazyRetry(() => import('./pages/legal/PrivacyPolicy'));
@@ -124,6 +126,7 @@ function App() {
         <AuthProvider>
         <NetworkProvider>
         <ToastProvider>
+        <WishlistProvider>
         <SearchProvider>
           <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <ScrollToTop />
@@ -138,6 +141,7 @@ function App() {
                     </RouteSuspense>
                   } />
                   <Route path="/category/:id" element={<RouteSuspense><CategoryPage /></RouteSuspense>} />
+                  <Route path="/wishlist" element={<RouteSuspense><WishlistPage /></RouteSuspense>} />
                   <Route path="/developer/:slug" element={<RouteSuspense><DeveloperPage /></RouteSuspense>} />
                   <Route path="/sign-in" element={<RouteSuspense message="Loading sign-in..."><SignInPage /></RouteSuspense>} />
                   <Route path="/sign-in/*" element={<Navigate to="/sign-in" replace />} />
@@ -187,6 +191,7 @@ function App() {
             </div>
           </Router>
         </SearchProvider>
+        </WishlistProvider>
         </ToastProvider>
         </NetworkProvider>
         </AuthProvider>
