@@ -59,7 +59,9 @@ function sortByTab(
       return copy.sort((a, b) => {
         const da = a.releaseDate ?? '';
         const db = b.releaseDate ?? '';
-        return db.localeCompare(da) || Number(b.id) - Number(a.id);
+        // Tiebreak on id string — `Number(id)` is NaN for non-numeric legacy/API
+        // product ids (two-worlds merge), which made the order undefined.
+        return db.localeCompare(da) || b.id.localeCompare(a.id);
       });
     case 'most-blessed':
       return copy.sort((a, b) => (b.donationAmount ?? 0) - (a.donationAmount ?? 0));

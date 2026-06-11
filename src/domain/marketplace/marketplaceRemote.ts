@@ -33,15 +33,33 @@ export interface MarketplaceInventoryLoad {
 }
 
 let inventoryOnce: Promise<MarketplaceInventoryLoad> | null = null;
+let inventoryAt = 0;
+// Without a TTL the appwrite snapshot was frozen for the tab's lifetime, so new
+// products, updated ratings (from reviews), and sales never appeared without a
+// hard reload. Refresh periodically; `invalidateMarketplaceInventory()` forces
+// an immediate refresh after a known mutation.
+const INVENTORY_TTL_MS = 60_000;
 
 export function getMarketplaceInventoryOnce(): Promise<MarketplaceInventoryLoad> {
-  if (!inventoryOnce) {
-    inventoryOnce = loadMarketplaceInventory().then((result) => {
-      if (result.source !== 'appwrite') inventoryOnce = null;
-      return result;
-    });
+  const cached = inventoryOnce;
+  if (cached !== null && Date.now() - inventoryAt < INVENTORY_TTL_MS) {
+    return cached;
   }
-  return inventoryOnce;
+  inventoryAt = Date.now();
+  const pending = loadMarketplaceInventory().then((result) => {
+    // A seed/empty fallback isn't authoritative — let the next call retry. Only
+    // clear if we're still the current load (don't clobber a newer refresh).
+    if (result.source !== 'appwrite' && inventoryOnce === pending) inventoryOnce = null;
+    return result;
+  });
+  inventoryOnce = pending;
+  return pending;
+}
+
+/** Force the next inventory read to re-fetch (call after a known mutation). */
+export function invalidateMarketplaceInventory(): void {
+  inventoryOnce = null;
+  inventoryAt = 0;
 }
 
 function buildFromProducts(

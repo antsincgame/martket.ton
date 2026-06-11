@@ -271,6 +271,10 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   const isBusy = phase === 'creating-order' || phase === 'awaiting-wallet' || phase === 'confirming';
   const listingPriceUsd = (listing as Record<string, unknown> | null)?.priceUsd as number | undefined;
   const onSale = Boolean(listing?.saleActive);
+  // Badge only when the rounded discount is ≥1% — a sub-1% sale rounds to 0 and
+  // would render a meaningless "Sale −0%". (The price estimate still uses the
+  // sale price whenever active, to match the backend-charged amount.)
+  const showSaleBadge = onSale && (listing?.discountPercent ?? 0) >= 1;
   // Effective seller price: sale price when a discount is active (so the pre-order
   // estimate matches what the backend will charge), else the list price.
   const sellerPriceHuman =
@@ -303,7 +307,7 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
 
       {/* Fee breakdown */}
       <div className="rounded-lg bg-black/20 border border-white/5 p-3 space-y-1.5 text-xs">
-        {onSale && (
+        {showSaleBadge && (
           <div className="flex justify-between items-center -mt-1 mb-1">
             <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#FF3B6B] bg-[#FF3B6B]/10 border border-[#FF3B6B]/25 px-2 py-0.5 rounded-full">
               Sale −{listing?.discountPercent ?? 0}%

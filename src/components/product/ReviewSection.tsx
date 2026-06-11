@@ -15,6 +15,7 @@ import {
 } from '../../lib/commerceApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../ui/Toast';
+import { invalidateMarketplaceInventory } from '../../domain/marketplace/marketplaceRemote';
 import { logger } from '../../lib/logger';
 
 interface Props {
@@ -70,6 +71,9 @@ export default function ReviewSection({ catalogProductId }: Props) {
       setCanReview(false);
       setAlreadyReviewed(true);
       toast('success', 'Review posted — thank you!');
+      // The new review changed the product's aggregate rating (denormalised
+      // server-side); drop the cached inventory so the storefront card reflects it.
+      invalidateMarketplaceInventory();
       await load();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to post review';
