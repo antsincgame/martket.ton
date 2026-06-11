@@ -57,7 +57,11 @@ function publicKeyMatchesAddress(publicKeyHex: string, claimed: Address): boolea
   const candidates = [
     WalletContractV4.create({ workchain: claimed.workChain, publicKey }),
     WalletContractV3R2.create({ workchain: claimed.workChain, publicKey }),
-    WalletContractV5R1.create({ workchain: claimed.workChain, publicKey }),
+    // v5r1 folds the network global id into its state-init, so the address
+    // differs per network. Try BOTH mainnet (-239) and testnet (-3) so a valid
+    // testnet v5r1 proof isn't wrongly rejected as KEY_ADDRESS_MISMATCH.
+    WalletContractV5R1.create({ workchain: claimed.workChain, publicKey, walletId: { networkGlobalId: -239 } }),
+    WalletContractV5R1.create({ workchain: claimed.workChain, publicKey, walletId: { networkGlobalId: -3 } }),
   ];
   return candidates.some((w) => w.address.equals(claimed));
 }

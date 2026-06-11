@@ -205,7 +205,12 @@ const RAW_BODY_PATHS = new Set([
   '/api/v1/commerce/sellers/kyc/webhook',
 ]);
 app.use((req, res, next) => {
-  if (RAW_BODY_PATHS.has(req.path)) return next();
+  // Normalize a trailing slash before the exact-match check. With non-strict
+  // routing `…/webhook/` still hits the webhook route, but `req.path` would carry
+  // the slash and miss the Set — the global JSON parser would then consume the
+  // stream and the route's raw-body HMAC would verify against "[object Object]".
+  const path = req.path.length > 1 && req.path.endsWith('/') ? req.path.slice(0, -1) : req.path;
+  if (RAW_BODY_PATHS.has(path)) return next();
   return express.json({ limit: '256kb' })(req, res, next);
 });
 

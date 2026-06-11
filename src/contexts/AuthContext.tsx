@@ -206,7 +206,11 @@ function useAuthInternal(): AuthContextValue {
   }, [fetchProfile]);
 
   const reportSecurityEvent = useCallback((event: Omit<SecurityEvent, 'id' | 'timestamp'>) => {
-    logger.warn('[SecurityEvent]', { ...event, id: String(Date.now()), timestamp: new Date() });
+    // Prod-visible (warn → Sentry) but PII-free: only the event type/severity is
+    // shipped. userId / ipAddress / userAgent / details stay dev-only — they must
+    // not leak into the prod console or observability pipeline.
+    logger.warn('[SecurityEvent]', { type: event.type, severity: event.severity });
+    if (import.meta.env.DEV) logger.info('[SecurityEvent:detail]', { ...event });
   }, []);
   const logAuditEvent = useCallback((a: string, r: string, result: string, m?: Record<string, unknown>) => {
     // Dev-only: metadata may carry PII; keep it out of the prod console / Sentry.
