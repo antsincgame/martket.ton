@@ -699,6 +699,11 @@ export default function DocumentationPage() {
                 ['PUT /api/v1/agent/listings/:id/distribution', 'set BYOS manifest'],
                 ['POST /api/v1/agent/listings/:id/distribution/verify', 'verify source hash'],
                 ['GET /api/v1/agent/orders', 'seller order feed'],
+                ['POST /api/v1/commerce/buyer-agent-tokens', 'issue buyer token (Lite KYC + on-chain wallet proof)'],
+                ['POST /api/v1/agent/buyer/orders', 'agent buys: create order + payment instructions'],
+                ['POST /api/v1/agent/buyer/orders/:id/confirm', 'verify escrow payment on-chain'],
+                ['GET /api/v1/agent/buyer/orders/:id', 'poll own order / license'],
+                ['GET /api/v1/agent/buyer/listings/:id/download', 'license-gated signed download URL'],
               ].map(([route, desc]) => (
                 <div key={route} className="flex flex-col rounded bg-white/[0.03] px-3 py-2">
                   <span className="text-[#00F5FF]">{route}</span>

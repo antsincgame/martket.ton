@@ -22,6 +22,7 @@
   "bugs": {
     "url": "https://github.com/antsincgame/martket.ton/issues"
   },
+  "license": "MIT",
   "type": "module",
   "bin": {
     "tonforge-agent-mcp": "dist/index.js"
