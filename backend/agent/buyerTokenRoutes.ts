@@ -37,8 +37,9 @@ import { addressesEqual } from '../commerce/tonVerify.js';
 import { screenWallet } from '../sanctions/screen.js';
 import { requireBuyerKycLite } from '../commerce/handlers/requireBuyerKycLite.js';
 import { verifyLicenseOwner } from '../tonforge/onchain/verifyOwnership.js';
-import { getAgentTokenById, revokeAgentToken } from './tokenRepository.js';
+import { getAgentTokenById, revokeAgentToken, listAgentTokensForWallet } from './tokenRepository.js';
 import { issueToken } from './tokenIssuer.js';
+import { parseScopes } from './scopes.js';
 
 const router = express.Router();
 const limitMutate = rateLimit({
@@ -160,6 +161,57 @@ router.post(
     }
   },
 );
+
+/**
+ * List buyer tokens for an agent wallet. Buyer-token records are keyed by the
+ * AGENT wallet (not the caller's), so a plain "my wallet" listing can't see
+ * them — the caller names the agent wallet and re-proves ownership the same
+ * way issuance did. Only `orders:buy` tokens are returned (when the agent
+ * wallet IS the caller's own wallet, their seller tokens must not leak here).
+ */
+router.get('/buyer-agent-tokens', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const profile = await resolveProfile(req);
+    if (!profile || !profile.tonAddress) {
+      res.status(403).json({ error: 'Wallet not linked', code: 'NO_WALLET' });
+      return;
+    }
+    const queryWallet = typeof req.query.agentWallet === 'string' ? req.query.agentWallet.trim() : '';
+    const rawAgentWallet = queryWallet || profile.tonAddress;
+    let agentWallet: string;
+    try {
+      agentWallet = Address.parse(rawAgentWallet).toString({ bounceable: false });
+    } catch {
+      res.status(400).json({ error: 'agentWallet is not a valid TON address', code: 'BAD_ADDRESS' });
+      return;
+    }
+    const owned = await proveAgentWalletOwnership(agentWallet, profile.tonAddress);
+    if (!owned.ok) {
+      res.status(403).json({ error: 'Not your agent wallet', code: owned.code, detail: owned.detail });
+      return;
+    }
+    const list = await listAgentTokensForWallet(agentWallet);
+    const buyerTokens = list.filter((t) => parseScopes(t.scopes).includes('orders:buy'));
+    res.json({
+      data: {
+        agentWallet,
+        tokens: buyerTokens.map((t) => ({
+          id: t.$id,
+          name: t.name,
+          scopes: t.scopes,
+          tokenPrefix: t.tokenPrefix,
+          createdAt: t.$createdAt,
+          lastUsedAt: t.lastUsedAt,
+          expiresAt: t.expiresAt,
+          revokedAt: t.revokedAt,
+        })),
+      },
+    });
+  } catch (e) {
+    logger.error('[buyer-agent-tokens] list:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to list tokens', code: 'BUYER_TOKEN_LIST' });
+  }
+});
 
 /**
  * Revoke a buyer token. The record's wallet is the AGENT wallet (not the

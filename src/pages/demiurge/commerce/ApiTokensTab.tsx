@@ -11,6 +11,9 @@ import {
   listAgentTokens,
   issueAgentToken,
   revokeAgentTokenById,
+  listBuyerAgentTokens,
+  issueBuyerAgentToken,
+  revokeBuyerAgentTokenById,
   type AgentScope,
   type AgentTokenSummary,
   type IssuedAgentToken,
@@ -40,6 +43,45 @@ export default function ApiTokensTab({ workspace }: Props) {
   const wallet = useTonAddress();
   const kycApproved = workspace?.developer.kycStatus === 'approved';
 
+  if (!wallet) {
+    return (
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+        Connect your TON wallet to manage Agent API tokens.
+      </div>
+    );
+  }
+
+  if (!workspace) {
+    return (
+      <div className="flex items-center justify-center py-12 text-sm text-[#a8a8be]">
+        Loading workspace...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-10">
+      {kycApproved ? (
+        <SellerTokensSection wallet={wallet} />
+      ) : (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
+          <div className="flex items-center gap-2 text-amber-100 font-semibold text-sm">
+            <ShieldAlert className="w-4 h-4" />
+            KYC required for seller tokens
+          </div>
+          <p className="text-xs text-amber-100/80">
+            Seller Agent API tokens are available only to verified sellers. Submit
+            KYC in the Publishing tab first. Buyer agent tokens (below) need only
+            Lite KYC.
+          </p>
+        </div>
+      )}
+      <BuyerTokensSection />
+    </div>
+  );
+}
+
+function SellerTokensSection({ wallet }: { wallet: string }) {
   const [tokens, setTokens] = useState<AgentTokenSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,37 +118,6 @@ export default function ApiTokensTab({ workspace }: Props) {
     }
   };
 
-  if (!wallet) {
-    return (
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-        Connect your TON wallet to manage Agent API tokens.
-      </div>
-    );
-  }
-
-  if (!workspace) {
-    return (
-      <div className="flex items-center justify-center py-12 text-sm text-[#a8a8be]">
-        Loading workspace...
-      </div>
-    );
-  }
-
-  if (!kycApproved) {
-    return (
-      <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
-        <div className="flex items-center gap-2 text-amber-100 font-semibold text-sm">
-          <ShieldAlert className="w-4 h-4" />
-          KYC required
-        </div>
-        <p className="text-xs text-amber-100/80">
-          Agent API tokens are available only to verified sellers. Submit
-          KYC in the Publishing tab first.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <section className="space-y-4">
       <header className="flex items-center justify-between gap-3">
@@ -129,7 +140,7 @@ export default function ApiTokensTab({ workspace }: Props) {
         </button>
       </header>
 
-      {justIssued && <FreshTokenBanner issued={justIssued} onClose={() => setJustIssued(null)} />}
+      {justIssued && <FreshTokenBanner token={justIssued.token} onClose={() => setJustIssued(null)} />}
 
       {error && (
         <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
@@ -300,16 +311,16 @@ function IssueTokenForm({
 }
 
 function FreshTokenBanner({
-  issued,
+  token,
   onClose,
 }: {
-  issued: IssuedAgentToken;
+  token: string;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState<'idle' | 'ok' | 'fail'>('idle');
   const copy = () => {
     navigator.clipboard
-      .writeText(issued.token)
+      .writeText(token)
       .then(() => {
         setCopied('ok');
         setTimeout(() => setCopied('idle'), 1500);
@@ -330,7 +341,7 @@ function FreshTokenBanner({
       </p>
       <div className="flex items-center gap-2">
         <code className="flex-1 font-mono text-[12px] text-white break-all bg-black/40 px-3 py-2 rounded-lg">
-          {issued.token}
+          {token}
         </code>
         <button
           type="button"
@@ -338,6 +349,261 @@ function FreshTokenBanner({
           className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100"
         >
           <Copy className="w-3.5 h-3.5" /> {copied === 'ok' ? 'Copied' : copied === 'fail' ? 'Failed — copy manually' : 'Copy'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Buyer agent tokens (agentic purchasing) ─────────────────────────
+// Bound to the wallet the AGENT pays from — typically a TON Agentic Wallet
+// (agents.ton.org): the agent holds the operator key, you keep the owner key.
+// Issuance proves ON-CHAIN that the agent wallet's owner is your verified
+// wallet, and requires your Lite KYC (enforced server-side). The token's only
+// scope is orders:buy — it can never touch listings or move YOUR funds.
+
+function BuyerTokensSection() {
+  const wallet = useTonAddress();
+  const [agentWallet, setAgentWallet] = useState('');
+  const [tokens, setTokens] = useState<AgentTokenSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showIssue, setShowIssue] = useState(false);
+  const [justIssued, setJustIssued] = useState<string | null>(null);
+
+  const effectiveWallet = agentWallet.trim() || wallet;
+
+  const reload = useCallback(async () => {
+    if (!effectiveWallet) return;
+    setLoading(true);
+    setError(null);
+    try {
+      setTokens(await listBuyerAgentTokens(agentWallet.trim() || undefined));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load buyer tokens');
+      setTokens([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [agentWallet, effectiveWallet]);
+
+  useEffect(() => { void reload(); }, [reload]);
+
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const handleRevoke = async (id: string) => {
+    if (!confirm('Revoke this buyer token? The agent will immediately lose the ability to order or download.')) return;
+    setRevokingId(id);
+    try {
+      await revokeBuyerAgentTokenById(id);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Revoke failed');
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
+  return (
+    <section className="space-y-4">
+      <header className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-white flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-[#00F5FF]" />
+            Buyer agent tokens
+          </h2>
+          <p className="text-xs text-[#888] mt-1">
+            Let an AI agent BUY with its own wallet (e.g. a{' '}
+            <a href="https://agents.ton.org/" target="_blank" rel="noreferrer" className="text-[#00F5FF] hover:underline">
+              TON Agentic Wallet
+            </a>
+            ). Scope <code className="font-mono">orders:buy</code> only — issuance proves on-chain that the
+            agent wallet is yours, and needs your Lite KYC. Set the token as{' '}
+            <code className="font-mono">TONFORGE_BUYER_TOKEN</code> in the agent&apos;s MCP environment.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => { setJustIssued(null); setShowIssue(true); }}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#00F5FF] text-[#0A0A0A] px-3 py-1.5 text-sm font-semibold hover:shadow-[0_0_20px_rgba(0,245,255,0.3)]"
+        >
+          <Plus className="w-4 h-4" /> Issue buyer token
+        </button>
+      </header>
+
+      <label className="block max-w-xl">
+        <span className="block text-[10px] uppercase tracking-wider text-[#666] mb-1">
+          Agent wallet address (empty = your own wallet)
+        </span>
+        <input
+          value={agentWallet}
+          onChange={(e) => setAgentWallet(e.target.value)}
+          placeholder="EQ… / UQ… — the wallet the agent pays from"
+          className="w-full rounded-lg border border-white/[0.1] bg-black/40 px-3 py-2 text-sm text-white font-mono"
+        />
+      </label>
+
+      {justIssued && <FreshTokenBanner token={justIssued} onClose={() => setJustIssued(null)} />}
+
+      {error && (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
+          {error}
+        </div>
+      )}
+
+      {showIssue && (
+        <BuyerIssueForm
+          initialAgentWallet={agentWallet.trim() || wallet || ''}
+          onCancel={() => setShowIssue(false)}
+          onIssued={(token, usedWallet) => {
+            setShowIssue(false);
+            setJustIssued(token);
+            setAgentWallet(usedWallet);
+            void reload();
+          }}
+        />
+      )}
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-sm text-[#888]">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading buyer tokens…
+        </div>
+      ) : tokens.length === 0 ? (
+        <div className="rounded-xl border border-white/[0.08] bg-black/30 p-6 text-center text-sm text-[#888]">
+          No buyer tokens for this wallet yet.
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {tokens.map((t) => {
+            const isRevoked = !!t.revokedAt;
+            const isExpired = !!t.expiresAt && new Date(t.expiresAt).getTime() < Date.now();
+            return (
+              <li
+                key={t.id}
+                className={`rounded-xl border p-3 flex items-start justify-between gap-3 ${
+                  isRevoked || isExpired
+                    ? 'border-white/[0.06] bg-black/10 opacity-60'
+                    : 'border-white/[0.08] bg-black/30'
+                }`}
+              >
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white text-sm truncate">{t.name}</span>
+                    {isRevoked && <span className="text-[10px] uppercase text-rose-300">revoked</span>}
+                    {!isRevoked && isExpired && <span className="text-[10px] uppercase text-amber-300">expired</span>}
+                  </div>
+                  <code className="block text-[11px] font-mono text-[#888] break-all">{t.tokenPrefix}…</code>
+                  <p className="text-[11px] text-[#666]">
+                    created {shortDate(t.createdAt)} · expires {shortDate(t.expiresAt)} · last used {shortDate(t.lastUsedAt)}
+                  </p>
+                </div>
+                {!isRevoked && (
+                  <button
+                    type="button"
+                    disabled={revokingId === t.id}
+                    onClick={() => void handleRevoke(t.id)}
+                    className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-xs text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
+                  >
+                    {revokingId === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />} Revoke
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function BuyerIssueForm({
+  initialAgentWallet,
+  onCancel,
+  onIssued,
+}: {
+  initialAgentWallet: string;
+  onCancel: () => void;
+  onIssued: (token: string, agentWallet: string) => void;
+}) {
+  const [agentWallet, setAgentWallet] = useState(initialAgentWallet);
+  const [name, setName] = useState('');
+  const [ttlDays, setTtlDays] = useState(90);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const issued = await issueBuyerAgentToken({
+        agentWallet: agentWallet.trim(),
+        name: name.trim(),
+        ttlDays,
+      });
+      onIssued(issued.token, issued.record.agentWallet);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Issue failed';
+      setError(msg);
+      logger.warn('[ApiTokensTab] buyer issue failed', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const valid = name.trim().length >= 2 && agentWallet.trim().length > 0;
+
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-black/40 p-4 space-y-3">
+      <h3 className="text-sm font-semibold text-white">Issue a buyer agent token</h3>
+      <p className="text-[11px] text-[#888]">
+        The token is bound to the wallet the agent <em>pays from</em>. For an agentic
+        (contract) wallet, its on-chain owner must be your verified wallet — otherwise
+        issuance is refused.
+      </p>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-wider text-[#666] mb-1">Agent wallet</span>
+        <input
+          value={agentWallet}
+          onChange={(e) => setAgentWallet(e.target.value)}
+          placeholder="EQ… / UQ…"
+          className="w-full rounded-lg border border-white/[0.1] bg-black/40 px-3 py-2 text-sm text-white font-mono"
+        />
+      </label>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-wider text-[#666] mb-1">Token name</span>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="My shopping agent"
+          className="w-full rounded-lg border border-white/[0.1] bg-black/40 px-3 py-2 text-sm text-white"
+        />
+      </label>
+      <label className="block">
+        <span className="block text-[10px] uppercase tracking-wider text-[#666] mb-1">Expires in (days, max 365)</span>
+        <input
+          type="number"
+          value={ttlDays}
+          min={1}
+          max={365}
+          onChange={(e) => setTtlDays(parseInt(e.target.value, 10) || 90)}
+          className="w-32 rounded-lg border border-white/[0.1] bg-black/40 px-3 py-2 text-sm text-white"
+        />
+      </label>
+      {error && <p className="text-xs text-rose-300">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={!valid || submitting}
+          onClick={() => void submit()}
+          className="rounded-lg bg-[#00F5FF] text-[#0A0A0A] px-4 py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          {submitting ? <Loader2 className="w-4 h-4 animate-spin inline" /> : 'Generate buyer token'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white/70 hover:text-white"
+        >
+          Cancel
         </button>
       </div>
     </div>

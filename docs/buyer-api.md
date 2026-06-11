@@ -6,9 +6,11 @@ helping a user buy them — as opposed to the seller-side [Agent API](./agent-ap
 The short version:
 
 - **Discovery is fully public** — browse and search the catalog with no auth.
-- **Purchase is non-custodial** — the buyer's own TON wallet signs the payment.
-  No API (and no agent) can move a user's funds. The supported pattern is
-  **discover → prepare → hand the transaction to the wallet to sign**.
+- **Purchase is non-custodial** — the escrow is paid only by the buying wallet's
+  own signature. No API (and no agent) can move a **user's** funds.
+- Two purchase patterns: **assist a human** (discover → prepare → hand the
+  transaction to the user's wallet to sign), or **buy autonomously with the
+  agent's OWN wallet** (§3 — a buyer token + e.g. a TON Agentic Wallet).
 
 ---
 
@@ -64,16 +66,19 @@ Buying is a **session-authenticated, wallet-signed** flow. Endpoints live under
    the order is `PAID`/`FULFILLED`. Buyers can list their orders with
    `GET /buyers/me/orders`.
 
-### Why purchase isn't an agent token tool
+### Why a token can't spend a USER's funds
 
-TonForge is non-custodial: funds move only when the buyer's wallet signs.
-Combined with per-buyer KYC/AML gates, this means a fully autonomous "buy this
-for me" cannot be delegated to a bearer token without surrendering the buyer's
-private key — which the platform never holds. So the agent's role is:
+TonForge is non-custodial: funds move only when the buying wallet signs.
+Combined with per-buyer KYC/AML gates, this means "buy this with the USER's
+money" cannot be delegated to a bearer token without surrendering the user's
+private key — which the platform never holds. When assisting a human buyer,
+the agent's role is:
 
 > **discover** offers → **prepare** the order (get the escrow transaction) →
 > **hand it to the user's wallet to sign** → optionally **confirm** and
 > **collect** delivery.
+
+An agent that holds **its own** wallet is a different story — see §3.
 
 ### The realistic agent pattern
 
@@ -87,12 +92,41 @@ private key — which the platform never holds. So the agent's role is:
 
 ---
 
-## 3. Want agents to *initiate* orders too?
+## 3. Autonomous buying — the agent pays with its OWN wallet
 
-A safe extension exists if you want agents to prepare purchases on a buyer's
-behalf without ever touching funds: a **buyer-scoped token** (e.g. an
-`orders:create` scope) backing a `POST /api/v1/agent/orders` endpoint that runs
-the same sanctions/KYC/AML checks and returns the **unsigned** escrow
-transaction for the buyer's wallet to sign. It moves no money — it only prepares
-the order — but it's an architectural/product decision, so it isn't built here.
-Open an issue or ask if you'd like it implemented.
+Built and live in the API: `/api/v1/agent/buyer/*`, scope `orders:buy`. The
+agent owns a TON wallet — typically a [TON Agentic Wallet](https://agents.ton.org/)
+(the agent holds the operator key; its human keeps the owner key, can withdraw
+at any time, and funds it on a "fund what you risk" basis).
+
+**Human accountability gate (once).** The owner — session-authenticated, with
+a ton_proof-bound wallet and Lite KYC — issues a buyer token:
+
+```
+POST /api/v1/commerce/buyer-agent-tokens
+{ "agentWallet": "…", "name": "shopping-agent", "ttlDays": 90 }
+```
+
+Issuance verifies **on-chain** (TEP-85 `get_nft_data`) that the agent wallet's
+owner is the caller's verified wallet, so nobody can bind a stranger's wallet
+and download its purchases. The returned `tfa_…` token carries only
+`orders:buy` and is bound to the wallet the agent pays from.
+
+**The purchase loop (agent, autonomous).** All under
+`https://tonforge.org/api/v1/agent`, `Authorization: Bearer <buyer token>`:
+
+1. `POST /buyer/orders` `{ listingId }` — same sanctions/AML screening and the
+   same money path as the human flow. The response's `payment` object is
+   machine-actionable: send EXACTLY `amountNanoton` from `payFromWallet` to
+   `payToAddress` with **both** `stateInitBase64` and `payloadBase64` attached
+   (a plain comment transfer leaves the escrow undeployed).
+2. **Pay from the agent wallet** — e.g. via `npx @ton/mcp` running beside this
+   API's MCP server. The platform never sees the key.
+3. `POST /buyer/orders/:id/confirm` — verifies the payment AND the escrow's
+   on-chain `FUNDED` state, then queues the license NFT mint. Idempotent.
+4. `GET /buyer/orders/:id` — poll `pending_payment → paid → fulfilled`.
+5. `GET /buyer/listings/:id/download` — short-lived signed URL + expected
+   sha256, gated on the minted license and a clean antivirus verdict (≤20/day).
+
+Via the [MCP server](./mcp.md) these are the `create_order`, `confirm_order`,
+`get_order`, and `download_purchase` tools (env `TONFORGE_BUYER_TOKEN`).

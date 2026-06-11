@@ -380,6 +380,51 @@ export async function revokeAgentTokenById(id: string): Promise<void> {
   });
 }
 
+// ── Buyer agent tokens (agentic purchasing, scope orders:buy) ────────
+// Bound to the wallet the AGENT pays from (e.g. a TON Agentic Wallet);
+// issuance/list/revoke prove on-chain that the caller owns that wallet.
+
+export interface IssuedBuyerToken {
+  /** Plaintext shown to the user exactly once. */
+  token: string;
+  record: {
+    id: string;
+    agentWallet: string;
+    ownerWallet: string;
+    name: string;
+    scopes: string;
+    tokenPrefix: string;
+    expiresAt: string | null;
+    createdAt: string;
+  };
+}
+
+export async function listBuyerAgentTokens(agentWallet?: string): Promise<AgentTokenSummary[]> {
+  const qs = agentWallet ? `?agentWallet=${encodeURIComponent(agentWallet)}` : '';
+  const result = await commerceAuthFetch<{ data: { tokens: AgentTokenSummary[] } }>(
+    `/buyer-agent-tokens${qs}`,
+  );
+  return result.data.tokens;
+}
+
+export async function issueBuyerAgentToken(input: {
+  agentWallet: string;
+  name: string;
+  ttlDays?: number;
+}): Promise<IssuedBuyerToken> {
+  const result = await commerceAuthFetch<{ data: IssuedBuyerToken }>('/buyer-agent-tokens', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return result.data;
+}
+
+export async function revokeBuyerAgentTokenById(id: string): Promise<void> {
+  await commerceAuthFetch<{ data: { ok: boolean } }>(`/buyer-agent-tokens/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
 /** Админ: заголовок X-Commerce-Admin-Secret задаётся вручную (оператор). */
 export async function adminCommerceFetch(
   path: string,
