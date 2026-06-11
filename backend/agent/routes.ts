@@ -316,6 +316,7 @@ router.post(
       const {
         catalogProductId, title, description = '',
         priceUsd,
+        salePriceUsd, saleEndsAt,
         deliveryType, deliveryPayload,
         platformFeeBps = DEFAULT_PLATFORM_FEE_BPS,
         collectionAddress,
@@ -344,6 +345,20 @@ router.post(
       const priceAmountRaw = tonHumanToNanoRaw(tonHuman);
       const decimals = 9;
 
+      // Optional discount in USD (< list), converted via the same oracle.
+      let saleStorage: Record<string, unknown> = {};
+      if (typeof salePriceUsd === 'number' && salePriceUsd > 0) {
+        if (salePriceUsd >= Number(priceUsd)) {
+          res.status(400).json({ error: 'salePriceUsd must be less than priceUsd', code: 'BAD_SALE' });
+          return;
+        }
+        saleStorage = {
+          sale_price_usd: salePriceUsd,
+          sale_price_amount_raw: tonHumanToNanoRaw(usdToTonHuman(salePriceUsd, tonRate)),
+          sale_ends_at: (typeof saleEndsAt === 'string' && saleEndsAt) || null,
+        };
+      }
+
       const listing = await databases().createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), omitListingFields({
         sellerWallet: wallet,
         catalogProductId,
@@ -358,6 +373,7 @@ router.post(
         deliveryType,
         assetFileId: '',
         collection_address: collectionAddress,
+        ...saleStorage,
       }));
       await databases().createDocument(DATABASE_ID, COL_LISTING_SECRETS, ID.unique(), {
         listingId: listing.$id,
@@ -400,6 +416,27 @@ router.patch(
         const tonHuman = usdToTonHuman(Number(body.priceUsd), tonRate);
         patch.priceAmountRaw = tonHumanToNanoRaw(tonHuman);
         patch.priceUsd = String(body.priceUsd);
+      }
+      // Sale: positive salePriceUsd (< list) starts/updates; null/0 clears.
+      if (body.salePriceUsd !== undefined) {
+        const listUsd = body.priceUsd !== undefined ? Number(body.priceUsd) : Number(existing['priceUsd']);
+        const sale = body.salePriceUsd === null ? 0 : Number(body.salePriceUsd);
+        if (!sale) {
+          patch.sale_price_usd = null;
+          patch.sale_price_amount_raw = null;
+          patch.sale_ends_at = null;
+        } else {
+          if (sale >= listUsd) {
+            res.status(400).json({ error: 'salePriceUsd must be less than priceUsd', code: 'BAD_SALE' });
+            return;
+          }
+          const tonRate = await getTonUsdPrice();
+          patch.sale_price_usd = sale;
+          patch.sale_price_amount_raw = tonHumanToNanoRaw(usdToTonHuman(sale, tonRate));
+          patch.sale_ends_at = (typeof body.saleEndsAt === 'string' && body.saleEndsAt) || null;
+        }
+      } else if (body.saleEndsAt !== undefined) {
+        patch.sale_ends_at = (typeof body.saleEndsAt === 'string' && body.saleEndsAt) || null;
       }
       if (typeof body.collectionAddress === 'string' && body.collectionAddress.length > 0) {
         if (await rejectMismatchedCollection(req, res, wallet, body.collectionAddress)) return;

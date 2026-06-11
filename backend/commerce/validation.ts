@@ -46,6 +46,9 @@ export const createListingSchema = z.object({
   description: z.string().max(5000).default(''),
   currency: z.literal(CURRENCY.TON).default(CURRENCY.TON),
   priceUsd: z.number().positive(),
+  // Optional sale: a discounted USD price (< priceUsd) and an optional end time.
+  salePriceUsd: z.number().positive().optional(),
+  saleEndsAt: z.string().datetime().optional(),
   deliveryType: z.string().min(1),
   deliveryPayload: z.string().min(1),
   platformFeeBps: z.number().int().min(0).max(10000).optional(),
@@ -68,6 +71,9 @@ export const patchListingSchema = z
     title: z.string().max(200).optional(),
     description: z.string().max(5000).optional(),
     priceUsd: z.number().positive().optional(),
+    // Sale: set salePriceUsd to start/update a discount; null/0 clears it.
+    salePriceUsd: z.number().nonnegative().nullable().optional(),
+    saleEndsAt: z.string().datetime().nullable().optional(),
     deliveryPayload: z.string().optional(),
     collectionAddress: tonAddressSchema.optional(),
   })

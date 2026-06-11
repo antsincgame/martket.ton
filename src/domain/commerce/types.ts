@@ -17,6 +17,12 @@ export interface CommerceListingPublic {
   /** Total the buyer pays = seller price + platform fee, raw nanoton. */
   buyerTotalRaw?: string | null;
   buyerTotalTonHuman?: string | null;
+  /** Discount / sale (when active): list price stays in priceTonHuman/priceUsd. */
+  saleActive?: boolean;
+  salePriceUsd?: number | null;
+  salePriceTonHuman?: string | null;
+  saleEndsAt?: string | null;
+  discountPercent?: number;
   status: string;
   deliveryType: string;
   assetFileId: string;

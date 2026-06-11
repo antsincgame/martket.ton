@@ -270,7 +270,13 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
 
   const isBusy = phase === 'creating-order' || phase === 'awaiting-wallet' || phase === 'confirming';
   const listingPriceUsd = (listing as Record<string, unknown> | null)?.priceUsd as number | undefined;
-  const sellerPriceHuman = listing?.priceTonHuman ?? humanFromRaw(listing?.priceAmountRaw ?? '0');
+  const onSale = Boolean(listing?.saleActive);
+  // Effective seller price: sale price when a discount is active (so the pre-order
+  // estimate matches what the backend will charge), else the list price.
+  const sellerPriceHuman =
+    (onSale ? listing?.salePriceTonHuman : listing?.priceTonHuman) ??
+    humanFromRaw(listing?.priceAmountRaw ?? '0');
+  const listPriceHuman = listing?.priceTonHuman ?? humanFromRaw(listing?.priceAmountRaw ?? '0');
   // Fee breakdown виден только когда backend вернул order с fee/sellerAmount полями.
   // До создания order'а показываем estimate из listing.platformFeeBps.
   const estimatedFeeBps = order?.feeBps ?? listing?.platformFeeBps ?? 1500;
@@ -297,9 +303,17 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
 
       {/* Fee breakdown */}
       <div className="rounded-lg bg-black/20 border border-white/5 p-3 space-y-1.5 text-xs">
+        {onSale && (
+          <div className="flex justify-between items-center -mt-1 mb-1">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#FF3B6B] bg-[#FF3B6B]/10 border border-[#FF3B6B]/25 px-2 py-0.5 rounded-full">
+              Sale −{listing?.discountPercent ?? 0}%
+            </span>
+            <span className="font-mono text-gray-600 text-xs line-through">{listPriceHuman} TON</span>
+          </div>
+        )}
         <div className="flex justify-between text-gray-400">
           <span>Seller price</span>
-          <span className="font-mono text-gray-200">{sellerTon} TON</span>
+          <span className={`font-mono ${onSale ? 'text-[#FF6B8A]' : 'text-gray-200'}`}>{sellerTon} TON</span>
         </div>
         <div className="flex justify-between text-gray-400">
           <span className="flex items-center gap-1">

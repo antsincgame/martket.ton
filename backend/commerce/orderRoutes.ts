@@ -7,7 +7,7 @@ import {
   ORDER_STATE, LISTING_STATUS, CURRENCY, DEFAULT_PLATFORM_FEE_BPS, LICENSE_STATE,
 } from './constants.js';
 import { databases, ID, Query } from './appwrite.js';
-import { computeOrderAmounts, nanoRawToTonHuman } from './money.js';
+import { computeOrderAmounts, nanoRawToTonHuman, effectiveSellerPriceRaw } from './money.js';
 import { verifyPaymentByMemo, verifyPaymentToEscrow, addressesEqual } from './tonVerify.js';
 import { computeEscrow, GAS_BREAKDOWN, buildRefundIfNotMintedPayload, verifyEscrowFunded } from './escrow.js';
 import { findLicenseByOrderId, updateLicense } from './licenseRepository.js';
@@ -100,7 +100,12 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
       return;
     }
 
-    const sellerPriceRaw = listing['priceAmountRaw'] as string;       // Seller's ask
+    // Seller's ask — the SALE price when a discount is active, else the list
+    // price. This single read drives amounts, the deterministic escrow address,
+    // and order.amountRaw, so the whole escrow/confirm chain stays consistent.
+    const sellerPriceRaw = effectiveSellerPriceRaw(
+      listing as { priceAmountRaw?: string; sale_price_amount_raw?: string | null; sale_ends_at?: string | null },
+    );
     // Platform fee is a PLATFORM policy, never below the configured minimum.
     // The seller-supplied platformFeeBps (validated 0..10000) could otherwise be
     // set to 0 to pay zero commission — clamp it up to DEFAULT_PLATFORM_FEE_BPS

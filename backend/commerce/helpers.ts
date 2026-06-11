@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { nanoRawToTonHuman, computeOrderAmounts } from './money.js';
+import { nanoRawToTonHuman, computeOrderAmounts, effectiveSellerPriceRaw, isSaleActive } from './money.js';
 import { CURRENCY, DEFAULT_PLATFORM_FEE_BPS } from './constants.js';
 import type { AppwriteDoc } from '../domain/appwrite-helpers.js';
 import { str } from '../utils/params.js';
@@ -71,15 +71,28 @@ export async function requireWalletOwner(
 export function mapListingPublic(doc: AppwriteDoc) {
   const priceRaw = doc['priceAmountRaw'] as string;
   const isTon = doc['currency'] === CURRENCY.TON;
-  // Authoritative buyer-facing total = seller price + platform fee, with the fee
-  // clamped to the platform minimum exactly as order creation does (K-2). Surfaced
-  // on the public offer so a shopping agent (and the storefront) sees the real
-  // amount to pay without re-deriving the money math or missing the clamp.
+  // The price the buyer is actually charged — sale price when a discount is
+  // active, else list price. The SAME effective price drives order creation
+  // (orderRoutes), so the quoted total matches the charged total.
+  const saleFields = {
+    priceAmountRaw: priceRaw,
+    sale_price_amount_raw: (doc['sale_price_amount_raw'] as string) || null,
+    sale_ends_at: (doc['sale_ends_at'] as string) || null,
+  };
+  const saleActive = isTon && Boolean(priceRaw) && isSaleActive(saleFields);
+  const effectivePriceRaw = isTon && priceRaw ? effectiveSellerPriceRaw(saleFields) : priceRaw;
+  // Authoritative buyer-facing total = effective seller price + platform fee,
+  // with the fee clamped to the platform minimum exactly as order creation does
+  // (K-2). The discount lowers the seller price only, never the fee floor.
   const effectiveFeeBps = Math.max(
     Number(doc['platformFeeBps'] ?? DEFAULT_PLATFORM_FEE_BPS),
     DEFAULT_PLATFORM_FEE_BPS,
   );
-  const amounts = isTon && priceRaw ? computeOrderAmounts(priceRaw, effectiveFeeBps) : null;
+  const amounts = isTon && priceRaw ? computeOrderAmounts(effectivePriceRaw, effectiveFeeBps) : null;
+  const discountPercent =
+    saleActive && priceRaw
+      ? Math.round((1 - Number(BigInt(effectivePriceRaw) * 1000n / BigInt(priceRaw)) / 1000) * 100)
+      : 0;
   return {
     id: doc.$id,
     sellerWallet: doc['sellerWallet'] as string,
@@ -97,9 +110,16 @@ export function mapListingPublic(doc: AppwriteDoc) {
     platformFeeTonHuman: amounts ? nanoRawToTonHuman(amounts.feeNano) : null,
     buyerTotalRaw: amounts ? amounts.totalAmountNano : null,
     buyerTotalTonHuman: amounts ? nanoRawToTonHuman(amounts.totalAmountNano) : null,
+    // Sale / discount surface (struck-through original + sale price).
+    saleActive,
+    salePriceUsd: (doc['sale_price_usd'] as number) ?? null,
+    salePriceTonHuman: saleActive ? nanoRawToTonHuman(effectivePriceRaw) : null,
+    saleEndsAt: (doc['sale_ends_at'] as string) || null,
+    discountPercent,
     status: doc['status'] as string,
     deliveryType: doc['deliveryType'] as string,
     assetFileId: (doc['assetFileId'] as string) || '',
+    // Original (list) seller price, always shown.
     priceTonHuman: isTon ? nanoRawToTonHuman(priceRaw) : undefined,
     distributionKind: (doc['distribution_kind'] as string) || 'none',
     distributionState: (doc['distribution_state'] as string) || null,

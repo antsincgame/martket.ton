@@ -183,6 +183,15 @@ async function setupListings(databases) {
     databases.createIntegerAttribute(DATABASE_ID, COL_LISTINGS, 'platformFeeBps', true)
   );
   await waitForAttribute(databases, COL_LISTINGS, 'platformFeeBps');
+  // Sale / discount fields (optional): a USD sale price (< list), its derived
+  // nanoTON value, and an optional end time. The discount enters the money path
+  // only via effectiveSellerPriceRaw at order creation.
+  await ignoreConflict(() => databases.createFloatAttribute(DATABASE_ID, COL_LISTINGS, 'sale_price_usd', false));
+  await waitForAttribute(databases, COL_LISTINGS, 'sale_price_usd');
+  await ignoreConflict(() => databases.createStringAttribute(DATABASE_ID, COL_LISTINGS, 'sale_price_amount_raw', 80, false));
+  await waitForAttribute(databases, COL_LISTINGS, 'sale_price_amount_raw');
+  await ignoreConflict(() => databases.createDatetimeAttribute(DATABASE_ID, COL_LISTINGS, 'sale_ends_at', false));
+  await waitForAttribute(databases, COL_LISTINGS, 'sale_ends_at');
   await idx(databases, COL_LISTINGS, 'idx_catalog_status', IndexType.Key, [
     'catalogProductId',
     'status',

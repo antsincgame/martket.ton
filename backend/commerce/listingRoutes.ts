@@ -126,6 +126,7 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
     const {
       sellerWallet, catalogProductId, title, description,
       priceUsd,
+      salePriceUsd, saleEndsAt,
       deliveryType, deliveryPayload,
       platformFeeBps = DEFAULT_PLATFORM_FEE_BPS, assetFileId = '',
       collectionAddress,
@@ -158,6 +159,21 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
     const priceAmountRaw = tonHumanToNanoRaw(tonHuman);
     const decimals = 9;
 
+    // Optional launch discount: a USD sale price strictly below the list price,
+    // converted via the SAME oracle so it flows safely through the money path.
+    let saleStorage: Record<string, unknown> = {};
+    if (typeof salePriceUsd === 'number' && salePriceUsd > 0) {
+      if (salePriceUsd >= Number(priceUsd)) {
+        res.status(400).json({ error: 'salePriceUsd must be less than priceUsd', code: 'BAD_SALE' });
+        return;
+      }
+      saleStorage = {
+        sale_price_usd: salePriceUsd,
+        sale_price_amount_raw: tonHumanToNanoRaw(usdToTonHuman(salePriceUsd, tonRate)),
+        sale_ends_at: (typeof saleEndsAt === 'string' && saleEndsAt) || null,
+      };
+    }
+
     const db = databases();
     const listing = await db.createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), {
       sellerWallet, catalogProductId, title, description,
@@ -165,6 +181,7 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
       priceAmountRaw, priceUsd: String(priceUsd), decimals, platformFeeBps: feeBps,
       status: LISTING_STATUS.ACTIVE, deliveryType, assetFileId,
       collection_address: collectionAddress,
+      ...saleStorage,
     });
     await db.createDocument(DATABASE_ID, COL_LISTING_SECRETS, ID.unique(), {
       listingId: listing.$id, deliveryPayload,
@@ -201,6 +218,27 @@ router.patch('/listings/:id', apiRequireAuth(), validateBody(patchListingSchema)
       const tonHuman = usdToTonHuman(Number(body.priceUsd), tonRate);
       patch.priceAmountRaw = tonHumanToNanoRaw(tonHuman);
       patch.priceUsd = String(body.priceUsd);
+    }
+    // Sale: positive salePriceUsd (< list) starts/updates a discount; null/0 clears it.
+    if (body.salePriceUsd !== undefined) {
+      const listUsd = body.priceUsd !== undefined ? Number(body.priceUsd) : Number(existing['priceUsd']);
+      const sale = body.salePriceUsd === null ? 0 : Number(body.salePriceUsd);
+      if (!sale) {
+        patch.sale_price_usd = null;
+        patch.sale_price_amount_raw = null;
+        patch.sale_ends_at = null;
+      } else {
+        if (sale >= listUsd) {
+          res.status(400).json({ error: 'salePriceUsd must be less than priceUsd', code: 'BAD_SALE' });
+          return;
+        }
+        const tonRate = await getTonUsdPrice();
+        patch.sale_price_usd = sale;
+        patch.sale_price_amount_raw = tonHumanToNanoRaw(usdToTonHuman(sale, tonRate));
+        patch.sale_ends_at = (typeof body.saleEndsAt === 'string' && body.saleEndsAt) || null;
+      }
+    } else if (body.saleEndsAt !== undefined) {
+      patch.sale_ends_at = (typeof body.saleEndsAt === 'string' && body.saleEndsAt) || null;
     }
     if (typeof body.collectionAddress === 'string' && body.collectionAddress.length > 0) {
       if (await rejectMismatchedCollection(req, res, sellerWallet, body.collectionAddress)) return;

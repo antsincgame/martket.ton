@@ -162,6 +162,8 @@ server.tool(
     collectionAddress: z.string().describe('Pre-deployed AppCollection address; mandatory for license-NFT minting on purchase.'),
     description: z.string().max(5000).optional(),
     platformFeeBps: z.number().int().min(0).max(10000).optional(),
+    salePriceUsd: z.number().positive().optional().describe('Optional launch discount: a USD price below priceUsd.'),
+    saleEndsAt: z.string().datetime().optional().describe('Optional ISO end time for the sale.'),
   },
   async (args) => {
     try {
@@ -181,6 +183,8 @@ server.tool(
     title: z.string().max(200).optional(),
     description: z.string().max(5000).optional(),
     priceUsd: z.number().positive().optional(),
+    salePriceUsd: z.number().nonnegative().nullable().optional().describe('Start/update a discount (< priceUsd); 0 or null clears it.'),
+    saleEndsAt: z.string().datetime().nullable().optional().describe('ISO end time for the sale; null clears it.'),
     deliveryPayload: z.string().optional(),
     collectionAddress: z.string().optional(),
   },

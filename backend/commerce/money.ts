@@ -72,6 +72,42 @@ export function computeOrderAmounts(
   };
 }
 
+/**
+ * The seller price an order is actually built around — the sale price when a
+ * discount is active, otherwise the list price. This is the SINGLE place a
+ * discount enters the money path (order amounts, escrow address, and the public
+ * quote all derive from it), so applying it here keeps the whole escrow/confirm
+ * chain consistent. A discount can only LOWER the seller price (validated on
+ * write), never raise it or touch the platform fee.
+ */
+export interface SalePricingFields {
+  priceAmountRaw?: string | null;
+  sale_price_amount_raw?: string | null;
+  sale_ends_at?: string | null;
+}
+
+export function isSaleActive(listing: SalePricingFields, now: number = Date.now()): boolean {
+  const sale = (listing.sale_price_amount_raw || '').trim();
+  if (!sale) return false;
+  const base = String(listing.priceAmountRaw ?? '0');
+  // Time window: no end → always on; an end in the past → expired.
+  if (listing.sale_ends_at) {
+    const ends = Date.parse(String(listing.sale_ends_at));
+    if (!Number.isFinite(ends) || ends <= now) return false;
+  }
+  try {
+    return BigInt(sale) > 0n && BigInt(sale) < BigInt(base);
+  } catch {
+    return false;
+  }
+}
+
+export function effectiveSellerPriceRaw(listing: SalePricingFields, now: number = Date.now()): string {
+  return isSaleActive(listing, now)
+    ? String(listing.sale_price_amount_raw)
+    : String(listing.priceAmountRaw ?? '0');
+}
+
 export function nanoRawToTonHuman(amountRawStr: string): string {
   const v = BigInt(amountRawStr);
   const whole = v / 1_000_000_000n;
