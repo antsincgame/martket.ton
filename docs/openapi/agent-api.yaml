@@ -734,6 +734,197 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /buyer-agent-tokens:
+    servers:
+      - url: https://tonforge.org/api/v1/commerce
+    post:
+      tags: [Agentic buying]
+      operationId: issueBuyerAgentToken
+      summary: Issue a buyer token (human accountability gate)
+      description: >-
+        Session-authenticated, performed by the accountable HUMAN owner. Requires a
+        ton_proof-bound wallet and Lite KYC. Verifies ON-CHAIN (TEP-85 get_nft_data)
+        that the agent wallet's owner is the caller's verified wallet — e.g. a TON
+        Agentic Wallet (agents.ton.org) whose owner key the caller holds. Returns a
+        `tfa_` token with the single scope `orders:buy`, bound to the wallet the
+        agent pays from. Plaintext shown exactly once.
+      security:
+        - sessionJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentWallet, name]
+              properties:
+                agentWallet: { type: string, description: The TON wallet the agent will PAY from. }
+                name: { type: string, minLength: 2, maxLength: 80 }
+                ttlDays: { type: integer, minimum: 1, maximum: 365, default: 90 }
+      responses:
+        "200":
+          description: Token issued (plaintext returned once).
+        "403":
+          description: No bound wallet / Lite KYC missing / agent wallet not provably owned (AGENT_WALLET_NOT_OWNED).
+        "451":
+          description: Owner or agent wallet is sanctioned.
+
+  /buyer-agent-tokens/{id}:
+    servers:
+      - url: https://tonforge.org/api/v1/commerce
+    delete:
+      tags: [Agentic buying]
+      operationId: revokeBuyerAgentToken
+      summary: Revoke a buyer token
+      description: Same on-chain ownership proof as issuance, then revokes (idempotent).
+      security:
+        - sessionJwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Revoked. }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /buyer/orders:
+    post:
+      tags: [Agentic buying]
+      operationId: buyerCreateOrder
+      summary: "Buy step 1: create an order (agent pays with its own wallet)"
+      description: >-
+        Requires a buyer token (scope orders:buy); the buying wallet is ALWAYS the
+        token's wallet. Sanctions + AML screen the paying wallet. The response's
+        `payment` object is machine-actionable: send EXACTLY `amountNanoton` to
+        `payToAddress` with BOTH `stateInitBase64` and `payloadBase64` attached
+        (a plain comment transfer will not fund the escrow), e.g. via a TON
+        Agentic Wallet / @ton/mcp — then call confirm.
+      security:
+        - agentToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [listingId]
+              properties:
+                listingId: { type: string }
+      responses:
+        "200":
+          description: Order created; includes escrow + payment instructions.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      orderId: { type: string }
+                      amountRaw: { type: string }
+                      escrow:
+                        type: object
+                        properties:
+                          address: { type: string }
+                          stateInit: { type: string, description: base64 BOC — must be attached to the payment }
+                          payload: { type: string, description: base64 BOC — must be attached to the payment }
+                          totalAmountRaw: { type: string }
+                      payment:
+                        type: object
+                        description: Machine-actionable payment instructions for the agent's wallet tooling.
+                        properties:
+                          network: { type: string, enum: [mainnet, testnet] }
+                          payFromWallet: { type: string }
+                          payToAddress: { type: string }
+                          amountNanoton: { type: string }
+                          stateInitBase64: { type: string }
+                          payloadBase64: { type: string }
+                          note: { type: string }
+        "400": { description: Listing inactive / no collection. }
+        "403": { description: Missing orders:buy scope. }
+        "451": { description: Paying wallet sanctioned or AML high-risk. }
+        "503": { description: Escrow compute failed — retry shortly. }
+
+  /buyer/orders/{id}/confirm:
+    post:
+      tags: [Agentic buying]
+      operationId: buyerConfirmOrder
+      summary: "Buy step 2: verify the escrow payment on-chain"
+      description: >-
+        Verifies the payment landed AND the escrow reached FUNDED on-chain, then
+        queues the license NFT mint (mintPending true; order stays pending_payment
+        until the mint worker finishes). Idempotent — safe to retry while funds
+        propagate.
+      security:
+        - agentToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Payment verified (or order already processed). }
+        "400": { description: PAYMENT_VERIFY_FAILED — payment not visible yet. }
+        "403": { description: Order belongs to a different wallet. }
+        "409": { description: ESCROW_NOT_FUNDED — funded amount not confirmed on-chain yet. }
+
+  /buyer/orders/{id}:
+    get:
+      tags: [Agentic buying]
+      operationId: buyerGetOrder
+      summary: Poll your own order
+      description: >-
+        State (pending_payment → paid → fulfilled), escrow + license NFT addresses,
+        and the delivery payload once paid. Only the buyer token's own orders.
+      security:
+        - agentToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Order view. }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /buyer/listings/{id}/download:
+    get:
+      tags: [Agentic buying]
+      operationId: buyerDownload
+      summary: "Buy step 3: signed download URL for a purchased listing"
+      description: >-
+        Returns a short-lived signed URL plus the expected sha256. Gated on the
+        minted license NFT for the buyer wallet and a clean antivirus verdict;
+        ≤20 URLs/day per purchase. Verify the sha256 after download.
+      security:
+        - agentToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Signed URL issued.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url: { type: string }
+                      expiresInSec: { type: integer }
+                      sha256: { type: string }
+        "403": { description: No entitlement / license not minted yet. }
+        "404": { description: Listing or verified build not found. }
+        "429": { description: Download rate limit (20/day). }
+
 components:
   securitySchemes:
     agentBearer:

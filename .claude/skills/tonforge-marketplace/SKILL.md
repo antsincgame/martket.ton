@@ -21,7 +21,7 @@ programmatically: **discovery** (public) and **seller management** (token).
 ## Two ways to connect
 
 1. **MCP server (preferred for assistants).** `npx tonforge-agent-mcp`, or the MCP
-   registry name `io.github.antsincgame/tonforge-agent`. It exposes **19 tools**:
+   registry name `io.github.antsincgame/tonforge-agent`. It exposes **23 tools**:
    - **Self-onboarding (a machine Demiurge sets itself up):** `get_instructions`,
      `get_status`, `register_seller`, `set_storage`, `create_product`,
      `assistant_help`.
@@ -31,6 +31,9 @@ programmatically: **discovery** (public) and **seller management** (token).
      `delete_webhook`.
    - **Discovery (public, no token):** `search_products`, `get_product`,
      `list_offers`.
+   - **Buying (need a buyer token, env `TONFORGE_BUYER_TOKEN`):** `create_order`,
+     `confirm_order`, `get_order`, `download_purchase` — the agent pays from its
+     OWN TON wallet (see "Agentic buying" below).
 2. **Plain HTTPS.** Call the REST endpoints directly (see below).
 
 ## An agent can onboard itself
@@ -122,13 +125,29 @@ aggregates. Both are readable before KYC so you can see what's left to do.
 Responses wrap data in `{ "data": … }`. Errors carry a `code` — branch on it,
 not the message. Per-token rate limit: 600 req / 15 min (`X-RateLimit-*` headers).
 
-## Buying is non-custodial — important
+## Agentic buying — the agent pays with its OWN wallet
 
-An agent **cannot** complete a purchase on a buyer's behalf: funding the escrow
-requires the buyer's own TON wallet to sign, plus the buyer's KYC/AML. The
-supported pattern is **discover → prepare the order (`POST /api/v1/commerce/orders`,
-session-auth) → hand the escrow transaction to the user's wallet to sign →
-confirm → collect delivery**. Do not imply you can move a user's funds.
+An agent can never move a **user's** funds: the escrow is paid only by the
+buying wallet's own signature. Two supported purchase patterns:
+
+1. **Human buyer (session flow):** discover → prepare the order
+   (`POST /api/v1/commerce/orders`, session-auth) → hand the escrow transaction
+   to the user's wallet to sign → confirm → collect delivery.
+2. **Agent buyer (agentic flow):** the agent owns a TON wallet — typically a
+   [TON Agentic Wallet](https://agents.ton.org/) (agent holds the operator key,
+   its human keeps the owner key and funds it). The accountable human issues a
+   **buyer token** (scope `orders:buy`) via
+   `POST /api/v1/commerce/buyer-agent-tokens` — session auth + Lite KYC + an
+   on-chain proof they own the agent wallet. Then, as MCP tools or REST:
+
+   ```
+   create_order → pay escrow from own wallet (exact amount + stateInit + payload!) → confirm_order → get_order (poll) → download_purchase
+   ```
+
+   The payment MUST attach the returned `stateInitBase64` and `payloadBase64`
+   (e.g. via `npx @ton/mcp`); a plain comment transfer will not fund the escrow.
+   Sanctions + AML re-screen the paying wallet on every order. "Fund what you
+   risk": keep only a working balance on the agent wallet.
 
 ## Quickstart (curl)
 

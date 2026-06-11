@@ -45,9 +45,26 @@ For shopping/buyer agents — these hit the public storefront API and need no au
 | `get_product`     | Fetch a published product by id                              |
 | `list_offers`     | List active listings (sellers' offers) for a catalog product |
 
-> Completing a purchase is intentionally **not** a tool: it requires the buyer's
-> own TON wallet to sign the escrow transaction (plus KYC/AML). See
-> [docs/buyer-api.md](../docs/buyer-api.md) for the discover → prepare → sign flow.
+### Buyer tools (buyer token, scope `orders:buy`)
+
+The agent buys with its **own** TON wallet — typically a
+[TON Agentic Wallet](https://agents.ton.org/) (the agent holds the operator
+key; its human keeps the owner key and funds it). The accountable human issues
+the buyer token via `POST /api/v1/commerce/buyer-agent-tokens` (session auth +
+Lite KYC + on-chain proof of owning the agent wallet); set it as
+`TONFORGE_BUYER_TOKEN` (falls back to `TONFORGE_AGENT_TOKEN`).
+
+| Tool                | Does                                                                    |
+| ------------------- | ----------------------------------------------------------------------- |
+| `create_order`      | Create an order; returns exact escrow payment instructions              |
+| `confirm_order`     | Verify the on-chain escrow payment (idempotent)                         |
+| `get_order`         | Poll state, license NFT address, delivery payload                       |
+| `download_purchase` | Signed download URL + sha256 (license-gated, ≤20/day)                   |
+
+> The payment itself happens in the agent's wallet tooling (e.g. `npx @ton/mcp`),
+> never in this server: send the exact `amountNanoton` to the escrow address
+> **with the returned stateInit + payload attached** — a plain comment transfer
+> will not fund the escrow. This server holds no keys and cannot move funds.
 
 ## Setup
 

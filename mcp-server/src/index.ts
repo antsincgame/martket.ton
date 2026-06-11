@@ -21,6 +21,11 @@ import { z } from 'zod';
 
 const BASE = process.env.TONFORGE_API ?? 'https://tonforge.org/api/v1/agent';
 const TOKEN = process.env.TONFORGE_AGENT_TOKEN;
+// Buyer tools use a separate buyer token (scope orders:buy, issued by the
+// accountable human via POST /api/v1/commerce/buyer-agent-tokens and bound to
+// the wallet the agent PAYS from — e.g. a TON Agentic Wallet). Falls back to
+// TONFORGE_AGENT_TOKEN so a single dual-scope token also works.
+const BUYER_TOKEN = process.env.TONFORGE_BUYER_TOKEN ?? TOKEN;
 // A hung connection must fail the tool call, not hang the agent's turn forever.
 const FETCH_TIMEOUT_MS = 30_000;
 // Site origin (e.g. https://tonforge.org) for the PUBLIC discovery endpoints,
@@ -47,8 +52,8 @@ interface ApiError {
  * route-level (`{ error, code }`) and middleware (`{ message, code }`) error
  * shapes as a single thrown Error the tool layer turns into an isError result.
  */
-async function api(method: string, path: string, body?: unknown): Promise<unknown> {
-  if (!TOKEN) {
+async function api(method: string, path: string, body?: unknown, token: string | undefined = TOKEN): Promise<unknown> {
+  if (!token) {
     throw new Error(
       'No TONFORGE_AGENT_TOKEN configured. This is a seller tool — set a tfa_ token issued by a verified seller. ' +
         'Public discovery tools (search_products, get_product, list_offers) work without one.',
@@ -57,7 +62,7 @@ async function api(method: string, path: string, body?: unknown): Promise<unknow
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${TOKEN}`,
+      Authorization: `Bearer ${token}`,
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -107,6 +112,17 @@ async function publicGet(path: string): Promise<unknown> {
   }
   const obj = json as { data?: unknown };
   return obj.data ?? json;
+}
+
+/** Buyer-surface call: same Agent API, authenticated with the BUYER token. */
+async function buyerApi(method: string, path: string, body?: unknown): Promise<unknown> {
+  if (!BUYER_TOKEN) {
+    throw new Error(
+      'No TONFORGE_BUYER_TOKEN configured. Buying needs a buyer token (scope orders:buy) bound to the ' +
+        'wallet this agent pays from — the accountable human issues it via POST /api/v1/commerce/buyer-agent-tokens.',
+    );
+  }
+  return api(method, path, body, BUYER_TOKEN);
 }
 
 type ToolResult = {
@@ -438,11 +454,88 @@ server.tool(
   },
 );
 
+// ── Buyer tools (orders:buy token) — agentic purchasing ─────────────────────
+//
+// The agent pays from ITS OWN TON wallet (e.g. a TON Agentic Wallet,
+// https://agents.ton.org/ — operator key held by the agent, owner key by the
+// human). This MCP server never holds keys or moves funds: create_order
+// returns exact payment instructions, the agent executes them with its wallet
+// tooling (e.g. @ton/mcp), then confirms here. Non-custodial on both sides.
+
+server.tool(
+  'create_order',
+  'BUY step 1: create an order for a listing (requires a buyer token; the buying wallet is bound to it). ' +
+    'Returns payment instructions: send EXACTLY payment.amountNanoton from your wallet to payment.payToAddress ' +
+    'attaching BOTH payment.stateInitBase64 and payment.payloadBase64 (a plain comment transfer will NOT fund the escrow). ' +
+    'Execute the payment with your own TON wallet tooling (e.g. a TON Agentic Wallet via @ton/mcp), then call confirm_order.',
+  {
+    listingId: z.string().describe('The listing to buy (from list_offers).'),
+  },
+  async ({ listingId }) => {
+    try {
+      return ok(await buyerApi('POST', '/buyer/orders', { listingId }));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'confirm_order',
+  'BUY step 2: after paying the escrow, verify the payment on-chain. On success the license NFT mint is queued ' +
+    '(mintPending: true) — poll get_order until state is paid/fulfilled. Idempotent; safe to retry while the escrow funds.',
+  {
+    orderId: z.string().describe('Order id returned by create_order.'),
+  },
+  async ({ orderId }) => {
+    try {
+      return ok(await buyerApi('POST', `/buyer/orders/${encodeURIComponent(orderId)}/confirm`));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'get_order',
+  "Poll your own order: state (pending_payment → paid → fulfilled), escrow address, license NFT address, and the " +
+    'delivery payload once paid. Only orders belonging to the buyer token\'s wallet are readable.',
+  {
+    orderId: z.string().describe('Order id.'),
+  },
+  async ({ orderId }) => {
+    try {
+      return ok(await buyerApi('GET', `/buyer/orders/${encodeURIComponent(orderId)}`));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'download_purchase',
+  'BUY step 3: get a short-lived signed download URL (+ expected sha256) for a listing you bought. Gated on the ' +
+    'minted license NFT and a clean antivirus verdict; ≤20 URLs/day per purchase. Verify the sha256 after download.',
+  {
+    listingId: z.string().describe('The listing id you purchased.'),
+  },
+  async ({ listingId }) => {
+    try {
+      return ok(await buyerApi('GET', `/buyer/listings/${encodeURIComponent(listingId)}/download`));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   // MCP speaks JSON-RPC on stdout; logs must go to stderr.
-  console.error(`tonforge-agent MCP server ready (base=${BASE}, seller tools ${TOKEN ? 'enabled' : 'disabled'})`);
+  console.error(
+    `tonforge-agent MCP server ready (base=${BASE}, seller tools ${TOKEN ? 'enabled' : 'disabled'}, ` +
+      `buyer tools ${BUYER_TOKEN ? 'enabled' : 'disabled'})`,
+  );
 }
 
 main().catch((e) => {

@@ -1,24 +1,17 @@
 import express, { type Request, type Response } from 'express';
-import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import {
-  DATABASE_ID, COL_LISTINGS, COL_LISTING_SECRETS,
-  COL_ORDERS, COL_ENTITLEMENTS, BUCKET_ASSETS,
-  ORDER_STATE, LISTING_STATUS, CURRENCY, DEFAULT_PLATFORM_FEE_BPS, LICENSE_STATE,
+  DATABASE_ID, COL_LISTINGS, COL_ORDERS, COL_ENTITLEMENTS,
+  ORDER_STATE, LICENSE_STATE,
 } from './constants.js';
-import { databases, ID, Query } from './appwrite.js';
-import { computeOrderAmounts, nanoRawToTonHuman, effectiveSellerPriceRaw } from './money.js';
-import { verifyPaymentByMemo, verifyPaymentToEscrow, addressesEqual } from './tonVerify.js';
-import { computeEscrow, GAS_BREAKDOWN, buildRefundIfNotMintedPayload, verifyEscrowFunded } from './escrow.js';
+import { databases, Query } from './appwrite.js';
+import { addressesEqual } from './tonVerify.js';
+import { buildRefundIfNotMintedPayload } from './escrow.js';
 import { findLicenseByOrderId, updateLicense } from './licenseRepository.js';
 import { decideRefundClaim, REFUND_CLAIM_GAS_NANO } from './refundClaim.js';
-import { screenWallet } from '../sanctions/screen.js';
-import { checkWalletAml } from '../aml/amlbot.js';
 import { resolveNetworkConfig } from '../config/network.js';
-import { licenseMetadataBaseUrl } from '../config/metadata.js';
 import { writeAudit } from './audit.js';
 import { logger } from '../logger.js';
-import { recordLedgerEntry } from '../core/ledgerService.js';
 import { apiRequireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
@@ -26,8 +19,7 @@ import { createOrderSchema, confirmOrderSchema } from './validation.js';
 import { appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
 import { resolveProfile } from '../middleware/auth.js';
 import { insertPurchase } from '../core/purchaseRepository.js';
-import { requireBuyerKycLite } from './handlers/requireBuyerKycLite.js';
-import { ensureLicenseForOrder, ListingNoCollectionError } from './handlers/ensureLicenseForOrder.js';
+import { createOrderCore, confirmOrderCore } from './orderCore.js';
 
 
 const router = express.Router();
@@ -49,187 +41,21 @@ const limitCreateOrder = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, standard
  * мог автономно обработать платёж.
  */
 router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOrderSchema), async (req: Request, res: Response) => {
-  try {
-    const { listingId, buyerWallet } = req.body as { listingId: string; buyerWallet: string };
-    const owner = await requireWalletOwner(req, res, buyerWallet);
-    if (!owner) return;
-    const screen = screenWallet(buyerWallet);
-    if (!screen.ok) {
-      res.status(451).json({
-        error: 'Wallet is on a sanctions list and cannot transact.',
-        code: screen.reason || 'SANCTIONED',
-      });
-      return;
-    }
-
-    const kycCheck = await requireBuyerKycLite(buyerWallet);
-    if (!kycCheck.ok) {
-      res.status(kycCheck.status).json({ error: kycCheck.message, code: kycCheck.code });
-      return;
-    }
-
-    // AML-скоринг покупателя (AMLBot) — после KYC-гейта, чтобы не тратить
-    // платные проверки на тех, кто всё равно не может покупать. Fail-open:
-    // блокирует только подтверждённый высокий риск (см. backend/aml/amlbot.ts).
-    const aml = await checkWalletAml(buyerWallet);
-    if (!aml.ok) {
-      await writeAudit(buyerWallet, 'aml_block', 'listing', listingId, {
-        buyerWallet,
-        riskScore: aml.riskScore,
-        stage: 'order_create',
-      });
-      res.status(451).json({
-        error: 'Wallet failed AML risk screening and cannot transact.',
-        code: 'AML_HIGH_RISK',
-        riskScore: aml.riskScore,
-      });
-      return;
-    }
-
-    const netCfg = resolveNetworkConfig(req);
-    const treasury = netCfg.treasuryAddress;
-    if (!treasury) {
-      res.status(503).json({ error: 'TREASURY_WALLET_ADDRESS not configured', code: 'CONFIG' });
-      return;
-    }
-
-    const db = databases();
-    const listing = await db.getDocument(DATABASE_ID, COL_LISTINGS, listingId);
-    if (listing['status'] !== LISTING_STATUS.ACTIVE) {
-      res.status(400).json({ error: 'Listing is not active', code: 'LISTING_INACTIVE' });
-      return;
-    }
-
-    // Seller's ask — the SALE price when a discount is active, else the list
-    // price. This single read drives amounts, the deterministic escrow address,
-    // and order.amountRaw, so the whole escrow/confirm chain stays consistent.
-    const sellerPriceRaw = effectiveSellerPriceRaw(
-      listing as { priceAmountRaw?: string; sale_price_amount_raw?: string | null; sale_ends_at?: string | null },
-    );
-    // Platform fee is a PLATFORM policy, never below the configured minimum.
-    // The seller-supplied platformFeeBps (validated 0..10000) could otherwise be
-    // set to 0 to pay zero commission — clamp it up to DEFAULT_PLATFORM_FEE_BPS
-    // here, at the authoritative money point, regardless of what's stored.
-    const storedFeeBps = (listing['platformFeeBps'] as number) ?? DEFAULT_PLATFORM_FEE_BPS;
-    const feeBps = Math.max(storedFeeBps, DEFAULT_PLATFORM_FEE_BPS);
-    const amounts = computeOrderAmounts(sellerPriceRaw, feeBps);       // { seller, fee, total }
-    const sellerWallet = listing['sellerWallet'] as string;
-
-    const memo = `cm_${crypto.randomBytes(12).toString('hex')}`;
-
-    // Per-seller collection (Phase 1): build the escrow around the LISTING's own
-    // AppCollection so each seller's licenses are minted into their own
-    // collection. The escrow, the license record (ensureLicenseForOrder) and the
-    // mint (tonforge/mintWorker) MUST all reference the SAME collection. We use
-    // the listing's collection_address as the single source of truth — NO global
-    // fallback: ensureLicenseForOrder reads only the listing's collection and
-    // throws on empty, so a global-backed escrow would be fundable-but-unmintable
-    // (buyer pays, no NFT ever mints). Refuse such orders up front instead.
-    const collectionAddress = (listing['collection_address'] as string | undefined)?.trim() || '';
-    if (!collectionAddress) {
-      res.status(400).json({
-        error: 'Listing has no NFT collection configured; cannot create an order.',
-        code: 'LISTING_NO_COLLECTION',
-      });
-      return;
-    }
-
-    // Temp placeholder orderId для licenseContentUri — дальше заменится на настоящий $id.
-    // Но ID.unique() даёт нам id заранее, используем его сразу.
-    const orderId = ID.unique();
-    const licenseContentUri = (listing['licenseContentUri'] as string) ||
-      `${licenseMetadataBaseUrl()}/${orderId}.json`;
-
-    let escrowData: Awaited<ReturnType<typeof computeEscrow>> | null = null;
-    try {
-      escrowData = await computeEscrow({
-        orderId,
-        buyer: buyerWallet,
-        seller: sellerWallet,
-        treasury,
-        amountNano: amounts.totalAmountNano,
-        sellerAmountNano: amounts.sellerAmountNano,
-        feeNano: amounts.feeNano,
-        trialWindowSec: netCfg.trialWindowSec,
-        collectionAddress,
-        transferLimit: 0,  // soulbound
-        licenseContentUri,
-        network: netCfg.network,
-      });
-    } catch (err) {
-      logger.warn('[commerce] escrow compute failed:', err instanceof Error ? err.message : err);
-    }
-
-    // B-3 fix: a configured collection means this is a v4 escrow order. If
-    // computeEscrow failed, we must NOT fall through to the legacy treasury-by-
-    // memo path on confirm — that path routes the buyer's FULL payment (seller +
-    // fee) to treasury with no on-chain split and no mechanism to ever pay the
-    // seller. Refuse the order instead of silently misrouting the seller's funds.
-    if (!escrowData) {
-      res.status(503).json({
-        error: 'Could not prepare the on-chain escrow for this order. Please retry shortly.',
-        code: 'ESCROW_COMPUTE_FAILED',
-      });
-      return;
-    }
-
-    const order = await db.createDocument(DATABASE_ID, COL_ORDERS, orderId, {
-      listingId,
-      buyerWallet,
-      sellerWallet,                                 // v4: нужен worker'у для MintLicense
-      amountRaw: amounts.totalAmountNano,           // Что buyer платит (seller + fee)
-      sellerNetAmountRaw: amounts.sellerAmountNano, // Что получит seller
-      currency: listing['currency'],
-      memo,
-      tonTxHash: '',
-      state: ORDER_STATE.PENDING_PAYMENT,
-      listingSnapshotTitle: listing['title'],
-      // v4 escrow tracking поля (нужны mint worker'у)
-      escrowAddress: escrowData.escrowAddress,
-      licenseContentUri,
-      mintAttempts: 0,
-      licenseAddress: '',
-    });
-
-    await writeAudit(buyerWallet, 'order_create', 'order', order.$id, { listingId, memo });
-    res.json({
-      data: {
-        orderId: order.$id,
-        memo,
-        amountRaw: amounts.totalAmountNano,
-        amountTonHuman: listing['currency'] === CURRENCY.TON
-          ? nanoRawToTonHuman(amounts.totalAmountNano)
-          : undefined,
-        sellerAmountRaw: amounts.sellerAmountNano,
-        sellerAmountTonHuman: listing['currency'] === CURRENCY.TON
-          ? nanoRawToTonHuman(amounts.sellerAmountNano)
-          : undefined,
-        feeAmountRaw: amounts.feeNano,
-        feeAmountTonHuman: listing['currency'] === CURRENCY.TON
-          ? nanoRawToTonHuman(amounts.feeNano)
-          : undefined,
-        feeBps: amounts.feeBpsApplied,
-        decimals: listing['decimals'],
-        currency: listing['currency'],
-        treasuryAddress: treasury,
-        state: order['state'],
-        escrow: escrowData ? {
-          address: escrowData.escrowAddress,
-          stateInit: escrowData.stateInitBase64,
-          payload: escrowData.payloadBase64,
-          totalAmountRaw: escrowData.totalAmountRaw,
-          trialWindowSec: netCfg.trialWindowSec,
-        } : null,
-        gasBreakdown: GAS_BREAKDOWN,
-        nft: { willMint: Boolean(escrowData), collectionAddress },
-      },
-    });
-  } catch (e: unknown) {
-    const code = appwriteCodeOrZero(e);
-    if (code === 404) { res.status(404).json({ error: 'Listing not found', code: 'NOT_FOUND' }); return; }
-    logger.error('[commerce] order create:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Order creation failed', code: 'ORDER_CREATE' });
+  const { listingId, buyerWallet } = req.body as { listingId: string; buyerWallet: string };
+  const owner = await requireWalletOwner(req, res, buyerWallet);
+  if (!owner) return;
+  const result = await createOrderCore({
+    listingId,
+    buyerWallet,
+    netCfg: resolveNetworkConfig(req),
+    buyerIp: req.ip ?? null,
+    kycLite: 'wallet',
+  });
+  if (!result.ok) {
+    res.status(result.status).json(result.body);
+    return;
   }
+  res.json({ data: result.data });
 });
 
 /**
@@ -246,228 +72,24 @@ router.post('/orders', apiRequireAuth(), limitCreateOrder, validateBody(createOr
  * В v4 пути entitlement создаётся mint worker'ом после успешного mint.
  */
 router.post('/orders/:id/confirm', apiRequireAuth(), limitConfirm, validateBody(confirmOrderSchema), async (req: Request, res: Response) => {
-  try {
-    const orderId = str(req.params.id);
-    const { buyerWallet } = req.body as { txHash: string; buyerWallet: string };
-    const owner = await requireWalletOwner(req, res, buyerWallet);
-    if (!owner) return;
-    const netCfg = resolveNetworkConfig(req);
-    const treasury = netCfg.treasuryAddress;
-    if (!treasury) { res.status(503).json({ error: 'Treasury not configured', code: 'CONFIG' }); return; }
-    const db = databases();
-    const order = await db.getDocument(DATABASE_ID, COL_ORDERS, orderId);
-    if (!addressesEqual(order['buyerWallet'] as string, buyerWallet)) {
-      res.status(403).json({ error: 'Wallet does not match the order', code: 'WALLET_MISMATCH' }); return;
-    }
-    if (order['state'] !== ORDER_STATE.PENDING_PAYMENT) {
-      res.json({ data: { state: order['state'], message: 'Order already processed' } }); return;
-    }
-
-    const payScreen = screenWallet(buyerWallet);
-    if (!payScreen.ok) {
-      res.status(451).json({
-        error: 'Wallet is on a sanctions list and cannot transact.',
-        code: payScreen.reason || 'SANCTIONED',
-      });
-      return;
-    }
-
-    // Повторный AML-гейт на момент оплаты: между созданием заказа и оплатой
-    // вердикт мог измениться. Из-за кэша (aml_checks) это почти всегда
-    // бесплатное чтение, а не вторая платная проверка.
-    const payAml = await checkWalletAml(buyerWallet);
-    if (!payAml.ok) {
-      await writeAudit(buyerWallet, 'aml_block', 'order', orderId, {
-        buyerWallet,
-        riskScore: payAml.riskScore,
-        stage: 'order_confirm',
-      });
-      res.status(451).json({
-        error: 'Wallet failed AML risk screening and cannot transact.',
-        code: 'AML_HIGH_RISK',
-        riskScore: payAml.riskScore,
-      });
-      return;
-    }
-
-    const escrowAddress = (order['escrowAddress'] as string) || '';
-    const apiOverrides = { base: netCfg.tonapiBase, key: netCfg.tonapiKey };
-
-    // v4 path: verify payment to escrow address
-    if (escrowAddress) {
-      const check = await verifyPaymentToEscrow(
-        escrowAddress,
-        order['buyerWallet'] as string,
-        order['amountRaw'] as string,
-        apiOverrides,
-      );
-      if (!check.ok) {
-        res.status(400).json({
-          error: 'Escrow payment not verified',
-          code: 'PAYMENT_VERIFY_FAILED',
-          reason: check.reason || 'UNKNOWN',
-          details: check,
-        });
-        return;
-      }
-
-      // H-4: verifyPaymentToEscrow only proves SOME buyer→escrow tx with
-      // value >= amount landed; it does NOT prove the escrow contract reached
-      // FUNDED (a tx with no/invalid PayEscrow body, or a bounce, leaves state
-      // INIT). Minting an NFT against a non-FUNDED escrow gives the buyer a
-      // license the escrow can never pay the seller for. Require state==FUNDED
-      // on-chain before recording the funding / creating the license.
-      const funded = await verifyEscrowFunded(escrowAddress);
-      if (!funded.ok) {
-        res.status(409).json({
-          error: 'Escrow is not in FUNDED state on-chain yet',
-          code: 'ESCROW_NOT_FUNDED',
-          reason: funded.reason || 'UNKNOWN',
-          state: funded.state,
-        });
-        return;
-      }
-
-      const realTxHash = check.txHash || '';
-      // M-6: confirm is idempotent for the ledger. The order intentionally stays
-      // PENDING_PAYMENT (the mint worker picks it up), so a repeated confirm
-      // re-enters this block — record escrow_fund only on the FIRST confirm,
-      // detected by an empty stored tonTxHash, to avoid duplicate ledger rows.
-      const alreadyConfirmed = Boolean((order['tonTxHash'] as string | undefined)?.trim());
-
-      // НЕ переводим state в PAID здесь! Mint worker фильтрует по
-      // state == PENDING_PAYMENT для автоматической обработки. После успешного
-      // mint worker сам выставит state=PAID и создаст entitlement.
-      // Здесь только записываем tonTxHash (для аудита и отображения в UI).
-      const updated = await db.updateDocument(DATABASE_ID, COL_ORDERS, orderId, {
-        tonTxHash: realTxHash,
-      });
-      await writeAudit(buyerWallet, 'order_payment_verified', 'order', orderId, {
-        txHash: realTxHash,
-        flow: 'v4_escrow',
-        escrowAddress,
-      });
-
-      if (!alreadyConfirmed) {
-        const amountRaw = (order['amountRaw'] as string) || '0';
-        const sellerNetRaw = (order['sellerNetAmountRaw'] as string) || '0';
-        let platformFeeTonRaw = '0';
-        try {
-          const diff = BigInt(amountRaw) - BigInt(sellerNetRaw);
-          platformFeeTonRaw = diff > 0n ? String(diff) : '0';
-        } catch {
-          platformFeeTonRaw = '0';
-        }
-        recordLedgerEntry({
-          entryType: 'escrow_fund',
-          refType: 'order',
-          refId: orderId,
-          buyerWallet,
-          sellerWallet: (order['sellerWallet'] as string) ?? null,
-          amountUsd: 0,
-          amountTonRaw: amountRaw,
-          platformFeeTonRaw,
-          txHash: realTxHash,
-          escrowAddress,
-          productName: (order['listingSnapshotTitle'] as string) ?? '',
-          listingId: (order['listingId'] as string) ?? null,
-          buyerIp: req.ip ?? null,
-        }).catch((err) => logger.warn('[commerce] ledger escrow_fund:', err));
-      }
-
-      const trialWindowSec = parseInt(process.env.TRIAL_WINDOW_SEC || '259200', 10);
-      const trialEndsAt = new Date(Date.now() + trialWindowSec * 1000).toISOString();
-      const listingForLicense = await db.getDocument(DATABASE_ID, COL_LISTINGS, order['listingId'] as string).catch(() => null);
-      if (listingForLicense) {
-        ensureLicenseForOrder(
-          { $id: orderId, listingId: order['listingId'] as string, buyerWallet, escrowAddress },
-          {
-            collection_address:
-              (listingForLicense['collection_address'] as string | undefined) ||
-              (listingForLicense['collectionAddress'] as string | undefined),
-            catalogProductId: listingForLicense['catalogProductId'] as string | undefined,
-            sellerWallet: listingForLicense['sellerWallet'] as string | undefined,
-          },
-          trialEndsAt,
-        ).catch((err) => {
-          if (err instanceof ListingNoCollectionError) {
-            logger.warn(`[commerce] ensureLicense: ${err.message}`);
-          } else {
-            logger.warn('[commerce] ensureLicense failed:', err instanceof Error ? err.message : err);
-          }
-        });
-      }
-
-      res.json({
-        data: {
-          state: updated['state'],         // Останется PENDING_PAYMENT
-          orderId: updated.$id,
-          escrowAddress,
-          tonTxHash: realTxHash,
-          mintPending: true,
-        },
-      });
-      return;
-    }
-
-    // Legacy v3 path: verify payment to treasury by memo
-    const check = await verifyPaymentByMemo(treasury, {
-      buyerWallet: order['buyerWallet'] as string,
-      amountRaw: order['amountRaw'] as string,
-      memo: order['memo'] as string,
-    }, apiOverrides);
-    if (!check.ok) {
-      res.status(400).json({ error: 'Payment not verified', code: 'PAYMENT_VERIFY_FAILED', reason: check.reason || 'UNKNOWN', details: check });
-      return;
-    }
-    const realTxHash = check.txHash || '';
-
-    const { documents: existingEnt } = await db.listDocuments(DATABASE_ID, COL_ENTITLEMENTS, [
-      Query.equal('orderId', order.$id), Query.limit(1),
-    ]);
-    if (existingEnt.length > 0) {
-      const updated = await db.updateDocument(DATABASE_ID, COL_ORDERS, orderId, { state: ORDER_STATE.PAID, tonTxHash: realTxHash });
-      res.json({ data: { state: updated['state'], orderId: updated.$id, entitlement: { deliveryPayload: existingEnt[0]!['deliveryPayload'] } } });
-      return;
-    }
-    const listingRow = await db.getDocument(DATABASE_ID, COL_LISTINGS, order['listingId'] as string);
-    const { documents: secrets } = await db.listDocuments(DATABASE_ID, COL_LISTING_SECRETS, [
-      Query.equal('listingId', order['listingId'] as string), Query.limit(1),
-    ]);
-    let payload = (secrets[0]?.['deliveryPayload'] as string) || 'Thank you for your purchase. Contact the seller via the listing page.';
-    if (listingRow['assetFileId']) {
-      payload += `\n\n[File in Appwrite Storage: bucket ${BUCKET_ASSETS}, fileId ${listingRow['assetFileId']}]`;
-    }
-    await db.createDocument(DATABASE_ID, COL_ENTITLEMENTS, ID.unique(), {
-      orderId: order.$id, buyerWallet: order['buyerWallet'],
-      listingId: order['listingId'], deliveryPayload: payload,
-    });
-    const updated = await db.updateDocument(DATABASE_ID, COL_ORDERS, orderId, { state: ORDER_STATE.PAID, tonTxHash: realTxHash });
-    await writeAudit(buyerWallet, 'order_paid', 'order', orderId, { txHash: realTxHash, flow: 'v3_legacy' });
-
-    recordLedgerEntry({
-      entryType: 'escrow_release',
-      refType: 'order',
-      refId: orderId,
-      buyerWallet,
-      amountTonRaw: (order['amountRaw'] as string) ?? '0',
-      txHash: realTxHash,
-      productName: (listingRow['title'] as string) ?? '',
-      listingId: (order['listingId'] as string) ?? null,
-      buyerIp: req.ip ?? null,
-    }).catch((err) => logger.warn('[commerce] ledger v3 escrow_release:', err));
-
-    bridgePurchaseToLibrary(req, listingRow, realTxHash).catch((err) =>
-      logger.warn('[commerce] bridge purchase:', err instanceof Error ? err.message : err),
-    );
-
-    res.json({ data: { state: updated['state'], orderId: updated.$id, entitlement: { deliveryPayload: payload } } });
-  } catch (e: unknown) {
-    const code = appwriteCodeOrZero(e);
-    if (code === 404) { res.status(404).json({ error: 'Order not found', code: 'NOT_FOUND' }); return; }
-    logger.error('[commerce] order confirm:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Order confirmation failed', code: 'ORDER_CONFIRM' });
+  const orderId = str(req.params.id);
+  const { buyerWallet } = req.body as { txHash: string; buyerWallet: string };
+  const owner = await requireWalletOwner(req, res, buyerWallet);
+  if (!owner) return;
+  const result = await confirmOrderCore({
+    orderId,
+    buyerWallet,
+    netCfg: resolveNetworkConfig(req),
+    buyerIp: req.ip ?? null,
+    // Legacy v3 fulfilment bridges the purchase into the session library —
+    // needs the caller's session profile, so only this route supplies it.
+    bridgePurchase: (listingRow, txHash) => bridgePurchaseToLibrary(req, listingRow, txHash),
+  });
+  if (!result.ok) {
+    res.status(result.status).json(result.body);
+    return;
   }
+  res.json({ data: result.data });
 });
 
 router.get('/sellers/:wallet/orders', apiRequireAuth(), async (req: Request, res: Response) => {

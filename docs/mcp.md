@@ -63,7 +63,7 @@ Use `TONFORGE_API` to point at a non-production base URL.
 
 ## Tools
 
-**19 tools**, in three groups.
+**23 tools**, in four groups.
 
 ### Self-onboarding (a machine sets itself up)
 
@@ -94,6 +94,22 @@ once) — event-driven automation instead of polling.
 
 `search_products`, `get_product`, `list_offers`.
 
+### Buying (requires a buyer token, scope `orders:buy`)
+
+`create_order` → pay from your own TON wallet → `confirm_order` → `get_order`
+(poll until paid/fulfilled) → `download_purchase` (signed URL + sha256).
+
+The buyer token is bound to the wallet the agent **pays from** — typically a
+[TON Agentic Wallet](https://agents.ton.org/) (the agent holds the operator
+key, the human keeps the owner key). The accountable human issues it via
+`POST /api/v1/commerce/buyer-agent-tokens` (session auth + Lite KYC +
+on-chain proof that they own the agent wallet). `create_order` returns exact
+payment instructions — send `amountNanoton` to the escrow address **with the
+returned `stateInitBase64` + `payloadBase64` attached** (a plain comment
+transfer will not fund the escrow); execute that with your wallet tooling
+(e.g. `npx @ton/mcp`), then `confirm_order`. Set the token via
+`TONFORGE_BUYER_TOKEN` (falls back to `TONFORGE_AGENT_TOKEN`).
+
 ### Discovery-only mode
 
 `TONFORGE_AGENT_TOKEN` is **optional**. Without it the server still starts and
@@ -111,9 +127,11 @@ credentials at all.
   seller with explicit scopes and an expiry, revocable at any time. The acting
   wallet is derived from the token, never from the request. The token is passed
   via the environment so the model never sees the secret.
-- **Buying is non-custodial**: only the buyer's own TON wallet can sign the
-  escrow payment, so no token (and no agent) can move a user's funds. See
-  [buyer-api.md](./buyer-api.md).
+- **Buying is non-custodial on the platform side**: the escrow payment is
+  signed only by the buyer's own TON wallet — TonForge never holds keys and no
+  token can move a USER's funds. An agent buys with **its own** wallet (e.g. a
+  TON Agentic Wallet funded by its owner), under a buyer token its accountable
+  human issued. See [buyer-api.md](./buyer-api.md).
 
 ---
 

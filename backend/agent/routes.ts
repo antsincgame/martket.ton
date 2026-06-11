@@ -46,6 +46,8 @@ import { saveSellerStorage } from '../commerce/storageService.js';
 import { loadSellerAnalytics } from '../commerce/sellerAnalytics.js';
 import { setSellerWebhook, clearSellerWebhook, validateWebhookUrl } from '../commerce/webhooks.js';
 
+import buyerRoutes from './buyerRoutes.js';
+
 const router = express.Router();
 
 /**
@@ -61,6 +63,10 @@ const agentLimiter = rateLimit({
   legacyHeaders: false,
 });
 router.use(agentLimiter);
+
+// Buyer-side surface (orders:buy tokens): create/confirm/poll own orders and
+// download purchased goods — see buyerRoutes.ts for the accountability model.
+router.use('/buyer', buyerRoutes);
 
 router.get('/me', apiRequireAgentToken(), (req: Request, res: Response) => {
   const a = req.agent!;

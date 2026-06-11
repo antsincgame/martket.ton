@@ -23,6 +23,10 @@ export const ALL_SCOPES = [
   // pipeline as human-created products and stay unpublished until a moderator
   // approves them. Requires KYC like every other write scope.
   'products:write',
+  // Buyer-side agent commerce: create/confirm/read own orders and download
+  // purchased goods for the token's wallet. Issued via the buyer-token route
+  // (owner KYC-lite + wallet-ownership proof at issuance), NOT the seller one.
+  'orders:buy',
 ] as const;
 
 export type AgentScope = (typeof ALL_SCOPES)[number];
@@ -34,6 +38,7 @@ const READ_IMPLIED_BY: Record<AgentScope, AgentScope[]> = {
   'distribution:write': ['listings:read'],
   'instructions:read': [],
   'products:write': [],
+  'orders:buy': [],
 };
 
 export function parseScopes(csv: string | undefined | null): AgentScope[] {

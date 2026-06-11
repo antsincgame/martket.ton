@@ -226,10 +226,57 @@ Runnable clients in TypeScript and Python live in
 
 ---
 
-## 8. Security model in one paragraph
+## 8. Agentic buying — `/api/v1/agent/buyer/*` (scope `orders:buy`)
+
+An agent can BUY end-to-end with its **own** TON wallet — typically a
+[TON Agentic Wallet](https://agents.ton.org/): the agent holds the operator
+key, its human keeps the owner key and funds it ("fund what you risk").
+
+**Accountability gate (human, once):** the owner — session-authenticated, with
+a ton_proof-bound wallet and Lite KYC — issues a buyer token:
+
+```
+POST /api/v1/commerce/buyer-agent-tokens
+{ "agentWallet": "…", "name": "shopping-agent", "ttlDays": 90 }
+```
+
+Issuance verifies on-chain (TEP-85 `get_nft_data`) that the agent wallet's
+owner **is** the caller's verified wallet — so nobody can bind a stranger's
+wallet and download its purchases. The returned `tfa_…` token carries only
+`orders:buy` and is bound to the wallet the agent pays from.
+(`DELETE /buyer-agent-tokens/{id}` revokes, same ownership proof.)
+
+**The purchase loop (agent, autonomous):**
+
+- **`POST /buyer/orders`** `{ listingId }` — creates the order for the token's
+  wallet. The response's `payment` object is machine-actionable: send EXACTLY
+  `amountNanoton` from `payFromWallet` to `payToAddress` with **both**
+  `stateInitBase64` and `payloadBase64` attached (a plain comment transfer
+  leaves the escrow undeployed). Execute with your wallet tooling, e.g.
+  `npx @ton/mcp`.
+- **`POST /buyer/orders/{id}/confirm`** — verifies the payment + escrow FUNDED
+  state on-chain; queues the license NFT mint. Idempotent — retry while funds
+  propagate.
+- **`GET /buyer/orders/{id}`** — poll `state`
+  (`pending_payment → paid → fulfilled`), `licenseAddress`, and the delivery
+  payload once paid.
+- **`GET /buyer/listings/{id}/download`** — short-lived signed URL + expected
+  sha256; gated on the minted license NFT and a clean antivirus verdict,
+  ≤20/day per purchase.
+
+Sanctions (451) and AML re-screen the **paying** wallet on order create and
+confirm. The per-call seller-KYC check does not apply here — the accountable
+human was verified at issuance. MCP tools: `create_order`, `confirm_order`,
+`get_order`, `download_purchase` (env `TONFORGE_BUYER_TOKEN`).
+
+---
+
+## 9. Security model in one paragraph
 
 A seller proves wallet ownership + KYC, then mints a scoped, expiring PAT whose
 plaintext is shown once and stored only as a hash. Agents present that token;
 the server derives the acting wallet from it (never from the request), enforces
 scopes, re-screens sanctions and KYC on every call, rate-limits per token, and
 writes an audit row for every mutation. Revocation and expiry are immediate.
+Buyer tokens add a second human gate: Lite KYC plus an on-chain proof that the
+issuer owns the agent's paying wallet; the platform never holds buyer keys.
