@@ -342,7 +342,7 @@ export async function confirmOrderCore(params: ConfirmOrderParams): Promise<Orde
       if (!alreadyConfirmed) {
         const amountRaw = (order['amountRaw'] as string) || '0';
         const sellerNetRaw = (order['sellerNetAmountRaw'] as string) || '0';
-        let platformFeeTonRaw = '0';
+        let platformFeeTonRaw: string;
         try {
           const diff = BigInt(amountRaw) - BigInt(sellerNetRaw);
           platformFeeTonRaw = diff > 0n ? String(diff) : '0';
