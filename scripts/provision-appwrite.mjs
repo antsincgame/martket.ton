@@ -259,8 +259,15 @@ async function main() {
     await upsertDocument(databases, COL_PRODUCTS, id, data);
   }
   for (const row of seed.reviews) {
-    const { id, ...data } = row;
-    await upsertDocument(databases, COL_REVIEWS, id, data);
+    // Seed rows carry `date` and omit the required `reviewDate`/`helpful`
+    // attributes — inserted verbatim, createDocument throws and aborts the whole
+    // provision run. Map the shape here (seed JSON stays human-friendly).
+    const { id, date, ...data } = row;
+    await upsertDocument(databases, COL_REVIEWS, id, {
+      ...data,
+      reviewDate: row.reviewDate ?? date ?? new Date().toISOString().slice(0, 10),
+      helpful: row.helpful ?? 0,
+    });
   }
 
   console.log('[appwrite] Готово. Во фронте задайте VITE_APPWRITE_ENDPOINT и VITE_APPWRITE_PROJECT_ID.');

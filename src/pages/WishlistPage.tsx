@@ -26,6 +26,13 @@ const WishlistPage = () => {
     () => (inventory ? inventory.products.filter((p) => savedIds.has(p.id)) : []),
     [inventory, savedIds],
   );
+  // Saved ids whose product isn't in the current inventory (unpublished/removed/
+  // not yet loaded). Surface them instead of silently dropping — otherwise the
+  // heart shows "saved" on a card while this page claims the wishlist is empty.
+  const unavailableCount = useMemo(
+    () => (inventory ? [...savedIds].filter((id) => !inventory.products.some((p) => p.id === id)).length : 0),
+    [inventory, savedIds],
+  );
 
   if (!ready || !inventory) return <LoadingScreen message="Loading your wishlist..." />;
 
@@ -43,18 +50,26 @@ const WishlistPage = () => {
             Sign in
           </Link>
         </div>
-      ) : saved.length === 0 ? (
+      ) : savedIds.size === 0 ? (
         <div className="text-center py-20">
           <Heart className="w-12 h-12 text-white/10 mx-auto mb-4" />
           <p className="text-gray-400 mb-2">Your wishlist is empty.</p>
           <Link to="/" className="text-[#00F5FF] hover:underline text-sm">Browse the catalog</Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {saved.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        <>
+          {unavailableCount > 0 && (
+            <p className="text-xs text-amber-300/80 mb-4">
+              {unavailableCount} saved item{unavailableCount === 1 ? ' is' : 's are'} currently unavailable
+              (unpublished or removed) and not shown.
+            </p>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {saved.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
