@@ -37,10 +37,21 @@ const TABS: TabDef[] = [
   { id: 'most-blessed', label: 'Most Blessed', icon: Heart },
 ];
 
-function sortByTab(products: CatalogListingProduct[], tab: SortTab): CatalogListingProduct[] {
+function sortByTab(
+  products: CatalogListingProduct[],
+  tab: SortTab,
+  salesRank?: Map<string, number>,
+): CatalogListingProduct[] {
   const copy = [...products];
   switch (tab) {
     case 'trending':
+      // Prefer REAL sales rank (bestsellers) when available; fall back to the
+      // static downloads signal for products without recorded sales.
+      if (salesRank && salesRank.size > 0) {
+        const rankOf = (p: CatalogListingProduct) =>
+          salesRank.has(p.id) ? salesRank.get(p.id)! : Number.MAX_SAFE_INTEGER;
+        return copy.sort((a, b) => rankOf(a) - rankOf(b) || b.downloads - a.downloads);
+      }
       return copy.sort((a, b) => b.downloads - a.downloads);
     case 'top-rated':
       return copy.sort((a, b) => b.rating - a.rating || b.downloads - a.downloads);
@@ -66,9 +77,11 @@ function matchesSearch(product: CatalogListingProduct, q: string): boolean {
 interface StoreBrowserProps {
   products: CatalogListingProduct[];
   categories: HomeCategorySummary[];
+  /** Catalog product ids ordered by real sales (bestsellers), for the Trending tab. */
+  trendingIds?: string[];
 }
 
-const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => {
+const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories, trendingIds }) => {
   const [activeTab, setActiveTab] = useState<SortTab>('top-rated');
   const [activeCategory, setActiveCategory] = useState<HomeCategorySlug | 'all'>('all');
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
@@ -105,7 +118,11 @@ const StoreBrowser: React.FC<StoreBrowserProps> = ({ products, categories }) => 
     return list;
   }, [products, activeCategory, selectedPlatforms, selectedTags, searchQuery]);
 
-  const sorted = useMemo(() => sortByTab(filtered, activeTab), [filtered, activeTab]);
+  const salesRank = useMemo(
+    () => new Map((trendingIds ?? []).map((id, i) => [id, i])),
+    [trendingIds],
+  );
+  const sorted = useMemo(() => sortByTab(filtered, activeTab, salesRank), [filtered, activeTab, salesRank]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);

@@ -499,6 +499,29 @@ export async function submitReview(
   return result.data;
 }
 
+// ─── Bestsellers / trending ──────────────────────────────────────
+
+export interface BestsellerEntry {
+  catalogProductId: string;
+  salesCount: number;
+}
+
+export async function fetchBestsellers(
+  window: 'all' | '7d' | '30d' = 'all',
+  limit = 20,
+): Promise<BestsellerEntry[]> {
+  try {
+    const res = await fetch(
+      commerceUrl(`/bestsellers?window=${encodeURIComponent(window)}&limit=${limit}`),
+      { headers: { ...networkHeader() } },
+    );
+    const parsed = await parseJson<{ data: { bestsellers: BestsellerEntry[] } }>(res);
+    return parsed.ok ? parsed.data.data.bestsellers : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function markReviewHelpful(reviewId: string): Promise<number> {
   const result = await commerceAuthFetch<{ data: { helpful: number } }>(
     `/reviews/${encodeURIComponent(reviewId)}/helpful`,

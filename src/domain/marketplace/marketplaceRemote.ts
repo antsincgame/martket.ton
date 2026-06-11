@@ -12,6 +12,7 @@ import {
 } from './catalog';
 import { CATALOG_LISTING_PRODUCTS, getSeedDetailOrNull } from './seed';
 import { fetchPublishedCatalogProducts } from './publishedProducts';
+import { fetchBestsellers } from '../../lib/commerceApi';
 import { slugify } from '../../utils/slugify';
 import type {
   CatalogListingProduct,
@@ -26,6 +27,8 @@ export interface MarketplaceInventoryLoad {
   products: CatalogListingProduct[];
   categorySummaries: HomeCategorySummary[];
   spotlight: CatalogListingProduct[];
+  /** Products ranked by REAL sales (bestsellers). Empty when no sales yet. */
+  trending: CatalogListingProduct[];
   source: 'appwrite' | 'seed' | 'empty';
 }
 
@@ -44,15 +47,30 @@ export function getMarketplaceInventoryOnce(): Promise<MarketplaceInventoryLoad>
 function buildFromProducts(
   products: CatalogListingProduct[],
   source: 'appwrite' | 'seed',
+  trending: CatalogListingProduct[] = [],
 ): MarketplaceInventoryLoad {
   const categorySummaries = getHomeCategorySummariesForProducts(products);
   const spotlight = getHomeSpotlightProductsForProducts(products);
-  return { products, categorySummaries, spotlight, source };
+  return { products, categorySummaries, spotlight, trending, source };
+}
+
+/** Order catalog products by the real-sales bestseller ranking. */
+function buildTrending(
+  products: CatalogListingProduct[],
+  bestsellers: { catalogProductId: string }[],
+): CatalogListingProduct[] {
+  const byId = new Map(products.map((p) => [p.id, p]));
+  const out: CatalogListingProduct[] = [];
+  for (const b of bestsellers) {
+    const p = byId.get(b.catalogProductId);
+    if (p) out.push(p);
+  }
+  return out;
 }
 
 function seedFallback(): MarketplaceInventoryLoad {
   if (CATALOG_LISTING_PRODUCTS.length === 0) {
-    return { products: [], categorySummaries: [], spotlight: [], source: 'empty' };
+    return { products: [], categorySummaries: [], spotlight: [], trending: [], source: 'empty' };
   }
   logger.info('[marketplace] Using seed demo data for storefront');
   return buildFromProducts(CATALOG_LISTING_PRODUCTS, 'seed');
@@ -101,9 +119,19 @@ async function loadMarketplaceInventory(): Promise<MarketplaceInventoryLoad> {
     const live = mergeUnique(appwriteProducts, published);
     const merged = mergeWithSeed(live);
     if (merged.length === 0) {
-      return { products: [], categorySummaries: [], spotlight: [], source: 'empty' };
+      return { products: [], categorySummaries: [], spotlight: [], trending: [], source: 'empty' };
     }
-    return buildFromProducts(merged, live.length > 0 ? 'appwrite' : 'seed');
+
+    // Real bestseller ranking (fail-safe: empty trending never breaks the store).
+    let trending: CatalogListingProduct[] = [];
+    try {
+      const bestsellers = await fetchBestsellers('all', 12);
+      trending = buildTrending(merged, bestsellers);
+    } catch (err) {
+      logger.warn('[marketplace] bestsellers fetch failed (continuing):', err);
+    }
+
+    return buildFromProducts(merged, live.length > 0 ? 'appwrite' : 'seed', trending);
   } catch (err) {
     logger.warn('[marketplace] Failed to load from Appwrite, using seed fallback:', err);
     return seedFallback();

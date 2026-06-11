@@ -26,6 +26,7 @@ import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
 import { sellerRegisterSchema, createListingSchema, patchListingSchema } from './validation.js';
 import { mapListingPublic, appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
+import { loadBestsellers } from './bestsellers.js';
 import { loadSellerAnalytics } from './sellerAnalytics.js';
 import { setSellerWebhook, clearSellerWebhook, validateWebhookUrl } from './webhooks.js';
 import { buildOnboardingChecklist } from '../agent/status.js';
@@ -55,6 +56,20 @@ router.get('/operating-manual', async (_req: Request, res: Response) => {
   } catch (e: unknown) {
     logger.error('[commerce] operating-manual:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Failed to load manual', code: 'OPERATING_MANUAL' });
+  }
+});
+
+// Public bestseller / trending ranking by REAL sales (counts only, cached).
+router.get('/bestsellers', async (req: Request, res: Response) => {
+  try {
+    const windowParam = str(req.query.window as string | undefined);
+    const windowDays = windowParam === '30d' ? 30 : windowParam === '7d' ? 7 : 0;
+    const limit = Math.min(parseInt(str(req.query.limit as string | undefined) || '20', 10) || 20, 100);
+    const data = await loadBestsellers({ windowDays, limit });
+    res.json({ data: { bestsellers: data, window: windowParam || 'all' } });
+  } catch (e) {
+    logger.error('[commerce] bestsellers:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to load bestsellers', code: 'BESTSELLERS' });
   }
 });
 
