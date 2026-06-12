@@ -9,16 +9,28 @@ interface AmlConfig {
   gate: { failOpen: boolean; blocksAtOrAbove: number; note: string };
 }
 
+interface AmlCheckRow {
+  id: string;
+  wallet: string;
+  asset: string;
+  riskScore: number;
+  verdict: string;
+  checkedAt: string;
+}
+
 /**
- * AML / compliance console (MOCKUP). The AML provider is not finalised, so this
- * panel is read-only: it surfaces the live env-driven AML status, the candidate
- * provider registry, and the gate semantics. Wiring a new provider is a backend
- * change; this is the operator-facing view of where things stand.
+ * AML / compliance console. Read-only operational view: the live env-driven
+ * AML status, the provider registry (only AMLBot is wired; the rest are
+ * candidates under evaluation), the gate semantics, and — the live part — the
+ * REAL screening verdicts the order path writes to `aml_checks`. Wiring a new
+ * provider is a backend change, not done from here.
  */
 const AmlCompliancePanel: FC = () => {
   const [secretInput, setSecretInput] = useState('');
   const [secret, setSecret] = useState('');
   const [cfg, setCfg] = useState<AmlConfig | null>(null);
+  const [checks, setChecks] = useState<AmlCheckRow[] | null>(null);
+  const [checksNotProvisioned, setChecksNotProvisioned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,8 +42,15 @@ const AmlCompliancePanel: FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const r = (await adminCommerceFetch('/admin/aml-config', secret)) as { data: AmlConfig };
-      setCfg(r.data);
+      const [cfgRes, checksRes] = await Promise.all([
+        adminCommerceFetch('/admin/aml-config', secret) as Promise<{ data: AmlConfig }>,
+        adminCommerceFetch('/admin/aml-checks?limit=50', secret) as Promise<{
+          data: { checks: AmlCheckRow[]; notProvisioned?: boolean };
+        }>,
+      ]);
+      setCfg(cfgRes.data);
+      setChecks(checksRes.data.checks);
+      setChecksNotProvisioned(Boolean(checksRes.data.notProvisioned));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Loading error');
     } finally {
@@ -46,9 +65,9 @@ const AmlCompliancePanel: FC = () => {
         <div>
           <h2 className="text-lg font-semibold">AML / compliance</h2>
           <p className="text-xs text-gray-400 mt-1">
-            Wallet-origin risk scoring that complements sanctions screening. The provider is{' '}
-            <span className="text-amber-300">not finalised</span> — this console is a read-only mockup of the
-            live status and the candidates under evaluation.
+            Wallet-origin risk scoring that complements sanctions screening: live status, the
+            provider registry (final provider <span className="text-amber-300">under evaluation</span>),
+            and the real screening verdicts written by the order path.
           </p>
         </div>
       </div>
@@ -86,7 +105,7 @@ const AmlCompliancePanel: FC = () => {
           className="px-4 py-2 rounded-lg bg-ton-gradient text-sm flex items-center gap-2 disabled:opacity-50"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-          Load config
+          Load
         </button>
       </div>
 
@@ -151,6 +170,59 @@ const AmlCompliancePanel: FC = () => {
               fail-open: <span className="font-mono">{String(cfg.gate.failOpen)}</span> · blocks at score ≥{' '}
               <span className="font-mono">{cfg.gate.blocksAtOrAbove}</span>
             </p>
+          </div>
+
+          {/* Live screening verdicts (real aml_checks rows) */}
+          <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+            <h3 className="font-semibold text-sm mb-3">
+              Recent screenings{checks ? ` (${checks.length})` : ''}
+            </h3>
+            {checksNotProvisioned ? (
+              <p className="text-xs text-amber-300/90">
+                The <code className="font-mono">aml_checks</code> collection is not provisioned on this
+                deployment yet — run the commerce provisioning script, then reload.
+              </p>
+            ) : !checks || checks.length === 0 ? (
+              <p className="text-xs text-gray-500">
+                No screenings recorded yet — rows appear here as soon as buyers create orders.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase tracking-wider text-gray-500">
+                      <th className="py-1.5 pr-3">Wallet</th>
+                      <th className="py-1.5 pr-3">Score</th>
+                      <th className="py-1.5 pr-3">Verdict</th>
+                      <th className="py-1.5">Checked</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {checks.map((c) => {
+                      const blocked = cfg && c.riskScore >= cfg.gate.blocksAtOrAbove;
+                      return (
+                        <tr key={c.id} className="border-t border-white/5">
+                          <td className="py-1.5 pr-3 font-mono text-gray-300">
+                            {c.wallet.length > 16 ? `${c.wallet.slice(0, 8)}…${c.wallet.slice(-6)}` : c.wallet}
+                          </td>
+                          <td className={`py-1.5 pr-3 font-mono ${blocked ? 'text-red-300' : 'text-emerald-300'}`}>
+                            {c.riskScore < 0 ? '—' : c.riskScore}
+                          </td>
+                          <td className="py-1.5 pr-3">
+                            <span className={blocked ? 'text-red-300' : 'text-gray-300'}>
+                              {c.verdict || '—'}
+                            </span>
+                          </td>
+                          <td className="py-1.5 text-gray-500">
+                            {c.checkedAt ? new Date(c.checkedAt).toLocaleString() : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

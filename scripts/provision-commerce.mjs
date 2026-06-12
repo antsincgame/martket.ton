@@ -571,6 +571,8 @@ async function setupAmlChecks(databases) {
   );
   await waitForAttribute(databases, COL_AML_CHECKS, 'checkedAt');
   await idx(databases, COL_AML_CHECKS, 'uniq_wallet', IndexType.Unique, ['wallet']);
+  // Админ-консоль (GET /admin/aml-checks) читает последние вердикты orderDesc(checkedAt).
+  await idx(databases, COL_AML_CHECKS, 'idx_checked_at', IndexType.Key, ['checkedAt']);
 }
 
 async function ensureBucket(storage) {

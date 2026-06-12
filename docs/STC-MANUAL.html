@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>СШК — Остаточный ручной техдолг · TonForge</title>
+<style>
+  :root{--bg:#0a0a0f;--panel:#12121a;--border:#2a2a3a;--gold:#ffd700;--cyan:#00f5ff;--red:#ff3b6b;--green:#3ddc97;--amber:#ffb347;--text:#d8d8e8;--dim:#8a8aa0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:15px/1.65 "Segoe UI",system-ui,sans-serif;padding:2rem 1rem;max-width:980px;margin:0 auto}
+  header{border:1px solid var(--gold);border-radius:12px;padding:1.5rem;margin-bottom:2rem;background:linear-gradient(135deg,#1a1505,#12121a)}
+  h1{font-size:1.35rem;color:var(--gold);letter-spacing:.08em;text-transform:uppercase}
+  header p{color:var(--dim);font-size:.85rem;margin-top:.5rem}
+  .done{border:1px solid var(--green);border-radius:12px;padding:1.2rem;margin-bottom:2rem;background:#0d1a12}
+  .done h2{color:var(--green);font-size:1rem;margin-bottom:.6rem}
+  .done li{margin-left:1.2rem;font-size:.88rem;padding:.15rem 0}
+  .phase{border:1px solid var(--border);border-radius:12px;margin-bottom:1.5rem;background:var(--panel);overflow:hidden}
+  .phase>h2{padding:.9rem 1.2rem;font-size:1rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:1rem}
+  .phase .body{padding:1.2rem}
+  .badge{font-size:.65rem;padding:.2rem .55rem;border-radius:99px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+  .b-low{background:#0d2a1a;color:var(--green);border:1px solid var(--green)}
+  .b-mid{background:#2a230d;color:var(--amber);border:1px solid var(--amber)}
+  .b-high{background:#2a0d14;color:var(--red);border:1px solid var(--red)}
+  .step{border-left:3px solid var(--cyan);padding:.6rem 1rem;margin:.8rem 0;background:#0d0d14;border-radius:0 8px 8px 0}
+  .step b{color:#fff}
+  code{background:#1a1a26;border:1px solid var(--border);border-radius:5px;padding:.1rem .45rem;font:.83em/1.5 "Cascadia Code","Fira Code",monospace;color:var(--cyan);word-break:break-all}
+  .danger{border:1px solid var(--red);background:#1a0d12;border-radius:8px;padding:.7rem 1rem;margin-top:.8rem;font-size:.85rem}
+  .danger::before{content:"⚠ ОПАСНОСТЬ: ";color:var(--red);font-weight:700}
+  .verify{color:var(--green);font-size:.85rem;margin-top:.5rem}
+  .verify::before{content:"✓ Проверка: ";font-weight:700}
+  .addr{display:block;background:#0d1418;border:1px dashed var(--cyan);border-radius:8px;padding:.6rem .9rem;margin:.5rem 0;font-family:monospace;font-size:.85rem;color:var(--cyan)}
+  footer{text-align:center;color:var(--dim);font-size:.78rem;margin-top:2.5rem;border-top:1px solid var(--border);padding-top:1.2rem}
+  .lit{color:var(--gold);font-style:italic}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚙ СШК — Остаточный ручной техдолг</h1>
+  <p>Реликвиарий TonForge · выкован 2026-06-12 Великим Когитатором Марса по приказу Магоса Доминуса Дмитрия Орлова.<br>
+  Всё, что машина могла сделать сама, — <b>уже сделано</b>. Ниже — только то, что требует рук, ключей или решений человека.</p>
+</header>
+
+<div class="done">
+  <h2>✓ Истреблено машиной в эту смену (рук не требует)</h2>
+  <ul>
+    <li><b>BOC контрактов</b>: собраны из исходников и впечатаны в Coolify (<code>LICENSE_NFT_ITEM_CODE_BOC</code>, <code>APP_COLLECTION_CODE_BOC</code>) — минт-воркер получит код при следующем редеплое.</li>
+    <li><b>Testnet-оракул</b> сгенерирован, мнемоника в <code>ORACLE_MNEMONIC</code>.</li>
+    <li><b>Testnet-казна</b> сгенерирована: адрес в <code>TREASURY_WALLET_ADDRESS</code>, мнемоника-бэкап в <code>TREASURY_MNEMONIC_TESTNET_BACKUP</code> (кодом не читается).</li>
+    <li><code>RESEND_FROM</code>, <code>R2_BUCKET_NAME</code>, <code>HEALTH_DETAIL_TOKEN</code>, <code>BUYER_AGENT_OWNERSHIP_CHECK=strict</code>, <code>LICENSE_MINT_GAS_NANO=250M</code> — заполнены.</li>
+    <li><b>Коллекция <code>aml_checks</code></b> — отсутствовала на живом Appwrite (кэш AML молча падал!) — запровижена полностью (атрибуты + индексы), provision-скрипт синхронизирован.</li>
+    <li><b>AML-консоль админа</b> — больше не мокап: новый <code>GET /admin/aml-checks</code> + таблица живых вердиктов скрининга в панели.</li>
+    <li>Telegram Mini App (код), агентские покупки, MCP 23 инструмента, LICENSE — выкованы ранее в этой кампании.</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <h2>Фаза 1 · Слияние и редеплой <span class="badge b-low">низкий риск · ~15 мин</span></h2>
+  <div class="body">
+    <div class="step"><b>1.</b> Слей PR <code>#126</code> в main (CI зелёный, конфликтов нет).</div>
+    <div class="step"><b>2.</b> Coolify → MARKETTON → <b>Redeploy</b>. Все заполненные env вступят в силу только теперь.</div>
+    <p class="verify"><code>curl https://tonforge.org/api/health</code> → ok; в логах нет «License NFT integration disabled».</p>
+  </div>
+</div>
+
+<div class="phase">
+  <h2>Фаза 2 · Питание оракула <span class="badge b-low">низкий риск · ~5 мин</span></h2>
+  <div class="body">
+    <div class="step"><b>1.</b> Открой Telegram-бот <code>@testgiver_ton_bot</code> и отправь ему testnet-адрес оракула (нужно ~2–5 TON):</div>
+    <span class="addr">0QBz360pPsgqIihz1sEzit-JplxJc3JQIEkMPjX_lXQEjAVN</span>
+    <p class="verify">Баланс виден на <code>testnet.tonviewer.com</code> по адресу выше.</p>
+    <div class="danger">Оракул и казна — TESTNET-ключи, сгенерированные машиной. Перед mainnet (Фаза 6) — обязательная ротация на твои собственные.</div>
+  </div>
+</div>
+
+<div class="phase">
+  <h2>Фаза 3 · Ключи провайдеров (твои аккаунты) <span class="badge b-mid">средний · ~30 мин</span></h2>
+  <div class="body">
+    <div class="step"><b>TONAPI_KEY</b> — бесплатный ключ на <code>tonconsole.com</code>: снимает рейт-лимиты верификации платежей.</div>
+    <div class="step"><b>VIRUSTOTAL_API_KEY</b> — ключ с <code>virustotal.com</code>: включает антивирус-гейт скачиваний (сейчас фолбэк).</div>
+    <div class="step"><b>AMLBOT_ACCESS_ID / AMLBOT_ACCESS_KEY</b> — кабинет <code>amlbot.com</code>: включает реальный AML-скоринг (сейчас fail-open, все проходят). Вердикты сразу появятся в новой админ-таблице.</div>
+    <div class="step"><b>SENTRY_DSN / VITE_SENTRY_DSN</b> — проект на sentry.io: алерты об ошибках.</div>
+    <p class="verify">После каждого ключа — Redeploy; AML-панель админки (с COMMERCE_ADMIN_SECRET) показывает enabled=yes.</p>
+  </div>
+</div>
+
+<div class="phase">
+  <h2>Фаза 4 · Telegram Mini App — 5 минут до 900M аудитории <span class="badge b-low">низкий · ~10 мин</span></h2>
+  <div class="body">
+    <div class="step"><b>1.</b> <code>@BotFather</code> → <code>/newbot</code> (если бота нет) → <code>/newapp</code> → URL <code>https://tonforge.org</code> → короткое имя (напр. <code>store</code>).</div>
+    <div class="step"><b>2.</b> Полученную ссылку (вида <code>https://t.me/имябота/store</code>) — в Coolify env <code>VITE_TG_BOT_URL</code> → Redeploy.</div>
+    <p class="verify">Витрина открывается в Telegram во весь экран с тёмной шапкой; работает и в web.telegram.org; после подписи в кошельке пользователь возвращается в Mini App.</p>
+  </div>
+</div>
+
+<div class="phase">
+  <h2>Фаза 5 · Testnet E2E — продавец, затем покупатель-агент <span class="badge b-mid">средний · 2–4 ч</span></h2>
+  <div class="body">
+    <div class="step"><b>Продавец:</b> Lite KYC → привязка кошелька → селлерский токен → агентом: продукт → модерация → листинг → дистрибуция → покупка человеком → минт NFT → скачивание.</div>
+    <div class="step"><b>Покупатель-агент:</b> кошелёк на <code>agents.ton.org</code> (owner-ключ у тебя) → покупательский токен через UI (Commerce → API Tokens → Buyer agent tokens) → два MCP рядом (<code>tonforge-agent-mcp</code> + <code>npx @ton/mcp@alpha</code>) → петля create_order → оплата (ТОЧНО amountNanoton + stateInit + payload!) → confirm → download.</div>
+    <div class="danger">Если выпуск токена даёт <code>AGENT_WALLET_NOT_OWNED</code> — альфа-контракт не отвечает на get_nft_data как ожидалось. ТОЛЬКО для testnet: <code>BUYER_AGENT_OWNERSHIP_CHECK=off</code>, и принеси Когитатору точный reason — адаптер будет переписан. В mainnet «off» не несут никогда.</div>
+    <p class="verify">Лицензия сминчена на агентский кошелёк; sha256 скачанного совпал; вердикты AML видны в админ-панели.</p>
+  </div>
+</div>
+
+<div class="phase">
+  <h2>Фаза 6 · Публикация MCP-пакета <span class="badge b-low">низкий · ~30 мин</span></h2>
+  <div class="body">
+    <div class="step"><b>1.</b> <code>npm login</code> (аккаунт с 2FA).</div>
+    <div class="step"><b>2.</b> <code>cd mcp-server && npm publish</code> (LICENSE и сборка уже готовы).</div>
+    <div class="step"><b>3.</b> Реестр MCP: <code>mcp-publisher login github</code> → <code>mcp-publisher publish</code> (манифест готов: <code>io.github.antsincgame/tonforge-agent</code>).</div>
+    <p class="verify"><code>npx tonforge-agent-mcp@latest</code> стартует у любого агента мира.</p>
+  </div>
+</div>
+
+<div class="phase">
+  <h2>Фаза 7 · Контракты: передеплой + внешний аудит <span class="badge b-high">ВЫСОКИЙ · дни</span></h2>
+  <div class="body">
+    <div class="step"><b>1.</b> Деплой новых Escrow/AppCollection/LicenseItem на testnet (<code>contracts/scripts/</code>); обновить BOC-env (Когитатор пересоберёт по слову) и адрес коллекции; повторить Фазу 5.</div>
+    <div class="step"><b>2.</b> Внешний аудит контрактов — для площадки с чужими средствами это долг, не опция. Закрыть K-1/K-2/K-3 из <code>docs/AUDIT-2026-06-10.md</code>.</div>
+    <div class="danger">Без внешнего аудита контракты на mainnet не несут. Точка.</div>
+  </div>
+</div>
+
+<div class="phase">
+  <h2>Фаза 8 · Врата Mainnet <span class="badge b-high">ВЫСОКИЙ · 1 день ops</span></h2>
+  <div class="body">
+    <div class="step"><b>1.</b> Казна → мультисиг mainnet; оракул mainnet ≥ 50 TON; <b>ротация обоих testnet-ключей</b>.</div>
+    <div class="step"><b>2.</b> Алерты на <code>mint_failed</code>/<code>refund_pending</code>; <code>REFUND_AFTER_MS</code>; репетиция ручного возврата по <code>docs/terra-ops-handoff.md</code>.</div>
+    <div class="step"><b>3.</b> Убрать/отделить 21 демо-товар сида (<code>src/domain/marketplace/seed.ts</code>) — по слову Когитатор сделает кодом.</div>
+    <div class="step"><b>4.</b> <code>TON_NETWORK=mainnet</code> → Redeploy → смоук малой суммой по <code>docs/commerce-license-smoke-checklist.md §6</code>.</div>
+  </div>
+</div>
+
+<div class="phase">
+  <h2>Фаза 9 · Дух машины и видимость <span class="badge b-low">по мере сил</span></h2>
+  <div class="body">
+    <div class="step"><b>LLM-ассистент:</b> LM Studio, достижимый из Coolify → <code>LLM_BASE_URL</code> + <code>LLM_MODEL</code> → <code>assistant_help</code> оживает.</div>
+    <div class="step"><b>Индексация:</b> Google Search Console + sitemap; пост в TON-комьюнити; каталоги <code>ton.app</code> / tonscan apps. Сейчас tonforge.org в поиске не существует.</div>
+    <div class="step"><b>Идентичность:</b> публичный основатель или псевдоним — твоё решение; при публичности — отстройка от тёзки-мошенника в нише «инвестиции в Telegram».</div>
+  </div>
+</div>
+
+<footer>
+  <p class="lit">От слепоты машинной — охрани. От пустого env — убереги. От mainnet без аудита — отврати.<br>
+  Testnet прежде золота, проверка прежде веры. 0110110.</p>
+  <p style="margin-top:.6rem">Великий Когитатор Марса · ветвь <code>claude/eloquent-heisenberg-gv68yu</code> · PR #126</p>
+</footer>
+
+</body>
+</html>
