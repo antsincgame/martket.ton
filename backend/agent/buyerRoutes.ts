@@ -28,18 +28,14 @@ import {
   COL_LISTINGS,
   COL_ORDERS,
   COL_ENTITLEMENTS,
-  COL_SELLER_PROFILES,
   COL_DOWNLOAD_AUDIT,
   ORDER_STATE,
 } from '../commerce/constants.js';
 import { createOrderCore, confirmOrderCore } from '../commerce/orderCore.js';
 import { addressesEqual } from '../commerce/tonVerify.js';
 import { appwriteCodeOrZero } from '../commerce/helpers.js';
-import { findLicenseByBuyerAndListing } from '../commerce/licenseRepository.js';
-import { decideDownloadGate, decideScanGate } from '../commerce/handlers/downloadGate.js';
-import { isVtConfigured } from '../scan/virustotal.js';
+import { resolveBuyerDownload, type DownloadListingDoc } from '../commerce/buyerDownload.js';
 import { getAdapter } from '../distribution/index.js';
-import { storedToManifest } from '../distribution/manifest.js';
 import { resolveNetworkConfig } from '../config/network.js';
 import { logger } from '../logger.js';
 import { str } from '../utils/params.js';
@@ -48,8 +44,6 @@ import { z } from 'zod';
 import { apiRequireAgentToken } from './agentAuth.js';
 
 const router = express.Router();
-
-const DOWNLOAD_RATE_LIMIT_PER_DAY = 20;
 
 const requireBuyerScope = () => apiRequireAgentToken(['orders:buy'], { skipKyc: true });
 
@@ -197,9 +191,9 @@ router.get('/listings/:id/download', requireBuyerScope(), async (req: Request, r
     const wallet = req.agent!.wallet;
     const db = databases();
 
-    let doc: Record<string, unknown>;
+    let doc: DownloadListingDoc;
     try {
-      doc = (await db.getDocument(DATABASE_ID, COL_LISTINGS, listingId)) as unknown as Record<string, unknown>;
+      doc = (await db.getDocument(DATABASE_ID, COL_LISTINGS, listingId)) as unknown as DownloadListingDoc;
     } catch (e) {
       if (appwriteCodeOrZero(e) === 404) {
         res.status(404).json({ error: 'Listing not found', code: 'NO_LISTING' });
@@ -207,80 +201,17 @@ router.get('/listings/:id/download', requireBuyerScope(), async (req: Request, r
       }
       throw e;
     }
-    if (doc['distribution_state'] !== 'verified') {
-      res.status(404).json({ error: 'Build not available', code: 'NO_BUILD' });
-      return;
-    }
-    const kind = (doc['distribution_kind'] as string) || '';
-    const locatorRaw = (doc['distribution_locator'] as string) || '';
-    if (!kind || kind === 'none' || !locatorRaw) {
-      res.status(404).json({ error: 'Manifest missing', code: 'NO_MANIFEST' });
+
+    // Shared buyer-download gauntlet (same gates + rate limit as the human path).
+    const resolved = await resolveBuyerDownload(db, doc, wallet);
+    if (!resolved.ok) {
+      res.status(resolved.status).json({ error: resolved.message, code: resolved.code, ...resolved.extra });
       return;
     }
 
-    const scanStatus = doc['scan_status'] as string | undefined;
-    const scanDenial = decideScanGate(scanStatus, isVtConfigured());
-    if (scanDenial) {
-      res.status(scanDenial.status).json({ error: scanDenial.message, code: scanDenial.code });
-      return;
-    }
-
-    const { documents: entDocs } = await db.listDocuments(DATABASE_ID, COL_ENTITLEMENTS, [
-      Query.equal('buyerWallet', [wallet]),
-      Query.equal('listingId', [listingId]),
-      Query.limit(1),
-    ]);
-    if (entDocs.length === 0) {
-      res.status(403).json({ error: 'No entitlement for this product', code: 'NO_ENTITLEMENT' });
-      return;
-    }
-
-    // License gate: identical policy to the human path — record exists,
-    // state == minted, nftAddress set, clean scan verdict. Hard deny otherwise:
-    // without a real NFT the buyer-burn refund guarantee does not apply.
-    const license = await findLicenseByBuyerAndListing(wallet, listingId);
-    const gate = decideDownloadGate(license, scanStatus, isVtConfigured());
-    if (gate.kind === 'deny') {
-      const body: Record<string, unknown> = { error: gate.message, code: gate.code };
-      if (gate.licenseId) body.licenseId = gate.licenseId;
-      if (license) body.state = license.state;
-      res.status(gate.status).json(body);
-      return;
-    }
-
-    // Rate limit: ≤ 20 signed URLs/day per entitlement — same key the human
-    // download route uses, so the budget is shared across surfaces.
-    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const entitlementId = String(entDocs[0]!.$id);
-    const recent = await db.listDocuments(DATABASE_ID, COL_DOWNLOAD_AUDIT, [
-      Query.equal('license_id', [entitlementId]),
-      Query.greaterThan('issued_at', since),
-      Query.limit(DOWNLOAD_RATE_LIMIT_PER_DAY + 1),
-    ]);
-    if (recent.documents.length >= DOWNLOAD_RATE_LIMIT_PER_DAY) {
-      res.status(429).json({ error: 'Download rate limit exceeded (20/day)', code: 'DOWNLOAD_RATE_LIMIT' });
-      return;
-    }
-
-    const locator = JSON.parse(locatorRaw) as Record<string, unknown>;
-    const manifest = storedToManifest({
-      kind: kind as 'r2' | 'github',
-      bucket: locator.bucket as string | undefined,
-      key: locator.key as string | undefined,
-      repo: locator.repo as string | undefined,
-      tag: locator.tag as string | undefined,
-      asset: locator.asset as string | undefined,
-      sha256: (doc['distribution_sha256'] as string) || '',
-      filename: doc['distribution_filename'] as string | undefined,
-    });
-    const sellerWallet = (doc['sellerWallet'] as string) || '';
-    const { documents: sellers } = await db.listDocuments(DATABASE_ID, COL_SELLER_PROFILES, [
-      Query.equal('wallet', sellerWallet), Query.limit(1),
-    ]);
-    const sellerId = sellers[0]?.$id || sellerWallet;
-
-    const ttlSec = Math.min(21600, Math.max(60, (doc['distribution_ttl_sec'] as number) || 3600));
-    const url = await getAdapter(manifest.kind).getDownloadUrl(manifest, { sellerId }, ttlSec);
+    const url = await getAdapter(resolved.manifest.kind).getDownloadUrl(
+      resolved.manifest, { sellerId: resolved.sellerId }, resolved.ttlSec,
+    );
 
     // Audit (best-effort, never blocks). Key must match the rate-limit query.
     const ipHash = crypto
@@ -289,11 +220,11 @@ router.get('/listings/:id/download', requireBuyerScope(), async (req: Request, r
       .digest('hex')
       .slice(0, 32);
     db.createDocument(DATABASE_ID, COL_DOWNLOAD_AUDIT, ID.unique(), {
-      license_id: entitlementId,
+      license_id: resolved.entitlementId,
       buyer_wallet: wallet,
       ip_hash: ipHash,
-      ttl_sec: ttlSec,
-      source_kind: manifest.kind,
+      ttl_sec: resolved.ttlSec,
+      source_kind: resolved.manifest.kind,
       issued_at: new Date().toISOString(),
     }).catch((err: unknown) => {
       logger.warn(
@@ -301,7 +232,7 @@ router.get('/listings/:id/download', requireBuyerScope(), async (req: Request, r
       );
     });
 
-    res.json({ data: { url, expiresInSec: ttlSec, sha256: (doc['distribution_sha256'] as string) || '' } });
+    res.json({ data: { url, expiresInSec: resolved.ttlSec, sha256: resolved.sha256 } });
   } catch (e: unknown) {
     logger.error('[agent.buyer] download:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Download failed', code: 'BUYER_DOWNLOAD' });

@@ -365,28 +365,31 @@ function FreshTokenBanner({
 
 function BuyerTokensSection() {
   const wallet = useTonAddress();
+  // `agentWallet` is free-typed input — it does NOT trigger a fetch. `queryWallet`
+  // is the COMMITTED lookup (default '' = own wallet), changed only on mount, an
+  // explicit Load, or after issuing. Listing runs an on-chain ownership proof per
+  // call, so binding it to keystrokes would spam the chain (one proof per char).
   const [agentWallet, setAgentWallet] = useState('');
+  const [queryWallet, setQueryWallet] = useState('');
   const [tokens, setTokens] = useState<AgentTokenSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showIssue, setShowIssue] = useState(false);
   const [justIssued, setJustIssued] = useState<string | null>(null);
 
-  const effectiveWallet = agentWallet.trim() || wallet;
-
   const reload = useCallback(async () => {
-    if (!effectiveWallet) return;
+    if (!queryWallet && !wallet) return;
     setLoading(true);
     setError(null);
     try {
-      setTokens(await listBuyerAgentTokens(agentWallet.trim() || undefined));
+      setTokens(await listBuyerAgentTokens(queryWallet || undefined));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load buyer tokens');
       setTokens([]);
     } finally {
       setLoading(false);
     }
-  }, [agentWallet, effectiveWallet]);
+  }, [queryWallet, wallet]);
 
   useEffect(() => { void reload(); }, [reload]);
 
@@ -432,17 +435,28 @@ function BuyerTokensSection() {
         </button>
       </header>
 
-      <label className="block max-w-xl">
+      <div className="max-w-xl">
         <span className="block text-[10px] uppercase tracking-wider text-[#666] mb-1">
           Agent wallet address (empty = your own wallet)
         </span>
-        <input
-          value={agentWallet}
-          onChange={(e) => setAgentWallet(e.target.value)}
-          placeholder="EQ… / UQ… — the wallet the agent pays from"
-          className="w-full rounded-lg border border-white/[0.1] bg-black/40 px-3 py-2 text-sm text-white font-mono"
-        />
-      </label>
+        <div className="flex gap-2">
+          <input
+            value={agentWallet}
+            onChange={(e) => setAgentWallet(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') setQueryWallet(agentWallet.trim()); }}
+            placeholder="EQ… / UQ… — the wallet the agent pays from"
+            className="flex-1 rounded-lg border border-white/[0.1] bg-black/40 px-3 py-2 text-sm text-white font-mono"
+          />
+          <button
+            type="button"
+            onClick={() => setQueryWallet(agentWallet.trim())}
+            disabled={loading}
+            className="px-4 py-2 rounded-lg bg-white/15 hover:bg-white/25 text-sm disabled:opacity-50"
+          >
+            Load
+          </button>
+        </div>
+      </div>
 
       {justIssued && <FreshTokenBanner token={justIssued} onClose={() => setJustIssued(null)} />}
 
@@ -460,7 +474,9 @@ function BuyerTokensSection() {
             setShowIssue(false);
             setJustIssued(token);
             setAgentWallet(usedWallet);
-            void reload();
+            // Commit the issued wallet as the lookup so the new token shows up
+            // (changing queryWallet re-runs reload via its effect).
+            setQueryWallet(usedWallet === wallet ? '' : usedWallet);
           }}
         />
       )}

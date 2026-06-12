@@ -39,15 +39,7 @@ import { requireBuyerKycLite } from '../commerce/handlers/requireBuyerKycLite.js
 import { verifyLicenseOwner } from '../tonforge/onchain/verifyOwnership.js';
 import { getAgentTokenById, revokeAgentToken, listAgentTokensForWallet } from './tokenRepository.js';
 import { issueToken } from './tokenIssuer.js';
-import { parseScopes, type AgentScope } from './scopes.js';
-
-/**
- * Scopes a buyer token carries. `orders:buy` is the capability; the read-only
- * `instructions:read` rides along so a buyer agent can orient itself — read
- * the operating manual, poll get_status, ask the assistant — instead of
- * operating blind. Deliberately NO seller write scopes.
- */
-export const BUYER_TOKEN_SCOPES: AgentScope[] = ['orders:buy', 'instructions:read'];
+import { parseScopes, BUYER_TOKEN_SCOPES } from './scopes.js';
 
 const router = express.Router();
 const limitMutate = rateLimit({

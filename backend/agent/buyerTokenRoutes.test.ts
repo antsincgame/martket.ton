@@ -5,18 +5,32 @@ vi.mock('../tonforge/onchain/verifyOwnership.js', () => ({
 }));
 
 import { verifyLicenseOwner } from '../tonforge/onchain/verifyOwnership.js';
-import { proveAgentWalletOwnership, BUYER_TOKEN_SCOPES } from './buyerTokenRoutes.js';
+import { proveAgentWalletOwnership } from './buyerTokenRoutes.js';
+import { BUYER_TOKEN_SCOPES, SELLER_GRANTABLE_SCOPES, ALL_SCOPES } from './scopes.js';
 
 const mockVerify = vi.mocked(verifyLicenseOwner);
 
-describe('BUYER_TOKEN_SCOPES', () => {
-  it('grants the buy capability plus read-only orientation, never seller writes', () => {
+describe('buyer / seller scope separation', () => {
+  it('buyer token grants the buy capability plus read-only orientation, never seller writes', () => {
     expect(BUYER_TOKEN_SCOPES).toContain('orders:buy');
     expect(BUYER_TOKEN_SCOPES).toContain('instructions:read');
     for (const s of BUYER_TOKEN_SCOPES) {
       // Any future addition here must stay read-only or buy-side: a buyer
       // token must never be able to mutate listings, products, or storage.
       expect(['orders:buy', 'instructions:read']).toContain(s);
+    }
+  });
+
+  it('the seller token route cannot grant orders:buy', () => {
+    // Least privilege: orders:buy is issuable ONLY via the buyer-token route
+    // (Lite KYC + on-chain wallet-ownership proof). It must not leak into the
+    // seller-grantable set, or those gates could be sidestepped.
+    expect(SELLER_GRANTABLE_SCOPES).not.toContain('orders:buy');
+    // ...but it stays a real, parseable scope for the buyer surface.
+    expect(ALL_SCOPES).toContain('orders:buy');
+    // Every other scope is still seller-grantable (no accidental drop).
+    for (const s of ALL_SCOPES) {
+      if (s !== 'orders:buy') expect(SELLER_GRANTABLE_SCOPES).toContain(s);
     }
   });
 });

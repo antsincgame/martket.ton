@@ -41,10 +41,10 @@ import {
 } from '../distribution/manifest.js';
 import { ID } from 'node-appwrite';
 import { str } from '../utils/params.js';
+// Shared with the buyer-agent download surface so the daily budget can't diverge.
+import { DOWNLOAD_RATE_LIMIT_PER_DAY } from './buyerDownload.js';
 
 const router = express.Router();
-
-const DOWNLOAD_RATE_LIMIT_PER_DAY = 20;
 
 interface ListingDoc {
   $id: string;

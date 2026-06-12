@@ -27,7 +27,7 @@ import {
   revokeAgentToken,
 } from './tokenRepository.js';
 import { issueToken } from './tokenIssuer.js';
-import { ALL_SCOPES, type AgentScope } from './scopes.js';
+import { SELLER_GRANTABLE_SCOPES, type AgentScope } from './scopes.js';
 
 const router = express.Router();
 const limitMutate = rateLimit({
@@ -40,8 +40,10 @@ const limitMutate = rateLimit({
 const issueSchema = z.object({
   wallet: z.string().min(1),
   name: z.string().min(2).max(80),
+  // Sellers cannot grant the buyer capability here — that goes through the
+  // buyer-token route with its own KYC + wallet-ownership gates.
   scopes: z
-    .array(z.enum(ALL_SCOPES))
+    .array(z.enum(SELLER_GRANTABLE_SCOPES as unknown as [AgentScope, ...AgentScope[]]))
     .min(1, 'At least one scope is required'),
   ttlDays: z.number().int().min(1).max(365).optional(),
 });
