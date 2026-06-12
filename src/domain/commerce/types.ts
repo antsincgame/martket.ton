@@ -9,6 +9,20 @@ export interface CommerceListingPublic {
   priceUsd?: string | null;
   decimals: number;
   platformFeeBps: number;
+  /** Effective fee after the platform-minimum clamp (what the buyer is actually charged). */
+  effectivePlatformFeeBps?: number;
+  /** Platform fee, raw nanoton. */
+  platformFeeRaw?: string | null;
+  platformFeeTonHuman?: string | null;
+  /** Total the buyer pays = seller price + platform fee, raw nanoton. */
+  buyerTotalRaw?: string | null;
+  buyerTotalTonHuman?: string | null;
+  /** Discount / sale (when active): list price stays in priceTonHuman/priceUsd. */
+  saleActive?: boolean;
+  salePriceUsd?: number | null;
+  salePriceTonHuman?: string | null;
+  saleEndsAt?: string | null;
+  discountPercent?: number;
   status: string;
   deliveryType: string;
   assetFileId: string;
@@ -23,6 +37,8 @@ export interface CommerceConfigResponse {
   treasuryAddress: string;
   platformFeeBpsDefault: number;
   currencyTon: string;
+  /** Server's pinned TON network (authoritative for the money path). */
+  network?: 'mainnet' | 'testnet';
 }
 
 export interface EscrowInfo {

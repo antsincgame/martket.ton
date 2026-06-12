@@ -7,11 +7,13 @@ import App from './App.tsx';
 import LoadingScreen from './components/LoadingScreen.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 import { initSentry } from './lib/sentry';
+import { initTelegramMiniApp } from './lib/telegramMiniApp';
 import '@fontsource-variable/inter';
 import '@fontsource/orbitron';
 import './index.css';
 
 void initSentry();
+initTelegramMiniApp();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

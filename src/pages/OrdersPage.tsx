@@ -119,6 +119,13 @@ export default function OrdersPage() {
               <div className="flex items-center justify-between text-xs text-gray-500">
                 <span>{new Date(order.createdAt).toLocaleString()}</span>
                 <div className="flex items-center gap-3">
+                  <Link
+                    to={`/orders/${order.id}/receipt`}
+                    className="inline-flex items-center gap-1 text-[#00F5FF] hover:underline"
+                  >
+                    <Package className="w-3 h-3" />
+                    Receipt
+                  </Link>
                   {order.tonTxHash && (
                     <a
                       href={`https://tonviewer.com/transaction/${order.tonTxHash}`}

@@ -118,71 +118,28 @@ describe('LicenseItem v4 contract', () => {
     expect(dl).toBe(burnDeadline());
   });
 
-  // ─── Self-registration (v4) ──────────────────────────────────────
+  // ─── Deploy-сообщение (пустое тело от Collection) ────────────────
+  //
+  // Регистрацию лицензии теперь выполняет Collection (RegisterLicense в
+  // Escrow, привязанный к collectionAddress) — НЕ сам айтем. Айтем лишь
+  // поглощает пустое deploy-сообщение no-op-приёмником receive(). См. K-1 fix.
 
-  it('sends RegisterLicense to escrow when receiving "License minted" from collection', async () => {
-    const item = await LicenseItem.fromInit(
-      INDEX,
-      collection.address,
-      owner.address,
-      escrow.address,
-      SOULBOUND,
-      content('soulbound.json'),
-      burnDeadline(),
-    );
-    const sc = blockchain.openContract(item);
-
-    // Deploy (первое сообщение от collection — Deploy{}).
-    await sc.send(
-      collection.getSender(),
-      { value: toNano('0.1') },
-      { $$type: 'Deploy', queryId: 0n },
-    );
-
-    // Теперь шлём пустое сообщение от collection (симулирует "License minted"
-    // комментарий который escrow.tact шлёт реальной LicenseItem после init).
-    const result = await sc.send(
-      collection.getSender(),
-      { value: toNano('0.1') },
-      null,  // empty body = triggers empty receive()
-    );
-
-    // Item должен отправить RegisterLicense в escrow
-    expect(result.transactions).toHaveTransaction({
-      from: sc.address,
-      to: escrow.address,
-      success: true,
-    });
-
-    // is_registered == true после первой регистрации
-    const registered = await sc.getIsRegistered();
-    expect(registered).toBe(true);
-  });
-
-  it('does not re-register on subsequent empty messages', async () => {
+  it('accepts an empty deploy message without emitting any outgoing tx', async () => {
     const item = await deploySoulbound();
 
-    // Первое empty-message от collection — регистрация
-    await item.send(
+    const result = await item.send(
       collection.getSender(),
       { value: toNano('0.1') },
-      null,
+      null,  // empty body → no-op receive()
     );
-    const firstRegistered = await item.getIsRegistered();
-    expect(firstRegistered).toBe(true);
 
-    // Второе empty-message — не должно слать register повторно
-    const secondResult = await item.send(
-      collection.getSender(),
-      { value: toNano('0.1') },
-      null,
-    );
-    const secondSends = secondResult.transactions.filter(
+    // Айтем НЕ должен слать ничего в escrow (регистрация — задача Collection).
+    const itemToEscrow = result.transactions.filter(
       (tx) => tx.inMessage?.info.type === 'internal' &&
               tx.inMessage.info.src?.toString() === item.address.toString() &&
               tx.inMessage.info.dest?.toString() === escrow.address.toString()
     );
-    expect(secondSends.length).toBe(0);
+    expect(itemToEscrow.length).toBe(0);
   });
 
   // ─── Soulbound transfer rejection ────────────────────────────────
@@ -333,13 +290,13 @@ describe('LicenseItem v4 contract', () => {
     });
   });
 
-  // ─── BuyerBurn ────────────────────────────────────────────────────
+  // ─── BuyerBurn (двухфазный: H-1 fix) ─────────────────────────────
 
   it('owner can BuyerBurn within deadline → sends RefundOnBurn to escrow', async () => {
     const item = await deploySoulbound();
     const result = await item.send(
       owner.getSender(),
-      { value: toNano('0.1') },
+      { value: toNano('0.2') },
       { $$type: 'BuyerBurn', queryId: 1n },
     );
     expect(result.transactions).toHaveTransaction({
@@ -350,18 +307,117 @@ describe('LicenseItem v4 contract', () => {
     });
   });
 
-  it('BuyerBurn self-destructs the license contract', async () => {
+  it('BuyerBurn does NOT self-destruct before escrow confirms (H-1)', async () => {
     const item = await deploySoulbound();
-    const result = await item.send(
+    await item.send(
       owner.getSender(),
-      { value: toNano('0.1') },
+      { value: toNano('0.2') },
       { $$type: 'BuyerBurn', queryId: 1n },
+    );
+    // Эскроу (здесь — treasury-заглушка) не отвечает BurnConfirmed, поэтому
+    // айтем обязан остаться ЖИВЫМ: покупатель не теряет NFT, пока возврат не
+    // подтверждён. Это и есть суть фикса H-1.
+    const contractState = await blockchain.getContract(item.address);
+    expect(contractState.accountState?.type).toBe('active');
+    expect(await item.getBurnRequested()).toBe(true);
+  });
+
+  it('self-destructs only after BurnConfirmed from the bound escrow', async () => {
+    const item = await deploySoulbound();
+    await item.send(
+      owner.getSender(),
+      { value: toNano('0.2') },
+      { $$type: 'BuyerBurn', queryId: 1n },
+    );
+
+    // Эскроу подтверждает возврат → айтем уничтожается.
+    const result = await item.send(
+      blockchain.sender(escrow.address),
+      { value: toNano('0.05') },
+      { $$type: 'BurnConfirmed' },
     );
     expect(result.transactions).toHaveTransaction({
       from: item.address, to: owner.address, success: true,
     });
     const contractState = await blockchain.getContract(item.address);
     expect(contractState.accountState?.type).not.toBe('active');
+  });
+
+  it('rejects BurnConfirmed from a non-escrow sender', async () => {
+    const item = await deploySoulbound();
+    await item.send(
+      owner.getSender(),
+      { value: toNano('0.2') },
+      { $$type: 'BuyerBurn', queryId: 1n },
+    );
+    const result = await item.send(
+      outsider.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'BurnConfirmed' },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: outsider.address, to: item.address, success: false,
+    });
+    // Айтем по-прежнему жив.
+    const contractState = await blockchain.getContract(item.address);
+    expect(contractState.accountState?.type).toBe('active');
+  });
+
+  // ─── FinalizeBurn (A-1 recovery for a lost BurnConfirmed) ─────────
+
+  it('owner can FinalizeBurn a stuck burn after the deadline', async () => {
+    const item = await deploySoulbound(100);
+    // BuyerBurn sets burnRequested; the treasury-stub escrow never replies
+    // BurnConfirmed → the item would otherwise be stuck forever.
+    await item.send(owner.getSender(), { value: toNano('0.2') }, { $$type: 'BuyerBurn', queryId: 1n });
+    expect(await item.getBurnRequested()).toBe(true);
+
+    blockchain.now = blockchain.now! + 200; // past burnDeadline
+
+    const result = await item.send(
+      owner.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'FinalizeBurn', queryId: 2n },
+    );
+    expect(result.transactions).toHaveTransaction({ from: item.address, to: owner.address, success: true });
+    const state = await blockchain.getContract(item.address);
+    expect(state.accountState?.type).not.toBe('active');
+  });
+
+  it('rejects FinalizeBurn before the deadline', async () => {
+    const item = await deploySoulbound(3600);
+    await item.send(owner.getSender(), { value: toNano('0.2') }, { $$type: 'BuyerBurn', queryId: 1n });
+    const result = await item.send(
+      owner.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'FinalizeBurn', queryId: 2n },
+    );
+    expect(result.transactions).toHaveTransaction({ from: owner.address, to: item.address, success: false });
+    const state = await blockchain.getContract(item.address);
+    expect(state.accountState?.type).toBe('active');
+  });
+
+  it('rejects FinalizeBurn from a non-owner', async () => {
+    const item = await deploySoulbound(100);
+    await item.send(owner.getSender(), { value: toNano('0.2') }, { $$type: 'BuyerBurn', queryId: 1n });
+    blockchain.now = blockchain.now! + 200;
+    const result = await item.send(
+      outsider.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'FinalizeBurn', queryId: 2n },
+    );
+    expect(result.transactions).toHaveTransaction({ from: outsider.address, to: item.address, success: false });
+  });
+
+  it('rejects FinalizeBurn when no burn is in progress', async () => {
+    const item = await deploySoulbound(100);
+    blockchain.now = blockchain.now! + 200;
+    const result = await item.send(
+      owner.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'FinalizeBurn', queryId: 2n },
+    );
+    expect(result.transactions).toHaveTransaction({ from: owner.address, to: item.address, success: false });
   });
 
   it('rejects BuyerBurn after deadline', async () => {

@@ -110,6 +110,27 @@ async function createPurchases(db) {
   console.log('  + indexes');
 }
 
+async function createWishlists(db) {
+  console.log('[demiurge] Создание коллекции wishlists...');
+  // Server-only from the start (no Role.users() read leak): the backend reads/
+  // writes with the service key; the frontend goes through Express routes.
+  await ignoreConflict(() =>
+    db.createCollection(DATABASE_ID, 'wishlists', 'Wishlists', [], false, true)
+  );
+  for (const [key, size, req] of [['user_id', 64, true], ['catalog_product_id', 64, true]]) {
+    await ignoreConflict(() => db.createStringAttribute(DATABASE_ID, 'wishlists', key, size, req));
+    await waitForAttribute(db, 'wishlists', key);
+    console.log(`  + wishlists.${key}`);
+  }
+  await ignoreConflict(() =>
+    db.createIndex(DATABASE_ID, 'wishlists', 'uniq_user_product', IndexType.Unique, ['user_id', 'catalog_product_id'])
+  );
+  await ignoreConflict(() =>
+    db.createIndex(DATABASE_ID, 'wishlists', 'idx_user', IndexType.Key, ['user_id'])
+  );
+  console.log('  + indexes');
+}
+
 async function migrateProducts(db) {
   console.log('[demiurge] Расширение legacy_products (R2 + creator)...');
 
@@ -152,6 +173,7 @@ async function main() {
 
   await migrateProfiles(db);
   await createPurchases(db);
+  await createWishlists(db);
   await migrateProducts(db);
 
   console.log('\n[demiurge] Миграция завершена. Все Демиурги готовы к творению.');

@@ -40,7 +40,7 @@ class TonForgeAgent {
     return this.call<{ listings: Json[] }>('GET', '/listings');
   }
   createListing(input: {
-    sellerWallet: string;
+    // The seller is always the token's wallet — never sent in the body.
     catalogProductId: string;
     title: string;
     priceUsd: number;

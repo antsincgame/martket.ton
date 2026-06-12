@@ -172,6 +172,19 @@ async function setupReviews(databases) {
     databases.createStringAttribute(DATABASE_ID, COL_REVIEWS, 'reviewDate', 32, true)
   );
   await waitForAttribute(databases, COL_REVIEWS, 'reviewDate');
+  // Verified-buyer write-path (one review per buyer per product, moderation).
+  await ignoreConflict(() => databases.createStringAttribute(DATABASE_ID, COL_REVIEWS, 'buyerWallet', 128, false));
+  await waitForAttribute(databases, COL_REVIEWS, 'buyerWallet');
+  await ignoreConflict(() => databases.createBooleanAttribute(DATABASE_ID, COL_REVIEWS, 'verified', false, false));
+  await waitForAttribute(databases, COL_REVIEWS, 'verified');
+  await ignoreConflict(() => databases.createStringAttribute(DATABASE_ID, COL_REVIEWS, 'status', 16, false, 'visible'));
+  await waitForAttribute(databases, COL_REVIEWS, 'status');
+  await ignoreConflict(() => databases.createStringAttribute(DATABASE_ID, COL_REVIEWS, 'moderator_id', 64, false));
+  await waitForAttribute(databases, COL_REVIEWS, 'moderator_id');
+  await ignoreConflict(() => databases.createStringAttribute(DATABASE_ID, COL_REVIEWS, 'moderation_reason', 1000, false));
+  await waitForAttribute(databases, COL_REVIEWS, 'moderation_reason');
+  await ignoreConflict(() => databases.createDatetimeAttribute(DATABASE_ID, COL_REVIEWS, 'moderated_at', false));
+  await waitForAttribute(databases, COL_REVIEWS, 'moderated_at');
 }
 
 /**
@@ -182,6 +195,9 @@ async function setupIndexes(databases) {
     [COL_PRODUCTS, 'idx_category_slug', IndexType.Key, ['categorySlug']],
     [COL_PRODUCTS, 'idx_featured', IndexType.Key, ['isFeatured']],
     [COL_REVIEWS, 'idx_review_product', IndexType.Key, ['productId']],
+    // Composite for listVisibleReviews: filter productId + orderDesc(reviewDate).
+    [COL_REVIEWS, 'idx_review_product_date', IndexType.Key, ['productId', 'reviewDate']],
+    [COL_REVIEWS, 'uniq_review_buyer_product', IndexType.Unique, ['productId', 'buyerWallet']],
     [COL_CATEGORIES, 'idx_category_slug_unique', IndexType.Unique, ['slug']],
   ];
   for (const [collectionId, key, type, attributes] of defs) {
@@ -245,8 +261,15 @@ async function main() {
     await upsertDocument(databases, COL_PRODUCTS, id, data);
   }
   for (const row of seed.reviews) {
-    const { id, ...data } = row;
-    await upsertDocument(databases, COL_REVIEWS, id, data);
+    // Seed rows carry `date` and omit the required `reviewDate`/`helpful`
+    // attributes — inserted verbatim, createDocument throws and aborts the whole
+    // provision run. Map the shape here (seed JSON stays human-friendly).
+    const { id, date, ...data } = row;
+    await upsertDocument(databases, COL_REVIEWS, id, {
+      ...data,
+      reviewDate: row.reviewDate ?? date ?? new Date().toISOString().slice(0, 10),
+      helpful: row.helpful ?? 0,
+    });
   }
 
   console.log('[appwrite] Готово. Во фронте задайте VITE_APPWRITE_ENDPOINT и VITE_APPWRITE_PROJECT_ID.');

@@ -2,6 +2,7 @@ export const CORE_DATABASE_ID = 'core';
 export const COL_PROFILES = 'profiles';
 export const COL_LEGACY_PRODUCTS = 'legacy_products';
 export const COL_PURCHASES = 'purchases';
+export const COL_WISHLISTS = 'wishlists';
 export const COL_AUDIT_LOGS = 'api_audit_logs';
 export const COL_SUPPORT_TICKETS = 'support_tickets';
 export const COL_SCAN_JOBS = 'scan_jobs';

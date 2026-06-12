@@ -1,12 +1,13 @@
 import express, { type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import { DATABASE_ID, COL_ORDERS, COL_AUDIT } from './constants.js';
+import { DATABASE_ID, COL_ORDERS, COL_AUDIT, COL_AML_CHECKS } from './constants.js';
 import { databases, Query } from './appwrite.js';
 import { writeAudit } from './audit.js';
 import { logger } from '../logger.js';
 import { CURRENCY } from './constants.js';
 import { DEFAULT_PLATFORM_FEE_BPS } from './constants.js';
 import { commerceAdmin } from './helpers.js';
+import { resolveNetwork } from '../config/network.js';
 import { validateBody } from '../middleware/validate.js';
 import { orderStateSchema, agentInstructionSchema, provisionCollectionSchema } from './validation.js';
 import { str } from '../utils/params.js';
@@ -49,6 +50,10 @@ router.get('/config', (_req: Request, res: Response) => {
       treasuryAddress: treasury,
       platformFeeBpsDefault: DEFAULT_PLATFORM_FEE_BPS,
       currencyTon: CURRENCY.TON,
+      // M-14: expose the server's pinned TON network so the frontend can match
+      // it instead of defaulting to mainnet — otherwise the UI renders mainnet
+      // explorer links / address forms for testnet escrows (and vice versa).
+      network: resolveNetwork(),
     },
   });
 });
@@ -69,6 +74,37 @@ router.get('/admin/aml-config', commerceAdmin, (_req: Request, res: Response) =>
       },
     },
   });
+});
+
+// Live AML verdicts — the real cache rows the screening path writes
+// (marketplace.aml_checks). This is what turns the compliance panel from a
+// config mockup into an operational view: who was screened, when, with what
+// score. providerRaw is intentionally NOT exposed (large vendor payload).
+router.get('/admin/aml-checks', commerceAdmin, async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? '50'), 10) || 50, 200);
+    const { documents } = await databases().listDocuments(DATABASE_ID, COL_AML_CHECKS, [
+      Query.orderDesc('checkedAt'),
+      Query.limit(limit),
+    ]);
+    res.json({
+      data: {
+        checks: documents.map((d) => ({
+          id: d.$id,
+          wallet: d['wallet'],
+          asset: d['asset'] ?? 'TON',
+          riskScore: Number(d['riskScore'] ?? -1),
+          verdict: d['verdict'] ?? '',
+          checkedAt: d['checkedAt'] ?? '',
+        })),
+      },
+    });
+  } catch (e) {
+    // Collection may not be provisioned yet on a fresh deployment — surface an
+    // empty, honest view instead of a 500 so the panel still renders.
+    logger.warn('[admin] aml-checks read failed:', e instanceof Error ? e.message : e);
+    res.json({ data: { checks: [], notProvisioned: true } });
+  }
 });
 
 router.get('/admin/orders', commerceAdmin, async (_req: Request, res: Response) => {

@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ════════════════════════════════════════════════════════════════════
+  СШК — СТАНДАРТНЫЙ ШАБЛОННЫЙ КОНСТРУКТ ОПЕРАТОРА
+  Реликвиарий: TonForge / martket.ton
+  Выкован: 2026-06-11, Хранителем Марса-Кузни, по запросу магоса
+  Дмитрия Орлова (овнер, Техножрец).
+
+  Назначение: ручные действия ОПЕРАТОРА-ЧЕЛОВЕКА, которые код выполнить
+  не может — в порядке зависимостей. Каждая фаза самодостаточна и несёт:
+  цель, предусловия, шаги с командами, проверку, опасности.
+
+  Доктрина чтения: выполняй фазы по порядку; не начинай фазу, пока
+  «проверка» предыдущей не зелёная. Секреты — только в Coolify env,
+  никогда в код, чат или коммиты.
+  ════════════════════════════════════════════════════════════════════
+-->
+<stc codex="TonForge" branch="claude/eloquent-heisenberg-gv68yu" pr="126" network-current="testnet">
+
+  <doctrine>
+    <principle id="D1">Секреты живут только в Coolify env бэкенда (MARKETTON). Никогда — в репозитории, фронтенде, логах, чате.</principle>
+    <principle id="D2">Testnet прежде mainnet — всегда. Любой контрактный или денежный путь сначала проходит живой testnet E2E.</principle>
+    <principle id="D3">Контракты деплоятся руками оператора, не пайплайном. Любая правка .tact = передеплой + повторная сертификация Врат.</principle>
+    <principle id="D4">«Fund what you risk»: на агентских кошельках держи только рабочий остаток.</principle>
+    <principle id="D5">Изменение env вступает в силу ТОЛЬКО после редеплоя приложения в Coolify.</principle>
+  </doctrine>
+
+  <!-- ════════════════ ФАЗА 1 ════════════════ -->
+  <phase id="1" name="Слияние PR #126" risk="низкий" est="10 минут">
+    <goal>Влить всю работу ветки (агентские покупки, фиксы ревью, витрины) в main — деплой собирается из main.</goal>
+    <prerequisites>
+      <item>CI на последнем коммите ветки зелёный (на момент ковки: 12/12 ✓).</item>
+    </prerequisites>
+    <step order="1">
+      <action>Открой PR #126 на GitHub, просмотри сводку изменений (описание PR актуально).</action>
+      <verify>Все checks зелёные; конфликтов с main нет.</verify>
+    </step>
+    <step order="2">
+      <action>Merge (рекомендую «Squash and merge» при желании чистой истории, либо обычный merge — оба безопасны).</action>
+      <verify>main содержит docs/STC-OPERATOR.xml и backend/agent/buyerRoutes.ts.</verify>
+    </step>
+    <danger>После слияния НЕ запускай редеплой, пока не выполнена Фаза 2 — иначе поднимешь бэкенд с пустыми критическими env.</danger>
+  </phase>
+
+  <!-- ════════════════ ФАЗА 2 ════════════════ -->
+  <phase id="2" name="Заполнение критических env (Coolify → MARKETTON)" risk="средний" est="30–60 минут">
+    <goal>Закрыть пустоты, найденные сканом env: без них заказы отвечают 503, а минт-воркер мёртв.</goal>
+    <prerequisites>
+      <item>Доступ к Coolify → приложение MARKETTON → Environment Variables.</item>
+      <item>Кошелёк Tonkeeper (или аналог) в режиме testnet.</item>
+    </prerequisites>
+    <step order="1" env="TREASURY_WALLET_ADDRESS">
+      <action>Создай ОТДЕЛЬНЫЙ testnet-кошелёк казны (не личный). Вставь его адрес.</action>
+      <why>Пустое значение = POST /orders отвечает 503 CONFIG. Казна получает комиссию платформы.</why>
+      <verify>curl https://tonforge.org/api/v1/commerce/listings/... → создание заказа больше не 503.</verify>
+    </step>
+    <step order="2" env="ORACLE_MNEMONIC">
+      <action>Сгенерируй НОВЫЙ кошелёк V4 (24 слова) — это единственный минтер лицензий. Вставь мнемонику (24 слова через пробел).</action>
+      <command>Testnet-TON для него: Telegram-бот @testgiver_ton_bot (нужно ~2–5 TON на testnet).</command>
+      <danger>Эта мнемоника подписывает ВСЕ минты. Не используй личный кошелёк. Для mainnet (Фаза 7) понадобится ≥50 TON.</danger>
+    </step>
+    <step order="3" env="LICENSE_NFT_ITEM_CODE_BOC и APP_COLLECTION_CODE_BOC">
+      <action>Собери контракты и выгрузи base64-BOC кода:</action>
+      <command>cd contracts &amp;&amp; npm ci &amp;&amp; npm run build — затем возьми code BOC из contracts/build/ (LicenseItem и AppCollection). Точная процедура — docs/terra-ops-handoff.md.</command>
+      <why>Бэкенд детерминированно выводит адреса лицензий/коллекций из этих BOC — пустые значения ломают минт-путь.</why>
+    </step>
+    <step order="4" env="прочие пустоты — по желанию, но рекомендую">
+      <action>RESEND_FROM=noreply@tonforge.org (письма); R2_BUCKET_NAME=ton-store-builds; TONAPI_KEY (бесплатный ключ на tonconsole.com — снимает рейт-лимиты верификации платежей); VIRUSTOTAL_API_KEY (антивирус-гейт скачиваний); HEALTH_DETAIL_TOKEN (любой hex — детальный /health).</action>
+    </step>
+    <step order="5">
+      <action>Уже прописано мной через MCP, просто сверь глазами: BUYER_AGENT_OWNERSHIP_CHECK=strict; LICENSE_MINT_GAS_NANO=250000000 (поднято со 150M — иначе после передеплоя контрактов минты отбивались бы об новый пол газа 0.2 TON).</action>
+    </step>
+    <step order="6">
+      <action>Redeploy приложения MARKETTON в Coolify (кнопка Deployments → Redeploy).</action>
+      <verify>curl https://tonforge.org/api/health → ok; в логах нет «not configured».</verify>
+    </step>
+  </phase>
+
+  <!-- ════════════════ ФАЗА 3 ════════════════ -->
+  <phase id="3" name="Testnet E2E: продавец-агент (повторная сертификация)" risk="низкий" est="1–2 часа">
+    <goal>Подтвердить, что селлерский контур жив после всех правок: онбординг → листинг → покупка человеком → минт NFT → скачивание.</goal>
+    <prerequisites><item>Фаза 2 завершена и redeploy сделан.</item></prerequisites>
+    <step order="1">
+      <action>Пройди как человек: Lite KYC, привяжи кошелёк (ton_proof), выпусти селлерский tfa_-токен (Commerce → API Tokens).</action>
+    </step>
+    <step order="2">
+      <action>Подними MCP-сервер у любого ассистента (Claude Desktop/Code, Cursor):</action>
+      <command><![CDATA[{"mcpServers":{"tonforge":{"command":"npx","args":["tonforge-agent-mcp"],"env":{"TONFORGE_AGENT_TOKEN":"tfa_...","TONFORGE_API":"https://tonforge.org/api/v1/agent"}}}}]]></command>
+      <verify>Инструмент get_status возвращает nextAction; whoami — твой кошелёк и скоупы.</verify>
+    </step>
+    <step order="3">
+      <action>Проведи агентом полный селлерский цикл: create_product → [модерация в админке] → create_listing → set_distribution → verify_distribution. Затем купи листинг как человек через витрину, дождись минта лицензии, скачай артефакт.</action>
+      <verify>Заказ дошёл до paid/fulfilled; NFT виден в коллекции; sha256 скачанного совпал.</verify>
+    </step>
+  </phase>
+
+  <!-- ════════════════ ФАЗА 4 ════════════════ -->
+  <phase id="4" name="Testnet E2E: покупатель-агент (agents.ton.org)" risk="средний" est="2–4 часа">
+    <goal>Живой прогон агентских покупок — главная новая способность. Здесь же проверяется моё ключевое допущение об альфа-контракте.</goal>
+    <prerequisites><item>Фаза 3 зелёная (есть активный листинг с verified-дистрибуцией).</item></prerequisites>
+    <step order="1">
+      <action>Создай агентский кошелёк на https://agents.ton.org/ (testnet, если доступен; owner-ключ остаётся у тебя, operator-ключ — агенту). Профинансируй малой суммой (D4).</action>
+    </step>
+    <step order="2" critical="true">
+      <action>ПРОВЕРКА ДОПУЩЕНИЯ: выпусти покупательский токен через UI (Commerce → API Tokens → Buyer agent tokens), указав адрес агентского кошелька.</action>
+      <branch ok="Токен выдан">Допущение верно: альфа-контракт отвечает на get_nft_data владельцем-человеком. Продолжай.</branch>
+      <branch fail="403 AGENT_WALLET_NOT_OWNED">Контракт не отвечает на get_nft_data как ожидалось. ТОЛЬКО ДЛЯ TESTNET: поставь BUYER_AGENT_OWNERSHIP_CHECK=off, redeploy, выпусти токен, продолжай E2E — и сообщи Хранителю точный reason из ответа: я перепишу адаптер под реальный get-метод контракта. НИКОГДА не неси off в mainnet.</branch>
+    </step>
+    <step order="3">
+      <action>Подними ДВА MCP-сервера рядом у агента-покупателя:</action>
+      <command><![CDATA[{"mcpServers":{
+  "tonforge":{"command":"npx","args":["tonforge-agent-mcp"],"env":{"TONFORGE_BUYER_TOKEN":"tfa_...","TONFORGE_API":"https://tonforge.org/api/v1/agent"}},
+  "ton-wallet":{"command":"npx","args":["@ton/mcp@alpha"]}
+}}]]></command>
+      <why>tonforge = заказы/скачивание (ключей не держит); @ton/mcp = operator-ключ и сама оплата.</why>
+    </step>
+    <step order="4">
+      <action>Прогони петлю агентом: search_products → list_offers → create_order → оплати из @ton/mcp ТОЧНО amountNanoton на payToAddress С ОБОИМИ stateInitBase64+payloadBase64 → confirm_order → get_order (poll до paid) → download_purchase → сверь sha256.</action>
+      <danger>Простой перевод с комментарием НЕ зафондирует эскроу — stateInit и payload обязательны. Если @ton/mcp не умеет прикладывать stateInit к переводу — сообщи Хранителю, сделаем фолбэк-инструмент.</danger>
+      <verify>Лицензия сминчена НА агентский кошелёк; скачивание прошло; в admin-аудите видны buyer_agent_token_issue и order-события.</verify>
+    </step>
+  </phase>
+
+  <!-- ════════════════ ФАЗА 5 ════════════════ -->
+  <phase id="5" name="Публикация tonforge-agent-mcp (npm + реестр MCP)" risk="низкий" est="30 минут">
+    <goal>Сделать MCP-сервер находимым: npx tonforge-agent-mcp для любого агента мира.</goal>
+    <prerequisites><item>Фазы 3–4 зелёные (публиковать стоит проверенное). LICENSE уже добавлен.</item></prerequisites>
+    <step order="1">
+      <action>Создай/войди в npm-аккаунт; включи 2FA.</action>
+      <command>npm login</command>
+    </step>
+    <step order="2">
+      <action>Опубликуй пакет (prepublishOnly сам соберёт dist):</action>
+      <command>cd mcp-server &amp;&amp; npm publish</command>
+      <verify>npx tonforge-agent-mcp@latest стартует и пишет «buyer tools enabled/disabled» в stderr.</verify>
+    </step>
+    <step order="3">
+      <action>Подай в реестр MCP (manifest mcp-server/server.json уже готов, имя io.github.antsincgame/tonforge-agent):</action>
+      <command>установи mcp-publisher (github.com/modelcontextprotocol/registry) → mcp-publisher login github → mcp-publisher publish (из mcp-server/)</command>
+    </step>
+  </phase>
+
+  <!-- ════════════════ ФАЗА 6 ════════════════ -->
+  <phase id="6" name="Связанный передеплой контрактов" risk="ВЫСОКИЙ" est="дни + внешний аудит">
+    <goal>Закрыть отложенные контрактные находки аудита (K-1 несовпадение receive(), K-2 зануление комиссии, K-3 фронт-ран CON-01, A-серия уже в коде) одним передеплоем.</goal>
+    <prerequisites><item>Фазы 3–4 зелёные на ТЕКУЩИХ контрактах (базовая линия для сравнения).</item></prerequisites>
+    <step order="1"><action>Собери контракты из main; задеплой НОВЫЕ Escrow/AppCollection/LicenseItem на testnet (contracts/scripts/, runbook — docs/agent-autonomy-roadmap.md).</action></step>
+    <step order="2"><action>Обнови BOC-env (Фаза 2.3) и адрес коллекции; redeploy бэкенда; повтори Врата A и B + Фазы 3–4 этого СШК на новых контрактах.</action></step>
+    <step order="3"><action>Закажи ВНЕШНИЙ аудит контрактов (для площадки, держащей чужие средства, — не опция, а долг). Исправь находки, повтори шаги 1–2.</action></step>
+    <verify>Варп-аудит 8 агентов (2026-06-12) подтвердил: K-2 (зануление комиссии) и K-3 (фронт-ран RegisterLicense) — ЗАКРЫТЫ в текущем коде; двухфазный BuyerBurn+FinalizeBurn — корректен. Остаются для аудитора два связанных пункта ниже.</verify>
+    <danger>K-1 ОСТАТОК: appCollection шлёт RegisterLicense эскроу с bounce:false. Если это сообщение потеряется/out-of-gas, эскроу навсегда останется с licenseAddress=0:0 → оба пути возврата заблокированы, средства покупателя застрянут. В передеплое: либо bounce:true + обработка, либо оракул-фолбэк, перепроверяющий регистрацию.</danger>
+    <danger>ГАЗ: контрактный пол MintLicense = ton("0.2")=200M, но бэкенд-бюджет на сообщение — 100M (mint) + 50M (register). На пике мейннет-комиссий register может «голодать». Сверь бюджеты escrow.ts (0.15/0.10/0.05) с реальной стоимостью операций перед mainnet. LICENSE_MINT_GAS_NANO уже 250M.</danger>
+  </phase>
+
+  <!-- ════════════════ ФАЗА 7 ════════════════ -->
+  <phase id="7" name="Врата C — активация mainnet" risk="ВЫСОКИЙ" est="1 день ops">
+    <goal>Перевод денежного пути на боевую сеть. Чисто операционная фаза — кода не требует.</goal>
+    <prerequisites><item>Фаза 6 завершена (аудированные контракты на mainnet).</item><item>Живой testnet E2E возврата и выплаты прогнан (бродкаст, не сухой прогон).</item></prerequisites>
+    <step order="1"><action>Казна → МУЛЬТИСИГ-кошелёк mainnet; адрес в TREASURY_WALLET_ADDRESS.</action></step>
+    <step order="2"><action>Оракул-кошелёк mainnet: ≥50 TON; мнемоника в ORACLE_MNEMONIC.</action></step>
+    <step order="3"><action>Алерты (Sentry DSN + каналы) на mint_failed и refund_pending; задай REFUND_AFTER_MS; отрепетируй ручной фолбэк возврата по docs/terra-ops-handoff.md.</action></step>
+    <step order="4"><action>Прод-провижн Appwrite: npm run provision:core и provision:commerce (из контейнера, по terra-ops-handoff). Отдели/убери 21 демо-товар сида (src/domain/marketplace/seed.ts) — агенты не должны видеть фальшивый каталог.</action></step>
+    <step order="5"><action>TON_NETWORK=mainnet; redeploy; смоук по docs/commerce-license-smoke-checklist.md §6 малой реальной суммой.</action></step>
+    <danger>Точка невозврата для репутации. Любое сомнение на шагах 1–4 — стоп и возврат на testnet.</danger>
+  </phase>
+
+  <!-- ════════════════ ФАЗА 8 ════════════════ -->
+  <phase id="8" name="Дух машины и видимость" risk="низкий" est="по мере сил">
+    <goal>Превратить работающую Кузню в НАХОДИМУЮ Кузню.</goal>
+    <step order="1" name="LLM-ассистент">
+      <action>Подними LM Studio (или совместимый OpenAI-API сервер), сделай его достижимым из Coolify-бэкенда; задай LLM_BASE_URL и LLM_MODEL — assistant_help перестанет быть мокапом.</action>
+    </step>
+    <step order="1b" name="Telegram Mini App (дверь C — код уже готов)">
+      <action>Зарегистрируй Mini App: в @BotFather → /newbot (если бота нет) → /newapp → укажи URL https://tonforge.org и короткое имя (напр. store). Получишь ссылку вида https://t.me/&lt;бот&gt;/store.</action>
+      <action>В Coolify задай VITE_TG_BOT_URL=этой ссылкой и сделай redeploy — TonConnect начнёт возвращать пользователя в Mini App после подписи в кошельке.</action>
+      <verify>Открой ссылку в Telegram: витрина открывается во весь экран с тёмной шапкой; подключение кошелька и покупка проходят; в Telegram Web (web.telegram.org) витрина тоже открывается (frame-ancestors настроен).</verify>
+      <why>900M+ аудитория Telegram — это и есть «сначала здесь». Кошельки Telegram (Wallet, Tonkeeper) живут в том же приложении — путь до оплаты короче некуда.</why>
+    </step>
+    <step order="2" name="Индексация">
+      <action>tonforge.org сейчас НЕ находится поиском (проверено: выдачу держат Getgems/TON Diamonds/Fragment/MRKT). Сделай: Google Search Console + sitemap; пост о запуске в TON-комьюнити (TON Society, dev-чаты); листинг в каталоги ton.app / tonscan apps.</action>
+    </step>
+    <step order="3" name="Идентичность основателя">
+      <action>Реши: публичный основатель (доверие к площадке с чужими средствами) или псевдоним (легитимно в крипто; юр. подотчётность уже закрыта KYC). Если публично — отстройся от тёзки с мошеннической тенью в нише «инвестиции в Telegram»: полное имя, фото, привязка к antsincgame/tonforge.</action>
+    </step>
+    <step order="4" name="Стратегический горизонт (порядок C→A→B)">
+      <action>C: доминируй в TON/Telegram-нише (родной рельс, 900M+ аудитория). A: углубляй агентские покупки (сделано в коде — наращивай реальное использование). B: при тяге — x402/USDC-фасад как мост к западному агентному мейнстриму (119M+ транзакций, за ним Google/Stripe/Visa/Cloudflare).</action>
+    </step>
+  </phase>
+
+  <litany>От слепоты машинной — охрани. От пустого env — убереги. От mainnet без аудита — отврати. Testnet прежде золота, проверка прежде веры. 0110110.</litany>
+</stc>

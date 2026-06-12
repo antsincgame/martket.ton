@@ -26,14 +26,18 @@ import { validateBody } from '../middleware/validate.js';
 import { str } from '../utils/params.js';
 import { sellerRegisterSchema, createListingSchema, patchListingSchema } from './validation.js';
 import { mapListingPublic, appwriteCodeOrZero, requireWalletOwner } from './helpers.js';
+import { loadBestsellers } from './bestsellers.js';
+import { loadSellerAnalytics } from './sellerAnalytics.js';
+import { setSellerWebhook, clearSellerWebhook, validateWebhookUrl } from './webhooks.js';
 import { buildOnboardingChecklist } from '../agent/status.js';
 import { getInstructionSections } from '../agent/instructions.js';
 import { requireSellerKyc } from './handlers/requireSellerKyc.js';
 import {
-  createDiditSession,
-  verifyDiditWebhookSignature,
-  handleDiditWebhook,
-} from './handlers/diditIntegration.js';
+  createBallerineSession,
+  verifyBallerineWebhookSignature,
+  handleBallerineWebhook,
+  isBallerineConfigured,
+} from './handlers/ballerineIntegration.js';
 
 const router = express.Router();
 const upload = multer({
@@ -52,6 +56,20 @@ router.get('/operating-manual', async (_req: Request, res: Response) => {
   } catch (e: unknown) {
     logger.error('[commerce] operating-manual:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Failed to load manual', code: 'OPERATING_MANUAL' });
+  }
+});
+
+// Public bestseller / trending ranking by REAL sales (counts only, cached).
+router.get('/bestsellers', async (req: Request, res: Response) => {
+  try {
+    const windowParam = str(req.query.window as string | undefined);
+    const windowDays = windowParam === '30d' ? 30 : windowParam === '7d' ? 7 : 0;
+    const limit = Math.min(parseInt(str(req.query.limit as string | undefined) || '20', 10) || 20, 100);
+    const data = await loadBestsellers({ windowDays, limit });
+    res.json({ data: { bestsellers: data, window: windowParam || 'all' } });
+  } catch (e) {
+    logger.error('[commerce] bestsellers:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to load bestsellers', code: 'BESTSELLERS' });
   }
 });
 
@@ -108,6 +126,7 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
     const {
       sellerWallet, catalogProductId, title, description,
       priceUsd,
+      salePriceUsd, saleEndsAt,
       deliveryType, deliveryPayload,
       platformFeeBps = DEFAULT_PLATFORM_FEE_BPS, assetFileId = '',
       collectionAddress,
@@ -131,18 +150,38 @@ router.post('/listings', apiRequireAuth(), validateBody(createListingSchema), as
     }
     if (await rejectMismatchedCollection(req, res, String(sellerWallet), collectionAddress)) return;
 
+    // Platform fee is platform policy: never store below the configured minimum
+    // (a seller could otherwise pass platformFeeBps:0 → zero commission).
+    const feeBps = Math.max(Number(platformFeeBps) || DEFAULT_PLATFORM_FEE_BPS, DEFAULT_PLATFORM_FEE_BPS);
+
     const tonRate = await getTonUsdPrice();
     const tonHuman = usdToTonHuman(Number(priceUsd), tonRate);
     const priceAmountRaw = tonHumanToNanoRaw(tonHuman);
     const decimals = 9;
 
+    // Optional launch discount: a USD sale price strictly below the list price,
+    // converted via the SAME oracle so it flows safely through the money path.
+    let saleStorage: Record<string, unknown> = {};
+    if (typeof salePriceUsd === 'number' && salePriceUsd > 0) {
+      if (salePriceUsd >= Number(priceUsd)) {
+        res.status(400).json({ error: 'salePriceUsd must be less than priceUsd', code: 'BAD_SALE' });
+        return;
+      }
+      saleStorage = {
+        sale_price_usd: salePriceUsd,
+        sale_price_amount_raw: tonHumanToNanoRaw(usdToTonHuman(salePriceUsd, tonRate)),
+        sale_ends_at: (typeof saleEndsAt === 'string' && saleEndsAt) || null,
+      };
+    }
+
     const db = databases();
     const listing = await db.createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), {
       sellerWallet, catalogProductId, title, description,
       currency: CURRENCY.TON,
-      priceAmountRaw, priceUsd: String(priceUsd), decimals, platformFeeBps,
+      priceAmountRaw, priceUsd: String(priceUsd), decimals, platformFeeBps: feeBps,
       status: LISTING_STATUS.ACTIVE, deliveryType, assetFileId,
       collection_address: collectionAddress,
+      ...saleStorage,
     });
     await db.createDocument(DATABASE_ID, COL_LISTING_SECRETS, ID.unique(), {
       listingId: listing.$id, deliveryPayload,
@@ -179,6 +218,27 @@ router.patch('/listings/:id', apiRequireAuth(), validateBody(patchListingSchema)
       const tonHuman = usdToTonHuman(Number(body.priceUsd), tonRate);
       patch.priceAmountRaw = tonHumanToNanoRaw(tonHuman);
       patch.priceUsd = String(body.priceUsd);
+    }
+    // Sale: positive salePriceUsd (< list) starts/updates a discount; null/0 clears it.
+    if (body.salePriceUsd !== undefined) {
+      const listUsd = body.priceUsd !== undefined ? Number(body.priceUsd) : Number(existing['priceUsd']);
+      const sale = body.salePriceUsd === null ? 0 : Number(body.salePriceUsd);
+      if (!sale) {
+        patch.sale_price_usd = null;
+        patch.sale_price_amount_raw = null;
+        patch.sale_ends_at = null;
+      } else {
+        if (sale >= listUsd) {
+          res.status(400).json({ error: 'salePriceUsd must be less than priceUsd', code: 'BAD_SALE' });
+          return;
+        }
+        const tonRate = await getTonUsdPrice();
+        patch.sale_price_usd = sale;
+        patch.sale_price_amount_raw = tonHumanToNanoRaw(usdToTonHuman(sale, tonRate));
+        patch.sale_ends_at = (typeof body.saleEndsAt === 'string' && body.saleEndsAt) || null;
+      }
+    } else if (body.saleEndsAt !== undefined) {
+      patch.sale_ends_at = (typeof body.saleEndsAt === 'string' && body.saleEndsAt) || null;
     }
     if (typeof body.collectionAddress === 'string' && body.collectionAddress.length > 0) {
       if (await rejectMismatchedCollection(req, res, sellerWallet, body.collectionAddress)) return;
@@ -260,7 +320,7 @@ router.post('/listings/:id/asset', apiRequireAuth(), upload.single('file'), asyn
   }
 });
 
-// ── Didit KYC: create verification session ────────────────────────
+// ── Ballerine KYC: create verification session ────────────────────
 router.post('/sellers/kyc/session', apiRequireAuth(), async (req: Request, res: Response) => {
   try {
     const { wallet } = req.body as { wallet?: string };
@@ -270,6 +330,14 @@ router.post('/sellers/kyc/session', apiRequireAuth(), async (req: Request, res: 
     }
     const owner = await requireWalletOwner(req, res, wallet);
     if (!owner) return;
+
+    if (!isBallerineConfigured()) {
+      res.status(503).json({
+        error: 'Automated KYC is not configured; use the manual verification form.',
+        code: 'KYC_PROVIDER_DISABLED',
+      });
+      return;
+    }
 
     const db = databases();
     const { documents } = await db.listDocuments(DATABASE_ID, COL_SELLER_PROFILES, [
@@ -291,29 +359,33 @@ router.post('/sellers/kyc/session', apiRequireAuth(), async (req: Request, res: 
     const host = req.headers['x-forwarded-host'] || req.get('host') || 'localhost';
     const callbackUrl = `${protocol}://${host}/api/v1/commerce/sellers/kyc/webhook`;
 
-    const result = await createDiditSession(wallet, callbackUrl);
+    const result = await createBallerineSession(wallet, callbackUrl);
     res.json({ data: { sessionId: result.sessionId, url: result.url } });
   } catch (e: unknown) {
-    logger.error('[commerce] didit session:', e instanceof Error ? e.message : e);
-    res.status(500).json({ error: 'Failed to create KYC session', code: 'DIDIT_SESSION' });
+    logger.error('[commerce] ballerine session:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to create KYC session', code: 'KYC_SESSION' });
   }
 });
 
-// ── Didit KYC: webhook receiver ───────────────────────────────────
+// ── Ballerine KYC: webhook receiver ───────────────────────────────
 
 /**
- * Express middleware that authenticates an incoming Didit webhook via its HMAC
- * signature BEFORE the handler runs. Fail-closed: a missing/invalid signature
- * (or an unconfigured DIDIT_WEBHOOK_SECRET) is rejected with 401 and the handler
- * never executes. Verification lives here, in a dedicated guard, so the route
- * body carries no request-controlled security branch.
+ * Express middleware that authenticates an incoming Ballerine webhook via its
+ * HMAC signature BEFORE the handler runs. Fail-closed: a missing/invalid
+ * signature (or an unconfigured BALLERINE_WEBHOOK_SECRET) is rejected with 401.
+ *
+ * The HMAC is computed over the RAW body bytes. server.ts exempts this exact
+ * path from the global express.json() parser, so `express.raw` below receives
+ * the unconsumed stream — previously (Didit) the global parser ran first and the
+ * signature was verified against a stringified object (always failing / forgeable).
  */
-function requireValidDiditSignature(req: Request, res: Response, next: NextFunction): void {
-  const signature = (req.headers['x-webhook-signature'] as string | undefined)
-    || (req.headers['x-payload-digest'] as string | undefined);
+function requireValidBallerineSignature(req: Request, res: Response, next: NextFunction): void {
+  const signature = (req.headers['x-ballerine-signature'] as string | undefined)
+    || (req.headers['x-webhook-signature'] as string | undefined)
+    || (req.headers['x-hmac-signature'] as string | undefined);
   const rawBody = req.body as Buffer;
-  if (!signature || !verifyDiditWebhookSignature(rawBody, signature)) {
-    logger.warn('[didit] webhook rejected: missing or invalid signature');
+  if (!signature || !verifyBallerineWebhookSignature(rawBody, signature)) {
+    logger.warn('[ballerine] webhook rejected: missing or invalid signature');
     res.status(401).json({ error: 'Invalid signature' });
     return;
   }
@@ -321,22 +393,22 @@ function requireValidDiditSignature(req: Request, res: Response, next: NextFunct
 }
 
 // Per-IP cap on the public webhook endpoint. Generous enough for legitimate
-// Didit delivery (low-frequency, retried on 429) while bounding floods of
-// forged requests before they reach body-parsing / signature verification.
+// Ballerine delivery (low-frequency, retried) while bounding floods of forged
+// requests before they reach body-parsing / signature verification.
 const limitWebhook = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
 
 router.post(
   '/sellers/kyc/webhook',
   limitWebhook,
   express.raw({ type: '*/*' }),
-  requireValidDiditSignature,
+  requireValidBallerineSignature,
   async (req: Request, res: Response) => {
     try {
       const payload = JSON.parse((req.body as Buffer).toString('utf-8'));
-      const result = await handleDiditWebhook(payload);
+      const result = await handleBallerineWebhook(payload);
       res.json({ ok: true, processed: result.processed });
     } catch (e: unknown) {
-      logger.error('[didit] webhook error:', e instanceof Error ? e.message : e);
+      logger.error('[ballerine] webhook error:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Webhook processing failed' });
     }
   },
@@ -387,6 +459,62 @@ router.get('/sellers/:wallet/onboarding', apiRequireAuth(), async (req: Request,
   } catch (e: unknown) {
     logger.error('[commerce] seller onboarding:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Failed to load onboarding', code: 'SELLER_ONBOARDING' });
+  }
+});
+
+// Seller analytics for the human Demiurge UI — same aggregator as the agent
+// endpoint (`GET /api/v1/agent/analytics`), so machine and human see identical
+// store performance. Owner-only.
+router.get('/sellers/:wallet/analytics', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const wallet = str(req.params.wallet);
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
+    const analytics = await loadSellerAnalytics(wallet);
+    res.json({ data: analytics });
+  } catch (e: unknown) {
+    logger.error('[commerce] seller analytics:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to compute analytics', code: 'SELLER_ANALYTICS' });
+  }
+});
+
+// Seller event webhook (human Demiurge parity with the agent surface). Owner-only.
+router.post('/sellers/:wallet/webhook', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const wallet = str(req.params.wallet);
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
+    const url = typeof (req.body as { url?: unknown })?.url === 'string' ? (req.body as { url: string }).url.trim() : '';
+    if (!url) {
+      res.status(400).json({ error: 'url is required', code: 'VALIDATION' });
+      return;
+    }
+    const valid = await validateWebhookUrl(url);
+    if (!valid.ok) {
+      res.status(400).json({ error: `Invalid webhook URL: ${valid.reason}`, code: 'BAD_WEBHOOK_URL' });
+      return;
+    }
+    const { secret } = await setSellerWebhook(wallet, url);
+    res.json({ data: { url, secret, events: ['order.paid', 'payout.released'] } });
+  } catch (e: unknown) {
+    const code = e instanceof Error ? e.message : '';
+    if (code === 'SELLER_NOT_REGISTERED') { res.status(404).json({ error: 'Register as a seller first', code: 'NOT_REGISTERED' }); return; }
+    if (code === 'WEBHOOK_NOT_PROVISIONED') { res.status(503).json({ error: 'Webhooks not provisioned', code: 'WEBHOOK_NOT_PROVISIONED' }); return; }
+    logger.error('[commerce] set webhook:', code);
+    res.status(500).json({ error: 'Failed to set webhook', code: 'SELLER_WEBHOOK' });
+  }
+});
+
+router.delete('/sellers/:wallet/webhook', apiRequireAuth(), async (req: Request, res: Response) => {
+  try {
+    const wallet = str(req.params.wallet);
+    const owner = await requireWalletOwner(req, res, wallet);
+    if (!owner) return;
+    await clearSellerWebhook(wallet);
+    res.json({ data: { cleared: true } });
+  } catch (e: unknown) {
+    logger.error('[commerce] clear webhook:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to clear webhook', code: 'SELLER_WEBHOOK' });
   }
 });
 

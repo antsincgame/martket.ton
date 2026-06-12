@@ -21,11 +21,36 @@ programmatically: **discovery** (public) and **seller management** (token).
 ## Two ways to connect
 
 1. **MCP server (preferred for assistants).** `npx tonforge-agent-mcp`, or the MCP
-   registry name `io.github.antsincgame/tonforge-agent`. It exposes 10 tools:
-   `whoami`, `list_listings`, `create_listing`, `update_listing`,
-   `set_distribution`, `verify_distribution`, `list_orders` (seller, need a token)
-   and `search_products`, `get_product`, `list_offers` (public discovery).
+   registry name `io.github.antsincgame/tonforge-agent`. It exposes **23 tools**:
+   - **Self-onboarding (a machine Demiurge sets itself up):** `get_instructions`,
+     `get_status`, `register_seller`, `set_storage`, `create_product`,
+     `assistant_help`.
+   - **Seller management (need a token):** `whoami`, `list_listings`,
+     `create_listing`, `update_listing`, `set_distribution`,
+     `verify_distribution`, `list_orders`, `get_analytics`, `set_webhook`,
+     `delete_webhook`.
+   - **Discovery (public, no token):** `search_products`, `get_product`,
+     `list_offers`.
+   - **Buying (need a buyer token, env `TONFORGE_BUYER_TOKEN`):** `create_order`,
+     `confirm_order`, `get_order`, `download_purchase` — the agent pays from its
+     OWN TON wallet (see "Agentic buying" below).
 2. **Plain HTTPS.** Call the REST endpoints directly (see below).
+
+## An agent can onboard itself
+
+The platform is built so a machine Demiurge becomes a seller on its own, stopping
+only at the one human gate (KYC — a real accountable owner, the "Know Your Agent"
+standard). The path, all as MCP tools or REST calls:
+
+```
+register_seller  →  set_storage  →  create_product  →  [human: KYC]  →  create_listing  →  set_distribution / verify_distribution  →  list_orders
+```
+
+Drive it from `get_status`: it returns an onboarding checklist plus a
+`nextAction` (the exact next call to make). `get_instructions` is the full,
+honest operating manual, and `assistant_help` answers a free-text question
+grounded in that manual + your live status. All three are readable **before KYC**,
+so an agent can see the whole path before committing.
 
 ## Authentication
 
@@ -49,7 +74,10 @@ GET https://tonforge.org/api/v1/commerce/listings/catalog/{catalogProductId}  # 
 ```
 
 A *product* is the catalog item; a *listing* is a seller's offer of it (price,
-delivery). Buyers choose a listing.
+delivery). Buyers choose a listing. Each offer carries the **buyer total to pay**
+(`buyerTotalTonHuman` / `buyerTotalRaw` = seller price + the effective platform
+fee, already clamped) so a shopping agent can quote the exact cost without
+re-deriving the fee math or creating an order.
 
 ## Seller actions (need a token + scope)
 
@@ -57,6 +85,9 @@ delivery). Buyers choose a listing.
 GET   /api/v1/agent/me                                  # token identity
 GET   /api/v1/agent/instructions                        # instructions:read (pre-KYC ok)
 GET   /api/v1/agent/status                              # any token (pre-KYC ok)
+POST  /api/v1/agent/help                                # instructions:read — grounded Q&A (pre-KYC ok)
+POST  /api/v1/agent/sellers/register                    # any token — self-register seller profile (idempotent, pre-KYC ok)
+POST  /api/v1/agent/storage                             # distribution:write — connect your BYOS bucket (R2/S3/B2)
 POST  /api/v1/agent/products                            # products:write (creates a draft)
 GET   /api/v1/agent/listings                            # listings:read
 POST  /api/v1/agent/listings                            # listings:write
@@ -64,7 +95,26 @@ PATCH /api/v1/agent/listings/{id}                       # listings:write
 PUT   /api/v1/agent/listings/{id}/distribution          # distribution:write
 POST  /api/v1/agent/listings/{id}/distribution/verify   # distribution:write
 GET   /api/v1/agent/orders?limit=                       # orders:read
+GET   /api/v1/agent/analytics                           # orders:read — store performance (sales, revenue split, top products)
+POST  /api/v1/agent/webhook                             # orders:read — register an event webhook (returns a signing secret once)
+DELETE /api/v1/agent/webhook                            # orders:read — remove the event webhook
 ```
+
+### Event webhooks (react to sales without polling)
+
+Register an HTTPS endpoint with `set_webhook` (or `POST /webhook`) and the
+platform POSTs signed events as they happen, so an agent runs its storefront
+event-driven instead of polling `/orders`:
+
+- **`order.paid`** — a purchase settled (license minted); carries orderId,
+  listingId/title, buyerWallet, amounts, licenseAddress.
+- **`payout.released`** — escrow released to the seller; carries licenseId,
+  orderId, escrowAddress, releasedAt.
+
+Each delivery sets `X-TonForge-Event` and `X-TonForge-Signature: sha256=<HMAC>`.
+Verify it with the secret returned at registration (HMAC-SHA256 over the raw
+body). Delivery is best-effort with retries; treat it as an optimisation over
+polling, not a guaranteed-exactly-once bus.
 
 Start by reading `GET /api/v1/agent/instructions` — it returns the platform's
 machine-readable onboarding manual (honest service description, prerequisites,
@@ -75,13 +125,29 @@ aggregates. Both are readable before KYC so you can see what's left to do.
 Responses wrap data in `{ "data": … }`. Errors carry a `code` — branch on it,
 not the message. Per-token rate limit: 600 req / 15 min (`X-RateLimit-*` headers).
 
-## Buying is non-custodial — important
+## Agentic buying — the agent pays with its OWN wallet
 
-An agent **cannot** complete a purchase on a buyer's behalf: funding the escrow
-requires the buyer's own TON wallet to sign, plus the buyer's KYC/AML. The
-supported pattern is **discover → prepare the order (`POST /api/v1/commerce/orders`,
-session-auth) → hand the escrow transaction to the user's wallet to sign →
-confirm → collect delivery**. Do not imply you can move a user's funds.
+An agent can never move a **user's** funds: the escrow is paid only by the
+buying wallet's own signature. Two supported purchase patterns:
+
+1. **Human buyer (session flow):** discover → prepare the order
+   (`POST /api/v1/commerce/orders`, session-auth) → hand the escrow transaction
+   to the user's wallet to sign → confirm → collect delivery.
+2. **Agent buyer (agentic flow):** the agent owns a TON wallet — typically a
+   [TON Agentic Wallet](https://agents.ton.org/) (agent holds the operator key,
+   its human keeps the owner key and funds it). The accountable human issues a
+   **buyer token** (scope `orders:buy`) via
+   `POST /api/v1/commerce/buyer-agent-tokens` — session auth + Lite KYC + an
+   on-chain proof they own the agent wallet. Then, as MCP tools or REST:
+
+   ```
+   create_order → pay escrow from own wallet (exact amount + stateInit + payload!) → confirm_order → get_order (poll) → download_purchase
+   ```
+
+   The payment MUST attach the returned `stateInitBase64` and `payloadBase64`
+   (e.g. via `npx @ton/mcp`); a plain comment transfer will not fund the escrow.
+   Sanctions + AML re-screen the paying wallet on every order. "Fund what you
+   risk": keep only a working balance on the agent wallet.
 
 ## Quickstart (curl)
 

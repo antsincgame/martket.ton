@@ -34,6 +34,13 @@ const COLLECTION_TARGETS = [
   ['core', 'support_tickets', 'Support tickets', SERVER_ONLY, false],
   ['core', 'compliance_ledger', 'Compliance financial ledger', READ_ADMIN, false],
   ['core', 'api_audit_logs', 'API audit logs', READ_ADMIN, false],
+  // M-1: provision-demiurge creates `purchases` with Permission.read(Role.users()),
+  // exposing every buyer's user_id / tx_hash / price to ANY logged-in user. The
+  // backend reads it via the service key and the frontend never touches it
+  // directly, so server-only is safe and closes a purchase-history leak.
+  ['core', 'purchases', 'Purchases', SERVER_ONLY, false],
+  // Buyer wishlist — private per-user saved products; backend-only access.
+  ['core', 'wishlists', 'Wishlists', SERVER_ONLY, false],
 ];
 
 // [bucketId, name, permissions]
@@ -50,12 +57,15 @@ async function main() {
   const databases = new Databases(client);
   const storage = new Storage(client);
 
+  let failed = 0;
+
   for (const [db, col, name, perms, docSec] of COLLECTION_TARGETS) {
     try {
       await databases.updateCollection(db, col, name, perms, docSec, true);
       const label = perms.length ? perms.join(', ') : 'server-only ([])';
       console.log(`[harden] ${db}.${col} → [${label}] documentSecurity=${docSec}`);
     } catch (error) {
+      failed += 1;
       console.warn(`[harden] ${db}.${col} FAILED: ${error?.message || error}`);
     }
   }
@@ -65,11 +75,20 @@ async function main() {
       await storage.updateBucket(bucket, name, perms);
       console.log(`[harden] bucket ${bucket} → [${perms.join(', ')}]`);
     } catch (error) {
-      console.warn(`[harden] bucket ${bucket} FAILED (можно пропустить): ${error?.message || error}`);
+      failed += 1;
+      console.warn(`[harden] bucket ${bucket} FAILED: ${error?.message || error}`);
     }
   }
 
-  console.log('[harden] Готово. Проверь в консоли Appwrite, что у перечисленных коллекций нет лишних read/create.');
+  // M-2: previously this script always exited 0, so an operator (or CI) saw
+  // "success" even if EVERY updateCollection failed (wrong db id, key missing
+  // collections.write, renamed collection) — believing prod was hardened when it
+  // was not. Exit non-zero on any failure so the outcome is unambiguous.
+  if (failed > 0) {
+    console.error(`[harden] ПРОВАЛ: ${failed} операц. не применены — права НЕ ужесточены полностью.`);
+    process.exit(1);
+  }
+  console.log('[harden] Готово. Все права применены. Проверь в консоли Appwrite отсутствие лишних read/create.');
 }
 
 main().catch((e) => {

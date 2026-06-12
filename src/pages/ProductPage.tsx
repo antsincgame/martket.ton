@@ -1,23 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { Star, Download, Share2, Shield, Zap, User, Calendar, Gem, Sparkles, ThumbsUp, RefreshCw, ExternalLink } from 'lucide-react';
+import { Star, Download, Share2, Shield, Zap, User, Calendar, Gem, Sparkles, RefreshCw, ExternalLink } from 'lucide-react';
 import { slugify } from '../utils/slugify';
 import LoadingScreen from '../components/LoadingScreen';
 import Breadcrumbs from '../components/Breadcrumbs';
 import DemoUiBadge from '../components/DemoUiBadge';
 import CommerceCheckout from '../components/checkout/CommerceCheckout';
-import { resolveProductDetail, resolveProductReviews } from '../domain/marketplace/marketplaceRemote';
+import { resolveProductDetail } from '../domain/marketplace/marketplaceRemote';
+import ReviewSection from '../components/product/ReviewSection';
 import { categoryLabelToSlug } from '../domain/marketplace/catalog';
 import { useTonPrice } from '../hooks/useTonPrice';
 import { logger } from '../lib/logger';
-import type { ProductDetail, ProductReview } from '../domain/marketplace/types';
+import type { ProductDetail } from '../domain/marketplace/types';
 
 const ProductPage = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
   const [selectedImage, setSelectedImage] = useState(0);
   const [product, setProduct] = useState<ProductDetail | null | undefined>(undefined);
-  const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { data: tonPrice } = useTonPrice();
   const [retryNonce, setRetryNonce] = useState(0);
@@ -26,7 +26,6 @@ const ProductPage = () => {
   useEffect(() => {
     if (!slug) {
       setProduct(null);
-      setReviews([]);
       return;
     }
     let cancelled = false;
@@ -34,13 +33,9 @@ const ProductPage = () => {
     setProduct(undefined);
     (async () => {
       try {
-        const [nextProduct, nextReviews] = await Promise.all([
-          resolveProductDetail(slug),
-          resolveProductReviews(slug),
-        ]);
+        const nextProduct = await resolveProductDetail(slug);
         if (!cancelled) {
           setProduct(nextProduct);
-          setReviews(nextReviews);
         }
       } catch (err) {
         logger.warn('[ProductPage] load failed', err);
@@ -279,52 +274,8 @@ const ProductPage = () => {
               </div>
             )}
 
-            {/* Reviews */}
-            {reviews.length > 0 && (
-              <div className="neon-card-gold rounded-2xl p-6 backdrop-blur-sm">
-                <h2 className="text-xl font-display font-bold text-white uppercase tracking-wider mb-6 flex items-center gap-3">
-                  <Star className="w-5 h-5 text-[#FFD700]" />
-                  Reviews
-                  <span className="text-gray-600 text-xs font-sans normal-case tracking-normal font-normal">
-                    ({reviews.length})
-                  </span>
-                </h2>
-                <div className="space-y-5">
-                  {reviews.map((review) => (
-                    <div key={review.id} className="border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
-                      <div className="flex items-start gap-3 mb-3">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#8B5CF6]/30 to-[#FF00FF]/20 border border-[#8B5CF6]/20 flex items-center justify-center flex-shrink-0">
-                          <User className="w-4 h-4 text-[#8B5CF6]" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="font-semibold text-white text-sm">{review.author}</span>
-                            <span className="text-gray-600 text-xs">{review.date}</span>
-                          </div>
-                          <div className="flex items-center">
-                            {[...Array(5)].map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`w-3 h-3 ${
-                                  i < review.rating ? 'text-[#FFD700] fill-current' : 'text-white/10'
-                                }`}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-gray-400 text-sm leading-relaxed ml-12">{review.comment}</p>
-                      {review.helpful > 0 && (
-                        <div className="ml-12 mt-2 text-xs text-gray-600 flex items-center gap-1">
-                          <ThumbsUp className="w-3 h-3" />
-                          {review.helpful} found helpful
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Reviews & ratings (verified-buyer write-path) */}
+            <ReviewSection catalogProductId={product.id} />
           </div>
 
           {/* ─── Sidebar ─── */}

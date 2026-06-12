@@ -16,6 +16,7 @@ import { writeAudit } from '../audit.js';
 import { omitEntitlementFields, omitOrderFields } from '../helpers.js';
 import { recordLedgerEntry } from '../../core/ledgerService.js';
 import { isUniqueViolation } from '../../domain/appwrite-helpers.js';
+import { dispatchWebhook } from '../webhooks.js';
 import { logger } from '../../logger.js';
 
 // Terminal order states this reconciler must never overwrite. PAID/FULFILLED
@@ -121,6 +122,23 @@ export async function reconcileOrderAfterMint(
   }).catch((err) =>
     logger.warn('[orderReconciler] ledger mint_license:', err instanceof Error ? err.message : err),
   );
+
+  // Notify the seller's webhook of the sale (event-driven automation). Emitted
+  // here — at the single PAID transition, guarded by TERMINAL_ORDER_STATES — so
+  // it fires exactly once. Strictly fire-and-forget: a webhook failure must not
+  // touch the money path.
+  const sellerWallet = String(order['sellerWallet'] || '');
+  if (sellerWallet) {
+    void dispatchWebhook(sellerWallet, 'order.paid', {
+      orderId: license.orderId,
+      listingId: license.listingId,
+      listingTitle: order['listingSnapshotTitle'] ?? null,
+      buyerWallet: license.buyerWallet,
+      amountRaw: order['amountRaw'] ?? '0',
+      sellerNetAmountRaw: order['sellerNetAmountRaw'] ?? '0',
+      licenseAddress,
+    });
+  }
 
   logger.info(
     `[orderReconciler] order ${license.orderId} → PAID (license=${licenseAddress})`,

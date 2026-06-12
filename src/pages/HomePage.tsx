@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Gem } from 'lucide-react';
+import { Gem, TrendingUp } from 'lucide-react';
 import CollectionRow from '../components/CollectionRow';
 import StoreBrowser from '../components/StoreBrowser';
 import LoadingScreen from '../components/LoadingScreen';
@@ -59,9 +59,18 @@ const HomePage = () => {
           products={inventory.spotlight}
         />
 
+        {inventory.trending.length > 0 && (
+          <CollectionRow
+            title="Bestsellers"
+            icon={TrendingUp}
+            products={inventory.trending}
+          />
+        )}
+
         <StoreBrowser
           products={inventory.products}
           categories={inventory.categorySummaries}
+          trendingIds={inventory.trending.map((p) => p.id)}
         />
       </div>
     </div>

@@ -22,15 +22,48 @@ export type GateDecision =
   | { kind: 'allow' }
   | { kind: 'deny'; status: number; code: string; message: string; licenseId?: string };
 
+export interface ScanDenial {
+  status: number;
+  code: string;
+  message: string;
+}
+
+/**
+ * Antivirus decision for a distribution artifact, independent of any license.
+ * Returns a denial or null (artifact may be served). This is the part of the
+ * gate that must apply to EVERYONE who downloads — buyers, the seller, AND
+ * reviewing staff — since reviewers are exactly the population most likely to be
+ * handed a malicious build. `scanRequired` (antivirus configured) makes it
+ * fail-closed: only a `clean` verdict passes.
+ */
+export function decideScanGate(scanStatus: string | undefined, scanRequired: boolean): ScanDenial | null {
+  if (scanStatus === 'malicious' || scanStatus === 'suspicious') {
+    return { status: 403, code: 'SCAN_BLOCKED', message: 'Download blocked: artifact failed the antivirus check' };
+  }
+  if (scanRequired && scanStatus !== 'clean') {
+    return scanStatus === 'scanning'
+      ? { status: 425, code: 'SCAN_IN_PROGRESS', message: 'Antivirus scan in progress; try again shortly' }
+      : { status: 403, code: 'SCAN_REQUIRED', message: 'Download blocked: artifact has not passed an antivirus scan' };
+  }
+  return null;
+}
+
 /**
  * @param license   запись лицензии для (buyer, listing)
  * @param scanStatus статус антивирус-проверки артефакта дистрибуции
- *   (listings.scan_status). Известно-плохой вердикт блокирует скачивание
- *   независимо от состояния лицензии.
+ *   (listings.scan_status).
+ * @param scanRequired когда true (антивирус сконфигурирован), гейт работает
+ *   FAIL-CLOSED: отдаём только при вердикте `clean`. Это закрывает M-8 —
+ *   продавец, сменивший manifest после одобрения, сбрасывает scan_status в
+ *   `idle`, и без fail-closed незсканированный (возможно вредоносный) билд
+ *   утекал бы покупателям. Когда антивирус НЕ настроен (scanRequired=false),
+ *   блокируем лишь известно-плохие вердикты, чтобы не убить дистрибуцию там,
+ *   где сканирование вообще не включено.
  */
 export function decideDownloadGate(
   license: LicenseLike | null,
   scanStatus?: string,
+  scanRequired = false,
 ): GateDecision {
   if (!license) {
     return {
@@ -40,17 +73,11 @@ export function decideDownloadGate(
       message: 'License record missing for this purchase. Contact support.',
     };
   }
-  // Антивирус-гейт: артефакт с вердиктом malicious/suspicious не отдаём,
-  // даже если лицензия валидна. Статусы clean/idle/scanning/oversize_skip/error
-  // не блокируют (скан мог быть не настроен или ещё идёт).
-  if (scanStatus === 'malicious' || scanStatus === 'suspicious') {
-    return {
-      kind: 'deny',
-      status: 403,
-      code: 'SCAN_BLOCKED',
-      message: 'Download blocked: artifact failed the antivirus check',
-      licenseId: license.$id,
-    };
+  // Антивирус-гейт (общий с decideScanGate): malicious/suspicious не отдаём, а
+  // при включённом антивирусе — только `clean` (fail-closed).
+  const scanDenial = decideScanGate(scanStatus, scanRequired);
+  if (scanDenial) {
+    return { kind: 'deny', ...scanDenial, licenseId: license.$id };
   }
   if (license.state === LICENSE_STATE.MINT_PENDING) {
     return {

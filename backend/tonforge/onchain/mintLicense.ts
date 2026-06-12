@@ -1,8 +1,8 @@
-import { Address, beginCell, internal, SendMode } from '@ton/core';
+import { Address, beginCell } from '@ton/core';
 import { logger } from '../../logger.js';
 import { loadOnchainConfig } from './config.js';
 import { getTonClient } from './tonClient.js';
-import { getOracleWallet } from './oracleWallet.js';
+import { sendFromOracle } from './oracleWallet.js';
 import {
   buildIndividualContent,
   buildMintLicensePayload,
@@ -64,21 +64,9 @@ export async function mintLicense(input: MintLicenseInput): Promise<MintLicenseR
     individualContent,
   });
 
-  const oracle = await getOracleWallet();
-  const seqno = await oracle.wallet.getSeqno();
-  await oracle.wallet.sendTransfer({
-    seqno,
-    secretKey: oracle.secretKey,
-    sendMode: SendMode.PAY_GAS_SEPARATELY,
-    messages: [
-      internal({
-        to: collection,
-        value: cfg.mintGasNano,
-        bounce: true,
-        body: payload,
-      }),
-    ],
-  });
+  const seqno = await sendFromOracle([
+    { to: collection, value: cfg.mintGasNano, bounce: true, body: payload },
+  ]);
 
   logger.info(
     `[onchain.mint] sent MintLicense queryId=${queryId} index=${input.index} item=${itemAddress.toString()} buyer=${buyer.toString()}`,

@@ -1,4 +1,10 @@
 <!-- Rollout guide нужен, чтобы новая TonForge реализация последовательно переехала с demo-state на PostgreSQL и реальные TON contracts. -->
+> ⚠️ **ARCHIVED / HISTORICAL.** This document describes an abandoned PostgreSQL
+> migration path. The live system runs entirely on **Appwrite** (databases
+> `marketplace` / `core`, provisioned by `scripts/provision-*.mjs`), NOT
+> Postgres. `backend/sql/tonforge_schema.sql` is dead legacy. Kept only for
+> historical context — do not follow these steps.
+
 # TonForge Rollout
 
 ## Canonical Order

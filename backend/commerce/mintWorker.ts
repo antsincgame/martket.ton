@@ -31,6 +31,8 @@ import { databases, Query } from './appwrite.js';
 import { getNetworkConfig, type TonNetwork } from '../config/network.js';
 import { logger } from '../logger.js';
 import { reconcileOrderAfterMint } from './handlers/reconcileOrderAfterMint.js';
+import { addressesEqual } from './tonVerify.js';
+import { findLicenseByOrderId } from './licenseRepository.js';
 
 const POLL_INTERVAL_MS = parseInt(process.env.MINT_WORKER_POLL_MS || '30000', 10);
 const MAX_ORDERS_PER_TICK = 20;
@@ -184,11 +186,25 @@ function isZeroLicenseAddress(licenseAddress: string | null): boolean {
 export function decideReconcileAction(
   escrowState: number | null,
   licenseAddress: string | null,
+  expectedLicenseAddress?: string | null,
 ): ReconcileAction {
   if (escrowState === 3) return { kind: 'fulfilled' };
   if (escrowState === 4) return { kind: 'refunded' };
   if (escrowState !== 1) return { kind: 'noop' };
-  return isZeroLicenseAddress(licenseAddress) ? { kind: 'wait' } : { kind: 'finalize' };
+  if (isZeroLicenseAddress(licenseAddress)) return { kind: 'wait' };
+  // M-7 / CON-01: never finalize on a license address we did not mint. When the
+  // expected item address is known (recorded on the order's license row by the
+  // tonforge mint worker), the escrow's license_address MUST equal it; a
+  // mismatch means a front-run registration of a foreign contract — wait and
+  // let pollLicenseRegistered own confirmation rather than writing a bogus
+  // entitlement/ledger row bound to the attacker's address.
+  if (expectedLicenseAddress !== undefined) {
+    if (!expectedLicenseAddress) return { kind: 'wait' };
+    return addressesEqual(licenseAddress ?? '', expectedLicenseAddress)
+      ? { kind: 'finalize' }
+      : { kind: 'wait' };
+  }
+  return { kind: 'finalize' };
 }
 
 async function processOrder(
@@ -202,7 +218,10 @@ async function processOrder(
   // Only query the license getter once the escrow is FUNDED.
   const licenseAddr =
     state === 1 ? await getEscrowLicenseAddress(escrowAddr, cfg.tonapiBase, cfg.tonapiKey) : null;
-  const action = decideReconcileAction(state, licenseAddr);
+  // M-7: the address we actually minted for this order (set by the tonforge
+  // worker on the license row). decideReconcileAction finalizes only on a match.
+  const expectedLicense = state === 1 ? (await findLicenseByOrderId(order.$id))?.nftAddress ?? '' : null;
+  const action = decideReconcileAction(state, licenseAddr, expectedLicense);
 
   switch (action.kind) {
     case 'fulfilled':

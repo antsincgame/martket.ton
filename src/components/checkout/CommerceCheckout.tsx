@@ -42,11 +42,20 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [mintProgress, setMintProgress] = useState<number>(0);
   const [showKycLite, setShowKycLite] = useState(false);
+  // H-6: once the wallet has broadcast payment for an order, remember it so a
+  // failed confirmation retries ONLY the confirm/poll step. Without this, the
+  // error state's only action was "Buy", which created a NEW order + a SECOND
+  // on-chain payment for the same purchase.
+  const [paidPending, setPaidPending] = useState<{ orderId: string; txHash: string } | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
 
-  // Cleanup polling timer при unmount
+  // Cleanup polling timer при unmount; mountedRef stops an in-flight poll()
+  // from setting state or rescheduling after the component is gone.
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     };
   }, []);
@@ -77,10 +86,12 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   const startMintPolling = useCallback(async (orderId: string, walletAddr: string) => {
     let attempts = 0;
     const poll = async () => {
+      if (!mountedRef.current) return;
       attempts += 1;
       setMintProgress(attempts);
       try {
         const status = await fetchCommerceOrder(orderId, walletAddr);
+        if (!mountedRef.current) return; // unmounted during the await
         const isPaidOrFulfilled = status.order.state === 'paid' || status.order.state === 'fulfilled';
         if (isPaidOrFulfilled && status.deliveryPayload) {
           setDelivery(status.deliveryPayload);
@@ -101,6 +112,42 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
       pollTimerRef.current = setTimeout(() => void poll(), MINT_POLL_INTERVAL_MS);
     };
     pollTimerRef.current = setTimeout(() => void poll(), MINT_POLL_INTERVAL_MS);
+  }, []);
+
+  // Confirm an already-PAID order and drive it to delivery. Shared by the
+  // initial purchase and the retry-confirmation path (H-6) so a confirm failure
+  // never re-triggers payment.
+  const confirmAndFinish = useCallback(async (orderId: string, wallet: string, txHash: string) => {
+    setPhase('confirming');
+    const confirmation = await confirmCommerceOrder(orderId, wallet, txHash);
+
+    // v4 flow: backend подтвердил платёж, но license NFT минтится worker'ом.
+    if (confirmation.mintPending) {
+      setPaidPending(null);
+      setPhase('minting');
+      setMintProgress(0);
+      await startMintPolling(orderId, wallet);
+      return;
+    }
+
+    if (confirmation.entitlement?.deliveryPayload) {
+      setDelivery(confirmation.entitlement.deliveryPayload);
+    }
+    setPaidPending(null);
+    setPhase('done');
+  }, [startMintPolling]);
+
+  const mapPurchaseError = useCallback((err: unknown): { kycLite?: boolean; message: string } => {
+    const raw = err instanceof Error ? err.message : 'Purchase failed';
+    const code = (err as { code?: string }).code;
+    if (code === 'KYC_LITE_REQUIRED' || /KYC_LITE_REQUIRED/.test(raw)) return { kycLite: true, message: raw };
+    if (/OFAC_SDN|EU_CONSOLIDATED|SANCTIONED/.test(raw)) {
+      return { message: 'This wallet is on a public sanctions list (US OFAC / EU). The purchase is legally unavailable.' };
+    }
+    if (/KYC_REQUIRED|KYC_PENDING|KYC_REJECTED/.test(raw)) {
+      return { message: 'Seller verification is incomplete. Please retry later or contact support.' };
+    }
+    return { message: raw };
   }, []);
 
   const handleBuy = useCallback(async () => {
@@ -126,45 +173,35 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
       });
 
       const txHash = extractMsgHash(result.boc);
+      // Payment is now broadcast. Record it BEFORE confirming so a confirm
+      // failure can be retried without paying again.
+      setPaidPending({ orderId: ord.orderId, txHash });
 
-      setPhase('confirming');
-      const confirmation = await confirmCommerceOrder(ord.orderId, buyerWallet, txHash);
-
-      // v4 flow: backend подтвердил платёж, но license NFT минтится worker'ом.
-      // Опрашиваем /orders/:id до появления entitlement.
-      if (confirmation.mintPending) {
-        setPhase('minting');
-        setMintProgress(0);
-        await startMintPolling(ord.orderId, buyerWallet);
-        return;
-      }
-
-      // Legacy v3 flow или v4 у которого worker уже успел отработать —
-      // entitlement пришёл сразу.
-      if (confirmation.entitlement?.deliveryPayload) {
-        setDelivery(confirmation.entitlement.deliveryPayload);
-      }
-      setPhase('done');
+      await confirmAndFinish(ord.orderId, buyerWallet, txHash);
     } catch (err: unknown) {
-      const raw = err instanceof Error ? err.message : 'Purchase failed';
-      const code = (err as { code?: string }).code;
-
-      if (code === 'KYC_LITE_REQUIRED' || /KYC_LITE_REQUIRED/.test(raw)) {
+      const { kycLite, message } = mapPurchaseError(err);
+      if (kycLite) {
         setPhase('ready');
         setShowKycLite(true);
         return;
       }
-
-      let msg = raw;
-      if (/OFAC_SDN|EU_CONSOLIDATED|SANCTIONED/.test(raw)) {
-        msg = 'This wallet is on a public sanctions list (US OFAC / EU). The purchase is legally unavailable.';
-      } else if (/KYC_REQUIRED|KYC_PENDING|KYC_REJECTED/.test(raw)) {
-        msg = 'Seller verification is incomplete. Please retry later or contact support.';
-      }
-      setError(msg);
+      setError(message);
       setPhase('error');
     }
-  }, [listing, buyerWallet, tonConnectUI, startMintPolling]);
+  }, [listing, buyerWallet, tonConnectUI, confirmAndFinish, mapPurchaseError]);
+
+  // H-6: retry ONLY the confirmation for an order whose payment already went
+  // through, instead of creating a new order and charging the buyer twice.
+  const handleRetryConfirm = useCallback(async () => {
+    if (!paidPending || !buyerWallet) return;
+    setError(null);
+    try {
+      await confirmAndFinish(paidPending.orderId, buyerWallet, paidPending.txHash);
+    } catch (err: unknown) {
+      setError(mapPurchaseError(err).message);
+      setPhase('error');
+    }
+  }, [paidPending, buyerWallet, confirmAndFinish, mapPurchaseError]);
 
   const handleKycComplete = useCallback(() => {
     setShowKycLite(false);
@@ -239,7 +276,17 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
 
   const isBusy = phase === 'creating-order' || phase === 'awaiting-wallet' || phase === 'confirming';
   const listingPriceUsd = (listing as Record<string, unknown> | null)?.priceUsd as number | undefined;
-  const sellerPriceHuman = listing?.priceTonHuman ?? humanFromRaw(listing?.priceAmountRaw ?? '0');
+  const onSale = Boolean(listing?.saleActive);
+  // Badge only when the rounded discount is ≥1% — a sub-1% sale rounds to 0 and
+  // would render a meaningless "Sale −0%". (The price estimate still uses the
+  // sale price whenever active, to match the backend-charged amount.)
+  const showSaleBadge = onSale && (listing?.discountPercent ?? 0) >= 1;
+  // Effective seller price: sale price when a discount is active (so the pre-order
+  // estimate matches what the backend will charge), else the list price.
+  const sellerPriceHuman =
+    (onSale ? listing?.salePriceTonHuman : listing?.priceTonHuman) ??
+    humanFromRaw(listing?.priceAmountRaw ?? '0');
+  const listPriceHuman = listing?.priceTonHuman ?? humanFromRaw(listing?.priceAmountRaw ?? '0');
   // Fee breakdown виден только когда backend вернул order с fee/sellerAmount полями.
   // До создания order'а показываем estimate из listing.platformFeeBps.
   const estimatedFeeBps = order?.feeBps ?? listing?.platformFeeBps ?? 1500;
@@ -266,9 +313,17 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
 
       {/* Fee breakdown */}
       <div className="rounded-lg bg-black/20 border border-white/5 p-3 space-y-1.5 text-xs">
+        {showSaleBadge && (
+          <div className="flex justify-between items-center -mt-1 mb-1">
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#FF3B6B] bg-[#FF3B6B]/10 border border-[#FF3B6B]/25 px-2 py-0.5 rounded-full">
+              Sale −{listing?.discountPercent ?? 0}%
+            </span>
+            <span className="font-mono text-gray-600 text-xs line-through">{listPriceHuman} TON</span>
+          </div>
+        )}
         <div className="flex justify-between text-gray-400">
           <span>Seller price</span>
-          <span className="font-mono text-gray-200">{sellerTon} TON</span>
+          <span className={`font-mono ${onSale ? 'text-[#FF6B8A]' : 'text-gray-200'}`}>{sellerTon} TON</span>
         </div>
         <div className="flex justify-between text-gray-400">
           <span className="flex items-center gap-1">
@@ -298,7 +353,21 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
         </div>
       )}
 
-      {!buyerWallet ? (
+      {paidPending && phase === 'error' && buyerWallet ? (
+        <div className="space-y-2">
+          <p className="text-[11px] text-amber-300/90">
+            Your payment was already sent. Retry the confirmation — this will NOT charge you again.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleRetryConfirm()}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-[#FFD700] to-[#FFA500] text-[#0A0A0A] font-bold flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(255,215,0,0.3)] transition-all"
+          >
+            <Wallet className="w-5 h-5" />
+            Retry confirmation
+          </button>
+        </div>
+      ) : !buyerWallet ? (
         <button
           type="button"
           onClick={() => void tonConnectUI.openModal()}

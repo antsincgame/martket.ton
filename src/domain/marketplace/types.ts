@@ -48,6 +48,8 @@ export interface ProductReview {
   date: string;
   comment: string;
   helpful: number;
+  /** True when the review is from a verified buyer (held a license). */
+  verified?: boolean;
 }
 
 export interface DeveloperProfile {

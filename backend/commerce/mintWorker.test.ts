@@ -42,9 +42,22 @@ describe('decideReconcileAction — order reconciler state machine', () => {
     expect(decideReconcileAction(1, ZERO_UQ).kind).toBe('wait');
   });
 
-  it('FUNDED (1) with a registered (non-zero) license → finalize', () => {
+  it('FUNDED (1) with a registered (non-zero) license → finalize (legacy 2-arg)', () => {
     expect(decideReconcileAction(1, REAL_LICENSE).kind).toBe('finalize');
     expect(decideReconcileAction(1, REAL_LICENSE_2).kind).toBe('finalize');
+  });
+
+  // M-7 / CON-01: when the expected (minted) address is known, finalize ONLY on
+  // a match — a foreign address registered via front-run must NOT finalize.
+  it('FUNDED (1) finalizes only when escrow license matches the expected mint', () => {
+    expect(decideReconcileAction(1, REAL_LICENSE, REAL_LICENSE).kind).toBe('finalize');
+    // escrow reports a different (attacker) address than the one we minted → wait
+    expect(decideReconcileAction(1, REAL_LICENSE_2, REAL_LICENSE).kind).toBe('wait');
+    // expected not yet known (mint pending) → wait, never finalize on trust
+    expect(decideReconcileAction(1, REAL_LICENSE, '').kind).toBe('wait');
+    // address-format differences (raw vs friendly) still match
+    const rawForm = Address.parse(REAL_LICENSE).toString({ bounceable: true });
+    expect(decideReconcileAction(1, rawForm, REAL_LICENSE).kind).toBe('finalize');
   });
 
   it('does not mistake a real license for the zero address', () => {

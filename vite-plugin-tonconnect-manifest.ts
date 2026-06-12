@@ -8,7 +8,7 @@ function buildManifestJson(origin: string): string {
   return `${JSON.stringify(
     {
       url: o,
-      name: 'TON Web Store',
+      name: 'TonForge',
       iconUrl: `${o}/app-icon.png`,
       termsOfUseUrl: `${o}/`,
       privacyPolicyUrl: `${o}/`,

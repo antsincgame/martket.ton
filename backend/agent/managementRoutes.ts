@@ -27,7 +27,7 @@ import {
   revokeAgentToken,
 } from './tokenRepository.js';
 import { issueToken } from './tokenIssuer.js';
-import { ALL_SCOPES, type AgentScope } from './scopes.js';
+import { SELLER_GRANTABLE_SCOPES, type AgentScope } from './scopes.js';
 
 const router = express.Router();
 const limitMutate = rateLimit({
@@ -40,8 +40,10 @@ const limitMutate = rateLimit({
 const issueSchema = z.object({
   wallet: z.string().min(1),
   name: z.string().min(2).max(80),
+  // Sellers cannot grant the buyer capability here — that goes through the
+  // buyer-token route with its own KYC + wallet-ownership gates.
   scopes: z
-    .array(z.enum(ALL_SCOPES))
+    .array(z.enum(SELLER_GRANTABLE_SCOPES as unknown as [AgentScope, ...AgentScope[]]))
     .min(1, 'At least one scope is required'),
   ttlDays: z.number().int().min(1).max(365).optional(),
 });
@@ -61,8 +63,15 @@ router.post(
         res.status(kyc.status).json({ error: kyc.message, code: kyc.code });
         return;
       }
+      // F2 fix: store the wallet in the SAME canonical form the profile uses
+      // (owner.tonAddress), not the client-supplied string. TON addresses have
+      // several valid encodings; requireWalletOwner accepts any via normalized
+      // comparison, but the agentAuth ban-check (M-4) does an EXACT-string
+      // findUserByTonAddress(record.wallet) — a non-canonical encoding would
+      // miss the profile and silently skip the deactivation check.
+      const canonicalWallet = owner.tonAddress ?? body.wallet;
       const issued = await issueToken({
-        wallet: body.wallet,
+        wallet: canonicalWallet,
         name: body.name,
         scopes: body.scopes as AgentScope[],
         ttlDays: body.ttlDays ?? 90,

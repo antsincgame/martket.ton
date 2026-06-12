@@ -1,9 +1,9 @@
 /**
- * Didit hosted KYC widget for seller verification.
+ * Hosted KYC widget for seller verification (provider: Ballerine).
  *
- * Creates a verification session via the backend, then opens the
- * Didit hosted verification page in a new tab. Polls for status
- * changes until the session is Approved, Declined, or times out.
+ * Creates a verification session via the backend, then opens the hosted
+ * collection-flow page in a new tab. Polls for status changes until the
+ * session is approved, rejected, or times out.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -21,7 +21,7 @@ type WidgetPhase = 'loading' | 'ready' | 'polling' | 'completed' | 'error' | 'al
 const KYC_POLL_INTERVAL_MS = 5_000;
 const KYC_POLL_MAX = 240;
 
-export default function DiditKycWidget({ wallet, onStatusChange }: Props) {
+export default function KycVerificationWidget({ wallet, onStatusChange }: Props) {
   const [phase, setPhase] = useState<WidgetPhase>('loading');
   const [error, setError] = useState<string | null>(null);
   const [verificationUrl, setVerificationUrl] = useState<string | null>(null);
@@ -45,7 +45,7 @@ export default function DiditKycWidget({ wallet, onStatusChange }: Props) {
           return;
         }
       } catch (err) {
-        logger.warn('[DiditKycWidget] poll error:', err);
+        logger.warn('[KycVerificationWidget] poll error:', err);
       }
       if (attempts < KYC_POLL_MAX) {
         pollRef.current = setTimeout(() => void poll(), KYC_POLL_INTERVAL_MS);
@@ -75,7 +75,7 @@ export default function DiditKycWidget({ wallet, onStatusChange }: Props) {
       } catch (err) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : 'Failed to create verification session';
-        logger.error('[DiditKycWidget] init error:', msg);
+        logger.error('[KycVerificationWidget] init error:', msg);
         setError(msg);
         setPhase('error');
       }
@@ -163,8 +163,8 @@ export default function DiditKycWidget({ wallet, onStatusChange }: Props) {
         </div>
         {error && <p className="text-sm text-red-200/80">{error}</p>}
         <p className="text-xs text-gray-400">
-          Please check your internet connection and try again. If the problem persists,
-          ensure DIDIT_API_KEY is configured on the server.
+          Please check your connection and try again. If the problem persists, the operator may
+          need to configure the KYC provider (BALLERINE_API_URL / BALLERINE_API_KEY) on the server.
         </p>
       </div>
     );
@@ -181,7 +181,7 @@ export default function DiditKycWidget({ wallet, onStatusChange }: Props) {
           <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
           <div className="space-y-1">
             <p className="text-sm text-cyan-200 font-medium">
-              Complete verification in the Didit tab
+              Complete verification in the new tab
             </p>
             <p className="text-xs text-gray-400">
               This page will update automatically once your identity is confirmed.
@@ -211,8 +211,7 @@ export default function DiditKycWidget({ wallet, onStatusChange }: Props) {
       </header>
       <p className="text-xs text-gray-400 leading-relaxed">
         Complete document verification to start selling. This usually takes 2–5 minutes.
-        Your data is processed securely by Didit — an all-in-one identity platform
-        with free core KYC (500 checks/month).
+        Your data is processed securely by our self-hosted Ballerine KYC service.
       </p>
       <button
         type="button"

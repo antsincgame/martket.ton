@@ -24,7 +24,27 @@ router.get(
   '/',
   asyncHandler(async (_req, res) => {
     const products = await repo.listProductsByStatus('published');
-    res.json({ success: true, data: products.map(productToSnakeCase) });
+    // H-9: the public storefront merges these published products into its
+    // catalog, and its mapper needs a human `developer` name (not a creator_id).
+    // Resolve unique creators once and attach `creator_name` so seller products
+    // actually surface on the storefront instead of living only in the API.
+    const uniqueCreatorIds = [...new Set(products.map((p) => p.creatorId).filter(Boolean))];
+    const nameById = new Map<string, string>();
+    await Promise.all(
+      uniqueCreatorIds.map(async (cid) => {
+        try {
+          const u = await repo.findUserById(cid);
+          if (u) nameById.set(cid, u.displayName || u.name || '');
+        } catch {
+          /* best-effort: a missing profile just falls back to a generic name */
+        }
+      }),
+    );
+    const data = products.map((p) => ({
+      ...productToSnakeCase(p),
+      creator_name: nameById.get(p.creatorId) || '',
+    }));
+    res.json({ success: true, data });
   }),
 );
 

@@ -11,6 +11,38 @@ import { getTonClient } from './tonClient.js';
  * лишь ПОДТВЕРЖДАЮТ регистрацию, читая геттер license_address эскроу.
  */
 
+/**
+ * Read the escrow's on-chain burn/refund deadline = paidAt + trialWindowSec
+ * (A-2). The LicenseItem's burnDeadline must equal THIS, not Date.now()+window:
+ * paidAt is set on-chain at PayEscrow, while the backend confirm happens later,
+ * so a Date.now()-derived deadline runs PAST the escrow window — a buyer could
+ * pass the item's burn gate but have the escrow reject the refund. Returns null
+ * on any read failure (caller falls back to the off-chain estimate).
+ */
+export async function getEscrowBurnDeadline(escrowAddress: string): Promise<number | null> {
+  try {
+    // Variable specifier so tsc doesn't resolve the gitignored Tact build
+    // artifact (resolved at runtime by tsx; matches commerce/escrow.ts).
+    const modPath = '../../../contracts/build/Escrow_Escrow.js';
+    const mod = (await import(modPath)) as {
+      Escrow: { fromAddress(a: Address): unknown };
+    };
+    const opened = getTonClient().open(mod.Escrow.fromAddress(Address.parse(escrowAddress)) as never);
+    const details = await (opened as {
+      getDetails(): Promise<{ paidAt: bigint; trialWindowSec: bigint }>;
+    }).getDetails();
+    const paidAt = Number(details.paidAt);
+    const trialWindowSec = Number(details.trialWindowSec);
+    if (!Number.isFinite(paidAt) || paidAt <= 0 || !Number.isFinite(trialWindowSec) || trialWindowSec <= 0) {
+      return null;
+    }
+    return paidAt + trialWindowSec;
+  } catch (err) {
+    logger.warn('[onchain.escrow] details read failed:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 export async function getEscrowLicenseAddress(escrowAddress: string): Promise<string | null> {
   try {
     const client = getTonClient();

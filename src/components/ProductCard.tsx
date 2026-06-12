@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Star, Download, Zap, Gem, Sparkles } from 'lucide-react';
 import { slugify } from '../utils/slugify';
 import DemoUiBadge from './DemoUiBadge';
+import WishlistHeart from './WishlistHeart';
 import type { CatalogListingProduct } from '../domain/marketplace/types';
 
 interface ProductCardProps {
@@ -26,7 +27,8 @@ const ProductCard: React.FC<ProductCardProps> = memo(({ product }) => {
           </div>
         )}
 
-        <div className="absolute top-3 right-3 z-10">
+        <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
+          <WishlistHeart productId={product.id} />
           <DemoUiBadge variant="inline" tint="cyan" />
         </div>
 

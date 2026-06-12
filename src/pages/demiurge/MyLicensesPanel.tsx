@@ -42,10 +42,6 @@ function explorerAccountUrl(addr: string, network: Network): string {
   return `${base}${addr}`;
 }
 
-function tonkeeperUrl(addr: string): string {
-  return `https://app.tonkeeper.com/transfer/${addr}`;
-}
-
 function shortAddr(addr: string | undefined | null): string {
   if (!addr) return '—';
   if (addr.length <= 16) return addr;
@@ -547,16 +543,6 @@ export default function MyLicensesPanel() {
                     className="inline-flex items-center gap-1 rounded-md border border-emerald-400/30 bg-emerald-400/10 px-2 py-1 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-400/20"
                   >
                     <ExternalLink className="w-3 h-3" /> TONScan
-                  </a>
-                )}
-                {hasNft && (
-                  <a
-                    href={tonkeeperUrl(license.nftAddress!)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded-md border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-400/20"
-                  >
-                    <ExternalLink className="w-3 h-3" /> Tonkeeper
                   </a>
                 )}
                 {license.escrowAddress && (

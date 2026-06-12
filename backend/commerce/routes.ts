@@ -6,7 +6,9 @@ import storageRoutes from './storageRoutes.js';
 import distributionRoutes from './distributionRoutes.js';
 import scanRoutes from './scanRoutes.js';
 import licenseRoutes from './licenseRoutes.js';
+import reviewRoutes from './reviewRoutes.js';
 import agentTokenRoutes from '../agent/managementRoutes.js';
+import buyerTokenRoutes from '../agent/buyerTokenRoutes.js';
 
 const router = express.Router();
 
@@ -17,6 +19,8 @@ router.use(storageRoutes);
 router.use(distributionRoutes);
 router.use(scanRoutes);
 router.use(licenseRoutes);
+router.use(reviewRoutes);
 router.use(agentTokenRoutes);
+router.use(buyerTokenRoutes);
 
 export default router;

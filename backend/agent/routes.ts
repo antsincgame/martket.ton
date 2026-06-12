@@ -26,7 +26,7 @@ import {
 } from '../commerce/constants.js';
 import { tonHumanToNanoRaw } from '../commerce/money.js';
 import { getTonUsdPrice, usdToTonHuman } from '../commerce/tonPriceOracle.js';
-import { mapListingPublic, omitListingFields } from '../commerce/helpers.js';
+import { mapListingPublic, omitListingFields, appwriteCodeOrZero } from '../commerce/helpers.js';
 import { asDoc } from '../domain/appwrite-helpers.js';
 import { writeAudit } from '../commerce/audit.js';
 import { logger } from '../logger.js';
@@ -43,6 +43,10 @@ import { findUserByTonAddress } from '../core/profileRepository.js';
 import { generateId } from '../core/generateId.js';
 import { rejectMismatchedCollection } from '../commerce/collectionBinding.js';
 import { saveSellerStorage } from '../commerce/storageService.js';
+import { loadSellerAnalytics } from '../commerce/sellerAnalytics.js';
+import { setSellerWebhook, clearSellerWebhook, validateWebhookUrl } from '../commerce/webhooks.js';
+
+import buyerRoutes from './buyerRoutes.js';
 
 const router = express.Router();
 
@@ -59,6 +63,10 @@ const agentLimiter = rateLimit({
   legacyHeaders: false,
 });
 router.use(agentLimiter);
+
+// Buyer-side surface (orders:buy tokens): create/confirm/poll own orders and
+// download purchased goods — see buyerRoutes.ts for the accountability model.
+router.use('/buyer', buyerRoutes);
 
 router.get('/me', apiRequireAgentToken(), (req: Request, res: Response) => {
   const a = req.agent!;
@@ -314,6 +322,7 @@ router.post(
       const {
         catalogProductId, title, description = '',
         priceUsd,
+        salePriceUsd, saleEndsAt,
         deliveryType, deliveryPayload,
         platformFeeBps = DEFAULT_PLATFORM_FEE_BPS,
         collectionAddress,
@@ -333,10 +342,28 @@ router.post(
       }
       if (await rejectMismatchedCollection(req, res, wallet, collectionAddress)) return;
 
+      // Platform fee is platform policy — clamp up to the configured minimum so
+      // an agent can't set platformFeeBps:0 and pay zero commission.
+      const feeBps = Math.max(Number(platformFeeBps) || DEFAULT_PLATFORM_FEE_BPS, DEFAULT_PLATFORM_FEE_BPS);
+
       const tonRate = await getTonUsdPrice();
       const tonHuman = usdToTonHuman(Number(priceUsd), tonRate);
       const priceAmountRaw = tonHumanToNanoRaw(tonHuman);
       const decimals = 9;
+
+      // Optional discount in USD (< list), converted via the same oracle.
+      let saleStorage: Record<string, unknown> = {};
+      if (typeof salePriceUsd === 'number' && salePriceUsd > 0) {
+        if (salePriceUsd >= Number(priceUsd)) {
+          res.status(400).json({ error: 'salePriceUsd must be less than priceUsd', code: 'BAD_SALE' });
+          return;
+        }
+        saleStorage = {
+          sale_price_usd: salePriceUsd,
+          sale_price_amount_raw: tonHumanToNanoRaw(usdToTonHuman(salePriceUsd, tonRate)),
+          sale_ends_at: (typeof saleEndsAt === 'string' && saleEndsAt) || null,
+        };
+      }
 
       const listing = await databases().createDocument(DATABASE_ID, COL_LISTINGS, ID.unique(), omitListingFields({
         sellerWallet: wallet,
@@ -347,11 +374,12 @@ router.post(
         priceAmountRaw,
         priceUsd: String(priceUsd),
         decimals,
-        platformFeeBps,
+        platformFeeBps: feeBps,
         status: LISTING_STATUS.ACTIVE,
         deliveryType,
         assetFileId: '',
         collection_address: collectionAddress,
+        ...saleStorage,
       }));
       await databases().createDocument(DATABASE_ID, COL_LISTING_SECRETS, ID.unique(), {
         listingId: listing.$id,
@@ -395,6 +423,27 @@ router.patch(
         patch.priceAmountRaw = tonHumanToNanoRaw(tonHuman);
         patch.priceUsd = String(body.priceUsd);
       }
+      // Sale: positive salePriceUsd (< list) starts/updates; null/0 clears.
+      if (body.salePriceUsd !== undefined) {
+        const listUsd = body.priceUsd !== undefined ? Number(body.priceUsd) : Number(existing['priceUsd']);
+        const sale = body.salePriceUsd === null ? 0 : Number(body.salePriceUsd);
+        if (!sale) {
+          patch.sale_price_usd = null;
+          patch.sale_price_amount_raw = null;
+          patch.sale_ends_at = null;
+        } else {
+          if (sale >= listUsd) {
+            res.status(400).json({ error: 'salePriceUsd must be less than priceUsd', code: 'BAD_SALE' });
+            return;
+          }
+          const tonRate = await getTonUsdPrice();
+          patch.sale_price_usd = sale;
+          patch.sale_price_amount_raw = tonHumanToNanoRaw(usdToTonHuman(sale, tonRate));
+          patch.sale_ends_at = (typeof body.saleEndsAt === 'string' && body.saleEndsAt) || null;
+        }
+      } else if (body.saleEndsAt !== undefined) {
+        patch.sale_ends_at = (typeof body.saleEndsAt === 'string' && body.saleEndsAt) || null;
+      }
       if (typeof body.collectionAddress === 'string' && body.collectionAddress.length > 0) {
         if (await rejectMismatchedCollection(req, res, wallet, body.collectionAddress)) return;
         patch.collection_address = body.collectionAddress;
@@ -429,6 +478,10 @@ router.patch(
       });
       res.json({ data: { listing: mapListingPublic(updated) } });
     } catch (e) {
+      if (appwriteCodeOrZero(e) === 404) {
+        res.status(404).json({ error: 'Listing not found', code: 'NOT_FOUND' });
+        return;
+      }
       logger.error('[agent] listing update:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Listing update failed', code: 'AGENT_LISTING_UPDATE' });
     }
@@ -469,7 +522,10 @@ router.put(
         distribution_sha256: stored.sha256,
         distribution_filename: stored.filename || '',
         distribution_state: 'draft',
-        distribution_ttl_sec: body.ttlSec || 3600,
+        // Same 60..21600s bounds the human surface enforces via
+        // setDistributionSchema — the stored value must match the contract
+        // even though download-time code clamps again.
+        distribution_ttl_sec: Math.min(21600, Math.max(60, Number(body.ttlSec) || 3600)),
         scan_status: 'idle',
         scan_sha256: '',
       });
@@ -478,6 +534,10 @@ router.put(
       });
       res.json({ data: { ok: true, state: 'draft' } });
     } catch (e) {
+      if (appwriteCodeOrZero(e) === 404) {
+        res.status(404).json({ error: 'Listing not found', code: 'NOT_FOUND' });
+        return;
+      }
       logger.error('[agent] distribution set:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Distribution update failed', code: 'AGENT_DISTRIBUTION' });
     }
@@ -532,6 +592,10 @@ router.post(
       });
       res.json({ data: { matches: result.matches, sha256: result.sha256, size: result.size, state: newState } });
     } catch (e) {
+      if (appwriteCodeOrZero(e) === 404) {
+        res.status(404).json({ error: 'Listing not found', code: 'NOT_FOUND' });
+        return;
+      }
       logger.error('[agent] distribution verify:', e instanceof Error ? e.message : e);
       res.status(500).json({ error: 'Verification failed', code: 'AGENT_VERIFY' });
     }
@@ -576,6 +640,62 @@ router.get('/orders', apiRequireAgentToken(['orders:read']), async (req: Request
   } catch (e) {
     logger.error('[agent] orders list:', e instanceof Error ? e.message : e);
     res.status(500).json({ error: 'Failed to fetch orders', code: 'AGENT_ORDERS' });
+  }
+});
+
+// Seller analytics (Agent/Demiurge automation): sales, revenue split, refunds,
+// state breakdown, and a top-products ranking — so an agent can read its store's
+// performance and optimise without scraping every order. Same aggregator powers
+// the human Demiurge UI (identical numbers).
+router.get('/analytics', apiRequireAgentToken(['orders:read']), async (req: Request, res: Response) => {
+  try {
+    const analytics = await loadSellerAnalytics(req.agent!.wallet);
+    res.json({ data: analytics });
+  } catch (e) {
+    logger.error('[agent] analytics:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to compute analytics', code: 'AGENT_ANALYTICS' });
+  }
+});
+
+// Register/replace the seller's event webhook (order.paid, payout.released).
+// Returns a signing secret ONCE. Event-driven automation: react to sales without
+// polling. The URL must be HTTPS and not resolve to a private IP (SSRF guard).
+router.post('/webhook', apiRequireAgentToken(['orders:read']), async (req: Request, res: Response) => {
+  try {
+    const url = typeof (req.body as { url?: unknown })?.url === 'string' ? (req.body as { url: string }).url.trim() : '';
+    if (!url) {
+      res.status(400).json({ error: 'url is required', code: 'VALIDATION' });
+      return;
+    }
+    const valid = await validateWebhookUrl(url);
+    if (!valid.ok) {
+      res.status(400).json({ error: `Invalid webhook URL: ${valid.reason}`, code: 'BAD_WEBHOOK_URL' });
+      return;
+    }
+    const { secret } = await setSellerWebhook(req.agent!.wallet, url);
+    res.json({ data: { url, secret, events: ['order.paid', 'payout.released'] } });
+  } catch (e) {
+    const code = e instanceof Error ? e.message : '';
+    if (code === 'SELLER_NOT_REGISTERED') {
+      res.status(404).json({ error: 'Register as a seller first', code: 'NOT_REGISTERED' });
+      return;
+    }
+    if (code === 'WEBHOOK_NOT_PROVISIONED') {
+      res.status(503).json({ error: 'Webhooks not provisioned on this deployment', code: 'WEBHOOK_NOT_PROVISIONED' });
+      return;
+    }
+    logger.error('[agent] set webhook:', code);
+    res.status(500).json({ error: 'Failed to set webhook', code: 'AGENT_WEBHOOK' });
+  }
+});
+
+router.delete('/webhook', apiRequireAgentToken(['orders:read']), async (req: Request, res: Response) => {
+  try {
+    await clearSellerWebhook(req.agent!.wallet);
+    res.json({ data: { cleared: true } });
+  } catch (e) {
+    logger.error('[agent] clear webhook:', e instanceof Error ? e.message : e);
+    res.status(500).json({ error: 'Failed to clear webhook', code: 'AGENT_WEBHOOK' });
   }
 });
 

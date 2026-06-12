@@ -16,6 +16,8 @@ import StorageSettings from './StorageSettings';
 import DistributionEditor from './DistributionEditor';
 import NoCollectionWarning from './NoCollectionWarning';
 import KycRequiredBanner from './KycRequiredBanner';
+import KycVerificationWidget from './KycVerificationWidget';
+import SellerAnalyticsCard from './SellerAnalyticsCard';
 import ApiTokensTab from './ApiTokensTab';
 import OnboardingGuide from './OnboardingGuide';
 import OperatingManual from './OperatingManual';
@@ -48,6 +50,7 @@ export default function CommerceSection() {
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [lastScan, setLastScan] = useState<TonForgeArtifactScan | null>(null);
   const [sellerKyc, setSellerKyc] = useState<SellerKycStatus | null>(null);
+  const [showKycWidget, setShowKycWidget] = useState(false);
 
   const refreshKycStatus = useCallback(async () => {
     if (!wallet) return;
@@ -108,8 +111,15 @@ export default function CommerceSection() {
       {flash.error && <Banner kind="error" message={flash.error} onDismiss={() => setFlash((f) => ({ ...f, error: null }))} />}
       {flash.success && <Banner kind="success" message={flash.success} onDismiss={() => setFlash((f) => ({ ...f, success: null }))} />}
 
-      <KycRequiredBanner kycStatus={sellerKyc} />
+      <KycRequiredBanner kycStatus={sellerKyc} onStartKyc={() => setShowKycWidget(true)} />
+      {showKycWidget && wallet && (
+        <KycVerificationWidget
+          wallet={wallet}
+          onStatusChange={() => { void refreshKycStatus(); }}
+        />
+      )}
       <OnboardingGuide wallet={wallet} />
+      {sellerKyc?.kycStatus === 'approved' && <SellerAnalyticsCard wallet={wallet} />}
       <NoCollectionWarning wallet={wallet} />
 
       <Tabs activeId={activeTab.id} />

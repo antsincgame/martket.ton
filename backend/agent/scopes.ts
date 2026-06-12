@@ -23,9 +23,32 @@ export const ALL_SCOPES = [
   // pipeline as human-created products and stay unpublished until a moderator
   // approves them. Requires KYC like every other write scope.
   'products:write',
+  // Buyer-side agent commerce: create/confirm/read own orders and download
+  // purchased goods for the token's wallet. Issued via the buyer-token route
+  // (owner KYC-lite + wallet-ownership proof at issuance), NOT the seller one.
+  'orders:buy',
 ] as const;
 
 export type AgentScope = (typeof ALL_SCOPES)[number];
+
+/**
+ * Scopes the SELLER token route (`POST /api/v1/commerce/agent-tokens`) may
+ * grant. `orders:buy` is intentionally excluded: it is a BUYER capability,
+ * issuable only via the buyer-token route, which enforces buyer Lite KYC and
+ * an on-chain proof that the issuer owns the paying wallet. Letting the seller
+ * route mint it would let those buyer-specific gates be sidestepped.
+ */
+export const SELLER_GRANTABLE_SCOPES = ALL_SCOPES.filter(
+  (s) => s !== 'orders:buy',
+) as readonly Exclude<AgentScope, 'orders:buy'>[];
+
+/**
+ * Scopes a BUYER token carries. `orders:buy` is the capability; the read-only
+ * `instructions:read` rides along so a buyer agent can orient itself — read the
+ * manual, poll status, ask the assistant — instead of operating blind.
+ * Deliberately NO seller write scopes.
+ */
+export const BUYER_TOKEN_SCOPES: AgentScope[] = ['orders:buy', 'instructions:read'];
 
 const READ_IMPLIED_BY: Record<AgentScope, AgentScope[]> = {
   'listings:read': [],
@@ -34,6 +57,7 @@ const READ_IMPLIED_BY: Record<AgentScope, AgentScope[]> = {
   'distribution:write': ['listings:read'],
   'instructions:read': [],
   'products:write': [],
+  'orders:buy': [],
 };
 
 export function parseScopes(csv: string | undefined | null): AgentScope[] {

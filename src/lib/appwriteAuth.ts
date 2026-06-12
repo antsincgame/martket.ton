@@ -66,7 +66,7 @@ export async function verifyEmailOtp(userId: string, otp: string): Promise<void>
  * existing session belongs to the same user.
  */
 export async function completeOAuthCallback(userId: string, secret: string): Promise<void> {
-  logger.warn('[AUTH_AUDIT] completeOAuthCallback start', { userId, secretLen: secret.length });
+  logger.info('[AUTH_AUDIT] completeOAuthCallback start', { userId, secretLen: secret.length });
   const account = ensureClient();
   if (!userId || !secret) throw new Error('userId and secret are required');
 
@@ -77,27 +77,27 @@ export async function completeOAuthCallback(userId: string, secret: string): Pro
 
   try {
     await tryCreateSession();
-    logger.warn('[AUTH_AUDIT] completeOAuthCallback — session created OK');
+    logger.info('[AUTH_AUDIT] completeOAuthCallback — session created OK');
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    logger.warn('[AUTH_AUDIT] completeOAuthCallback — first attempt failed:', msg);
+    logger.info('[AUTH_AUDIT] completeOAuthCallback — first attempt failed:', msg);
 
     if (msg.includes('session') && msg.includes('active')) {
-      logger.warn('[AUTH_AUDIT] completeOAuthCallback — active session detected, checking if it is ours');
+      logger.info('[AUTH_AUDIT] completeOAuthCallback — active session detected, checking if it is ours');
       try {
         const existing = await account.get();
         if (existing.$id === userId) {
-          logger.warn('[AUTH_AUDIT] completeOAuthCallback — session already belongs to this user, skipping createSession');
+          logger.info('[AUTH_AUDIT] completeOAuthCallback — session already belongs to this user, skipping createSession');
           cachedJwt = null;
           return;
         }
-        logger.warn('[AUTH_AUDIT] completeOAuthCallback — session belongs to different user, deleting and retrying');
+        logger.info('[AUTH_AUDIT] completeOAuthCallback — session belongs to different user, deleting and retrying');
         await account.deleteSession('current');
         cachedJwt = null;
         await tryCreateSession();
-        logger.warn('[AUTH_AUDIT] completeOAuthCallback — retry succeeded');
+        logger.info('[AUTH_AUDIT] completeOAuthCallback — retry succeeded');
       } catch (retryErr: unknown) {
-        logger.warn('[AUTH_AUDIT] completeOAuthCallback — retry FAILED:', retryErr instanceof Error ? retryErr.message : retryErr);
+        logger.info('[AUTH_AUDIT] completeOAuthCallback — retry FAILED:', retryErr instanceof Error ? retryErr.message : retryErr);
         throw retryErr;
       }
     } else {
@@ -116,16 +116,16 @@ export async function completeOAuthCallback(userId: string, secret: string): Pro
  */
 export async function startGithubOAuth(): Promise<void> {
   const account = ensureClient();
-  logger.warn('[AUTH_AUDIT] startGithubOAuth — clearing existing session');
+  logger.info('[AUTH_AUDIT] startGithubOAuth — clearing existing session');
   try {
     await account.deleteSession('current');
     cachedJwt = null;
-    logger.warn('[AUTH_AUDIT] startGithubOAuth — old session deleted');
+    logger.info('[AUTH_AUDIT] startGithubOAuth — old session deleted');
   } catch {
-    logger.warn('[AUTH_AUDIT] startGithubOAuth — no active session to delete');
+    logger.info('[AUTH_AUDIT] startGithubOAuth — no active session to delete');
   }
   const callback = buildCallbackUrl();
-  logger.warn('[AUTH_AUDIT] startGithubOAuth — redirecting to GitHub, callback:', callback);
+  logger.info('[AUTH_AUDIT] startGithubOAuth — redirecting to GitHub, callback:', callback);
   account.createOAuth2Token(OAuthProvider.Github, callback, callback);
 }
 
@@ -134,15 +134,15 @@ export async function startGithubOAuth(): Promise<void> {
  */
 export async function getCurrentUser(): Promise<AppwriteUser | null> {
   if (!isAppwriteConfigured || !appwriteAccount) {
-    logger.warn('[AUTH_AUDIT] getCurrentUser — Appwrite not configured');
+    logger.info('[AUTH_AUDIT] getCurrentUser — Appwrite not configured');
     return null;
   }
   try {
     const user = await appwriteAccount.get();
-    logger.warn('[AUTH_AUDIT] getCurrentUser OK:', { id: user.$id, email: user.email, name: user.name });
+    logger.info('[AUTH_AUDIT] getCurrentUser OK:', { id: user.$id, email: user.email, name: user.name });
     return user;
   } catch (err: unknown) {
-    logger.warn('[AUTH_AUDIT] getCurrentUser — no session:', err instanceof Error ? err.message : err);
+    logger.info('[AUTH_AUDIT] getCurrentUser — no session:', err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -158,10 +158,10 @@ export async function getJwt(): Promise<string | null> {
   try {
     const { jwt } = await appwriteAccount.createJWT();
     cachedJwt = { token: jwt, expiresAt: now + JWT_TTL_MS };
-    logger.warn('[AUTH_AUDIT] getJwt — minted new JWT OK');
+    logger.info('[AUTH_AUDIT] getJwt — minted new JWT OK');
     return jwt;
   } catch (err: unknown) {
-    logger.warn('[AUTH_AUDIT] getJwt — createJWT FAILED:', err instanceof Error ? err.message : err);
+    logger.info('[AUTH_AUDIT] getJwt — createJWT FAILED:', err instanceof Error ? err.message : err);
     cachedJwt = null;
     return null;
   }

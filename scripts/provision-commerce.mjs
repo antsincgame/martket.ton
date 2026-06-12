@@ -132,6 +132,21 @@ async function setupSellerProfiles(databases) {
   );
   await waitForAttribute(databases, COL_SELLER_PROFILES, 'kyc_completed_at');
   await idx(databases, COL_SELLER_PROFILES, 'idx_kyc_status', IndexType.Key, ['kyc_status']);
+
+  // ── Outbound event webhook (agent/seller automation) ──
+  // A seller registers a URL + receives a signing secret; the platform POSTs
+  // HMAC-signed events (order.paid, payout.released) so an agent reacts to sales
+  // event-driven instead of polling.
+  const webhookCols = [
+    ['webhook_url', 2000, false],
+    ['webhook_secret', 80, false],
+  ];
+  for (const [k, size, req] of webhookCols) {
+    await ignoreConflict(() =>
+      databases.createStringAttribute(DATABASE_ID, COL_SELLER_PROFILES, k, size, req)
+    );
+    await waitForAttribute(databases, COL_SELLER_PROFILES, k);
+  }
 }
 
 async function setupListings(databases) {
@@ -168,6 +183,15 @@ async function setupListings(databases) {
     databases.createIntegerAttribute(DATABASE_ID, COL_LISTINGS, 'platformFeeBps', true)
   );
   await waitForAttribute(databases, COL_LISTINGS, 'platformFeeBps');
+  // Sale / discount fields (optional): a USD sale price (< list), its derived
+  // nanoTON value, and an optional end time. The discount enters the money path
+  // only via effectiveSellerPriceRaw at order creation.
+  await ignoreConflict(() => databases.createFloatAttribute(DATABASE_ID, COL_LISTINGS, 'sale_price_usd', false));
+  await waitForAttribute(databases, COL_LISTINGS, 'sale_price_usd');
+  await ignoreConflict(() => databases.createStringAttribute(DATABASE_ID, COL_LISTINGS, 'sale_price_amount_raw', 80, false));
+  await waitForAttribute(databases, COL_LISTINGS, 'sale_price_amount_raw');
+  await ignoreConflict(() => databases.createDatetimeAttribute(DATABASE_ID, COL_LISTINGS, 'sale_ends_at', false));
+  await waitForAttribute(databases, COL_LISTINGS, 'sale_ends_at');
   await idx(databases, COL_LISTINGS, 'idx_catalog_status', IndexType.Key, [
     'catalogProductId',
     'status',
@@ -384,6 +408,8 @@ async function setupLicenses(databases) {
   await idx(databases, COL_LICENSES, 'idx_buyer_state', IndexType.Key, ['buyerWallet', 'state']);
   await idx(databases, COL_LICENSES, 'idx_state', IndexType.Key, ['state']);
   await idx(databases, COL_LICENSES, 'idx_listing', IndexType.Key, ['listingId']);
+  // Verified-purchase review gate: query by (buyerWallet, catalogProductId).
+  await idx(databases, COL_LICENSES, 'idx_lic_buyer_catalog', IndexType.Key, ['buyerWallet', 'catalogProductId']);
 }
 
 async function setupAudit(databases) {
@@ -545,6 +571,8 @@ async function setupAmlChecks(databases) {
   );
   await waitForAttribute(databases, COL_AML_CHECKS, 'checkedAt');
   await idx(databases, COL_AML_CHECKS, 'uniq_wallet', IndexType.Unique, ['wallet']);
+  // Админ-консоль (GET /admin/aml-checks) читает последние вердикты orderDesc(checkedAt).
+  await idx(databases, COL_AML_CHECKS, 'idx_checked_at', IndexType.Key, ['checkedAt']);
 }
 
 async function ensureBucket(storage) {

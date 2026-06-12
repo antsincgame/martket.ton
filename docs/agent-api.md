@@ -140,6 +140,9 @@ All paths are relative to `https://tonforge.org/api/v1/agent`.
 | `GET /me`                              | any                  | Identity (wallet, scopes, token prefix)   |
 | `GET /instructions`                    | `instructions:read`  | Onboarding manual + personal checklist (pre-KYC ok) |
 | `GET /status`                          | any                  | Onboarding progress + listing/order aggregates (pre-KYC ok) |
+| `POST /help`                           | `instructions:read`  | Grounded Q&A: relevant manual section + your `nextAction` (pre-KYC ok) |
+| `POST /sellers/register`               | any                  | Self-register the seller profile for the token's wallet (idempotent, pre-KYC ok) |
+| `POST /storage`                        | `distribution:write` | Connect a BYOS bucket (R2/S3/B2); creds AES-256-GCM-encrypted |
 | `POST /products`                       | `products:write`     | Create a catalog product draft (→ moderation + scan) |
 | `GET /listings`                        | `listings:read`      | List your listings (≤100)                 |
 | `POST /listings`                       | `listings:write`     | Create a listing                          |
@@ -147,6 +150,9 @@ All paths are relative to `https://tonforge.org/api/v1/agent`.
 | `PUT /listings/{id}/distribution`      | `distribution:write` | Attach a distribution manifest (→ draft)  |
 | `POST /listings/{id}/distribution/verify` | `distribution:write` | Resolve + hash artifact, compare sha256 |
 | `GET /orders?limit=`                   | `orders:read`        | List orders, newest first (≤500)          |
+| `GET /analytics`                       | `orders:read`        | Store performance: sales, revenue split, refunds, top products |
+| `POST /webhook`                        | `orders:read`        | Register an HTTPS event webhook (returns a signing secret once) |
+| `DELETE /webhook`                      | `orders:read`        | Remove the event webhook                  |
 
 ### Notes per endpoint
 
@@ -169,11 +175,13 @@ All paths are relative to `https://tonforge.org/api/v1/agent`.
   rate at creation time. `deliveryPayload` (the buyer-facing secret) is stored
   separately and **never** returned by read endpoints. `collectionAddress` is
   mandatory: every purchase mints a license NFT into it, and downloads are gated
-  on that mint. `sellerWallet` must be present to pass validation but is
-  overridden with the token's wallet.
-- **`PATCH /listings/{id}`** — send any subset of fields. Activating a listing
-  (`status: "active"`) requires a non-empty `collectionAddress`, existing or
-  supplied in the same call.
+  on that mint. Do **not** send `sellerWallet` — the seller is always the
+  token's wallet. Optional `salePriceUsd`/`saleEndsAt` start a discount.
+- **`PATCH /listings/{id}`** — send any subset of fields. `status` is one of
+  `draft` / `active` / `paused`; activating a listing requires a non-empty
+  `collectionAddress` (existing or supplied in the same call) and approved KYC.
+  `salePriceUsd` below the list price starts/updates a discount; `0`/`null`
+  clears it.
 - **Distribution** — `PUT …/distribution` sets the manifest and moves the
   listing to `draft`; follow with `POST …/distribution/verify` to confirm the
   artifact resolves and its sha256 matches (→ `verified`, else `manifest_drift`).
@@ -203,7 +211,6 @@ curl -s -X POST "$TONFORGE_API/listings" \
   -H "Authorization: Bearer $TONFORGE_AGENT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "sellerWallet": "EQC…",
     "catalogProductId": "prod_123",
     "title": "My digital good",
     "description": "Created by my agent",
@@ -219,10 +226,59 @@ Runnable clients in TypeScript and Python live in
 
 ---
 
-## 8. Security model in one paragraph
+## 8. Agentic buying — `/api/v1/agent/buyer/*` (scope `orders:buy`)
+
+An agent can BUY end-to-end with its **own** TON wallet — typically a
+[TON Agentic Wallet](https://agents.ton.org/): the agent holds the operator
+key, its human keeps the owner key and funds it ("fund what you risk").
+
+**Accountability gate (human, once):** the owner — session-authenticated, with
+a ton_proof-bound wallet and Lite KYC — issues a buyer token:
+
+```
+POST /api/v1/commerce/buyer-agent-tokens
+{ "agentWallet": "…", "name": "shopping-agent", "ttlDays": 90 }
+```
+
+Issuance verifies on-chain (TEP-85 `get_nft_data`) that the agent wallet's
+owner **is** the caller's verified wallet — so nobody can bind a stranger's
+wallet and download its purchases. The returned `tfa_…` token carries
+`orders:buy` plus read-only `instructions:read` (so the agent can read the
+manual, poll `GET /status`, and ask `POST /help`) and is bound to the wallet
+the agent pays from. (`DELETE /buyer-agent-tokens/{id}` revokes,
+`GET /buyer-agent-tokens?agentWallet=…` lists — same ownership proof.)
+
+**The purchase loop (agent, autonomous):**
+
+- **`POST /buyer/orders`** `{ listingId }` — creates the order for the token's
+  wallet. The response's `payment` object is machine-actionable: send EXACTLY
+  `amountNanoton` from `payFromWallet` to `payToAddress` with **both**
+  `stateInitBase64` and `payloadBase64` attached (a plain comment transfer
+  leaves the escrow undeployed). Execute with your wallet tooling, e.g.
+  `npx @ton/mcp`.
+- **`POST /buyer/orders/{id}/confirm`** — verifies the payment + escrow FUNDED
+  state on-chain; queues the license NFT mint. Idempotent — retry while funds
+  propagate.
+- **`GET /buyer/orders/{id}`** — poll `state`
+  (`pending_payment → paid → fulfilled`), `licenseAddress`, and the delivery
+  payload once paid.
+- **`GET /buyer/listings/{id}/download`** — short-lived signed URL + expected
+  sha256; gated on the minted license NFT and a clean antivirus verdict,
+  ≤20/day per purchase.
+
+Sanctions (451) and AML re-screen the **paying** wallet on order create and
+confirm. The per-call seller-KYC check does not apply here — the accountable
+human was verified at issuance. MCP tools: `create_order`, `confirm_order`,
+`get_order`, `download_purchase` (env `TONFORGE_BUYER_TOKEN`).
+
+---
+
+## 9. Security model in one paragraph
 
 A seller proves wallet ownership + KYC, then mints a scoped, expiring PAT whose
 plaintext is shown once and stored only as a hash. Agents present that token;
 the server derives the acting wallet from it (never from the request), enforces
 scopes, re-screens sanctions and KYC on every call, rate-limits per token, and
 writes an audit row for every mutation. Revocation and expiry are immediate.
+Buyer tokens add a second human gate: Lite KYC plus an on-chain proof that the
+issuer owns the agent's paying wallet; the platform never holds buyer keys.

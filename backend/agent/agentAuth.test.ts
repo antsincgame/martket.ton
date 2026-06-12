@@ -11,6 +11,12 @@ vi.mock('../sanctions/screen.js', () => ({ screenWallet: vi.fn(() => ({ ok: true
 vi.mock('../commerce/handlers/requireSellerKyc.js', () => ({
   requireSellerKyc: vi.fn().mockResolvedValue({ ok: true }),
 }));
+// M-4/F3: agentAuth resolves the token wallet to a profile and fails CLOSED on a
+// lookup error. Default the mock to an ACTIVE profile so the happy paths pass;
+// individual tests override it for the ban / fail-closed cases.
+vi.mock('../core/profileRepository.js', () => ({
+  findUserByTonAddress: vi.fn().mockResolvedValue({ id: 'p1', isActive: true }),
+}));
 vi.mock('../middleware/auth.js', () => ({
   extractBearerToken: (req: { get(n: string): string | undefined }) => {
     const h = req.get('authorization');
@@ -22,6 +28,7 @@ import { apiRequireAgentToken, __resetAgentRateLimitForTesting } from './agentAu
 import { verifyToken } from './tokenIssuer.js';
 import { screenWallet } from '../sanctions/screen.js';
 import { requireSellerKyc } from '../commerce/handlers/requireSellerKyc.js';
+import { findUserByTonAddress } from '../core/profileRepository.js';
 
 type MockRes = {
   statusCode: number;
@@ -59,12 +66,14 @@ const RECORD = {
 const mockVerify = verifyToken as unknown as ReturnType<typeof vi.fn>;
 const mockScreen = screenWallet as unknown as ReturnType<typeof vi.fn>;
 const mockKyc = requireSellerKyc as unknown as ReturnType<typeof vi.fn>;
+const mockProfile = findUserByTonAddress as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   __resetAgentRateLimitForTesting();
   vi.clearAllMocks();
   mockScreen.mockReturnValue({ ok: true });
   mockKyc.mockResolvedValue({ ok: true });
+  mockProfile.mockResolvedValue({ id: 'p1', isActive: true });
 });
 
 describe('apiRequireAgentToken', () => {
@@ -73,6 +82,26 @@ describe('apiRequireAgentToken', () => {
     await apiRequireAgentToken()(req, res, next);
     expect(_res.statusCode).toBe(401);
     expect(_res.body?.code).toBe('NO_AGENT_TOKEN');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('403 ACCOUNT_DEACTIVATED when the token wallet is banned (M-4)', async () => {
+    mockVerify.mockResolvedValue(RECORD);
+    mockProfile.mockResolvedValue({ id: 'p1', isActive: false });
+    const { req, res, next, _res } = ctx({ 'x-agent-token': 'tfa_ok' });
+    await apiRequireAgentToken()(req, res, next);
+    expect(_res.statusCode).toBe(403);
+    expect(_res.body?.code).toBe('ACCOUNT_DEACTIVATED');
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('503 fail-closed when the is_active lookup throws (F3)', async () => {
+    mockVerify.mockResolvedValue(RECORD);
+    mockProfile.mockRejectedValue(new Error('appwrite down'));
+    const { req, res, next, _res } = ctx({ 'x-agent-token': 'tfa_ok' });
+    await apiRequireAgentToken()(req, res, next);
+    expect(_res.statusCode).toBe(503);
+    expect(_res.body?.code).toBe('STATUS_CHECK_FAILED');
     expect(next).not.toHaveBeenCalled();
   });
 

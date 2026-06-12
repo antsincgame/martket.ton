@@ -11,8 +11,13 @@ import type {
 } from '../domain/commerce/types';
 
 function commerceBaseUrl(): string {
-  const raw = import.meta.env.VITE_COMMERCE_API_URL || 'http://localhost:8081';
-  return raw.replace(/\/$/, '');
+  const raw = (import.meta.env.VITE_COMMERCE_API_URL || 'http://localhost:8081').replace(/\/$/, '');
+  // The commerce path below already carries the `/api` prefix. The shipped
+  // config sets VITE_COMMERCE_API_URL=/api (docker-compose / coolify), so without
+  // this dedupe every call became `/api/api/v1/commerce/...` → 404 (the entire
+  // commerce surface — checkout, listings, licenses, refunds — was dead). Mirror
+  // storeApi.ts's dedupe.
+  return raw.endsWith('/api') ? raw.slice(0, -'/api'.length) : raw;
 }
 
 export function commerceUrl(path: string): string {
@@ -375,6 +380,51 @@ export async function revokeAgentTokenById(id: string): Promise<void> {
   });
 }
 
+// ── Buyer agent tokens (agentic purchasing, scope orders:buy) ────────
+// Bound to the wallet the AGENT pays from (e.g. a TON Agentic Wallet);
+// issuance/list/revoke prove on-chain that the caller owns that wallet.
+
+export interface IssuedBuyerToken {
+  /** Plaintext shown to the user exactly once. */
+  token: string;
+  record: {
+    id: string;
+    agentWallet: string;
+    ownerWallet: string;
+    name: string;
+    scopes: string;
+    tokenPrefix: string;
+    expiresAt: string | null;
+    createdAt: string;
+  };
+}
+
+export async function listBuyerAgentTokens(agentWallet?: string): Promise<AgentTokenSummary[]> {
+  const qs = agentWallet ? `?agentWallet=${encodeURIComponent(agentWallet)}` : '';
+  const result = await commerceAuthFetch<{ data: { tokens: AgentTokenSummary[] } }>(
+    `/buyer-agent-tokens${qs}`,
+  );
+  return result.data.tokens;
+}
+
+export async function issueBuyerAgentToken(input: {
+  agentWallet: string;
+  name: string;
+  ttlDays?: number;
+}): Promise<IssuedBuyerToken> {
+  const result = await commerceAuthFetch<{ data: IssuedBuyerToken }>('/buyer-agent-tokens', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return result.data;
+}
+
+export async function revokeBuyerAgentTokenById(id: string): Promise<void> {
+  await commerceAuthFetch<{ data: { ok: boolean } }>(`/buyer-agent-tokens/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
 /** Админ: заголовок X-Commerce-Admin-Secret задаётся вручную (оператор). */
 export async function adminCommerceFetch(
   path: string,
@@ -400,16 +450,16 @@ export async function adminCommerceFetch(
   return json;
 }
 
-// ── Didit KYC (seller verification) ──────────────────────────────
+// ── KYC (seller verification, provider: Ballerine) ───────────────
 
-export interface DiditSessionResponse {
+export interface KycSessionResponse {
   sessionId: string;
   url: string;
   alreadyApproved?: boolean;
 }
 
-export async function createKycSession(wallet: string): Promise<DiditSessionResponse> {
-  const result = await commerceAuthFetch<{ data: DiditSessionResponse }>('/sellers/kyc/session', {
+export async function createKycSession(wallet: string): Promise<KycSessionResponse> {
+  const result = await commerceAuthFetch<{ data: KycSessionResponse }>('/sellers/kyc/session', {
     method: 'POST',
     body: JSON.stringify({ wallet }),
   });
@@ -421,6 +471,108 @@ export interface SellerKycStatus {
   kycProvider: string | null;
   kycCompletedAt: string | null;
   kycRejectionReason: string | null;
+}
+
+export interface SellerAnalytics {
+  totals: {
+    salesCount: number;
+    grossRevenueTon: string;
+    sellerNetTon: string;
+    platformFeesTon: string;
+    refundsCount: number;
+    refundedTon: string;
+    pendingCount: number;
+  };
+  byState: Record<string, number>;
+  topProducts: { listingId: string; title: string; salesCount: number; sellerNetTon: string }[];
+}
+
+export async function fetchSellerAnalytics(wallet: string): Promise<SellerAnalytics> {
+  const result = await commerceAuthFetch<{ data: SellerAnalytics }>(
+    `/sellers/${encodeURIComponent(wallet)}/analytics`,
+  );
+  return result.data;
+}
+
+// ─── Reviews & ratings ───────────────────────────────────────────
+
+export interface ReviewApiItem {
+  id: string;
+  author: string;
+  rating: number;
+  comment: string;
+  helpful: number;
+  date: string;
+  verified: boolean;
+}
+
+export interface ReviewAggregate {
+  averageRating: number;
+  count: number;
+  histogram: Record<string, number>;
+}
+
+export async function fetchProductReviews(
+  catalogProductId: string,
+): Promise<{ reviews: ReviewApiItem[]; aggregate: ReviewAggregate }> {
+  const res = await fetch(commerceUrl(`/products/${encodeURIComponent(catalogProductId)}/reviews`), {
+    headers: { ...networkHeader() },
+  });
+  const parsed = await parseJson<{ data: { reviews: ReviewApiItem[]; aggregate: ReviewAggregate } }>(res);
+  if (!parsed.ok) return { reviews: [], aggregate: { averageRating: 0, count: 0, histogram: {} } };
+  return parsed.data.data;
+}
+
+export async function checkCanReview(
+  catalogProductId: string,
+): Promise<{ canReview: boolean; alreadyReviewed: boolean; reason?: string }> {
+  const result = await commerceAuthFetch<{ data: { canReview: boolean; alreadyReviewed: boolean; reason?: string } }>(
+    `/products/${encodeURIComponent(catalogProductId)}/can-review`,
+  );
+  return result.data;
+}
+
+export async function submitReview(
+  catalogProductId: string,
+  rating: number,
+  comment: string,
+): Promise<{ review: ReviewApiItem; aggregate: ReviewAggregate }> {
+  const result = await commerceAuthFetch<{ data: { review: ReviewApiItem; aggregate: ReviewAggregate } }>(
+    `/products/${encodeURIComponent(catalogProductId)}/reviews`,
+    { method: 'POST', body: JSON.stringify({ rating, comment }) },
+  );
+  return result.data;
+}
+
+// ─── Bestsellers / trending ──────────────────────────────────────
+
+export interface BestsellerEntry {
+  catalogProductId: string;
+  salesCount: number;
+}
+
+export async function fetchBestsellers(
+  window: 'all' | '7d' | '30d' = 'all',
+  limit = 20,
+): Promise<BestsellerEntry[]> {
+  try {
+    const res = await fetch(
+      commerceUrl(`/bestsellers?window=${encodeURIComponent(window)}&limit=${limit}`),
+      { headers: { ...networkHeader() } },
+    );
+    const parsed = await parseJson<{ data: { bestsellers: BestsellerEntry[] } }>(res);
+    return parsed.ok ? parsed.data.data.bestsellers : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function markReviewHelpful(reviewId: string): Promise<number> {
+  const result = await commerceAuthFetch<{ data: { helpful: number } }>(
+    `/reviews/${encodeURIComponent(reviewId)}/helpful`,
+    { method: 'POST', body: '{}' },
+  );
+  return result.data.helpful;
 }
 
 export async function fetchSellerKycStatus(wallet: string): Promise<SellerKycStatus> {

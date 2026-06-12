@@ -56,6 +56,23 @@ export const createPurchaseSchema = z.object({
   tx_hash: z.string().max(200).nullable().optional(),
 });
 
+// Wallet linking now requires a TON Connect ton_proof (see linkWalletSchema).
+// The generic profile PATCH only accepts ton_address=null (unlink); a non-null
+// value is rejected with PROOF_REQUIRED.
+export const linkWalletSchema = z.object({
+  ton_address: z.string().min(48).max(100),
+  public_key: z.string().regex(/^[0-9a-fA-F]{64}$/, 'public_key must be 32-byte hex'),
+  proof: z.object({
+    timestamp: z.number().int().nonnegative(),
+    domain: z.object({
+      lengthBytes: z.number().int().nonnegative(),
+      value: z.string().max(255),
+    }),
+    signature: z.string().max(512),
+    payload: z.string().min(8).max(256),
+  }),
+});
+
 export const patchProfileSchema = z.object({
   ton_address: z.string().max(100).nullable().optional(),
   display_name: displayName().optional(),
@@ -98,6 +115,29 @@ export const AUDIT_LOG_CLIENT_ACTIONS = [
 
 export const SUPPORT_TICKET_STATUSES = ['open', 'in_progress', 'waiting', 'resolved', 'closed'] as const;
 export const SUPPORT_TICKET_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
+export const SUPPORT_TICKET_CATEGORIES = ['general', 'billing', 'technical', 'abuse', 'kyc', 'other'] as const;
+
+// User-facing ticket creation. category/priority are constrained to the same
+// enums the moderator UI expects, so a user can't store bogus values (e.g.
+// priority:'urgent') to jump the queue or break the admin view.
+export const createSupportTicketSchema = z.object({
+  subject: z.string().min(1).max(200),
+  message: z.string().min(1).max(5000),
+  category: z.enum(SUPPORT_TICKET_CATEGORIES).optional(),
+  priority: z.enum(SUPPORT_TICKET_PRIORITIES).optional(),
+  product_id: z.string().max(200).nullable().optional(),
+});
+
+export const addSupportMessageSchema = z.object({
+  message: z.string().min(1).max(5000),
+});
+
+// Admin compliance-ledger status change. notes is capped so an admin can't
+// write an unbounded blob into a compliance record.
+export const ledgerStatusSchema = z.object({
+  status: z.enum(['clean', 'review', 'reported', 'flagged']),
+  notes: z.string().max(1000).optional(),
+});
 
 /**
  * Schema for moderator-side ticket updates. Status/priority are constrained

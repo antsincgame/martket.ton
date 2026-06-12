@@ -117,5 +117,23 @@ export async function fetchTonBalance(address: string): Promise<string> {
   return fracStr ? `${whole}.${fracStr}` : whole.toString();
 }
 
+// ─── Wishlist / favorites ───────────────────────────────────────────
+
+export async function fetchWishlist(token: string): Promise<string[]> {
+  const res = await apiFetch<{ success: boolean; data: { productIds: string[] } }>(
+    '/api/session/wishlist',
+    { token },
+  );
+  return res.data.productIds;
+}
+
+export async function addWishlistItem(productId: string, token: string): Promise<void> {
+  await apiFetch(`/api/session/wishlist/${encodeURIComponent(productId)}`, { method: 'POST', token });
+}
+
+export async function removeWishlistItem(productId: string, token: string): Promise<void> {
+  await apiFetch(`/api/session/wishlist/${encodeURIComponent(productId)}`, { method: 'DELETE', token });
+}
+
 export { apiFetch, ApiError };
 export type { AuditLogEntry, StatsData, UserProfile, FetchOptions };

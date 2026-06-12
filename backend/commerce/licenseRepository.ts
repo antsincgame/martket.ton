@@ -137,6 +137,27 @@ export async function findLicenseByBuyerAndListing(
   return documents[0] ? fromDoc(documents[0]) : null;
 }
 
+/**
+ * Verified-purchase gate for reviews: does this buyer hold a license for the
+ * given CATALOG product (any of its listings)? A review targets a catalog
+ * product (`catalogProductId`), while a purchase is of a listing — the license
+ * row carries both, so we query by catalogProductId directly. Requires an index
+ * on `catalogProductId` in COL_LICENSES (provisioned).
+ */
+export async function findLicenseByBuyerAndCatalogProduct(
+  buyerWallet: string,
+  catalogProductId: string,
+): Promise<LicenseRecord | null> {
+  if (!buyerWallet || !catalogProductId) return null;
+  const { documents } = await databases().listDocuments(DATABASE_ID, COL_LICENSES, [
+    Query.equal('buyerWallet', [buyerWallet]),
+    Query.equal('catalogProductId', [catalogProductId]),
+    Query.orderDesc('$createdAt'),
+    Query.limit(1),
+  ]);
+  return documents[0] ? fromDoc(documents[0]) : null;
+}
+
 export async function listBuyerLicenses(buyerWallet: string, limit = 100): Promise<LicenseRecord[]> {
   const { documents } = await databases().listDocuments(DATABASE_ID, COL_LICENSES, [
     Query.equal('buyerWallet', [buyerWallet]),

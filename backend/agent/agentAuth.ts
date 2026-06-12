@@ -25,6 +25,7 @@ import {
 import { touchLastUsedAt, type AgentTokenRecord } from './tokenRepository.js';
 import { screenWallet } from '../sanctions/screen.js';
 import { requireSellerKyc } from '../commerce/handlers/requireSellerKyc.js';
+import { findUserByTonAddress } from '../core/profileRepository.js';
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -161,6 +162,34 @@ export function apiRequireAgentToken(
       });
       return;
     }
+
+    // M-4: banning a user (is_active=false) is the documented single choke-point
+    // for JWT requests, but agent tokens bypassed it entirely — a banned seller
+    // kept full Agent API access until each token was individually revoked.
+    // Resolve the token's wallet to its profile and reject deactivated accounts.
+    // F3 fix: FAIL CLOSED. A lookup error must not grant access (a transient
+    // Appwrite error previously let a banned wallet through). record.wallet is
+    // now stored canonically (F2), so a found profile is authoritative.
+    try {
+      const profile = await findUserByTonAddress(record.wallet);
+      if (profile && profile.isActive === false) {
+        res.status(403).json({
+          success: false,
+          message: 'Account is deactivated.',
+          code: 'ACCOUNT_DEACTIVATED',
+        });
+        return;
+      }
+    } catch (err) {
+      logger.error('[agentAuth] is_active lookup failed — denying (fail-closed):', err instanceof Error ? err.message : err);
+      res.status(503).json({
+        success: false,
+        message: 'Account status check unavailable, try again',
+        code: 'STATUS_CHECK_FAILED',
+      });
+      return;
+    }
+
     if (!opts.skipKyc) {
       const kyc = await requireSellerKyc(record.wallet);
       if (!kyc.ok) {

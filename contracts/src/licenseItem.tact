@@ -49,6 +49,15 @@ message(0x7a1b3c5d) BuyerBurn {
     queryId: Int as uint64;
 }
 
+// Owner recovery for a stuck two-phase burn (A-1). If BuyerBurn was accepted by
+// the escrow (refund issued) but the BurnConfirmed reply was lost, the item is
+// left burnRequested=true with no way to finalize. After burnDeadline — by which
+// point a refund has settled or the burn window has closed — the owner may
+// finalize and reclaim the item's residual balance.
+message(0x6b2e4d1a) FinalizeBurn {
+    queryId: Int as uint64;
+}
+
 // ─── Contract ────────────────────────────────────────────────────────
 
 contract LicenseItem with Deployable {
@@ -60,7 +69,7 @@ contract LicenseItem with Deployable {
     transfers:     Int as uint8;
     content:       Cell;
     burnDeadline:  Int as uint32;
-    registered:    Bool;
+    burnRequested: Bool;
 
     init(
         index:         Int,
@@ -79,31 +88,22 @@ contract LicenseItem with Deployable {
         self.transfers     = 0;
         self.content       = content;
         self.burnDeadline  = burnDeadline;
-        self.registered    = false;
+        self.burnRequested = false;
     }
 
-    // ─── Self-register в Escrow после deploy ─────────────────────────
+    // ─── Deploy-сообщение от Collection ──────────────────────────────
     //
-    // Первое сообщение, которое LicenseItem получает после deploy —
-    // это "License minted" от Collection. Здесь мы шлём RegisterLicense
-    // обратно в Escrow, замыкая on-chain петлю "escrow знает свой license".
-    //
-    // В Escrow проверяется sender() == msg.licenseAddress, что гарантирует:
-    // регистрация может произойти только от самой лицензии, не от атакующего.
+    // Collection деплоит айтем с пустым телом — этот no-op receiver его
+    // поглощает. Регистрацию лицензии в Escrow теперь выполняет САМА
+    // Collection (RegisterLicense, привязанный к self.collectionAddress
+    // на стороне эскроу), а не айтем: прежняя «саморегистрация» висела на
+    // пустом receive(), но Collection слала текстовый комментарий
+    // ("License minted".asComment()) с opcode=0 — он НЕ матчился пустым
+    // телом, поэтому регистрация не происходила вовсе, а деплой айтема
+    // аварийно завершался. См. CON-01 fix в appCollection.tact / escrow.tact.
 
     receive() {
-        // Empty body receive — срабатывает на "License minted".asComment()
-        // от Collection (комментарий это внутреннее слово без opcode).
-        if (!self.registered && sender() == self.collection) {
-            self.registered = true;
-            send(SendParameters{
-                to: self.escrowAddress,
-                value: ton("0.02"),
-                mode: SendPayGasSeparately,
-                bounce: false,
-                body: RegisterLicense{ licenseAddress: myAddress() }.toCell(),
-            });
-        }
+        // no-op: поглощает пустое deploy-сообщение от Collection.
     }
 
     // ─── TEP-62 Transfer ─────────────────────────────────────────────
@@ -154,18 +154,35 @@ contract LicenseItem with Deployable {
     }
 
     // ─── BuyerBurn: owner burns NFT → escrow auto-refund ─────────────
-
+    //
+    // Двухфазный burn (H-1 fix). Раньше айтем самоуничтожался В ТОЙ ЖЕ
+    // транзакции, что слал RefundOnBurn (bounce:false, без bounced-обработки):
+    // если эскроу отвергал возврат (не FUNDED / окно закрыто / адрес не
+    // совпал), покупатель терял и NFT, и деньги. Теперь:
+    //   1. BuyerBurn только помечает burnRequested и шлёт RefundOnBurn
+    //      (bounce:true) — НЕ уничтожаясь.
+    //   2. Эскроу при успехе отвечает BurnConfirmed → айтем уничтожается.
+    //   3. Если RefundOnBurn баунсится — bounced() снимает флаг, NFT цел.
     receive(msg: BuyerBurn) {
         require(sender() == self.ownerAddress, "Only owner can burn");
         require(now() <= self.burnDeadline, "Trial window closed");
+        require(!self.burnRequested, "Burn already requested");
+
+        self.burnRequested = true;
 
         send(SendParameters{
             to: self.escrowAddress,
-            value: ton("0.03"),
+            value: ton("0.05"),
             mode: SendPayGasSeparately,
-            bounce: false,
+            bounce: true,
             body: RefundOnBurn{}.toCell(),
         });
+    }
+
+    // Эскроу подтвердил возврат — теперь безопасно уничтожить лицензию.
+    receive(msg: BurnConfirmed) {
+        require(sender() == self.escrowAddress, "Only bound escrow");
+        require(self.burnRequested, "No burn in progress");
 
         send(SendParameters{
             to: self.ownerAddress,
@@ -173,6 +190,30 @@ contract LicenseItem with Deployable {
             mode: SendRemainingBalance | SendDestroyIfZero,
             bounce: false,
             body: "License burned by owner".asComment(),
+        });
+    }
+
+    // RefundOnBurn отвергнут эскроу (баунс) — откатываем запрос, NFT остаётся
+    // валидным, покупатель может повторить позже (в пределах burnDeadline).
+    bounced(msg: RefundOnBurn) {
+        self.burnRequested = false;
+    }
+
+    // A-1 recovery: finalize a burn whose BurnConfirmed was lost. Gated on owner
+    // + burnRequested + past burnDeadline, so the refund (if RefundOnBurn was
+    // accepted) has already settled and the burn window is closed — no double
+    // refund is possible (the escrow is REFUNDED, rejecting any further refund).
+    receive(msg: FinalizeBurn) {
+        require(sender() == self.ownerAddress, "Only owner can finalize");
+        require(self.burnRequested, "No burn in progress");
+        require(now() > self.burnDeadline, "Wait until trial window closes");
+
+        send(SendParameters{
+            to: self.ownerAddress,
+            value: 0,
+            mode: SendRemainingBalance | SendDestroyIfZero,
+            bounce: false,
+            body: "License burn finalized".asComment(),
         });
     }
 
@@ -219,8 +260,8 @@ contract LicenseItem with Deployable {
         return self.burnDeadline;
     }
 
-    get fun is_registered(): Bool {
-        return self.registered;
+    get fun burn_requested(): Bool {
+        return self.burnRequested;
     }
 }
 

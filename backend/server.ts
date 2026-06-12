@@ -19,6 +19,7 @@ import { initSentry } from './sentry.js';
 import profileRoutes from './routes/profile.js';
 import productRoutes, { sessionProductsRouter } from './routes/products.js';
 import purchaseRoutes from './routes/purchases.js';
+import wishlistRoutes from './routes/wishlist.js';
 import adminRoutes from './routes/admin.js';
 import statsRoutes from './routes/stats.js';
 import payoutRoutes from './routes/payouts.js';
@@ -27,6 +28,30 @@ import tonForgeRouter from './tonforge/router.js';
 
 const app = express();
 const PORT = process.env.PORT || 8081;
+
+/**
+ * Constant-time secret comparison over fixed-length SHA-256 digests. Plain `===`
+ * on a secret leaks length/prefix via response timing; digesting both sides to a
+ * fixed 32 bytes lets `crypto.timingSafeEqual` run without throwing on length
+ * mismatch. Used for the health/router-status admin tokens.
+ */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const da = crypto.createHash('sha256').update(a).digest();
+  const db = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(da, db);
+}
+
+// Process-level safety net: a single missed `.catch()` in a background worker
+// (ledger writes, audit, mint/payout ticks) would otherwise terminate the
+// process on Node 22. Log to stderr (and Sentry, already wired) and keep
+// serving for rejections; uncaught exceptions are logged before the default
+// crash so they are diagnosable.
+process.on('unhandledRejection', (reason) => {
+  logger.error('[unhandledRejection]', reason instanceof Error ? reason : String(reason));
+});
+process.on('uncaughtException', (err) => {
+  logger.error('[uncaughtException]', err);
+});
 
 app.set('trust proxy', 1);
 app.use(requestIdMiddleware);
@@ -97,6 +122,13 @@ app.use('/api/purchases', authLimiter);
 app.use('/api/products', mutateLimiter);
 app.use('/api/admin', mutateLimiter);
 app.use('/api/support', mutateLimiter);
+// The most privilege-critical admin mutations live OUTSIDE the /api/admin
+// prefix (role flips, (de)activation, profile verification, audit-log reads)
+// and would otherwise only hit the loose globalLimiter. They are role-guarded,
+// but cap them with the strict mutate budget as defense-in-depth.
+app.use('/api/users', mutateLimiter);
+app.use('/api/profiles', mutateLimiter);
+app.use('/api/audit-logs', mutateLimiter);
 
 // ─── Pre-auth routes ───────────────────────────────────
 
@@ -116,7 +148,8 @@ app.get('/api/health', async (req, res) => {
   const isProd = process.env.NODE_ENV === 'production';
   const wantDetail = req.query.detailed === '1';
   const detailToken = (process.env.HEALTH_DETAIL_TOKEN || '').trim();
-  const tokenOk = !!detailToken && req.get('x-health-token') === detailToken;
+  const providedToken = (req.get('x-health-token') || '').trim();
+  const tokenOk = !!detailToken && !!providedToken && timingSafeEqualStr(providedToken, detailToken);
   const showDetail = !isProd || (wantDetail && tokenOk);
 
   if (!showDetail) {
@@ -158,13 +191,26 @@ app.get('/api/ready', (_req, res) => {
 /**
  * JSON parsing for normal API traffic.
  *
- * We skip a few endpoints that must receive the raw bytes:
- *   - `/api/admin/resend/webhook/inbound` validates a svix signature
- *     against the exact body Resend sent, so it uses `express.raw`
- *     locally inside the router.
+ * We skip endpoints that must receive the raw bytes for signature verification:
+ *   - `/api/admin/resend/webhook/inbound` validates a svix signature against the
+ *     exact body Resend sent.
+ *   - `/api/v1/commerce/sellers/kyc/webhook` validates a Ballerine HMAC over the
+ *     raw body (H-2). Without this exemption the global parser consumed the
+ *     stream and the route's express.raw saw a parsed object, so the HMAC was
+ *     computed over "[object Object]" — always failing / forgeable.
+ * Both routes mount their own `express.raw` locally.
  */
+const RAW_BODY_PATHS = new Set([
+  '/api/admin/resend/webhook/inbound',
+  '/api/v1/commerce/sellers/kyc/webhook',
+]);
 app.use((req, res, next) => {
-  if (req.path === '/api/admin/resend/webhook/inbound') return next();
+  // Normalize a trailing slash before the exact-match check. With non-strict
+  // routing `…/webhook/` still hits the webhook route, but `req.path` would carry
+  // the slash and miss the Set — the global JSON parser would then consume the
+  // stream and the route's raw-body HMAC would verify against "[object Object]".
+  const path = req.path.length > 1 && req.path.endsWith('/') ? req.path.slice(0, -1) : req.path;
+  if (RAW_BODY_PATHS.has(path)) return next();
   return express.json({ limit: '256kb' })(req, res, next);
 });
 
@@ -279,6 +325,7 @@ app.use('/api', profileRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/session/products', sessionProductsRouter);
 app.use('/api', purchaseRoutes);
+app.use('/api', wishlistRoutes);
 app.use('/api', statsRoutes);
 app.use('/api', payoutRoutes);
 app.use('/api', supportRoutes);
@@ -320,7 +367,8 @@ async function mountOptionalRouters(): Promise<void> {
 
 app.get('/api/admin/router-status', (req, res) => {
   const token = (process.env.HEALTH_DETAIL_TOKEN || '').trim();
-  if (!token || req.get('x-health-token') !== token) {
+  const provided = (req.get('x-health-token') || '').trim();
+  if (!token || !provided || !timingSafeEqualStr(provided, token)) {
     res.status(403).json({ success: false, message: 'Forbidden' });
     return;
   }

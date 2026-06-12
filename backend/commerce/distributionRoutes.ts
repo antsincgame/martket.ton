@@ -28,7 +28,8 @@ import { logger } from '../logger.js';
 import { setDistributionSchema } from './validation.js';
 import { requireWalletOwner } from './helpers.js';
 import { findLicenseByBuyerAndListing } from './licenseRepository.js';
-import { decideDownloadGate } from './handlers/downloadGate.js';
+import { decideDownloadGate, decideScanGate } from './handlers/downloadGate.js';
+import { isVtConfigured } from '../scan/virustotal.js';
 import { requireSellerKyc } from './handlers/requireSellerKyc.js';
 import { getAdapter, verifyManifest } from '../distribution/index.js';
 import {
@@ -40,10 +41,10 @@ import {
 } from '../distribution/manifest.js';
 import { ID } from 'node-appwrite';
 import { str } from '../utils/params.js';
+// Shared with the buyer-agent download surface so the daily budget can't diverge.
+import { DOWNLOAD_RATE_LIMIT_PER_DAY } from './buyerDownload.js';
 
 const router = express.Router();
-
-const DOWNLOAD_RATE_LIMIT_PER_DAY = 20;
 
 interface ListingDoc {
   $id: string;
@@ -300,6 +301,16 @@ router.get('/listings/:id/download', apiRequireAuth(), async (req: Request, res:
   const role = profile.role;
   const isStaff = role === 'admin' || role === 'super_admin' || role === 'moderator';
 
+  // Antivirus gate applies to EVERYONE (distribution #1): a reviewing moderator
+  // or the seller must never be handed a known-bad / unscanned build — they are
+  // the most likely to open it. The license/entitlement gate below stays
+  // buyer-scoped, but the scan verdict is enforced before any short-circuit.
+  const scanDenial = decideScanGate(doc.scan_status, isVtConfigured());
+  if (scanDenial) {
+    res.status(scanDenial.status).json({ error: scanDenial.message, code: scanDenial.code });
+    return;
+  }
+
   // For buyers: require an entitlement (purchase) for this listing
   if (!isOwner && !isStaff) {
     const { documents } = await databases().listDocuments(DATABASE_ID, COL_ENTITLEMENTS, [
@@ -322,7 +333,10 @@ router.get('/listings/:id/download', apiRequireAuth(), async (req: Request, res:
     // a real NFT the buyer-burn refund guarantee does not apply, so giving
     // out the file would let a buyer keep both the product and the money.
     const license = await findLicenseByBuyerAndListing(wallet, doc.$id);
-    const gate = decideDownloadGate(license, doc.scan_status);
+    // Fail-closed when antivirus scanning is configured (M-8): require a `clean`
+    // verdict, so a manifest swapped after approval (scan_status → idle) cannot
+    // serve an unscanned build.
+    const gate = decideDownloadGate(license, doc.scan_status, isVtConfigured());
     if (gate.kind === 'deny') {
       const body: Record<string, unknown> = { error: gate.message, code: gate.code };
       if (gate.licenseId) body.licenseId = gate.licenseId;

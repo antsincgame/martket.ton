@@ -7,6 +7,7 @@ export const COL_ENTITLEMENTS = 'entitlements';
 export const COL_AUDIT = 'commerce_audit_logs';
 export const COL_DOWNLOAD_AUDIT = 'download_audit';
 export const COL_LICENSES = 'licenses';
+export const COL_REVIEWS = 'reviews';
 export const COL_WORKER_LOCKS = 'worker_locks';
 export const COL_AGENT_TOKENS = 'agent_tokens';
 export const COL_AGENT_INSTRUCTIONS = 'agent_instructions';

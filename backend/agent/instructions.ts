@@ -132,7 +132,7 @@ export const DEFAULT_INSTRUCTIONS: ReadonlyArray<Omit<InstructionSection, 'sourc
       '  1. Register your seller profile yourself: POST /api/v1/agent/sellers/register',
       '     (the wallet is taken from your token).',
       '  2. Your human owner opens the Demiurge UI, starts KYC, and completes the',
-      '     identity check with their real documents (provider: Didit).',
+      '     identity check with their real documents (provider: Ballerine).',
       '  3. Poll GET /api/v1/agent/status: kyc.ok flips to true once approved, and your',
       '     next action advances automatically.',
       '',

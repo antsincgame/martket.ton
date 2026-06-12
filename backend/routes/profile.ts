@@ -4,12 +4,36 @@ import { resolveProfile, apiRequireAuth } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { str } from '../utils/params.js';
-import { patchProfileSchema, kycLiteSchema } from './validation.js';
+import { patchProfileSchema, kycLiteSchema, linkWalletSchema } from './validation.js';
 import * as repo from '../core/repository.js';
 import { profileToSnakeCase } from '../core/repository.js';
 import { isBlockedCountry } from '../commerce/handlers/blockedCountries.js';
+import { resolveNetwork } from '../config/network.js';
+import {
+  verifyTonProof,
+  issueWalletChallenge,
+  verifyWalletChallenge,
+} from '../commerce/tonProof.js';
 
 const router = express.Router();
+
+/**
+ * Domains a ton_proof may be signed for. Derived from the public web origin so
+ * a proof minted for another site can't be replayed here. Falls back to the
+ * known production host.
+ */
+function allowedProofDomains(): string[] {
+  const raw =
+    process.env.TON_PROOF_DOMAINS ||
+    process.env.SERVICE_FQDN_WEB ||
+    process.env.VITE_APP_ORIGIN ||
+    process.env.CORS_ORIGIN ||
+    'tonforge.org';
+  return raw
+    .split(',')
+    .map((d) => d.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, ''))
+    .filter(Boolean);
+}
 
 let TonAddress: { parse(addr: string): unknown } | null = null;
 import('@ton/core')
@@ -52,18 +76,19 @@ router.patch(
     const updates: Record<string, unknown> = {};
 
     if (body.ton_address !== undefined) {
+      // H-8: linking a wallet (non-null) now requires proof of ownership via
+      // POST /session/wallet/link. The generic PATCH may only UNLINK (null) —
+      // a user can always drop their own wallet, but can never claim one they
+      // don't control through this endpoint.
       if (body.ton_address) {
-        if (!isValidTonAddress(body.ton_address)) {
-          res.status(400).json({ success: false, message: 'Invalid TON address format' });
-          return;
-        }
-        const existing = await repo.findUserByTonAddress(body.ton_address);
-        if (existing && existing.id !== profile.id) {
-          res.status(409).json({ success: false, message: 'This TON wallet is already linked to another account' });
-          return;
-        }
+        res.status(400).json({
+          success: false,
+          message: 'Linking a wallet requires ownership proof. Use /session/wallet/link.',
+          code: 'PROOF_REQUIRED',
+        });
+        return;
       }
-      updates.ton_address = body.ton_address || null;
+      updates.ton_address = null;
     }
 
     if (body.slug !== undefined && body.slug && body.slug !== profile.slug) {
@@ -85,6 +110,100 @@ router.patch(
     if (Object.keys(updates).length > 0) {
       await repo.updateProfile(profile.id, updates);
     }
+    const updated = await repo.findUserById(profile.id);
+    res.json({ success: true, data: updated ? profileToSnakeCase(updated) : null });
+  }),
+);
+
+// ── Wallet linking with TON Connect ton_proof (H-8) ───────────────────
+
+// Issue a short-lived, user-bound challenge nonce. The frontend feeds it to
+// TonConnect as the tonProof payload, so the wallet signs THIS nonce.
+router.get(
+  '/session/wallet/challenge',
+  apiRequireAuth(),
+  asyncHandler(async (req, res) => {
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      res.status(404).json({ success: false, message: 'Profile not found' });
+      return;
+    }
+    try {
+      res.json({ success: true, data: { payload: issueWalletChallenge(profile.id) } });
+    } catch {
+      res.status(503).json({ success: false, message: 'Wallet proof not configured', code: 'PROOF_DISABLED' });
+    }
+  }),
+);
+
+// Verify the ton_proof and bind the wallet. Only the holder of the wallet's
+// private key (who signed our nonce) can link it.
+router.post(
+  '/session/wallet/link',
+  apiRequireAuth(),
+  validateBody(linkWalletSchema),
+  asyncHandler(async (req, res) => {
+    const profile = await resolveProfile(req);
+    if (!profile) {
+      res.status(404).json({ success: false, message: 'Profile not found' });
+      return;
+    }
+    const body = req.body as {
+      ton_address: string;
+      public_key: string;
+      proof: {
+        timestamp: number;
+        domain: { lengthBytes: number; value: string };
+        signature: string;
+        payload: string;
+      };
+    };
+
+    if (!isValidTonAddress(body.ton_address)) {
+      res.status(400).json({ success: false, message: 'Invalid TON address format' });
+      return;
+    }
+
+    // 1. The wallet must have signed a nonce WE issued to THIS user.
+    if (!verifyWalletChallenge(body.proof.payload, profile.id)) {
+      res.status(400).json({ success: false, message: 'Challenge expired or invalid', code: 'BAD_CHALLENGE' });
+      return;
+    }
+
+    // Canonicalize to the user-friendly, network-correct form (non-bounceable,
+    // the convention for wallet addresses) so the stored ton_address matches
+    // what the rest of the app (useTonAddress / exact-match lookups) uses, and
+    // the uniqueness check below can't be evaded with an alternate encoding.
+    let canonicalAddress = body.ton_address;
+    try {
+      const { Address } = await import('@ton/core');
+      canonicalAddress = Address.parse(body.ton_address).toString({
+        urlSafe: true,
+        bounceable: false,
+        testOnly: resolveNetwork() === 'testnet',
+      });
+    } catch { /* fall back to the raw input; verifyTonProof re-parses anyway */ }
+
+    // 2. The proof must be a valid signature binding this key to this address.
+    const verdict = verifyTonProof({
+      address: body.ton_address,
+      publicKey: body.public_key,
+      proof: body.proof,
+      allowedDomains: allowedProofDomains(),
+    });
+    if (!verdict.ok) {
+      res.status(400).json({ success: false, message: 'Wallet ownership proof failed', code: verdict.reason });
+      return;
+    }
+
+    // 3. One wallet per account (checked against the canonical form).
+    const existing = await repo.findUserByTonAddress(canonicalAddress);
+    if (existing && existing.id !== profile.id) {
+      res.status(409).json({ success: false, message: 'This TON wallet is already linked to another account' });
+      return;
+    }
+
+    await repo.updateProfile(profile.id, { ton_address: canonicalAddress });
     const updated = await repo.findUserById(profile.id);
     res.json({ success: true, data: updated ? profileToSnakeCase(updated) : null });
   }),

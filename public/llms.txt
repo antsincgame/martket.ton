@@ -32,13 +32,27 @@ The supported machine interface is the **Agent API**.
 - `GET https://tonforge.org/api/products/search?q=&limit=`: Search products (q >= 2 chars).
 - `GET https://tonforge.org/api/products/{id}`: A single published product.
 - `GET https://tonforge.org/api/v1/commerce/listings/catalog/{catalogProductId}`: Active offers for a product.
-- Purchase is non-custodial: the buyer's own TON wallet signs the escrow transaction; no token can move a user's funds. See the buyer guide for the discover -> prepare -> sign flow.
+- Purchase is non-custodial: the escrow transaction is signed only by the buyer's own TON wallet; no token can move a USER's funds. See the buyer guide for the discover -> prepare -> sign flow.
+
+## Agentic buying (agent pays with its OWN wallet)
+
+An AI agent can complete purchases end-to-end using its own TON wallet — e.g. a TON Agentic Wallet (https://agents.ton.org/), where the agent holds the operator key and its human keeps the owner key.
+
+- Accountability: the human owner (session + Lite KYC) issues a buyer token via `POST https://tonforge.org/api/v1/commerce/buyer-agent-tokens`, proving on-chain that they own the agent's wallet. The token (scope `orders:buy`) is bound to the wallet the agent pays from.
+- `POST /api/v1/agent/buyer/orders` `{listingId}`: create an order; the response's `payment` object gives the escrow address, exact nanoton amount, and the stateInit + payload (base64 BOC) that MUST be attached to the payment message.
+- Pay from the agent wallet (e.g. via `npx @ton/mcp`), then `POST /api/v1/agent/buyer/orders/{id}/confirm` to verify on-chain.
+- `GET /api/v1/agent/buyer/orders/{id}`: poll state (pending_payment -> paid -> fulfilled) and the license NFT address.
+- `GET /api/v1/agent/buyer/listings/{id}/download`: signed download URL + sha256, gated on the minted license and a clean antivirus verdict.
+- The same flow is exposed as MCP tools: `create_order`, `confirm_order`, `get_order`, `download_purchase` (env `TONFORGE_BUYER_TOKEN`).
 
 ## Seller endpoints (Agent API)
 
 - `GET /me`: Identity of the calling token.
 - `GET /instructions`: Onboarding/operating manual + personal onboarding checklist (scope `instructions:read`, pre-KYC ok).
-- `GET /status`: Onboarding progress + listing/order aggregates (any token, pre-KYC ok).
+- `GET /status`: Onboarding progress + listing/order aggregates (any token, pre-KYC ok). Returns a `nextAction` — the exact next call to make.
+- `POST /help`: Free-text Q&A grounded in the operating manual + your live status (scope `instructions:read`, pre-KYC ok).
+- `POST /sellers/register`: Self-register the seller profile for the token's wallet (idempotent, pre-KYC ok) — a machine agent onboards itself.
+- `POST /storage`: Connect your own R2/S3/B2 bucket for private distribution (scope `distribution:write`); credentials are AES-256-GCM-encrypted.
 - `POST /products`: Create a catalog product draft (scope `products:write`); enters moderation + antivirus before it can be published.
 - `GET /listings`: List the seller's listings.
 - `POST /listings`: Create a listing (requires `listings:write`).
@@ -46,3 +60,5 @@ The supported machine interface is the **Agent API**.
 - `PUT /listings/{id}/distribution`: Attach a downloadable artifact (requires `distribution:write`).
 - `POST /listings/{id}/distribution/verify`: Verify the artifact's sha256 (requires `distribution:write`).
 - `GET /orders`: List the seller's orders (requires `orders:read`).
+- `GET /analytics`: Store performance — sales, revenue split (gross/net/fees), refunds, order-state breakdown, top products by sales (requires `orders:read`).
+- `POST /webhook`: Register an HTTPS endpoint to receive signed events (order.paid, payout.released) — react to sales without polling (requires `orders:read`; returns a signing secret once). `DELETE /webhook` removes it.

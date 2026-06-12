@@ -158,6 +158,120 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "451": { $ref: "#/components/responses/Sanctioned" }
 
+  /help:
+    post:
+      tags: [Onboarding]
+      operationId: agentAssistantHelp
+      summary: Grounded Q&A assistant
+      description: >-
+        Answers a free-text question, grounded in the operating manual plus the
+        agent's live onboarding status. Returns the most relevant instruction
+        section and the agent's `nextAction`. Requires `instructions:read`.
+        Readable **before** KYC. (Deterministic grounding today; a live LLM is a
+        post-MVP activation.)
+      security:
+        - agentBearer: [instructions:read]
+        - agentHeader: [instructions:read]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                question: { type: string, maxLength: 2000, description: Free-text question. }
+      responses:
+        "200":
+          description: Grounded assistant reply (relevant section + nextAction).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, description: "Assistant reply: matched section, nextAction, and an honest assistant note." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "451": { $ref: "#/components/responses/Sanctioned" }
+
+  /sellers/register:
+    post:
+      tags: [Onboarding]
+      operationId: agentRegisterSeller
+      summary: Self-register as a seller
+      description: >-
+        Creates the seller profile for the token's wallet so a machine Demiurge
+        can onboard itself up to the human KYC gate. Idempotent (returns the
+        existing profile with `created: false`). The wallet comes from the token,
+        never the body. No scope required; readable **before** KYC.
+      security:
+        - agentBearer: []
+        - agentHeader: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName: { type: string, maxLength: 120, description: "Display name (default: 'Agent Demiurge')." }
+                bio: { type: string, maxLength: 2000 }
+      responses:
+        "200":
+          description: The seller profile (created or pre-existing).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      profile: { type: object, description: The seller profile document. }
+                      created: { type: boolean, description: true if newly created, false if it already existed. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "451": { $ref: "#/components/responses/Sanctioned" }
+
+  /storage:
+    post:
+      tags: [Distribution]
+      operationId: agentSetStorage
+      summary: Connect a BYOS bucket (R2/S3/B2)
+      description: >-
+        Connects the agent's own object-storage bucket for private distribution.
+        Credentials are validated with a live HeadBucket probe (with the endpoint
+        pinned to its validated public IP to prevent SSRF) and stored
+        AES-256-GCM-encrypted. Requires `distribution:write`. The wallet comes
+        from the token.
+      security:
+        - agentBearer: [distribution:write]
+        - agentHeader: [distribution:write]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, accountId, bucket, accessKeyId, secretAccessKey]
+              properties:
+                provider: { type: string, enum: [cloudflare-r2, s3, b2] }
+                accountId: { type: string }
+                bucket: { type: string }
+                endpoint: { type: string, nullable: true, description: Custom S3-compatible endpoint; validated against private IP ranges. }
+                accessKeyId: { type: string }
+                secretAccessKey: { type: string, description: Write-only; never returned by any read endpoint. }
+                publicBaseUrl: { type: string, nullable: true }
+      responses:
+        "200":
+          description: Storage connected (probe passed, credentials encrypted at rest).
+        "400":
+          description: Bad endpoint (private/unresolvable) or bucket probe failed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "451": { $ref: "#/components/responses/Sanctioned" }
+
   /products:
     post:
       tags: [Products]
@@ -424,6 +538,100 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "429": { $ref: "#/components/responses/RateLimited" }
 
+  /analytics:
+    get:
+      tags: [Orders]
+      operationId: getSellerAnalytics
+      summary: Seller store analytics
+      description: >-
+        Aggregated store performance for the calling wallet's listings: sales
+        count, revenue split (gross / seller net / platform fees, raw nanoton +
+        human TON), refunds, an order-state breakdown, and a top-products ranking
+        by sales. Read-only. Requires `orders:read`.
+      security:
+        - agentBearer: [orders:read]
+        - agentHeader: [orders:read]
+      responses:
+        "200":
+          description: Aggregated analytics.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      totals:
+                        type: object
+                        description: Sales count, gross/net/fee revenue (raw + human), refunds, pending.
+                      byState:
+                        type: object
+                        description: Order count per state (paid, fulfilled, refunded, …).
+                      topProducts:
+                        type: array
+                        description: Listings ranked by sales count.
+                        items: { type: object }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /webhook:
+    post:
+      tags: [Orders]
+      operationId: setSellerWebhook
+      summary: Register an event webhook
+      description: >-
+        Registers an HTTPS endpoint that receives signed events (`order.paid`,
+        `payout.released`) so an agent reacts to sales event-driven instead of
+        polling. Returns a signing secret **once** — verify each delivery's
+        `X-TonForge-Signature` (`sha256=` HMAC-SHA256 of the raw body) with it.
+        The URL must be HTTPS and must not resolve to a private/reserved IP
+        (SSRF guard). Requires `orders:read`.
+      security:
+        - agentBearer: [orders:read]
+        - agentHeader: [orders:read]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string, format: uri, description: HTTPS endpoint that will receive POSTed events. }
+      responses:
+        "200":
+          description: Webhook registered (secret returned once).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url: { type: string }
+                      secret: { type: string, description: HMAC signing secret — store it; shown only once. }
+                      events: { type: array, items: { type: string } }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "451": { $ref: "#/components/responses/Sanctioned" }
+    delete:
+      tags: [Orders]
+      operationId: deleteSellerWebhook
+      summary: Remove the event webhook
+      description: Removes the seller's registered event webhook. Requires `orders:read`.
+      security:
+        - agentBearer: [orders:read]
+        - agentHeader: [orders:read]
+      responses:
+        "200":
+          description: Webhook removed.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
   /agent-tokens:
     servers:
       - url: https://tonforge.org/api/v1/commerce
@@ -526,6 +734,197 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /buyer-agent-tokens:
+    servers:
+      - url: https://tonforge.org/api/v1/commerce
+    post:
+      tags: [Agentic buying]
+      operationId: issueBuyerAgentToken
+      summary: Issue a buyer token (human accountability gate)
+      description: >-
+        Session-authenticated, performed by the accountable HUMAN owner. Requires a
+        ton_proof-bound wallet and Lite KYC. Verifies ON-CHAIN (TEP-85 get_nft_data)
+        that the agent wallet's owner is the caller's verified wallet — e.g. a TON
+        Agentic Wallet (agents.ton.org) whose owner key the caller holds. Returns a
+        `tfa_` token with scopes `orders:buy` + read-only `instructions:read`,
+        bound to the wallet the agent pays from. Plaintext shown exactly once.
+      security:
+        - sessionJwt: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentWallet, name]
+              properties:
+                agentWallet: { type: string, description: The TON wallet the agent will PAY from. }
+                name: { type: string, minLength: 2, maxLength: 80 }
+                ttlDays: { type: integer, minimum: 1, maximum: 365, default: 90 }
+      responses:
+        "200":
+          description: Token issued (plaintext returned once).
+        "403":
+          description: No bound wallet / Lite KYC missing / agent wallet not provably owned (AGENT_WALLET_NOT_OWNED).
+        "451":
+          description: Owner or agent wallet is sanctioned.
+
+  /buyer-agent-tokens/{id}:
+    servers:
+      - url: https://tonforge.org/api/v1/commerce
+    delete:
+      tags: [Agentic buying]
+      operationId: revokeBuyerAgentToken
+      summary: Revoke a buyer token
+      description: Same on-chain ownership proof as issuance, then revokes (idempotent).
+      security:
+        - sessionJwt: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Revoked. }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /buyer/orders:
+    post:
+      tags: [Agentic buying]
+      operationId: buyerCreateOrder
+      summary: "Buy step 1: create an order (agent pays with its own wallet)"
+      description: >-
+        Requires a buyer token (scope orders:buy); the buying wallet is ALWAYS the
+        token's wallet. Sanctions + AML screen the paying wallet. The response's
+        `payment` object is machine-actionable: send EXACTLY `amountNanoton` to
+        `payToAddress` with BOTH `stateInitBase64` and `payloadBase64` attached
+        (a plain comment transfer will not fund the escrow), e.g. via a TON
+        Agentic Wallet / @ton/mcp — then call confirm.
+      security:
+        - agentToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [listingId]
+              properties:
+                listingId: { type: string }
+      responses:
+        "200":
+          description: Order created; includes escrow + payment instructions.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      orderId: { type: string }
+                      amountRaw: { type: string }
+                      escrow:
+                        type: object
+                        properties:
+                          address: { type: string }
+                          stateInit: { type: string, description: base64 BOC — must be attached to the payment }
+                          payload: { type: string, description: base64 BOC — must be attached to the payment }
+                          totalAmountRaw: { type: string }
+                      payment:
+                        type: object
+                        description: Machine-actionable payment instructions for the agent's wallet tooling.
+                        properties:
+                          network: { type: string, enum: [mainnet, testnet] }
+                          payFromWallet: { type: string }
+                          payToAddress: { type: string }
+                          amountNanoton: { type: string }
+                          stateInitBase64: { type: string }
+                          payloadBase64: { type: string }
+                          note: { type: string }
+        "400": { description: Listing inactive / no collection. }
+        "403": { description: Missing orders:buy scope. }
+        "451": { description: Paying wallet sanctioned or AML high-risk. }
+        "503": { description: Escrow compute failed — retry shortly. }
+
+  /buyer/orders/{id}/confirm:
+    post:
+      tags: [Agentic buying]
+      operationId: buyerConfirmOrder
+      summary: "Buy step 2: verify the escrow payment on-chain"
+      description: >-
+        Verifies the payment landed AND the escrow reached FUNDED on-chain, then
+        queues the license NFT mint (mintPending true; order stays pending_payment
+        until the mint worker finishes). Idempotent — safe to retry while funds
+        propagate.
+      security:
+        - agentToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Payment verified (or order already processed). }
+        "400": { description: PAYMENT_VERIFY_FAILED — payment not visible yet. }
+        "403": { description: Order belongs to a different wallet. }
+        "409": { description: ESCROW_NOT_FUNDED — funded amount not confirmed on-chain yet. }
+
+  /buyer/orders/{id}:
+    get:
+      tags: [Agentic buying]
+      operationId: buyerGetOrder
+      summary: Poll your own order
+      description: >-
+        State (pending_payment → paid → fulfilled), escrow + license NFT addresses,
+        and the delivery payload once paid. Only the buyer token's own orders.
+      security:
+        - agentToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Order view. }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /buyer/listings/{id}/download:
+    get:
+      tags: [Agentic buying]
+      operationId: buyerDownload
+      summary: "Buy step 3: signed download URL for a purchased listing"
+      description: >-
+        Returns a short-lived signed URL plus the expected sha256. Gated on the
+        minted license NFT for the buyer wallet and a clean antivirus verdict;
+        ≤20 URLs/day per purchase. Verify the sha256 after download.
+      security:
+        - agentToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Signed URL issued.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url: { type: string }
+                      expiresInSec: { type: integer }
+                      sha256: { type: string }
+        "403": { description: No entitlement / license not minted yet. }
+        "404": { description: Listing or verified build not found. }
+        "429": { description: Download rate limit (20/day). }
+
 components:
   securitySchemes:
     agentBearer:
@@ -554,7 +953,11 @@ components:
   schemas:
     Scope:
       type: string
-      enum: [listings:read, listings:write, orders:read, distribution:write, instructions:read, products:write]
+      description: >-
+        Seller scopes are grantable via POST /agent-tokens. `orders:buy` is a
+        BUYER scope, issuable only via POST /buyer-agent-tokens (it rides with
+        instructions:read on a buyer token).
+      enum: [listings:read, listings:write, orders:read, distribution:write, instructions:read, products:write, orders:buy]
 
     InstructionSection:
       type: object
@@ -628,36 +1031,40 @@ components:
         currency: { type: string, example: TON }
         priceUsd: { type: string }
         priceAmountRaw: { type: string, description: Price in nanotons (integer string). }
-        status: { type: string, enum: [active, inactive, draft] }
+        status: { type: string, enum: [draft, active, paused, suspended], description: '`suspended` is ops-set; sellers move between draft/active/paused.' }
         deliveryType: { type: string }
         collection_address: { type: string }
+        saleActive: { type: boolean, description: True while a discount is live (sale price below list and not expired). }
+        salePriceUsd: { type: number, nullable: true }
+        salePriceTonHuman: { type: string, nullable: true, description: Discounted seller price in TON while the sale is active. }
+        saleEndsAt: { type: string, nullable: true, format: date-time }
+        discountPercent: { type: integer, description: Rounded percent off the list price; 0 when no sale is active. }
 
     CreateListingRequest:
       type: object
-      required: [sellerWallet, catalogProductId, title, priceUsd, deliveryType, deliveryPayload, collectionAddress]
+      required: [catalogProductId, title, priceUsd, deliveryType, deliveryPayload, collectionAddress]
       properties:
-        sellerWallet:
-          type: string
-          description: >-
-            Required by request validation, but the server **overrides** it with the
-            token's wallet. Send your own wallet to avoid confusion.
         catalogProductId: { type: string }
         title: { type: string, minLength: 1, maxLength: 200 }
         description: { type: string, maxLength: 5000, default: "" }
         priceUsd: { type: number, exclusiveMinimum: 0, description: Converted to TON at the current oracle rate. }
+        salePriceUsd: { type: number, exclusiveMinimum: 0, description: Optional launch discount — a USD price strictly below priceUsd. }
+        saleEndsAt: { type: string, format: date-time, description: Optional ISO end time for the sale. }
         deliveryType: { type: string }
         deliveryPayload: { type: string, description: The secret delivered to buyers; never echoed back. }
         collectionAddress: { type: string, description: Pre-deployed AppCollection address; mandatory to mint license NFTs on purchase. }
-        platformFeeBps: { type: integer, minimum: 0, maximum: 10000 }
+        platformFeeBps: { type: integer, minimum: 0, maximum: 10000, description: Clamped up to the platform minimum — cannot reduce the platform fee below policy. }
 
     PatchListingRequest:
       type: object
       description: Any subset of these fields. Empty `collectionAddress` is rejected.
       properties:
-        status: { type: string, enum: [active, inactive, draft] }
+        status: { type: string, enum: [draft, active, paused], description: Activation requires a collection address (existing or supplied) and approved KYC. }
         title: { type: string, maxLength: 200 }
         description: { type: string, maxLength: 5000 }
         priceUsd: { type: number, exclusiveMinimum: 0 }
+        salePriceUsd: { type: number, nullable: true, description: Positive value below priceUsd starts/updates a discount; 0 or null clears it. }
+        saleEndsAt: { type: string, nullable: true, format: date-time, description: ISO end time for the sale; null clears it. }
         deliveryPayload: { type: string }
         collectionAddress: { type: string }
 

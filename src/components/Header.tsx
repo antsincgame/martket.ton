@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Sparkles, Gem, LogIn, LogOut, Search } from 'lucide-react';
+import { User, Sparkles, Gem, LogIn, LogOut, Search, Heart } from 'lucide-react';
 import { useSearch } from '../contexts/SearchContext';
 import { useNetwork } from '../contexts/NetworkContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -95,6 +95,14 @@ const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
             <div className="w-9 h-9 rounded-full bg-white/5 animate-pulse" aria-hidden />
           ) : isAuthenticated ? (
             <>
+              <Link
+                to="/wishlist"
+                className="p-2 text-[#999] hover:text-[#FF3B6B] transition-colors"
+                title="Wishlist"
+                aria-label="Wishlist"
+              >
+                <Heart className="w-5 h-5" />
+              </Link>
               <Link
                 to="/profile"
                 className="flex items-center space-x-2 bg-[#FFD700]/10 hover:bg-[#FFD700]/20 border border-[#FFD700]/30 px-3 sm:px-4 py-2 rounded-full transition-all duration-300"

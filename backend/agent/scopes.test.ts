@@ -102,6 +102,23 @@ describe('products:write', () => {
   });
 });
 
+describe('orders:buy', () => {
+  it('is in the canonical set and round-trips', () => {
+    expect(ALL_SCOPES).toContain('orders:buy');
+    expect(parseScopes('orders:buy')).toEqual(['orders:buy']);
+    expect(serializeScopes(['orders:buy'])).toBe('orders:buy');
+  });
+
+  it('is standalone — implies nothing, satisfied by nothing else', () => {
+    expect(Array.from(expandScopes(['orders:buy']))).toEqual(['orders:buy']);
+    // A buyer token must not unlock seller surfaces and vice versa.
+    expect(hasAllScopes(['orders:buy'], ['orders:read'])).toBe(false);
+    expect(hasAllScopes(['orders:buy'], ['listings:write'])).toBe(false);
+    expect(hasAllScopes(['orders:read'], ['orders:buy'])).toBe(false);
+    expect(hasAllScopes(['listings:write', 'distribution:write', 'products:write'], ['orders:buy'])).toBe(false);
+  });
+});
+
 describe('instructions:read', () => {
   it('is a standalone read scope that implies nothing else', () => {
     expect(Array.from(expandScopes(['instructions:read']))).toEqual(['instructions:read']);

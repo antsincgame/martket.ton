@@ -21,6 +21,17 @@ import { z } from 'zod';
 
 const BASE = process.env.TONFORGE_API ?? 'https://tonforge.org/api/v1/agent';
 const TOKEN = process.env.TONFORGE_AGENT_TOKEN;
+// Buyer tools use a separate buyer token (scope orders:buy, issued by the
+// accountable human via POST /api/v1/commerce/buyer-agent-tokens and bound to
+// the wallet the agent PAYS from — e.g. a TON Agentic Wallet). Falls back to
+// TONFORGE_AGENT_TOKEN so a single dual-scope token also works.
+const BUYER_TOKEN = process.env.TONFORGE_BUYER_TOKEN ?? TOKEN;
+// Identity/onboarding tools (whoami, get_instructions, get_status,
+// assistant_help) accept ANY valid token server-side — fall back to the buyer
+// token so a buyer-only setup isn't blind to the manual and its own status.
+const ANY_TOKEN = TOKEN ?? process.env.TONFORGE_BUYER_TOKEN;
+// A hung connection must fail the tool call, not hang the agent's turn forever.
+const FETCH_TIMEOUT_MS = 30_000;
 // Site origin (e.g. https://tonforge.org) for the PUBLIC discovery endpoints,
 // derived from BASE so a TONFORGE_API override (staging, etc.) carries over.
 const ORIGIN = new URL(BASE).origin;
@@ -45,8 +56,8 @@ interface ApiError {
  * route-level (`{ error, code }`) and middleware (`{ message, code }`) error
  * shapes as a single thrown Error the tool layer turns into an isError result.
  */
-async function api(method: string, path: string, body?: unknown): Promise<unknown> {
-  if (!TOKEN) {
+async function api(method: string, path: string, body?: unknown, token: string | undefined = TOKEN): Promise<unknown> {
+  if (!token) {
     throw new Error(
       'No TONFORGE_AGENT_TOKEN configured. This is a seller tool — set a tfa_ token issued by a verified seller. ' +
         'Public discovery tools (search_products, get_product, list_offers) work without one.',
@@ -55,10 +66,11 @@ async function api(method: string, path: string, body?: unknown): Promise<unknow
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${TOKEN}`,
+      Authorization: `Bearer ${token}`,
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
 
   const text = await res.text();
@@ -86,7 +98,10 @@ async function api(method: string, path: string, body?: unknown): Promise<unknow
  * commerce (`{ data }`) envelopes expose `.data`, so we unwrap it uniformly.
  */
 async function publicGet(path: string): Promise<unknown> {
-  const res = await fetch(`${ORIGIN}${path}`, { headers: { Accept: 'application/json' } });
+  const res = await fetch(`${ORIGIN}${path}`, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   const text = await res.text();
   let json: unknown;
   try {
@@ -101,6 +116,17 @@ async function publicGet(path: string): Promise<unknown> {
   }
   const obj = json as { data?: unknown };
   return obj.data ?? json;
+}
+
+/** Buyer-surface call: same Agent API, authenticated with the BUYER token. */
+async function buyerApi(method: string, path: string, body?: unknown): Promise<unknown> {
+  if (!BUYER_TOKEN) {
+    throw new Error(
+      'No TONFORGE_BUYER_TOKEN configured. Buying needs a buyer token (scope orders:buy) bound to the ' +
+        'wallet this agent pays from — the accountable human issues it via POST /api/v1/commerce/buyer-agent-tokens.',
+    );
+  }
+  return api(method, path, body, BUYER_TOKEN);
 }
 
 type ToolResult = {
@@ -127,7 +153,7 @@ server.tool(
   {},
   async () => {
     try {
-      return ok(await api('GET', '/me'));
+      return ok(await api('GET', '/me', undefined, ANY_TOKEN));
     } catch (e) {
       return fail(e);
     }
@@ -149,11 +175,8 @@ server.tool(
 
 server.tool(
   'create_listing',
-  'Create a new active listing owned by the token\'s wallet (requires listings:write). priceUsd is converted to TON at the current oracle rate.',
+  "Create a new active listing owned by the token's wallet — the seller wallet always comes from your token, never from input (requires listings:write). priceUsd is converted to TON at the current oracle rate.",
   {
-    sellerWallet: z
-      .string()
-      .describe("Your wallet. Required for validation, but overridden server-side with the token's wallet."),
     catalogProductId: z.string(),
     title: z.string().max(200),
     priceUsd: z.number().positive(),
@@ -162,6 +185,8 @@ server.tool(
     collectionAddress: z.string().describe('Pre-deployed AppCollection address; mandatory for license-NFT minting on purchase.'),
     description: z.string().max(5000).optional(),
     platformFeeBps: z.number().int().min(0).max(10000).optional(),
+    salePriceUsd: z.number().positive().optional().describe('Optional launch discount: a USD price below priceUsd.'),
+    saleEndsAt: z.string().datetime().optional().describe('Optional ISO end time for the sale.'),
   },
   async (args) => {
     try {
@@ -174,13 +199,15 @@ server.tool(
 
 server.tool(
   'update_listing',
-  'Update fields on a listing you own (requires listings:write). Setting status to "active" requires a collectionAddress (existing or supplied here).',
+  'Update fields on a listing you own (requires listings:write). Setting status to "active" requires a collectionAddress (existing or supplied here); "paused" hides the listing from buyers without losing its setup.',
   {
     id: z.string().describe('Listing id.'),
-    status: z.enum(['active', 'inactive', 'draft']).optional(),
+    status: z.enum(['active', 'paused', 'draft']).optional(),
     title: z.string().max(200).optional(),
     description: z.string().max(5000).optional(),
     priceUsd: z.number().positive().optional(),
+    salePriceUsd: z.number().nonnegative().nullable().optional().describe('Start/update a discount (< priceUsd); 0 or null clears it.'),
+    saleEndsAt: z.string().datetime().nullable().optional().describe('ISO end time for the sale; null clears it.'),
     deliveryPayload: z.string().optional(),
     collectionAddress: z.string().optional(),
   },
@@ -201,7 +228,7 @@ server.tool(
     manifest: z
       .record(z.any())
       .describe('Distribution manifest object (kind r2|github, sha256, …); see docs/byos-distribution.md.'),
-    ttlSec: z.number().int().positive().optional().describe('Signed-URL TTL in seconds (default 3600).'),
+    ttlSec: z.number().int().min(60).max(21600).optional().describe('Signed-URL TTL in seconds, 60–21600 (default 3600).'),
   },
   async ({ id, manifest, ttlSec }) => {
     try {
@@ -243,12 +270,53 @@ server.tool(
 );
 
 server.tool(
+  'get_analytics',
+  "Read the seller's store performance (requires orders:read): sales count, revenue split (gross / your net / platform fees, in raw nanoton + human TON), refunds, order-state breakdown, and a top-products ranking by sales. Use it to decide what to restock, re-price, or promote.",
+  {},
+  async () => {
+    try {
+      return ok(await api('GET', '/analytics'));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'set_webhook',
+  "Register an HTTPS endpoint to receive signed event webhooks (order.paid, payout.released) so the storefront reacts to sales event-driven instead of polling (requires orders:read). Returns a signing secret ONCE — store it; verify each delivery's X-TonForge-Signature (sha256=HMAC of the raw body). The URL must be HTTPS and must not resolve to a private IP.",
+  {
+    url: z.string().url().describe('HTTPS endpoint that will receive POSTed events.'),
+  },
+  async ({ url }) => {
+    try {
+      return ok(await api('POST', '/webhook', { url }));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'delete_webhook',
+  'Remove the seller\'s registered event webhook (requires orders:read).',
+  {},
+  async () => {
+    try {
+      return ok(await api('DELETE', '/webhook'));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
   'get_instructions',
   'Read the platform-authored agent onboarding/operating manual (instructions:read; readable before KYC). Returns the honest service overview, prerequisites, lifecycle, KYC policy, and behaviour/honesty boundary, plus your personalised onboarding checklist.',
   {},
   async () => {
     try {
-      return ok(await api('GET', '/instructions'));
+      return ok(await api('GET', '/instructions', undefined, ANY_TOKEN));
     } catch (e) {
       return fail(e);
     }
@@ -261,7 +329,7 @@ server.tool(
   {},
   async () => {
     try {
-      return ok(await api('GET', '/status'));
+      return ok(await api('GET', '/status', undefined, ANY_TOKEN));
     } catch (e) {
       return fail(e);
     }
@@ -313,7 +381,7 @@ server.tool(
   },
   async ({ question }) => {
     try {
-      return ok(await api('POST', '/help', { question }));
+      return ok(await api('POST', '/help', { question }, ANY_TOKEN));
     } catch (e) {
       return fail(e);
     }
@@ -390,11 +458,88 @@ server.tool(
   },
 );
 
+// ── Buyer tools (orders:buy token) — agentic purchasing ─────────────────────
+//
+// The agent pays from ITS OWN TON wallet (e.g. a TON Agentic Wallet,
+// https://agents.ton.org/ — operator key held by the agent, owner key by the
+// human). This MCP server never holds keys or moves funds: create_order
+// returns exact payment instructions, the agent executes them with its wallet
+// tooling (e.g. @ton/mcp), then confirms here. Non-custodial on both sides.
+
+server.tool(
+  'create_order',
+  'BUY step 1: create an order for a listing (requires a buyer token; the buying wallet is bound to it). ' +
+    'Returns payment instructions: send EXACTLY payment.amountNanoton from your wallet to payment.payToAddress ' +
+    'attaching BOTH payment.stateInitBase64 and payment.payloadBase64 (a plain comment transfer will NOT fund the escrow). ' +
+    'Execute the payment with your own TON wallet tooling (e.g. a TON Agentic Wallet via @ton/mcp), then call confirm_order.',
+  {
+    listingId: z.string().describe('The listing to buy (from list_offers).'),
+  },
+  async ({ listingId }) => {
+    try {
+      return ok(await buyerApi('POST', '/buyer/orders', { listingId }));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'confirm_order',
+  'BUY step 2: after paying the escrow, verify the payment on-chain. On success the license NFT mint is queued ' +
+    '(mintPending: true) — poll get_order until state is paid/fulfilled. Idempotent; safe to retry while the escrow funds.',
+  {
+    orderId: z.string().describe('Order id returned by create_order.'),
+  },
+  async ({ orderId }) => {
+    try {
+      return ok(await buyerApi('POST', `/buyer/orders/${encodeURIComponent(orderId)}/confirm`));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'get_order',
+  "Poll your own order: state (pending_payment → paid → fulfilled), escrow address, license NFT address, and the " +
+    'delivery payload once paid. Only orders belonging to the buyer token\'s wallet are readable.',
+  {
+    orderId: z.string().describe('Order id.'),
+  },
+  async ({ orderId }) => {
+    try {
+      return ok(await buyerApi('GET', `/buyer/orders/${encodeURIComponent(orderId)}`));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
+server.tool(
+  'download_purchase',
+  'BUY step 3: get a short-lived signed download URL (+ expected sha256) for a listing you bought. Gated on the ' +
+    'minted license NFT and a clean antivirus verdict; ≤20 URLs/day per purchase. Verify the sha256 after download.',
+  {
+    listingId: z.string().describe('The listing id you purchased.'),
+  },
+  async ({ listingId }) => {
+    try {
+      return ok(await buyerApi('GET', `/buyer/listings/${encodeURIComponent(listingId)}/download`));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
+
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   // MCP speaks JSON-RPC on stdout; logs must go to stderr.
-  console.error(`tonforge-agent MCP server ready (base=${BASE}, seller tools ${TOKEN ? 'enabled' : 'disabled'})`);
+  console.error(
+    `tonforge-agent MCP server ready (base=${BASE}, seller tools ${TOKEN ? 'enabled' : 'disabled'}, ` +
+      `buyer tools ${BUYER_TOKEN ? 'enabled' : 'disabled'})`,
+  );
 }
 
 main().catch((e) => {

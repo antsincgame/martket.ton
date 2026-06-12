@@ -347,22 +347,23 @@ describe('Escrow v4 Contract', () => {
     });
   });
 
-  // ─── RegisterLicense (self-registration) ─────────────────────────
+  // ─── RegisterLicense (bound-collection only — CON-01 fix) ────────
 
-  it('accepts RegisterLicense only when sender matches licenseAddress', async () => {
+  it('accepts RegisterLicense only from the bound collection', async () => {
     await escrow.send(
       buyer.getSender(),
       { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
 
+    // fakeCollection — это collectionAddress, с которым задеплоен escrow.
     const result = await escrow.send(
-      outsider.getSender(),
+      fakeCollection.getSender(),
       { value: toNano('0.05') },
       { $$type: 'RegisterLicense', licenseAddress: outsider.address },
     );
     expect(result.transactions).toHaveTransaction({
-      from: outsider.address,
+      from: fakeCollection.address,
       to: escrow.address,
       success: true,
     });
@@ -371,22 +372,26 @@ describe('Escrow v4 Contract', () => {
     expect(lic.equals(outsider.address)).toBe(true);
   });
 
-  it('rejects RegisterLicense when sender != licenseAddress (spoofing)', async () => {
+  it('rejects RegisterLicense from a non-collection sender (CON-01 front-run)', async () => {
     await escrow.send(
       buyer.getSender(),
       { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
+    // Атакующий пытается зарегистрировать СВОЙ контракт на чужом FUNDED-эскроу.
     const result = await escrow.send(
       outsider.getSender(),
       { value: toNano('0.05') },
-      { $$type: 'RegisterLicense', licenseAddress: buyer.address },
+      { $$type: 'RegisterLicense', licenseAddress: outsider.address },
     );
     expect(result.transactions).toHaveTransaction({
       from: outsider.address,
       to: escrow.address,
       success: false,
     });
+    // licenseAddress остаётся незарегистрированным (адрес атакующего НЕ принят).
+    const lic = await escrow.getLicenseAddress();
+    expect(lic.equals(outsider.address)).toBe(false);
   });
 
   it('rejects double RegisterLicense', async () => {
@@ -396,17 +401,17 @@ describe('Escrow v4 Contract', () => {
       { $$type: 'PayEscrow' },
     );
     await escrow.send(
-      outsider.getSender(),
+      fakeCollection.getSender(),
       { value: toNano('0.05') },
       { $$type: 'RegisterLicense', licenseAddress: outsider.address },
     );
     const second = await escrow.send(
-      buyer.getSender(),
+      fakeCollection.getSender(),
       { value: toNano('0.05') },
       { $$type: 'RegisterLicense', licenseAddress: buyer.address },
     );
     expect(second.transactions).toHaveTransaction({
-      from: buyer.address,
+      from: fakeCollection.address,
       to: escrow.address,
       success: false,
     });
@@ -445,14 +450,15 @@ describe('Escrow v4 Contract', () => {
     });
   });
 
-  it('accepts RefundOnBurn from registered license', async () => {
+  it('accepts RefundOnBurn from registered license and confirms the burn', async () => {
     await escrow.send(
       buyer.getSender(),
       { value: TOTAL_AMOUNT + toNano('0.1') },
       { $$type: 'PayEscrow' },
     );
+    // Регистрируем license через привязанную коллекцию.
     await escrow.send(
-      outsider.getSender(),
+      fakeCollection.getSender(),
       { value: toNano('0.05') },
       { $$type: 'RegisterLicense', licenseAddress: outsider.address },
     );
@@ -463,11 +469,45 @@ describe('Escrow v4 Contract', () => {
       { value: toNano('0.05') },
       { $$type: 'RefundOnBurn' },
     );
+    // Возврат покупателю.
     expect(result.transactions).toHaveTransaction({
       from: escrow.address,
       to: buyer.address,
       success: true,
     });
+    // Подтверждение сжигания обратно лицензии (двухфазный burn — H-1 fix).
+    expect(result.transactions).toHaveTransaction({
+      from: escrow.address,
+      to: outsider.address,
+      success: true,
+    });
     expect(await buyer.getBalance()).toBeGreaterThan(buyerBalanceBefore);
+  });
+
+  it('rejects RefundOnBurn after the trial window (M-9 race fix)', async () => {
+    await escrow.send(
+      buyer.getSender(),
+      { value: TOTAL_AMOUNT + toNano('0.1') },
+      { $$type: 'PayEscrow' },
+    );
+    await escrow.send(
+      fakeCollection.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RegisterLicense', licenseAddress: outsider.address },
+    );
+
+    // Перематываем за пределы окна возврата.
+    blockchain.now = blockchain.now! + Number(TRIAL_WINDOW) + 1;
+
+    const result = await escrow.send(
+      outsider.getSender(),
+      { value: toNano('0.05') },
+      { $$type: 'RefundOnBurn' },
+    );
+    expect(result.transactions).toHaveTransaction({
+      from: outsider.address,
+      to: escrow.address,
+      success: false,
+    });
   });
 });
