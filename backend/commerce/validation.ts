@@ -2,6 +2,15 @@ import { z } from 'zod';
 import { Address } from '@ton/core';
 import { CURRENCY } from './constants.js';
 
+/**
+ * Minimum listable price in USD. Below this, usdToTonHuman (toFixed(9)) can
+ * round the derived nanoton price toward dust/zero — and a 1-cent floor is a
+ * sane marketplace minimum anyway. Enforced at listing create/patch so the
+ * seller/agent gets a clear error instead of a silently-zeroed price; the
+ * authoritative zero-guard still lives at order creation.
+ */
+export const MIN_PRICE_USD = 0.01;
+
 export const sellerRegisterSchema = z.object({
   wallet: z.string().min(1, 'wallet is required'),
   displayName: z.string().min(1, 'displayName is required').max(200),
@@ -45,9 +54,9 @@ export const createListingSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(5000).default(''),
   currency: z.literal(CURRENCY.TON).default(CURRENCY.TON),
-  priceUsd: z.number().positive(),
+  priceUsd: z.number().min(MIN_PRICE_USD),
   // Optional sale: a discounted USD price (< priceUsd) and an optional end time.
-  salePriceUsd: z.number().positive().optional(),
+  salePriceUsd: z.number().min(MIN_PRICE_USD).optional(),
   saleEndsAt: z.string().datetime().optional(),
   deliveryType: z.string().min(1),
   deliveryPayload: z.string().min(1),
@@ -73,9 +82,12 @@ export const patchListingSchema = z
     status: z.enum(['draft', 'active', 'paused']).optional(),
     title: z.string().max(200).optional(),
     description: z.string().max(5000).optional(),
-    priceUsd: z.number().positive().optional(),
+    priceUsd: z.number().min(MIN_PRICE_USD).optional(),
     // Sale: set salePriceUsd to start/update a discount; null/0 clears it.
-    salePriceUsd: z.number().nonnegative().nullable().optional(),
+    // 0 (clear) stays allowed; a positive sale must clear the dust floor.
+    salePriceUsd: z.number().nonnegative().refine((v) => v === 0 || v >= MIN_PRICE_USD, {
+      message: `salePriceUsd must be 0 (clear) or at least ${MIN_PRICE_USD}`,
+    }).nullable().optional(),
     saleEndsAt: z.string().datetime().nullable().optional(),
     deliveryPayload: z.string().optional(),
     collectionAddress: tonAddressSchema.optional(),

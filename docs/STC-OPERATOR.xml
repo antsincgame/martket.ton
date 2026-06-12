@@ -147,7 +147,9 @@
     <step order="1"><action>Собери контракты из main; задеплой НОВЫЕ Escrow/AppCollection/LicenseItem на testnet (contracts/scripts/, runbook — docs/agent-autonomy-roadmap.md).</action></step>
     <step order="2"><action>Обнови BOC-env (Фаза 2.3) и адрес коллекции; redeploy бэкенда; повтори Врата A и B + Фазы 3–4 этого СШК на новых контрактах.</action></step>
     <step order="3"><action>Закажи ВНЕШНИЙ аудит контрактов (для площадки, держащей чужие средства, — не опция, а долг). Исправь находки, повтори шаги 1–2.</action></step>
-    <danger>Не неси на mainnet контракты без внешнего аудита. Помни: LICENSE_MINT_GAS_NANO уже 250M — новый пол газа MintLicense 0.2 TON покрыт.</danger>
+    <verify>Варп-аудит 8 агентов (2026-06-12) подтвердил: K-2 (зануление комиссии) и K-3 (фронт-ран RegisterLicense) — ЗАКРЫТЫ в текущем коде; двухфазный BuyerBurn+FinalizeBurn — корректен. Остаются для аудитора два связанных пункта ниже.</verify>
+    <danger>K-1 ОСТАТОК: appCollection шлёт RegisterLicense эскроу с bounce:false. Если это сообщение потеряется/out-of-gas, эскроу навсегда останется с licenseAddress=0:0 → оба пути возврата заблокированы, средства покупателя застрянут. В передеплое: либо bounce:true + обработка, либо оракул-фолбэк, перепроверяющий регистрацию.</danger>
+    <danger>ГАЗ: контрактный пол MintLicense = ton("0.2")=200M, но бэкенд-бюджет на сообщение — 100M (mint) + 50M (register). На пике мейннет-комиссий register может «голодать». Сверь бюджеты escrow.ts (0.15/0.10/0.05) с реальной стоимостью операций перед mainnet. LICENSE_MINT_GAS_NANO уже 250M.</danger>
   </phase>
 
   <!-- ════════════════ ФАЗА 7 ════════════════ -->

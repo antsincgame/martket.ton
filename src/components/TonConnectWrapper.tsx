@@ -35,10 +35,19 @@ function getManifestUrl(): string {
  */
 function getTwaReturnUrl(): `${string}://${string}` | undefined {
   if (!isTelegramMiniApp()) return undefined;
-  const url = import.meta.env.VITE_TG_BOT_URL;
-  return url && String(url).startsWith('https://t.me/')
-    ? (String(url) as `${string}://${string}`)
-    : undefined;
+  const raw = import.meta.env.VITE_TG_BOT_URL;
+  if (!raw) return undefined;
+  // Parse rather than prefix-match: rejects http://, look-alike hosts
+  // (t.me.evil.com), and anything malformed before it reaches TonConnect.
+  try {
+    const u = new URL(String(raw));
+    if (u.protocol === 'https:' && u.hostname === 't.me') {
+      return u.toString() as `${string}://${string}`;
+    }
+  } catch {
+    /* malformed VITE_TG_BOT_URL — fall through to default back-navigation */
+  }
+  return undefined;
 }
 
 interface FallbackState {

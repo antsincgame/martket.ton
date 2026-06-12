@@ -112,6 +112,23 @@ export async function createOrderCore(params: CreateOrderParams): Promise<OrderC
     const sellerPriceRaw = effectiveSellerPriceRaw(
       listing as { priceAmountRaw?: string; sale_price_amount_raw?: string | null; sale_ends_at?: string | null },
     );
+    // Authoritative price-sanity gate. A sub-cent USD price rounds to "0" nanoton
+    // through usdToTonHuman (toFixed(9)), and a manually-edited listing could
+    // carry a malformed/zero/negative priceAmountRaw. Either would build an
+    // escrow the buyer funds for nothing the seller receives. Reject here, at the
+    // single money point, before any amount/escrow is derived.
+    let sellerPriceNano: bigint;
+    try {
+      sellerPriceNano = BigInt(sellerPriceRaw);
+    } catch {
+      sellerPriceNano = -1n;
+    }
+    if (sellerPriceNano <= 0n) {
+      return {
+        ok: false, status: 400,
+        body: { error: 'Listing price resolves to zero or is invalid; cannot create an order.', code: 'INVALID_PRICE' },
+      };
+    }
     // Platform fee is a PLATFORM policy, never below the configured minimum.
     // The seller-supplied platformFeeBps (validated 0..10000) could otherwise be
     // set to 0 to pay zero commission — clamp it up to DEFAULT_PLATFORM_FEE_BPS

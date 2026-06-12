@@ -57,6 +57,20 @@ describe('proveAgentWalletOwnership', () => {
     expect(mockVerify).toHaveBeenCalledWith('AGENTIC_WALLET', 'WALLET_A');
   });
 
+  it('enforces the collection pin when BUYER_AGENT_WALLET_COLLECTION is set', async () => {
+    process.env.BUYER_AGENT_WALLET_COLLECTION = 'EQrealcollection';
+    // owner matches but the contract is NOT from the pinned agentic-wallet collection
+    mockVerify.mockResolvedValue({ ok: true, collection: 'EQlookalike' });
+    const bad = await proveAgentWalletOwnership('AGENTIC_WALLET', 'WALLET_A');
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.code).toBe('AGENT_WALLET_WRONG_COLLECTION');
+    // a wallet from the pinned collection passes
+    mockVerify.mockResolvedValue({ ok: true, collection: 'EQrealcollection' });
+    const good = await proveAgentWalletOwnership('AGENTIC_WALLET', 'WALLET_A');
+    expect(good.ok).toBe(true);
+    delete process.env.BUYER_AGENT_WALLET_COLLECTION;
+  });
+
   it("rejects binding a stranger's wallet (on-chain owner differs)", async () => {
     mockVerify.mockResolvedValue({ ok: false, reason: 'OWNER_MISMATCH' });
     const r = await proveAgentWalletOwnership('VICTIM_WALLET', 'ATTACKER_WALLET');

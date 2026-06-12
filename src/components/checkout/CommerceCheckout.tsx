@@ -48,10 +48,14 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   // on-chain payment for the same purchase.
   const [paidPending, setPaidPending] = useState<{ orderId: string; txHash: string } | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
 
-  // Cleanup polling timer при unmount
+  // Cleanup polling timer при unmount; mountedRef stops an in-flight poll()
+  // from setting state or rescheduling after the component is gone.
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     };
   }, []);
@@ -82,10 +86,12 @@ export default function CommerceCheckout({ catalogProductId }: Props) {
   const startMintPolling = useCallback(async (orderId: string, walletAddr: string) => {
     let attempts = 0;
     const poll = async () => {
+      if (!mountedRef.current) return;
       attempts += 1;
       setMintProgress(attempts);
       try {
         const status = await fetchCommerceOrder(orderId, walletAddr);
+        if (!mountedRef.current) return; // unmounted during the await
         const isPaidOrFulfilled = status.order.state === 'paid' || status.order.state === 'fulfilled';
         if (isPaidOrFulfilled && status.deliveryPayload) {
           setDelivery(status.deliveryPayload);

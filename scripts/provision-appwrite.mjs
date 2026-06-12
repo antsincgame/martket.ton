@@ -195,6 +195,8 @@ async function setupIndexes(databases) {
     [COL_PRODUCTS, 'idx_category_slug', IndexType.Key, ['categorySlug']],
     [COL_PRODUCTS, 'idx_featured', IndexType.Key, ['isFeatured']],
     [COL_REVIEWS, 'idx_review_product', IndexType.Key, ['productId']],
+    // Composite for listVisibleReviews: filter productId + orderDesc(reviewDate).
+    [COL_REVIEWS, 'idx_review_product_date', IndexType.Key, ['productId', 'reviewDate']],
     [COL_REVIEWS, 'uniq_review_buyer_product', IndexType.Unique, ['productId', 'buyerWallet']],
     [COL_CATEGORIES, 'idx_category_slug_unique', IndexType.Unique, ['slug']],
   ];

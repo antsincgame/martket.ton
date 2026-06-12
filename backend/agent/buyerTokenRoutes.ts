@@ -63,6 +63,13 @@ function ownershipCheckEnabled(): boolean {
  * Prove the caller (ownerWallet, ton_proof-bound) controls agentWallet.
  * Trivially true for their own wallet; for an agentic (contract) wallet the
  * proof is the on-chain TEP-85 owner.
+ *
+ * Defence in depth: the owner==caller check alone trusts whatever `get_nft_data`
+ * returns, so a look-alike SBT that simply reports the victim as owner would
+ * pass. When BUYER_AGENT_WALLET_COLLECTION is set to the real TON Agentic Wallet
+ * collection address, the proved wallet must ALSO belong to that collection —
+ * closing the forged-owner vector. Unset = no collection pin (current default,
+ * since the canonical collection address is published by agents.ton.org).
  */
 export async function proveAgentWalletOwnership(
   agentWallet: string,
@@ -71,8 +78,12 @@ export async function proveAgentWalletOwnership(
   if (addressesEqual(agentWallet, ownerWallet)) return { ok: true };
   if (!ownershipCheckEnabled()) return { ok: true };
   const result = await verifyLicenseOwner(agentWallet, ownerWallet);
-  if (result.ok) return { ok: true };
-  return { ok: false, code: 'AGENT_WALLET_NOT_OWNED', detail: result.reason };
+  if (!result.ok) return { ok: false, code: 'AGENT_WALLET_NOT_OWNED', detail: result.reason };
+  const pinnedCollection = (process.env.BUYER_AGENT_WALLET_COLLECTION || '').trim();
+  if (pinnedCollection && !addressesEqual(result.collection || '', pinnedCollection)) {
+    return { ok: false, code: 'AGENT_WALLET_WRONG_COLLECTION', detail: result.collection };
+  }
+  return { ok: true };
 }
 
 router.post(

@@ -45,20 +45,29 @@ export function endpointFor(provider: string, accountId: string, custom?: string
  * (BYOS-эндпоинты И исходящие вебхуки — оба бьют по seller-контролируемым URL).
  */
 export function isPrivateIp(ip: string): boolean {
-  const v = ip.toLowerCase();
-  if (v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80')) {
-    return true;
+  const v = ip.toLowerCase().trim();
+  // ── IPv6 (anything with ':' that isn't the IPv4-mapped dotted form) ──
+  if (v.includes(':') && !v.startsWith('::ffff:')) {
+    if (v === '::1' || v === '::') return true;                 // loopback / unspecified
+    if (v.startsWith('fc') || v.startsWith('fd')) return true;  // ULA fc00::/7
+    if (/^fe[89ab]/.test(v)) return true;                       // link-local fe80::/10 (fe80–febf)
+    if (v.startsWith('ff')) return true;                        // multicast ff00::/8
+    return false;                                               // routable public IPv6
   }
+  // ── IPv4 (incl. ::ffff:x.x.x.x mapped form) ──
   const mapped = v.startsWith('::ffff:') ? v.slice(7) : v;
   const m = mapped.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (!m) return false;
-  const a = Number(m[1]);
-  const b = Number(m[2]);
-  if (a === 10 || a === 127 || a === 0) return true;
-  if (a === 169 && b === 254) return true; // link-local / метаданные облака
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+  const octets = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+  if (octets.some((n) => n > 255)) return true;            // malformed → treat as unsafe
+  const [a, b] = octets;
+  if (a === 0 || a === 10 || a === 127) return true;       // this-network / private / loopback
+  if (a === 169 && b === 254) return true;                 // link-local / cloud metadata (169.254.169.254)
+  if (a === 172 && b! >= 16 && b! <= 31) return true;      // private 172.16/12
+  if (a === 192 && b === 168) return true;                 // private 192.168/16
+  if (a === 100 && b! >= 64 && b! <= 127) return true;     // CGNAT 100.64/10
+  if (a === 198 && (b === 18 || b === 19)) return true;    // benchmarking 198.18/15
+  if (a! >= 224) return true;                              // multicast 224/4 + reserved 240/4 + broadcast
   return false;
 }
 
