@@ -43,7 +43,7 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
-    "axios": "^1.17.0",
+    "axios": "^1.18.1",
     "fast-xml-builder": "^1.2.0",
     "ip-address": "^10.2.0",
     "qs": "^6.15.2",
